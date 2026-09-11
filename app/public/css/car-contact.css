@@ -1,0 +1,289 @@
+:root {
+  --cc-bg: #0b0d10;
+  --cc-panel: rgba(18, 20, 24, .86);
+  --cc-panel-strong: rgba(255, 255, 255, .08);
+  --cc-text: #f6f4ee;
+  --cc-muted: rgba(246, 244, 238, .68);
+  --cc-dim: rgba(246, 244, 238, .48);
+  --cc-line: rgba(246, 244, 238, .14);
+  --cc-mint: #59d69b;
+  --cc-blue: #55acee;
+  --cc-amber: #f3bc55;
+  --cc-red: #e66f65;
+  --cc-shadow: 0 24px 80px rgba(0, 0, 0, .46);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body.car-contact {
+  min-height: 100svh;
+  color: var(--cc-text);
+  background:
+    linear-gradient(135deg, rgba(89, 214, 155, .16), transparent 38%),
+    linear-gradient(225deg, rgba(243, 188, 85, .18), transparent 34%),
+    linear-gradient(180deg, #16191d 0%, var(--cc-bg) 100%);
+  overflow-x: hidden;
+}
+
+body.car-contact--amber {
+  background:
+    linear-gradient(135deg, rgba(243, 188, 85, .2), transparent 36%),
+    linear-gradient(225deg, rgba(85, 172, 238, .16), transparent 34%),
+    linear-gradient(180deg, #171819 0%, var(--cc-bg) 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.car-contact__shell {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+}
+
+.car-contact__panel {
+  width: min(100%, 440px);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--cc-line);
+  border-radius: 28px;
+  padding: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .1), transparent 32%),
+    var(--cc-panel);
+  box-shadow: var(--cc-shadow);
+  backdrop-filter: blur(24px) saturate(132%);
+}
+
+.car-contact__panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, .08), transparent),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 13px);
+  opacity: .7;
+}
+
+.car-contact__panel > * {
+  position: relative;
+}
+
+.car-contact__header {
+  padding: 6px 4px 18px;
+}
+
+.car-contact__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.car-contact__logo {
+  width: 48px;
+  height: 48px;
+  display: block;
+  border-radius: 14px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, .32);
+}
+
+.car-contact__brand span {
+  color: var(--cc-text);
+  font-size: 1.18rem;
+  font-weight: 900;
+}
+
+.car-contact__kicker {
+  margin: 0;
+  color: var(--cc-muted);
+}
+
+.car-contact__kicker {
+  margin-bottom: 10px;
+  color: var(--cc-mint);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.car-contact--amber .car-contact__kicker {
+  color: var(--cc-amber);
+}
+
+.car-contact__header h1 {
+  max-width: 10.8em;
+  margin: 0;
+  font-size: clamp(2rem, 9vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.car-contact__call {
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin: 2px 0 12px;
+  border-radius: 24px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(89, 214, 155, .95), rgba(85, 172, 238, .88)),
+    #59d69b;
+  color: #06100d;
+  box-shadow: 0 18px 46px rgba(89, 214, 155, .22);
+}
+
+.car-contact--amber .car-contact__call {
+  background:
+    linear-gradient(135deg, rgba(243, 188, 85, .97), rgba(230, 111, 101, .9)),
+    #f3bc55;
+  color: #150d05;
+  box-shadow: 0 18px 46px rgba(243, 188, 85, .22);
+}
+
+.car-contact__call-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .35);
+}
+
+.car-contact__call svg,
+.car-contact__action svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+  fill: currentColor;
+}
+
+.car-contact__call strong,
+.car-contact__call em {
+  display: block;
+  min-width: 0;
+}
+
+.car-contact__call strong {
+  margin-bottom: 2px;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.car-contact__call em {
+  font-style: normal;
+  font-size: 1.22rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.car-contact__actions {
+  display: grid;
+  gap: 10px;
+}
+
+.car-contact__action {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--cc-line);
+  border-radius: 20px;
+  padding: 10px 14px 10px 10px;
+  background: rgba(255, 255, 255, .07);
+  color: var(--cc-text);
+}
+
+.car-contact__action svg {
+  width: 44px;
+  height: 44px;
+  padding: 11px;
+  border-radius: 15px;
+  background: var(--cc-panel-strong);
+}
+
+.car-contact__action span {
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.car-contact__action--whatsapp svg {
+  color: var(--cc-mint);
+}
+
+.car-contact__action--telegram svg {
+  color: var(--cc-blue);
+}
+
+.car-contact__action--mail svg {
+  color: var(--cc-amber);
+}
+
+.car-contact__call:active,
+.car-contact__action:active {
+  transform: translateY(1px) scale(.995);
+}
+
+@media (hover: hover) {
+  .car-contact__call,
+  .car-contact__action {
+    transition: transform .18s ease, border-color .18s ease, background .18s ease;
+  }
+
+  .car-contact__call:hover,
+  .car-contact__action:hover {
+    transform: translateY(-2px);
+  }
+
+  .car-contact__action:hover {
+    border-color: rgba(255, 255, 255, .26);
+    background: rgba(255, 255, 255, .1);
+  }
+}
+
+@media (max-width: 360px) {
+  .car-contact__shell {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .car-contact__panel {
+    border-radius: 22px;
+    padding: 14px;
+  }
+
+  .car-contact__header h1 {
+    font-size: 1.84rem;
+  }
+
+  .car-contact__call {
+    grid-template-columns: 48px minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .car-contact__call-icon {
+    width: 48px;
+    height: 48px;
+  }
+}

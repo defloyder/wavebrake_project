@@ -1,0 +1,83 @@
+.legal-section {
+  padding: 60px 0 80px;
+}
+
+.legal-container {
+  max-width: 760px;
+}
+
+.legal-title {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  margin: 8px 0 40px;
+  font-family: "Montserrat", sans-serif;
+}
+
+.legal-body {
+  color: #c7d0df;
+  line-height: 1.75;
+}
+
+.legal-body h2 {
+  font-size: 1.05rem;
+  font-family: "Montserrat", sans-serif;
+  color: #e6ebf3;
+  margin: 36px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(138,148,166,.15);
+}
+
+.legal-body h3 {
+  font-size: .95rem;
+  font-family: "Montserrat", sans-serif;
+  color: #d2dae7;
+  margin: 20px 0 8px;
+}
+
+.legal-body p {
+  margin: 0 0 10px;
+  color: #b0bac9;
+}
+
+.legal-body ul {
+  margin: 0 0 14px;
+  padding-left: 20px;
+}
+
+.legal-body ul li {
+  margin-bottom: 6px;
+  color: #b0bac9;
+}
+
+.legal-body a {
+  color: #6b93c0;
+  text-decoration: none;
+}
+
+.legal-body a:hover {
+  text-decoration: underline;
+}
+
+.legal-requisites {
+  background: rgba(17,26,42,.6);
+  border: 1px solid rgba(138,148,166,.15);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 10px 0 14px;
+}
+
+.legal-requisites p {
+  margin: 0 0 6px;
+  font-size: .9rem;
+}
+
+.legal-requisites p:last-child {
+  margin-bottom: 0;
+}
+
+.legal-requisites span {
+  color: #8a94a6;
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-right: 6px;
+}

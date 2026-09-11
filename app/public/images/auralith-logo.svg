@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Auralith</title>
+  <desc id="desc">Auralith gradient A mark with ecosystem dot</desc>
+  <defs>
+    <linearGradient id="auralith-mark" x1="32" y1="204" x2="210" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00D4FF"/>
+      <stop offset=".52" stop-color="#4A9EFF"/>
+      <stop offset="1" stop-color="#A259FF"/>
+    </linearGradient>
+    <filter id="soft-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.29 0 0 0 0 0.62 0 0 0 0 1 0 0 0 .45 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="#050B16"/>
+  <g filter="url(#soft-glow)">
+    <path d="M73 171 124 79c12-22 43-22 55 0l33 58c7 13 2 29-11 36-13 7-29 2-36-11l-13-23-42 76h43c15 0 27 12 27 27s-12 27-27 27H95c-20 0-33-22-22-39Z"
+          fill="none"
+          stroke="url(#auralith-mark)"
+          stroke-width="34"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          transform="translate(-22 -30) scale(.94)"/>
+    <circle cx="180" cy="157" r="28" fill="url(#auralith-mark)"/>
+  </g>
+</svg>

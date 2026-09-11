@@ -1,0 +1,291 @@
+@extends('layout')
+
+@section('title', 'WAVEBREAK - кабинет')
+@section('body_class', 'wb-dashboard-body')
+
+@section('content')
+@php
+    $section = $section ?? 'overview';
+    $email = $me['email'] ?? 'user@wavebreak.local';
+    $hasSubscription = (bool) $subscription;
+    $activeGrants = collect($grants)->where('status', 'active')->count();
+    $onlineNodes = collect($nodes)->where('status', 'online')->count();
+    $activeDevices = collect($devices ?? [])->filter(fn ($device) => empty($device['revoked_at']))->count();
+    $telegramIdentities = collect($overview['telegram'] ?? [])->where('provider', 'telegram');
+    $usedBytes = (int) ($usage['bytes_total'] ?? 0);
+    $limitBytes = $usage['limit_bytes'] ?? null;
+    $usagePercent = $usage['percent_used'] ?? null;
+    $planById = collect($plans)->keyBy('id');
+    $currentPlan = $hasSubscription ? $planById->get($subscription['plan_id'] ?? '') : null;
+    $titles = [
+        'overview' => 'Личный кабинет',
+        'subscription' => 'Подписка',
+        'access' => 'Доступ',
+        'nodes' => 'Ноды',
+        'devices' => 'Устройства',
+    ];
+@endphp
+
+<div class="wb-app-layout">
+    <aside class="wb-sidebar">
+        <a href="/" class="wb-brand" aria-label="WAVEBREAK">
+            <img src="{{ asset('images/wavebreak-logo.png') }}" class="wb-logo" alt="">
+            <span class="wb-brand-word"><span>WAVEBREAK</span><small>Cabinet</small></span>
+        </a>
+
+        <div class="wb-user-box">
+            <strong>{{ $email }}</strong>
+            <span>{{ $me['role'] ?? 'user' }}</span>
+        </div>
+
+        <nav class="wb-side-nav" aria-label="Навигация кабинета">
+            <a href="/dashboard" class="{{ $section === 'overview' ? 'is-active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M4 10.5 12 4l8 6.5V20H4v-9.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 20v-6h6v6" stroke="currentColor" stroke-width="1.8"/></svg>
+                Обзор
+            </a>
+            <a href="/dashboard/subscription" class="{{ $section === 'subscription' ? 'is-active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M5 5h14v14H5z" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                Подписка
+            </a>
+            <a href="/dashboard/access" class="{{ $section === 'access' ? 'is-active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                Доступ
+            </a>
+            <a href="/dashboard/nodes" class="{{ $section === 'nodes' ? 'is-active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                Ноды
+            </a>
+            <a href="/dashboard/devices" class="{{ $section === 'devices' ? 'is-active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none"><rect x="6" y="3" width="12" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M10 18h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                Устройства
+            </a>
+        </nav>
+
+        <form action="/logout" method="post" class="wb-logout">
+            @csrf
+            <button type="submit">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Выйти
+            </button>
+        </form>
+    </aside>
+
+    <main class="wb-app-main">
+        @if (session('success'))
+            <div class="wb-alert wb-alert--success">{{ session('success') }}</div>
+        @endif
+        @if($errors->any())
+            <div class="wb-alert">
+                @foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach
+            </div>
+        @endif
+
+        <div class="wb-app-top">
+            <div>
+                <p class="wb-kicker">WAVEBREAK Cabinet</p>
+                <h1>{{ $titles[$section] ?? 'Личный кабинет' }}</h1>
+                <p>Тариф, лимиты, устройства и access grants берутся из Core API и применяются через desired-state нод.</p>
+            </div>
+            <span class="wb-pill">{{ $hasSubscription ? 'подписка активна' : 'подписка не выбрана' }}</span>
+        </div>
+
+        @if($section === 'overview')
+            <section class="wb-dashboard-grid">
+                <article class="wb-card wb-metric"><strong>{{ $hasSubscription ? 'Активна' : 'Нет' }}</strong><p>Статус подписки</p></article>
+                <article class="wb-card wb-metric"><strong>{{ $currentPlan['name'] ?? 'Не выбран' }}</strong><p>Текущий тариф</p></article>
+                <article class="wb-card wb-metric"><strong>{{ $activeGrants }}</strong><p>Активные grants</p></article>
+                <article class="wb-card wb-metric"><strong>{{ $activeDevices }}</strong><p>Устройства</p></article>
+            </section>
+
+            <section class="wb-workspace">
+                <article class="wb-card">
+                    <h3>Готовность доступа</h3>
+                    @if($hasSubscription)
+                        <p>Подписка активна, можно выпускать доступ к нодам. Каждый grant сразу попадает в desired-state и ждет ACK от node-agent.</p>
+                        <div class="wb-card-action"><a href="/dashboard/access" class="wb-btn wb-btn--primary">Создать доступ</a></div>
+                    @else
+                        <p>Выберите тариф, чтобы Core зафиксировал лимиты подписки и открыл выпуск access grants.</p>
+                        <div class="wb-card-action"><a href="/dashboard/subscription" class="wb-btn wb-btn--primary">Выбрать тариф</a></div>
+                    @endif
+                </article>
+                <article class="wb-card">
+                    <h3>Использование трафика</h3>
+                    <p>{{ number_format($usedBytes / 1073741824, 2) }} GB использовано{{ $limitBytes ? ' из '.number_format($limitBytes / 1073741824, 0).' GB' : '' }}.</p>
+                    <div class="wb-card-action"><span class="wb-pill">{{ $usagePercent === null ? 'без лимита' : $usagePercent.'%' }}</span></div>
+                </article>
+            </section>
+        @endif
+
+        @if($section === 'subscription')
+            <section class="wb-workspace">
+                <article class="wb-card">
+                    <h3>Текущая подписка</h3>
+                    @if($hasSubscription)
+                        <p><strong>Статус:</strong> {{ $subscription['status'] }}</p>
+                        <p><strong>Тариф:</strong> {{ $currentPlan['name'] ?? $subscription['plan_id'] }}</p>
+                        <p><strong>Период до:</strong> {{ $subscription['current_period_end'] }}</p>
+                        <p><strong>Устройства:</strong> {{ $subscription['device_limit_override'] ?? $subscription['device_limit_snapshot'] ?? 'по тарифу' }}</p>
+                        <p><strong>Трафик:</strong> {{ $limitBytes ? number_format($limitBytes / 1073741824, 0).' GB' : 'без лимита' }}</p>
+                    @else
+                        <p>Активной подписки пока нет. Выберите тариф, чтобы открыть выдачу доступа.</p>
+                    @endif
+                </article>
+                <article class="wb-card">
+                    <h3>Активировать тариф</h3>
+                    @if($hasSubscription)
+                        <p>У аккаунта уже есть активная подписка. Можно переходить к выдаче доступа.</p>
+                    @else
+                        <form method="post" action="/subscriptions" class="wb-form">
+                            @csrf
+                            <label>Тариф
+                                <select name="plan_id" required>
+                                    @foreach($plans as $plan)
+                                        <option value="{{ $plan['id'] }}">{{ $plan['name'] }} - ${{ number_format($plan['price_cents'] / 100, 2) }} / {{ $plan['interval'] }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <button type="submit" class="wb-btn wb-btn--primary">Активировать</button>
+                        </form>
+                    @endif
+                </article>
+            </section>
+        @endif
+
+        @if($section === 'access')
+            <section class="wb-workspace">
+                <article class="wb-card">
+                    <h3>Выпустить доступ</h3>
+                    <form method="post" action="/access/grants" class="wb-form">
+                        @csrf
+                        <label>Нода
+                            <select name="node_id" required>
+                                @foreach($nodes as $node)
+                                    <option value="{{ $node['id'] }}">{{ $node['code'] }} / {{ $node['region'] }} / {{ $node['status'] }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label>Протокол
+                            <select name="protocol" required>
+                                <option value="wireguard">WireGuard</option>
+                                <option value="outline">Outline</option>
+                            </select>
+                        </label>
+                        <button type="submit" class="wb-btn wb-btn--primary">Выпустить доступ</button>
+                    </form>
+                </article>
+                <article class="wb-card">
+                    <h3>Активные доступы</h3>
+                    <div class="wb-table-wrap">
+                        <table class="wb-table">
+                            <thead><tr><th>Нода</th><th>Протокол</th><th>Статус</th><th>Действует до</th><th></th></tr></thead>
+                            <tbody>
+                            @forelse($grants as $grant)
+                                <tr>
+                                    <td>{{ $grant['node_id'] }}</td>
+                                    <td>{{ $grant['protocol'] }}</td>
+                                    <td><span class="wb-pill">{{ $grant['status'] }}</span></td>
+                                    <td>{{ $grant['expires_at'] }}</td>
+                                    <td>
+                                        @if($grant['status'] === 'active')
+                                            <form method="post" action="/access/grants/{{ $grant['id'] }}/revoke">
+                                                @csrf
+                                                <button type="submit" class="wb-link-button">Отозвать</button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5">Доступ пока не выпускался.</td></tr>
+                            @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            </section>
+        @endif
+
+        @if($section === 'nodes')
+            <section class="wb-card">
+                <h3>Доступные ноды</h3>
+                <p>{{ count($nodes) }} нод из Core, {{ $onlineNodes }} сейчас онлайн.</p>
+                <div class="wb-table-wrap">
+                    <table class="wb-table">
+                        <thead><tr><th>Code</th><th>Region</th><th>Status</th><th>Heartbeat</th></tr></thead>
+                        <tbody>
+                        @forelse($nodes as $node)
+                            <tr>
+                                <td>{{ $node['code'] }}</td>
+                                <td>{{ $node['region'] }}</td>
+                                <td><span class="wb-pill">{{ $node['status'] }}</span></td>
+                                <td>{{ $node['last_heartbeat_at'] ?? '-' }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4">Core пока не вернул доступные ноды.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @endif
+
+        @if($section === 'devices')
+            <section class="wb-workspace">
+                <article class="wb-card">
+                    <h3>Добавить устройство</h3>
+                    <form method="post" action="/devices" class="wb-form">
+                        @csrf
+                        <label>Название
+                            <input name="name" required placeholder="MacBook / iPhone / Router">
+                        </label>
+                        <label>Платформа
+                            <input name="platform" placeholder="macOS / iOS / Android / Linux">
+                        </label>
+                        <button type="submit" class="wb-btn wb-btn--primary">Добавить</button>
+                    </form>
+                </article>
+                <article class="wb-card">
+                    <h3>Telegram</h3>
+                    @if(session('telegram_link_token'))
+                        <p><strong>Link token:</strong> {{ session('telegram_link_token') }}</p>
+                    @elseif($telegramIdentities->isNotEmpty())
+                        <p>Telegram подключен: {{ $telegramIdentities->first()['username'] ?? $telegramIdentities->first()['provider_user_id'] }}.</p>
+                        <form method="post" action="/telegram">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="wb-btn">Отвязать Telegram</button>
+                        </form>
+                    @else
+                        <p>Создайте одноразовый token и передайте его в Telegram bot flow. После подтверждения бот будет видеть тот же аккаунт Core.</p>
+                        <form method="post" action="/telegram/link">
+                            @csrf
+                            <button type="submit" class="wb-btn wb-btn--primary">Создать link token</button>
+                        </form>
+                    @endif
+                </article>
+            </section>
+
+            <section class="wb-card">
+                <h3>Устройства аккаунта</h3>
+                <div class="wb-table-wrap">
+                    <table class="wb-table">
+                        <thead><tr><th>Название</th><th>Платформа</th><th>Статус</th><th>Последняя активность</th></tr></thead>
+                        <tbody>
+                        @forelse($devices ?? [] as $device)
+                            <tr>
+                                <td>{{ $device['name'] }}</td>
+                                <td>{{ $device['platform'] ?? '-' }}</td>
+                                <td><span class="wb-pill">{{ empty($device['revoked_at']) ? 'active' : 'revoked' }}</span></td>
+                                <td>{{ $device['last_seen_at'] ?? '-' }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4">Устройства пока не добавлены.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @endif
+    </main>
+</div>
+@endsection
+

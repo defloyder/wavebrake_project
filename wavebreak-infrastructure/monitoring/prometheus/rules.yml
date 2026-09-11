@@ -1,0 +1,92 @@
+groups:
+  - name: wavebreak-core
+    rules:
+      - alert: WavebreakCoreDown
+        expr: up{job="wavebreak-core"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: WAVEBREAK Core is down
+
+      - alert: WavebreakHighHTTPErrorRate
+        expr: sum(rate(wavebreak_http_requests_total{status=~"5.."}[5m])) / sum(rate(wavebreak_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: WAVEBREAK Core 5xx rate is above 5 percent
+
+      - alert: WavebreakRabbitMQFailures
+        expr: increase(wavebreak_rabbitmq_failures_total[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: RabbitMQ failures detected
+
+      - alert: WavebreakAPIHighLatency
+        expr: histogram_quantile(0.95, sum(rate(wavebreak_http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: WAVEBREAK Core p95 latency is above 1s
+
+      - alert: WavebreakNodeSyncFailures
+        expr: increase(wavebreak_node_sync_failures_total[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: WAVEBREAK node sync failures detected
+
+  - name: wavebreak-infrastructure
+    rules:
+      - alert: RabbitMQDown
+        expr: up{job="rabbitmq"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: RabbitMQ metrics target is down
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Redis metrics target is down
+
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: PostgreSQL metrics target is down
+
+      - alert: DiskAlmostFull
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host disk free space below 10 percent
+
+      - alert: HighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host memory usage above 90 percent
+
+      - alert: HighCPU
+        expr: 1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host CPU usage above 90 percent

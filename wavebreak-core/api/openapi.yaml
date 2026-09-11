@@ -1,0 +1,548 @@
+openapi: 3.1.0
+info:
+  title: WAVEBREAK Core API
+  version: 0.1.0
+servers:
+  - url: https://api.example.test
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Service is alive
+  /readyz:
+    get:
+      summary: Readiness probe
+      responses:
+        "200":
+          description: Dependencies are ready
+        "503":
+          description: Dependency unavailable
+  /v1/auth/register:
+    post:
+      summary: Register a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered
+  /v1/auth/login:
+    post:
+      summary: Login and issue token pair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Token pair
+  /v1/auth/refresh:
+    post:
+      summary: Refresh an access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: New token pair
+  /v1/auth/logout:
+    post:
+      summary: Revoke a refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: Token revoked
+  /v1/me:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Current user
+      responses:
+        "200":
+          description: Current user claims
+  /v1/client/bootstrap:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Mobile/desktop bootstrap payload with user, overview, plans, and nodes
+      responses:
+        "200":
+          description: Client bootstrap payload
+  /v1/me/overview:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Current account overview with subscription, usage, devices, telegram identities and access summary
+      responses:
+        "200":
+          description: Account overview
+  /v1/me/identities:
+    get:
+      security:
+        - bearerAuth: []
+      summary: List identities linked to the current account
+      responses:
+        "200":
+          description: Identity list
+  /v1/me/identities/telegram/link:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Issue a one-time Telegram account link token
+      responses:
+        "201":
+          description: Link token issued
+  /v1/me/identities/telegram:
+    delete:
+      security:
+        - bearerAuth: []
+      summary: Unlink Telegram identity from the current account
+      responses:
+        "200":
+          description: Telegram identity unlinked
+  /v1/me/usage:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Current subscription traffic usage
+      responses:
+        "200":
+          description: Usage summary
+  /v1/me/usage/history:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Current subscription traffic usage history
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, current]
+      responses:
+        "200":
+          description: Usage history
+  /v1/me/devices:
+    get:
+      security:
+        - bearerAuth: []
+      summary: List current user devices
+      responses:
+        "200":
+          description: Device list
+    post:
+      security:
+        - bearerAuth: []
+      summary: Register a current user device while enforcing subscription device limits
+      responses:
+        "201":
+          description: Device created
+        "403":
+          description: DEVICE_LIMIT_REACHED
+  /v1/me/devices/{deviceID}:
+    patch:
+      security:
+        - bearerAuth: []
+      summary: Update a device name or platform
+      parameters:
+        - name: deviceID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Device updated
+    delete:
+      security:
+        - bearerAuth: []
+      summary: Revoke a device
+      parameters:
+        - name: deviceID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Device revoked
+  /v1/plans:
+    get:
+      summary: Active plans
+      responses:
+        "200":
+          description: Plan list
+  /v1/locations:
+    get:
+      security:
+        - bearerAuth: []
+      summary: List user-visible node locations
+      responses:
+        "200":
+          description: Location list
+  /v1/subscriptions:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Create active subscription
+      responses:
+        "201":
+          description: Subscription created
+  /v1/subscriptions/current:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Current active subscription
+      responses:
+        "200":
+          description: Subscription
+  /v1/nodes:
+    get:
+      security:
+        - bearerAuth: []
+      summary: List nodes
+      responses:
+        "200":
+          description: Node list
+  /v1/nodes/enroll:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Enroll or update a node
+      responses:
+        "201":
+          description: Node enrolled
+  /v1/nodes/{nodeID}/desired-state:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Create desired state for a node
+      parameters:
+        - name: nodeID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Desired state version created
+  /v1/node/enroll:
+    post:
+      summary: Enroll node with enrollment bearer token
+      responses:
+        "201":
+          description: Node enrolled and node API token returned
+  /v1/node/heartbeat:
+    post:
+      summary: Node self heartbeat with node bearer token
+      responses:
+        "200":
+          description: Heartbeat recorded
+  /v1/node/usage:
+    post:
+      summary: Submit monotonic usage counters for an active access grant with node bearer token
+      responses:
+        "202":
+          description: Usage accepted
+  /v1/node/state:
+    get:
+      summary: Fetch latest desired state with node bearer token
+      responses:
+        "200":
+          description: Desired state
+  /v1/node/state/ack:
+    post:
+      summary: ACK applied desired-state revision
+      responses:
+        "200":
+          description: Revision acknowledged
+  /v1/node/state/fail:
+    post:
+      summary: Report desired-state apply failure
+      responses:
+        "200":
+          description: Failure recorded
+  /v1/access/grants:
+    get:
+      security:
+        - bearerAuth: []
+      summary: List current user access grants
+      responses:
+        "200":
+          description: Grant list
+    post:
+      security:
+        - bearerAuth: []
+      summary: Create access grant; mobile/desktop should pass device_id
+      responses:
+        "201":
+          description: Grant created
+        "403":
+          description: TRAFFIC_LIMIT_REACHED
+  /v1/access/grants/{grantID}/config:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Get VPN client config contract for a grant
+      parameters:
+        - name: grantID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Grant config contract
+        "404":
+          description: Grant not found
+  /v1/access/grants/{grantID}/revoke:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Revoke a current user access grant and publish desired-state
+      parameters:
+        - name: grantID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Grant revoked
+  /v1/admin/dashboard:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Admin operational counters
+      responses:
+        "200":
+          description: Dashboard counters
+  /v1/admin/users:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Admin user list
+      responses:
+        "200":
+          description: User list
+  /v1/admin/plans:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Admin plan list including inactive/private plans
+      responses:
+        "200":
+          description: Plan list
+    post:
+      security:
+        - bearerAuth: []
+      summary: Create an admin-managed plan
+      responses:
+        "201":
+          description: Plan created
+  /v1/admin/plans/{planID}:
+    put:
+      security:
+        - bearerAuth: []
+      summary: Update an admin-managed plan
+      parameters:
+        - name: planID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Plan updated
+    delete:
+      security:
+        - bearerAuth: []
+      summary: Soft-delete an admin-managed plan
+      parameters:
+        - name: planID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Plan deleted
+  /v1/admin/subscriptions:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Admin subscription list
+      responses:
+        "200":
+          description: Subscription list
+  /v1/admin/subscriptions/{subscriptionID}/status:
+    patch:
+      security:
+        - bearerAuth: []
+      summary: Update subscription lifecycle status
+      parameters:
+        - name: subscriptionID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Subscription updated
+  /v1/admin/devices:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Admin device list
+      responses:
+        "200":
+          description: Device list
+  /v1/admin/devices/{deviceID}/revoke:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Admin revoke device
+      parameters:
+        - name: deviceID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Device revoked
+  /v1/admin/traffic:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Admin subscription traffic rows
+      responses:
+        "200":
+          description: Traffic rows
+  /v1/admin/audit:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Admin audit event list
+      responses:
+        "200":
+          description: Audit event list
+  /v1/admin/access/grants:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Admin access grant list
+      responses:
+        "200":
+          description: Grant list
+  /v1/admin/access/grants/{grantID}/revoke:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Admin revoke access grant
+      parameters:
+        - name: grantID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Grant revoked
+  /v1/bot/telegram/identify:
+    post:
+      security:
+        - botServiceToken: []
+      summary: Bot-ready contract to identify or link a Telegram user
+      responses:
+        "200":
+          description: Core user returned
+  /v1/bot/users/{userID}/overview:
+    get:
+      security:
+        - botServiceToken: []
+      summary: Bot-ready contract to fetch user overview
+      parameters:
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Account overview
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    botServiceToken:
+      type: http
+      scheme: bearer
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 10
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    TokenPair:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+        expires_in:
+          type: integer

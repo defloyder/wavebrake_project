@@ -1,0 +1,72 @@
+name: WAVEBREAK CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wavebreak-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+      - run: go mod tidy
+      - run: go test ./...
+      - run: go test -race ./...
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: govulncheck ./...
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          working-directory: wavebreak-core
+      - run: go build ./cmd/wavebreak-api ./cmd/wavebreak-worker ./cmd/wavebreak-cli ./cmd/wavebreak-migrate
+
+  node:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wavebreak-node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+      - run: go mod tidy
+      - run: go test ./...
+      - run: go test -race ./...
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: govulncheck ./...
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          working-directory: wavebreak-node
+      - run: go build ./cmd/wavebreak-node
+
+  laravel:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [wavebreak-web, wavebreak-admin]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+      - run: composer install --no-interaction --prefer-dist
+      - run: php artisan test
+      - run: vendor/bin/pint --test
+      - run: composer audit
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t wavebreak-core ./wavebreak-core
+      - run: docker build -t wavebreak-node ./wavebreak-node
+      - run: docker compose -f wavebreak-infrastructure/docker-compose.yml config --quiet

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /profile/
+Disallow: /api/
+Disallow: /payment/
+Disallow: /notifications/
+Disallow: /push/
+Disallow: /sub/
+
+Sitemap: https://auralith.ru/sitemap.xml

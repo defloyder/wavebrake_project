@@ -1,0 +1,260 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: wavebreak
+      POSTGRES_USER: wavebreak
+      POSTGRES_PASSWORD: wavebreak
+    volumes:
+      - wavebreak_postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wavebreak -d wavebreak"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.80.1
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "9121:9121"
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: wavebreak
+      RABBITMQ_DEFAULT_PASS: wavebreak
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "15692:15692"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.18.1
+    environment:
+      DATA_SOURCE_NAME: postgresql://wavebreak:wavebreak@postgres:5432/wavebreak?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "9187:9187"
+
+  wavebreak-api:
+    build:
+      context: ../wavebreak-core
+    command: ["wavebreak-api"]
+    environment:
+      WAVEBREAK_ENV: development
+      WAVEBREAK_HTTP_ADDR: :8080
+      WAVEBREAK_DATABASE_URL: postgres://wavebreak:wavebreak@postgres:5432/wavebreak?sslmode=disable
+      WAVEBREAK_REDIS_ADDR: redis:6379
+      WAVEBREAK_RABBITMQ_URL: amqp://wavebreak:wavebreak@rabbitmq:5672/
+      WAVEBREAK_JWT_SECRET: local-wavebreak-development-secret
+      WAVEBREAK_BOT_SERVICE_TOKEN: local-wavebreak-bot-service-token-123456
+      WAVEBREAK_OTLP_ENDPOINT: otel-collector:4317
+    ports:
+      - "${WAVEBREAK_API_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      wavebreak-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  wavebreak-migrate:
+    build:
+      context: ../wavebreak-core
+    command: ["wavebreak-migrate"]
+    environment:
+      WAVEBREAK_ENV: development
+      WAVEBREAK_DATABASE_URL: postgres://wavebreak:wavebreak@postgres:5432/wavebreak?sslmode=disable
+      WAVEBREAK_REDIS_ADDR: redis:6379
+      WAVEBREAK_RABBITMQ_URL: amqp://wavebreak:wavebreak@rabbitmq:5672/
+      WAVEBREAK_JWT_SECRET: local-wavebreak-development-secret
+      WAVEBREAK_BOT_SERVICE_TOKEN: local-wavebreak-bot-service-token-123456
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  wavebreak-worker:
+    build:
+      context: ../wavebreak-core
+    command: ["wavebreak-worker"]
+    environment:
+      WAVEBREAK_ENV: development
+      WAVEBREAK_DATABASE_URL: postgres://wavebreak:wavebreak@postgres:5432/wavebreak?sslmode=disable
+      WAVEBREAK_REDIS_ADDR: redis:6379
+      WAVEBREAK_RABBITMQ_URL: amqp://wavebreak:wavebreak@rabbitmq:5672/
+      WAVEBREAK_JWT_SECRET: local-wavebreak-development-secret
+      WAVEBREAK_BOT_SERVICE_TOKEN: local-wavebreak-bot-service-token-123456
+    depends_on:
+      wavebreak-migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+
+  wavebreak-web:
+    build:
+      context: ../wavebreak-web
+    environment:
+      APP_NAME: WAVEBREAK
+      APP_ENV: local
+      APP_KEY: base64:14+g+7SB0RMz9Ri0+bS5TLRK6cXaBrS16EcJAjj3PTI=
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      WAVEBREAK_CORE_URL: http://wavebreak-api:8080
+      SESSION_DRIVER: file
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/') === false ? 1 : 0);"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      wavebreak-api:
+        condition: service_healthy
+
+  wavebreak-admin:
+    build:
+      context: ../wavebreak-admin
+    environment:
+      APP_NAME: WAVEBREAK Admin
+      APP_ENV: local
+      APP_KEY: base64:RkeXOzsKdR9N4XliFYbfSaxVvbpzI8xJ1JBbKMg8xHo=
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8002
+      WAVEBREAK_CORE_URL: http://wavebreak-api:8080
+      SESSION_DRIVER: file
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/') === false ? 1 : 0);"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      wavebreak-api:
+        condition: service_healthy
+
+  wavebreak-node:
+    build:
+      context: ../wavebreak-node
+    environment:
+      WAVEBREAK_CORE_URL: http://wavebreak-api:8080
+      WAVEBREAK_NODE_ENROLLMENT_TOKEN: ${WAVEBREAK_NODE_ENROLLMENT_TOKEN:-}
+      WAVEBREAK_NODE_API_TOKEN: ${WAVEBREAK_NODE_API_TOKEN:-}
+      WAVEBREAK_NODE_CODE: ${WAVEBREAK_NODE_CODE:-TR-IST-01}
+      WAVEBREAK_NODE_REGION: ${WAVEBREAK_NODE_REGION:-TR}
+    profiles: ["node"]
+    depends_on:
+      - wavebreak-api
+
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:12.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: wavebreak
+    volumes:
+      - wavebreak_grafana:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${WAVEBREAK_GRAFANA_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health | grep -q ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  loki:
+    image: grafana/loki:3.5.8
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - "3100:3100"
+
+  tempo:
+    image: grafana/tempo:2.9.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./monitoring/tempo.yaml:/etc/tempo.yaml:ro
+    ports:
+      - "3200:3200"
+      - "4318:4318"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.142.0
+    command: ["--config=/etc/otelcol/config.yml"]
+    volumes:
+      - ./monitoring/otel/config.yml:/etc/otelcol/config.yml:ro
+    ports:
+      - "4317:4317"
+      - "8889:8889"
+
+  alertmanager:
+    image: prom/alertmanager:v0.29.0
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+
+  node-exporter:
+    image: prom/node-exporter:v1.10.2
+    ports:
+      - "9100:9100"
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+
+volumes:
+  wavebreak_postgres:
+  wavebreak_grafana:

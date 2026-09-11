@@ -1,0 +1,1 @@
+{"title":"WAVEBREAK Redis","schemaVersion":41,"version":1,"refresh":"15s","panels":[{"type":"timeseries","title":"Redis Up","gridPos":{"x":0,"y":0,"w":12,"h":8},"targets":[{"expr":"up{job=\"redis\"}","legendFormat":"up"}]},{"type":"timeseries","title":"Redis Memory","gridPos":{"x":12,"y":0,"w":12,"h":8},"targets":[{"expr":"redis_memory_used_bytes","legendFormat":"used bytes"}]}]}
