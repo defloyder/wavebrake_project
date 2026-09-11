@@ -73,6 +73,17 @@ go test ./...
 go test -race ./...
 ```
 
+## Mobile/Desktop Integration
+
+Send app developers:
+
+- `MOBILE_DESKTOP_DEVELOPER_HANDOFF.md`
+- `docs/mobile-desktop-api.md`
+- `wavebreak-core/api/openapi.yaml`
+- `docs/vpn-config-contract.md`
+
+Mobile and desktop clients must call Core API only. The local Docker Core URL is `http://127.0.0.1:18080`; production should expose a dedicated HTTPS Core API URL.
+
 ## Production Notes
 
 - Replace local secrets before production.

@@ -22,7 +22,9 @@ The latest pass prepared the Core API contract for already-built mobile and desk
 - `wavebreak-core/api/openapi.yaml`
   - Documented bootstrap and grant-config endpoints.
 - `docs/mobile-desktop-api.md`
-  - Main handoff document for mobile/desktop developers.
+  - Detailed endpoint guide for mobile/desktop developers.
+- `MOBILE_DESKTOP_DEVELOPER_HANDOFF.md`
+  - Russian app-developer handoff that can be sent directly to the mobile/desktop developer.
 - `docs/vpn-config-contract.md`
   - Contract and next backend steps for real VPN config generation.
 
@@ -58,12 +60,12 @@ The config endpoint is intentionally honest about backend state:
 | Core Linux race tests | PASSED | `docker run --rm -v "${PWD}:/src" -w /src/wavebreak-core golang:1.25.7 go test -race ./...`. |
 | Web Composer install/tests | PASSED | Linux Docker Composer install completed; PHPUnit passed 2 tests / 2 assertions after install. |
 | Admin Composer install/tests | PASSED | Linux Docker Composer install completed; PHPUnit passed 2 tests / 2 assertions after install. |
-| GitHub push | BLOCKED | Workspace root is not a git repository and no GitHub remote/auth was provided. |
+| GitHub push | PASSED | Initial repository was pushed to `git@github.com:defloyder/wavebrake_project.git`, branch `main`, commit `4cab225`. |
 
 ### Notes for next agent/developer
 
-- The source root `C:\Work Folder\WaveBreak` currently has no `.git`; `git status` returns `fatal: not a git repository`.
-- If the user wants a GitHub push, first initialize or point this workspace at the intended remote repository.
+- The source root `C:\Work Folder\WaveBreak` is now a git repository on branch `main`.
+- Remote `origin` points to `git@github.com:defloyder/wavebrake_project.git`.
 - Do not make the app clients synthesize server-side VPN config. Apps should consume the config endpoint and report clear "config pending" UI until Core returns `config_status: "ready"`.
 - Keep Core as the only owner of subscription, device, grant, and VPN config state.
 
