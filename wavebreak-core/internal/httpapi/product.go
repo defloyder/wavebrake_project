@@ -2,7 +2,10 @@ package httpapi
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -193,7 +196,72 @@ func (s *Server) accessGrantConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load grant config")
 		return
 	}
+	s.applyVLESSRuntimeConfig(&config)
 	writeJSON(w, http.StatusOK, config)
+}
+
+func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
+	if config.Grant.Protocol != "vless" && config.Grant.Protocol != "vless-reality" {
+		return
+	}
+	vless := s.app.Config.VLESS
+	if config.Grant.Status == "revoked" {
+		config.ConfigStatus = "revoked"
+		return
+	}
+	if strings.TrimSpace(vless.PublicHost) == "" || strings.TrimSpace(vless.RealityPublicKey) == "" || strings.TrimSpace(vless.RealityShortID) == "" {
+		config.ConfigStatus = "pending_runtime_config"
+		config.Warnings = []string{"VLESS REALITY public endpoint is not configured on Core yet."}
+		return
+	}
+	if config.Node.AppliedRevision < config.Grant.DesiredRevision {
+		config.ConfigStatus = "pending_node_ack"
+		config.Warnings = []string{"Node has not acknowledged the desired-state revision for this grant yet."}
+	} else {
+		config.ConfigStatus = "ready"
+		config.Warnings = nil
+	}
+	label := vlessLabel(config.Node.Code, config.Grant.ID)
+	endpoint := net.JoinHostPort(vless.PublicHost, strconv.Itoa(vless.PublicPort))
+	query := url.Values{}
+	query.Set("type", "tcp")
+	query.Set("security", "reality")
+	query.Set("encryption", "none")
+	query.Set("pbk", vless.RealityPublicKey)
+	query.Set("fp", vless.Fingerprint)
+	query.Set("sni", vless.RealityServerName)
+	query.Set("sid", vless.RealityShortID)
+	query.Set("flow", vless.Flow)
+	link := fmt.Sprintf("vless://%s@%s?%s#%s", config.Grant.ID, endpoint, query.Encode(), url.QueryEscape(label))
+	config.ConnectionURL = link
+	config.ShareURL = link
+	config.VLESS = map[string]any{
+		"client_id":          config.Grant.ID,
+		"label":              label,
+		"protocol":           "vless",
+		"security":           "reality",
+		"network":            "tcp",
+		"flow":               vless.Flow,
+		"server":             vless.PublicHost,
+		"port":               vless.PublicPort,
+		"sni":                vless.RealityServerName,
+		"fingerprint":        vless.Fingerprint,
+		"reality_public_key": vless.RealityPublicKey,
+		"short_id":           vless.RealityShortID,
+		"uri":                link,
+	}
+}
+
+func vlessLabel(nodeCode, grantID string) string {
+	shortID := strings.ToUpper(strings.ReplaceAll(grantID, "-", ""))
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
+	nodeCode = strings.ToUpper(strings.TrimSpace(nodeCode))
+	if nodeCode == "" {
+		nodeCode = "NODE"
+	}
+	return fmt.Sprintf("WVB-%s-%s", nodeCode, shortID)
 }
 
 func (s *Server) nodeUsageReport(w http.ResponseWriter, r *http.Request) {

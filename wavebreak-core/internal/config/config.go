@@ -21,12 +21,27 @@ type Config struct {
 	RefreshTokenTTL time.Duration
 	BotServiceToken string
 	OTLPEndpoint    string
+	VLESS           VLESSConfig
+}
+
+type VLESSConfig struct {
+	PublicHost        string
+	PublicPort        int
+	RealityPublicKey  string
+	RealityShortID    string
+	RealityServerName string
+	Fingerprint       string
+	Flow              string
 }
 
 func Load() (Config, error) {
 	redisDB, err := strconv.Atoi(env("WAVEBREAK_REDIS_DB", "0"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_REDIS_DB: %w", err)
+	}
+	vlessPort, err := strconv.Atoi(env("WAVEBREAK_VLESS_PORT", "18443"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_VLESS_PORT: %w", err)
 	}
 
 	cfg := Config{
@@ -42,6 +57,15 @@ func Load() (Config, error) {
 		RefreshTokenTTL: mustDuration(env("WAVEBREAK_REFRESH_TOKEN_TTL", "720h")),
 		BotServiceToken: env("WAVEBREAK_BOT_SERVICE_TOKEN", ""),
 		OTLPEndpoint:    env("WAVEBREAK_OTLP_ENDPOINT", "localhost:4317"),
+		VLESS: VLESSConfig{
+			PublicHost:        env("WAVEBREAK_VLESS_PUBLIC_HOST", ""),
+			PublicPort:        vlessPort,
+			RealityPublicKey:  env("WAVEBREAK_VLESS_REALITY_PUBLIC_KEY", ""),
+			RealityShortID:    env("WAVEBREAK_VLESS_REALITY_SHORT_ID", ""),
+			RealityServerName: env("WAVEBREAK_VLESS_REALITY_SERVER_NAME", "www.microsoft.com"),
+			Fingerprint:       env("WAVEBREAK_VLESS_FINGERPRINT", "chrome"),
+			Flow:              env("WAVEBREAK_VLESS_FLOW", "xtls-rprx-vision"),
+		},
 	}
 	if cfg.Environment == "production" {
 		if cfg.JWTSecret == "change-me-in-production" || len(cfg.JWTSecret) < 32 {

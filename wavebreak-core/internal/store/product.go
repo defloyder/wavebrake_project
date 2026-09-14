@@ -116,6 +116,9 @@ type AccessGrantConfig struct {
 	Device        *Device        `json:"device,omitempty"`
 	ConfigStatus  string         `json:"config_status"`
 	ConfigVersion int            `json:"config_version"`
+	ConnectionURL string         `json:"connection_url,omitempty"`
+	ShareURL      string         `json:"share_url,omitempty"`
+	VLESS         map[string]any `json:"vless,omitempty"`
 	WireGuard     map[string]any `json:"wireguard,omitempty"`
 	Outline       map[string]any `json:"outline,omitempty"`
 	Warnings      []string       `json:"warnings,omitempty"`
@@ -510,22 +513,40 @@ func (s *Store) AccessGrantConfig(ctx context.Context, userID, grantID string) (
 		}
 	}
 
+	status := "pending_runtime_config"
+	warnings := []string{
+		"VPN runtime config generation is intentionally not active yet.",
+		"Use this response shape for mobile/desktop integration; real peer keys/endpoints will be filled by the VPN config implementation pass.",
+	}
+	if grant.Status == "revoked" {
+		status = "revoked"
+		warnings = nil
+	} else if node.AppliedRevision < grant.DesiredRevision {
+		status = "pending_node_ack"
+		warnings = []string{"Node has not acknowledged the desired-state revision for this grant yet."}
+	}
+
 	result := AccessGrantConfig{
 		Grant:         grant,
 		Node:          node,
 		Device:        device,
-		ConfigStatus:  "pending_runtime_config",
+		ConfigStatus:  status,
 		ConfigVersion: grant.DesiredRevision,
-		Warnings: []string{
-			"VPN runtime config generation is intentionally not active yet.",
-			"Use this response shape for mobile/desktop integration; real peer keys/endpoints will be filled by the VPN config implementation pass.",
-		},
+		Warnings:      warnings,
 	}
 	switch grant.Protocol {
 	case "outline":
 		result.Outline = map[string]any{
 			"access_url": nil,
 			"server":     map[string]any{"region": node.Region, "code": node.Code},
+		}
+	case "vless", "vless-reality":
+		result.VLESS = map[string]any{
+			"client_id": grant.ID,
+			"security":  "reality",
+			"network":   "tcp",
+			"flow":      "xtls-rprx-vision",
+			"server":    map[string]any{"region": node.Region, "code": node.Code},
 		}
 	default:
 		result.WireGuard = map[string]any{
@@ -998,7 +1019,8 @@ func refreshNodeDesiredStateTx(ctx context.Context, tx pgx.Tx, nodeID string) (i
 		        'device_id', device_id,
 		        'protocol', protocol,
 		        'status', status,
-		        'expires_at', expires_at
+		        'expires_at', expires_at,
+		        'label', concat('WVB-', upper(replace(left(id::text, 8), '-', '')))
 		    ) order by created_at) filter (where id is not null), '[]'::jsonb)
 		)
 		from access_grants

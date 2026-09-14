@@ -43,24 +43,33 @@ Admin: http://91.149.241.52:18002
 - регистрацию устройства;
 - список доступных нод;
 - создание access grant;
-- получение config endpoint;
+- получение готовой персональной VLESS REALITY ссылки;
 - revoke access grant.
 
-Но настоящая VPN-конфигурация еще не генерируется. Сейчас endpoint:
+Рабочий pilot protocol:
+
+```json
+{
+  "protocol": "vless"
+}
+```
+
+Endpoint:
 
 ```text
 GET /v1/access/grants/{grantID}/config
 ```
 
-возвращает:
+возвращает персональную ссылку:
 
 ```json
 {
-  "config_status": "pending_runtime_config"
+  "config_status": "ready",
+  "connection_url": "vless://...#WVB-NL-PILOT-01-..."
 }
 ```
 
-Это нормальное текущее состояние. Приложение должно показать состояние вроде "конфигурация готовится" и не пытаться поднимать реальный VPN-туннель, пока backend не начнет возвращать `config_status: "ready"`.
+Если сразу после создания grant node-agent еще не успел применить desired-state, временно может вернуться `config_status: "pending_node_ack"`. Это не ошибка: приложению нужно показать короткое состояние подготовки и повторить запрос через несколько секунд.
 
 ## Настройка клиента
 
@@ -128,9 +137,9 @@ WaveBreakUser123!
 7. `POST /v1/me/devices`
 8. `GET /v1/locations`
 9. выбрать online node, сейчас ожидается `NL-PILOT-01`
-10. `POST /v1/access/grants` с `node_id`, `device_id`, `protocol: "wireguard"`
+10. `POST /v1/access/grants` с `node_id`, `device_id`, `protocol: "vless"`
 11. `GET /v1/access/grants/{grantID}/config`
-12. убедиться, что `config_status` сейчас `pending_runtime_config`
+12. дождаться `config_status: "ready"` и взять `connection_url`
 13. `POST /v1/auth/refresh`
 14. `POST /v1/access/grants/{grantID}/revoke`
 
@@ -300,7 +309,7 @@ POST /v1/access/grants
 {
   "node_id": "uuid",
   "device_id": "uuid",
-  "protocol": "wireguard"
+  "protocol": "vless"
 }
 ```
 
@@ -313,7 +322,7 @@ Response shape:
   "subscription_id": "uuid",
   "device_id": "uuid",
   "node_id": "uuid",
-  "protocol": "wireguard",
+  "protocol": "vless",
   "status": "active",
   "desired_revision": 1
 }
@@ -332,7 +341,7 @@ Current pilot response shape:
   "grant": {
     "id": "uuid",
     "status": "active",
-    "protocol": "wireguard"
+    "protocol": "vless"
   },
   "node": {
     "id": "uuid",
@@ -345,26 +354,23 @@ Current pilot response shape:
     "name": "Developer iPhone",
     "platform": "ios"
   },
-  "config_status": "pending_runtime_config",
-  "wireguard": {
-    "interface": {
-      "private_key": "client_generated",
-      "address": null,
-      "dns": ["1.1.1.1", "1.0.0.1"],
-      "mtu": 1420
-    },
-    "peer": {
-      "public_key": null,
-      "preshared_key": null,
-      "endpoint": null,
-      "allowed_ips": ["0.0.0.0/0", "::/0"],
-      "persistent_keepalive": 25
-    }
+  "config_status": "ready",
+  "connection_url": "vless://grant-uuid@91.149.241.52:18443?...#WVB-NL-PILOT-01-XXXXXXXX",
+  "share_url": "vless://grant-uuid@91.149.241.52:18443?...#WVB-NL-PILOT-01-XXXXXXXX",
+  "vless": {
+    "client_id": "uuid",
+    "label": "WVB-NL-PILOT-01-XXXXXXXX",
+    "protocol": "vless",
+    "security": "reality",
+    "network": "tcp",
+    "flow": "xtls-rprx-vision",
+    "server": "91.149.241.52",
+    "port": 18443
   }
 }
 ```
 
-До `config_status: "ready"` приложение не должно собирать WireGuard config из null-полей.
+До `config_status: "ready"` приложение не должно пытаться подключать VPN. Когда статус стал `ready`, приложение может передать `connection_url` в поддерживаемый VLESS/Xray-compatible клиент или разобрать объект `vless`.
 
 ## UI/State Expectations
 
@@ -378,8 +384,8 @@ Current pilot response shape:
 | устройство не создано | создать device для текущего клиента |
 | device limit reached | показать лимит тарифа |
 | нет online nodes | локации недоступны, подключение disabled |
-| grant `active` + config `pending_runtime_config` | доступ создан, VPN-конфигурация готовится |
-| config `ready` в будущем | передать config в native VPN adapter |
+| grant `active` + config `pending_node_ack` | доступ создан, node-agent применяет конфиг |
+| config `ready` | показать/использовать `connection_url` |
 | grant `revoked` | остановить туннель и удалить локальный runtime config |
 
 ## PowerShell Smoke Test
@@ -439,7 +445,7 @@ $grant = Invoke-RestMethod `
   -Uri "$base/v1/access/grants" `
   -Headers $headers `
   -ContentType "application/json" `
-  -Body (@{ node_id = $node.id; device_id = $device.id; protocol = "wireguard" } | ConvertTo-Json)
+  -Body (@{ node_id = $node.id; device_id = $device.id; protocol = "vless" } | ConvertTo-Json)
 
 Write-Host "Get config"
 $config = Invoke-RestMethod `
@@ -469,6 +475,7 @@ $revoked = Invoke-RestMethod `
   device_id = $device.id
   grant_id = $grant.id
   config_status = $config.config_status
+  connection_url = $config.connection_url
   revoke_status = $revoked.status
 }
 ```
@@ -478,7 +485,7 @@ $revoked = Invoke-RestMethod `
 ```text
 status        : PASSED
 node          : NL-PILOT-01
-config_status : pending_runtime_config
+config_status : ready
 revoke_status : revoked
 ```
 
@@ -521,7 +528,7 @@ NODE_ID=$(curl -s "$BASE/v1/locations" -H "$AUTH_HEADER" | jq -r '.nodes[] | sel
 GRANT_RESPONSE=$(curl -s -X POST "$BASE/v1/access/grants" \
   -H "$AUTH_HEADER" \
   -H "Content-Type: application/json" \
-  -d "{\"node_id\":\"$NODE_ID\",\"device_id\":\"$DEVICE_ID\",\"protocol\":\"wireguard\"}")
+  -d "{\"node_id\":\"$NODE_ID\",\"device_id\":\"$DEVICE_ID\",\"protocol\":\"vless\"}")
 
 GRANT_ID=$(echo "$GRANT_RESPONSE" | jq -r '.id')
 
@@ -590,7 +597,8 @@ Steps to reproduce:
 - список локаций показывает online node `NL-PILOT-01`;
 - access grant создается с правильным `device_id`;
 - config endpoint открывается;
-- `pending_runtime_config` отображается как отдельное неошибочное состояние;
+- `pending_node_ack` отображается как короткое неошибочное состояние подготовки;
+- `connection_url` с префиксом `WVB-` отображается или передается в VPN runtime;
 - revoke grant чистит локальное состояние подключения;
 - logout чистит локальные токены;
 - приложение не обращается к Laravel, node-agent, PostgreSQL, Redis или RabbitMQ напрямую.

@@ -44,13 +44,17 @@ type desiredState struct {
 }
 
 func New(cfg config.Config, log *slog.Logger) *Agent {
+	var runtimeAdapter wbruntime.RuntimeAdapter = wbruntime.NoopAdapter{}
+	if strings.EqualFold(cfg.RuntimeAdapter, "xray") {
+		runtimeAdapter = wbruntime.NewXrayAdapter(cfg.Xray)
+	}
 	return &Agent{
 		cfg: cfg,
 		log: log,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
-		adapter: wbruntime.NoopAdapter{},
+		adapter: runtimeAdapter,
 	}
 }
 

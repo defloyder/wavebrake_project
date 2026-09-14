@@ -237,14 +237,17 @@ POST /v1/access/grants
 {
   "node_id": "uuid",
   "device_id": "uuid",
-  "protocol": "wireguard"
+  "protocol": "vless"
 }
 ```
 
 Supported protocol values now:
 
+- `vless`
 - `wireguard`
 - `outline`
+
+For the live pilot, use `vless`. Core returns a VLESS REALITY `connection_url` from `GET /v1/access/grants/{grantID}/config`.
 
 Core validates:
 
@@ -288,7 +291,7 @@ Current response shape:
     "subscription_id": "uuid",
     "device_id": "uuid",
     "node_id": "uuid",
-    "protocol": "wireguard",
+    "protocol": "vless",
     "status": "active",
     "expires_at": "2026-10-11T08:00:00Z",
     "desired_revision": 4,
@@ -308,38 +311,30 @@ Current response shape:
     "name": "MacBook Pro",
     "platform": "macOS"
   },
-  "config_status": "pending_runtime_config",
+  "config_status": "ready",
   "config_version": 4,
-  "wireguard": {
-    "interface": {
-      "private_key": "client_generated",
-      "address": null,
-      "dns": ["1.1.1.1", "1.0.0.1"],
-      "mtu": 1420
-    },
-    "peer": {
-      "public_key": null,
-      "preshared_key": null,
-      "endpoint": null,
-      "allowed_ips": ["0.0.0.0/0", "::/0"],
-      "persistent_keepalive": 25
-    }
-  },
-  "warnings": [
-    "VPN runtime config generation is intentionally not active yet.",
-    "Use this response shape for mobile/desktop integration; real peer keys/endpoints will be filled by the VPN config implementation pass."
-  ]
+  "connection_url": "vless://grant-uuid@91.149.241.52:18443?...#WVB-NL-PILOT-01-XXXXXXXX",
+  "share_url": "vless://grant-uuid@91.149.241.52:18443?...#WVB-NL-PILOT-01-XXXXXXXX",
+  "vless": {
+    "client_id": "uuid",
+    "label": "WVB-NL-PILOT-01-XXXXXXXX",
+    "protocol": "vless",
+    "security": "reality",
+    "network": "tcp",
+    "flow": "xtls-rprx-vision",
+    "server": "91.149.241.52",
+    "port": 18443
+  }
 }
 ```
 
-For now, apps should treat `config_status = pending_runtime_config` as:
+For VLESS pilot grants, apps should treat config statuses as:
 
-- grant exists
-- Core state is valid
-- final VPN peer material is not ready yet
-- show “configuration is being prepared” or a disabled connect button
+- `pending_node_ack`: Core created the grant, node-agent is applying the Xray config
+- `ready`: use `connection_url` / `share_url`
+- `revoked`: stop the tunnel and delete local runtime config
 
-Next backend pass will replace null peer fields with real runtime values.
+WireGuard-specific fields are still a future contract.
 
 ## Usage
 
@@ -422,5 +417,5 @@ Minimum happy path:
 5. Show online locations from `/v1/locations`.
 6. Create access grant with `node_id`, `device_id`, `protocol`.
 7. Poll `GET /v1/access/grants/{grantID}/config`.
-8. When `config_status` becomes ready in the future VPN pass, write config to the native VPN adapter.
+8. When `config_status` is `ready`, use `connection_url` / `share_url`.
 9. Show usage from `/v1/me/usage`.

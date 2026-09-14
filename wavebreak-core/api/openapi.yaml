@@ -299,7 +299,7 @@ paths:
     post:
       security:
         - bearerAuth: []
-      summary: Create access grant; mobile/desktop should pass device_id
+      summary: Create access grant; pilot mobile/desktop should pass device_id and protocol=vless
       responses:
         "201":
           description: Grant created
@@ -309,7 +309,7 @@ paths:
     get:
       security:
         - bearerAuth: []
-      summary: Get VPN client config contract for a grant
+      summary: Get VPN client config contract for a grant; VLESS pilot returns connection_url/share_url
       parameters:
         - name: grantID
           in: path

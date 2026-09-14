@@ -68,15 +68,13 @@ Backend уже умеет:
 - показывать usage;
 - связывать Telegram identity через link token.
 
-Важно: реальная генерация VPN-конфига пока не включена. Endpoint уже есть, форма ответа стабильная, но сейчас он возвращает:
+Важно: для pilot-сервера включена выдача VLESS REALITY ссылки. Для новых рабочих grants используй:
 
-```json
-{
-  "config_status": "pending_runtime_config"
-}
+```text
+protocol = vless
 ```
 
-Это значит: приложение уже можно подключать к API и строить весь flow, но кнопку реального VPN-подключения надо держать в состоянии "конфигурация готовится", пока backend не начнет возвращать `config_status: "ready"`.
+`GET /v1/access/grants/{grantID}/config` возвращает `connection_url`/`share_url` вида `vless://...#WVB-...`. Если сразу после создания grant статус `pending_node_ack`, нужно повторить запрос через несколько секунд, пока node-agent применит конфиг.
 
 ## Где находится Core API
 
@@ -543,7 +541,7 @@ Response:
       "subscription_id": "uuid",
       "device_id": "uuid",
       "node_id": "uuid",
-      "protocol": "wireguard",
+      "protocol": "vless",
       "status": "active",
       "expires_at": "2026-10-11T08:00:00Z",
       "desired_revision": 4,
@@ -565,13 +563,14 @@ Request:
 {
   "node_id": "uuid",
   "device_id": "uuid",
-  "protocol": "wireguard"
+  "protocol": "vless"
 }
 ```
 
 Поддерживаемые значения `protocol`:
 
 ```text
+vless
 wireguard
 outline
 ```
@@ -579,7 +578,7 @@ outline
 Для mobile/desktop сейчас основной протокол:
 
 ```text
-wireguard
+vless
 ```
 
 Core проверяет:
@@ -649,7 +648,7 @@ GET /v1/access/grants/{grantID}/config
     "subscription_id": "uuid",
     "device_id": "uuid",
     "node_id": "uuid",
-    "protocol": "wireguard",
+    "protocol": "vless",
     "status": "active",
     "expires_at": "2026-10-11T08:00:00Z",
     "desired_revision": 4,
@@ -670,47 +669,39 @@ GET /v1/access/grants/{grantID}/config
     "name": "MacBook Pro",
     "platform": "macos"
   },
-  "config_status": "pending_runtime_config",
+  "config_status": "ready",
   "config_version": 4,
-  "wireguard": {
-    "interface": {
-      "private_key": "client_generated",
-      "address": null,
-      "dns": ["1.1.1.1", "1.0.0.1"],
-      "mtu": 1420
-    },
-    "peer": {
-      "public_key": null,
-      "preshared_key": null,
-      "endpoint": null,
-      "allowed_ips": ["0.0.0.0/0", "::/0"],
-      "persistent_keepalive": 25
-    }
-  },
-  "warnings": [
-    "VPN runtime config generation is intentionally not active yet.",
-    "Use this response shape for mobile/desktop integration; real peer keys/endpoints will be filled by the VPN config implementation pass."
-  ]
+  "connection_url": "vless://grant-uuid@91.149.241.52:18443?...#WVB-NL-PILOT-01-XXXXXXXX",
+  "share_url": "vless://grant-uuid@91.149.241.52:18443?...#WVB-NL-PILOT-01-XXXXXXXX",
+  "vless": {
+    "client_id": "uuid",
+    "label": "WVB-NL-PILOT-01-XXXXXXXX",
+    "protocol": "vless",
+    "security": "reality",
+    "network": "tcp",
+    "flow": "xtls-rprx-vision",
+    "server": "91.149.241.52",
+    "port": 18443
+  }
 }
 ```
 
 Что делать приложению сейчас:
 
-- если `config_status = pending_runtime_config`, не пытаться подключать VPN;
-- показывать состояние вроде "Конфигурация готовится";
-- можно хранить grant и polling state;
-- можно строить весь UX до момента реального подключения.
+- если `config_status = pending_node_ack`, показать "Конфигурация готовится" и повторить запрос через несколько секунд;
+- если `config_status = ready`, использовать `connection_url` / `share_url`;
+- хранить grant и polling state;
+- после revoke остановить подключение и удалить локальный runtime config.
 
 Что приложение не должно делать:
 
 - не генерировать endpoint ноды самостоятельно;
 - не подставлять фейковые peer public keys;
-- не писать WireGuard config из null-полей;
 - не обращаться к node-agent напрямую.
 
-### Ожидаемый future-ready response
+### Future WireGuard response
 
-Следующий backend pass должен привести endpoint к такому состоянию:
+WireGuard остается будущим контрактом. Когда он будет включен, endpoint может возвращать такую форму:
 
 ```json
 {
@@ -735,7 +726,7 @@ GET /v1/access/grants/{grantID}/config
 }
 ```
 
-Когда backend начнет возвращать `ready`, приложение должно передать конфиг в native VPN adapter.
+Для pilot использовать VLESS REALITY link из `connection_url`.
 
 ## Usage
 
@@ -824,10 +815,10 @@ Main screen
     -> нет: POST /v1/me/devices
   -> GET /v1/locations
   -> пользователь выбирает online node
-  -> POST /v1/access/grants { node_id, device_id, protocol: "wireguard" }
+  -> POST /v1/access/grants { node_id, device_id, protocol: "vless" }
   -> GET /v1/access/grants/{grantID}/config
-    -> pending_runtime_config: показать "конфигурация готовится"
-    -> ready: передать config в native VPN adapter
+    -> pending_node_ack: показать "конфигурация готовится", повторить polling
+    -> ready: использовать connection_url/share_url
 ```
 
 ## Минимальные экраны приложения
@@ -885,7 +876,7 @@ NODE_ID=$(curl -s "$BASE/v1/locations" \
 GRANT_RESPONSE=$(curl -s -X POST "$BASE/v1/access/grants" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"node_id\":\"$NODE_ID\",\"device_id\":\"$DEVICE_ID\",\"protocol\":\"wireguard\"}")
+  -d "{\"node_id\":\"$NODE_ID\",\"device_id\":\"$DEVICE_ID\",\"protocol\":\"vless\"}")
 
 GRANT_ID=$(echo "$GRANT_RESPONSE" | jq -r '.id')
 
@@ -927,10 +918,8 @@ go test -race ./...
 
 Разработчику приложений важно знать ограничения:
 
-- настоящая WireGuard/Outline конфигурация пока не генерируется;
-- `config_status = ready` пока не возвращается;
-- server peer public key, endpoint и tunnel address пока `null`;
-- приложения не должны пытаться подключить VPN по текущему `pending_runtime_config`;
+- WireGuard/Outline конфигурация пока не генерируется;
+- для pilot используется VLESS REALITY через `connection_url`;
 - production domain/staging URL нужно выдать отдельно;
 - реальная платежная интеграция ещё не подключена, MVP subscription активируется Core напрямую.
 
@@ -947,8 +936,8 @@ go test -race ./...
 - locations list;
 - access grant creation with `device_id`;
 - polling config endpoint;
-- UI state для `pending_runtime_config`;
-- future hook для `config_status = ready`;
+- UI state для `pending_node_ack`;
+- обработку `config_status = ready` и `connection_url`;
 - cleanup при revoke/logout.
 
 ## Короткое сообщение, которое можно отправить разработчику
@@ -973,8 +962,8 @@ Pilot Core URL: http://91.149.241.52:18080
 3. POST /v1/subscriptions, если нет активной подписки
 4. POST /v1/me/devices для текущего устройства
 5. GET /v1/locations
-6. POST /v1/access/grants с node_id, device_id, protocol=wireguard
+6. POST /v1/access/grants с node_id, device_id, protocol=vless
 7. GET /v1/access/grants/{grantID}/config
 
-Сейчас config endpoint возвращает pending_runtime_config: это нормальное текущее состояние backend. Реальный WireGuard config появится следующим backend pass, поэтому UI должен показывать "конфигурация готовится" и не пытаться подключать VPN, пока config_status не станет ready.
+На pilot config endpoint возвращает персональную VLESS REALITY ссылку в connection_url/share_url. Если config_status = pending_node_ack, покажи "конфигурация готовится" и повтори запрос. Когда config_status = ready, ссылку можно передавать в VPN runtime.
 ```
