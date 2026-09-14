@@ -4,6 +4,14 @@
 
 Runbook рассчитан на Ubuntu/Debian VPS в Нидерландах, но подойдет и для другой Linux VM с Docker.
 
+В репозитории есть готовый lean compose-файл для пилота:
+
+```text
+wavebreak-infrastructure/docker-compose.pilot.yml
+```
+
+Он поднимает только необходимые продуктовые сервисы и не публикует PostgreSQL, Redis и RabbitMQ наружу.
+
 ## 0. Что будет развернуто
 
 На одной VPS поднимается Docker Compose stack:
