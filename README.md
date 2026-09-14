@@ -84,6 +84,14 @@ Send app developers:
 
 Mobile and desktop clients must call Core API only. The local Docker Core URL is `http://127.0.0.1:18080`; production should expose a dedicated HTTPS Core API URL.
 
+## Pilot VPS Deployment
+
+For a one-server pilot rollout, use:
+
+- `docs/pilot-vps-deployment.md`
+
+The pilot runbook deploys the stack into `/opt/wavebreak-pilot/current` and is written to avoid touching existing projects on the VPS.
+
 ## Production Notes
 
 - Replace local secrets before production.

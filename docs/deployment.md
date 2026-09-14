@@ -1,5 +1,11 @@
 # WAVEBREAK Deployment
 
+For a practical one-server pilot runbook, see:
+
+```text
+docs/pilot-vps-deployment.md
+```
+
 MVP deployment target:
 
 - VM 1: `wavebreak-web`, `wavebreak-admin`, Nginx, PHP runtime.
