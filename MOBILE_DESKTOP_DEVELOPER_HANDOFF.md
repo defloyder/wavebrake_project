@@ -26,19 +26,25 @@ MOBILE_DESKTOP_DEVELOPER_HANDOFF.md
 docs/mobile-desktop-api.md
 ```
 
-4. OpenAPI-контракт:
+4. Живой pilot guide для тестирования приложения:
+
+```text
+docs/mobile-desktop-pilot-testing.md
+```
+
+5. OpenAPI-контракт:
 
 ```text
 wavebreak-core/api/openapi.yaml
 ```
 
-5. Контракт будущей VPN-конфигурации:
+6. Контракт будущей VPN-конфигурации:
 
 ```text
 docs/vpn-config-contract.md
 ```
 
-6. Результаты проверки:
+7. Результаты проверки:
 
 ```text
 docs/results.md
@@ -78,6 +84,12 @@ Backend уже умеет:
 
 ```text
 http://127.0.0.1:18080
+```
+
+Живой pilot API для разработчика мобильного/десктопного приложения:
+
+```text
+http://91.149.241.52:18080
 ```
 
 Production/staging должен быть HTTPS endpoint Core API:
@@ -946,11 +958,13 @@ go test -race ./...
 git@github.com:defloyder/wavebrake_project.git
 
 Главный документ: MOBILE_DESKTOP_DEVELOPER_HANDOFF.md
+Pilot testing: docs/mobile-desktop-pilot-testing.md
 Подробный API: docs/mobile-desktop-api.md
 OpenAPI: wavebreak-core/api/openapi.yaml
 VPN config contract: docs/vpn-config-contract.md
 
 Клиенты должны ходить только в Core API, не в Laravel и не в node-agent.
+Pilot Core URL: http://91.149.241.52:18080
 Локальный Core URL: http://127.0.0.1:18080
 
 Основной flow:
