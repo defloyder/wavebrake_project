@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"wavebreak-core/internal/config"
 	"wavebreak-core/internal/security"
 	"wavebreak-core/internal/store"
 )
@@ -200,15 +202,105 @@ func (s *Server) accessGrantConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, config)
 }
 
+var regionFlags = map[string]string{
+	"NL": "🇳🇱",
+	"TR": "🇹🇷",
+	"DE": "🇩🇪",
+	"US": "🇺🇸",
+	"GB": "🇬🇧",
+	"FR": "🇫🇷",
+	"SG": "🇸🇬",
+	"JP": "🇯🇵",
+}
+
+var regionNames = map[string]string{
+	"NL": "Netherlands",
+	"TR": "Turkey",
+	"DE": "Germany",
+	"US": "United States",
+	"GB": "United Kingdom",
+	"FR": "France",
+	"SG": "Singapore",
+	"JP": "Japan",
+}
+
+// nodeCities fills in a friendly city for specific known node codes; nodes
+// without an entry here still get a clean "<flag> <country>" label.
+var nodeCities = map[string]string{
+	"NL-PILOT-01": "Amsterdam",
+}
+
+// locationLabel renders a human node code like "NL-PILOT-01" as something
+// a person picks out of a server list at a glance, e.g. "🇳🇱 Netherlands, Amsterdam".
+func locationLabel(node store.Node) string {
+	region := strings.ToUpper(strings.TrimSpace(node.Region))
+	flag := regionFlags[region]
+	if flag == "" {
+		flag = "🌐"
+	}
+	name := regionNames[region]
+	if name == "" {
+		name = region
+	}
+	if city, ok := nodeCities[strings.ToUpper(strings.TrimSpace(node.Code))]; ok {
+		return fmt.Sprintf("%s %s, %s", flag, name, city)
+	}
+	return fmt.Sprintf("%s %s", flag, name)
+}
+
+// subscriptionByGrant is the URL a VPN client (Happ, v2rayNG, NekoBox, ...)
+// is pointed at once and then refreshes on its own schedule, instead of the
+// user re-pasting a raw vless:// link. It is intentionally unauthenticated
+// (keyed by the grant's own unguessable UUID) since a subscription refresh
+// has no short-lived JWT to present. The body bundles every transport the
+// grant has (VLESS+REALITY, and Shadowsocks when configured) so a client
+// that supports trying multiple nodes/protocols can fall back automatically.
+func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
+	cfg, err := s.app.Store.AccessGrantConfigPublic(r.Context(), chi.URLParam(r, "grantID"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "subscription not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load subscription")
+		return
+	}
+	s.applyVLESSRuntimeConfig(&cfg)
+	if len(cfg.Links) == 0 {
+		writeError(w, http.StatusServiceUnavailable, "subscription is not ready yet: "+cfg.ConfigStatus)
+		return
+	}
+
+	planName := cfg.PlanName
+	if planName == "" {
+		planName = "WaveBreak"
+	} else {
+		planName = "WaveBreak — " + planName
+	}
+	w.Header().Set("Profile-Title", "base64:"+base64.StdEncoding.EncodeToString([]byte(planName)))
+	w.Header().Set("Profile-Update-Interval", "12")
+	userinfo := "upload=0; download=0"
+	if cfg.TrafficLimitBytes != nil {
+		userinfo += fmt.Sprintf("; total=%d", *cfg.TrafficLimitBytes)
+	}
+	if cfg.SubscriptionExpiresAt != nil {
+		userinfo += fmt.Sprintf("; expire=%d", cfg.SubscriptionExpiresAt.Unix())
+	}
+	w.Header().Set("Subscription-Userinfo", userinfo)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(base64.StdEncoding.EncodeToString([]byte(strings.Join(cfg.Links, "\n")))))
+}
+
 func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 	if config.Grant.Protocol != "vless" && config.Grant.Protocol != "vless-reality" {
 		return
 	}
-	vless := s.app.Config.VLESS
 	if config.Grant.Status == "revoked" {
 		config.ConfigStatus = "revoked"
 		return
 	}
+	vless := s.app.Config.VLESS
 	if strings.TrimSpace(vless.PublicHost) == "" || strings.TrimSpace(vless.RealityPublicKey) == "" || strings.TrimSpace(vless.RealityShortID) == "" {
 		config.ConfigStatus = "pending_runtime_config"
 		config.Warnings = []string{"VLESS REALITY public endpoint is not configured on Core yet."}
@@ -221,23 +313,17 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		config.ConfigStatus = "ready"
 		config.Warnings = nil
 	}
-	label := vlessLabel(config.Node.Code, config.Grant.ID)
-	endpoint := net.JoinHostPort(vless.PublicHost, strconv.Itoa(vless.PublicPort))
-	query := url.Values{}
-	query.Set("type", "tcp")
-	query.Set("security", "reality")
-	query.Set("encryption", "none")
-	query.Set("pbk", vless.RealityPublicKey)
-	query.Set("fp", vless.Fingerprint)
-	query.Set("sni", vless.RealityServerName)
-	query.Set("sid", vless.RealityShortID)
-	query.Set("flow", vless.Flow)
-	link := fmt.Sprintf("vless://%s@%s?%s#%s", config.Grant.ID, endpoint, query.Encode(), url.QueryEscape(label))
-	config.ConnectionURL = link
-	config.ShareURL = link
+
+	location := locationLabel(config.Node)
+	links := make([]string, 0, 2)
+
+	vlessLink := buildVLESSLink(vless, config.Grant.ID, location)
+	links = append(links, vlessLink)
+	config.ConnectionURL = vlessLink
+	config.ShareURL = vlessLink
 	config.VLESS = map[string]any{
 		"client_id":          config.Grant.ID,
-		"label":              label,
+		"label":              location,
 		"protocol":           "vless",
 		"security":           "reality",
 		"network":            "tcp",
@@ -248,20 +334,52 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		"fingerprint":        vless.Fingerprint,
 		"reality_public_key": vless.RealityPublicKey,
 		"short_id":           vless.RealityShortID,
-		"uri":                link,
+		"uri":                vlessLink,
 	}
+
+	if vless.ShadowsocksPort > 0 {
+		ssLink := buildShadowsocksLink(vless, config.Grant.ID, location)
+		links = append(links, ssLink)
+		config.Shadowsocks = map[string]any{
+			"client_id": config.Grant.ID,
+			"label":     location,
+			"protocol":  "shadowsocks",
+			"method":    vless.ShadowsocksMethod,
+			"server":    vless.PublicHost,
+			"port":      vless.ShadowsocksPort,
+			"uri":       ssLink,
+		}
+	}
+	config.Links = links
 }
 
-func vlessLabel(nodeCode, grantID string) string {
-	shortID := strings.ToUpper(strings.ReplaceAll(grantID, "-", ""))
-	if len(shortID) > 8 {
-		shortID = shortID[:8]
-	}
-	nodeCode = strings.ToUpper(strings.TrimSpace(nodeCode))
-	if nodeCode == "" {
-		nodeCode = "NODE"
-	}
-	return fmt.Sprintf("WVB-%s-%s", nodeCode, shortID)
+// buildVLESSLink renders the primary VLESS+REALITY connection URI. This is
+// the highest-throughput transport (XTLS Vision splice) and should be tried
+// first by any client that lets the user pick or auto-select.
+func buildVLESSLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (VLESS)", location)
+	endpoint := net.JoinHostPort(vless.PublicHost, strconv.Itoa(vless.PublicPort))
+	query := url.Values{}
+	query.Set("type", "tcp")
+	query.Set("security", "reality")
+	query.Set("encryption", "none")
+	query.Set("pbk", vless.RealityPublicKey)
+	query.Set("fp", vless.Fingerprint)
+	query.Set("sni", vless.RealityServerName)
+	query.Set("sid", vless.RealityShortID)
+	query.Set("flow", vless.Flow)
+	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.QueryEscape(label))
+}
+
+// buildShadowsocksLink renders a second, structurally different transport
+// (plain Shadowsocks AEAD, no TLS/REALITY fingerprint at all) so a client
+// has a fallback to try when a network specifically targets REALITY/Vision
+// traffic patterns rather than blocking everything indiscriminately.
+func buildShadowsocksLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (Shadowsocks)", location)
+	userinfo := base64.StdEncoding.EncodeToString([]byte(vless.ShadowsocksMethod + ":" + grantID))
+	endpoint := net.JoinHostPort(vless.PublicHost, strconv.Itoa(vless.ShadowsocksPort))
+	return fmt.Sprintf("ss://%s@%s#%s", userinfo, endpoint, url.QueryEscape(label))
 }
 
 func (s *Server) nodeUsageReport(w http.ResponseWriter, r *http.Request) {

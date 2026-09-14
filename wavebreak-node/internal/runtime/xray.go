@@ -68,7 +68,8 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			return nil, err
 		}
 	}
-	clients := make([]map[string]any, 0, len(desired.Grants))
+	vlessClients := make([]map[string]any, 0, len(desired.Grants))
+	ssClients := make([]map[string]any, 0, len(desired.Grants))
 	for _, grant := range desired.Grants {
 		if !isVLESSProtocol(grant.Protocol) || grant.Status != "active" {
 			continue
@@ -77,46 +78,71 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 		if email == "" {
 			email = "WVB-" + strings.ToUpper(strings.ReplaceAll(grant.ID, "-", ""))[:8]
 		}
-		clients = append(clients, map[string]any{
+		vlessClients = append(vlessClients, map[string]any{
 			"id":    grant.ID,
 			"flow":  a.cfg.Flow,
 			"email": email,
 		})
+		ssClients = append(ssClients, map[string]any{
+			"password": grant.ID,
+			"method":   a.cfg.ShadowsocksMethod,
+			"email":    email,
+		})
 	}
-	rendered := map[string]any{
-		"log": map[string]any{"loglevel": "warning"},
-		"inbounds": []map[string]any{
-			{
-				"listen":   "0.0.0.0",
-				"port":     a.cfg.ListenPort,
-				"protocol": "vless",
-				"settings": map[string]any{
-					"clients":    clients,
-					"decryption": "none",
+	inbounds := []map[string]any{
+		{
+			"listen":   "0.0.0.0",
+			"port":     a.cfg.ListenPort,
+			"protocol": "vless",
+			"settings": map[string]any{
+				"clients":    vlessClients,
+				"decryption": "none",
+			},
+			"streamSettings": map[string]any{
+				"network":  "tcp",
+				"security": "reality",
+				"realitySettings": map[string]any{
+					"show":        false,
+					"xver":        0,
+					"dest":        a.cfg.RealityDest,
+					"serverNames": []string{a.cfg.RealityServerName},
+					"privateKey":  a.cfg.RealityPrivateKey,
+					"shortIds":    []string{a.cfg.RealityShortID},
 				},
-				"streamSettings": map[string]any{
-					"network":  "tcp",
-					"security": "reality",
-					"realitySettings": map[string]any{
-						"show":        false,
-						"xver":        0,
-						"dest":        a.cfg.RealityDest,
-						"serverNames": []string{a.cfg.RealityServerName},
-						"privateKey":  a.cfg.RealityPrivateKey,
-						"shortIds":    []string{a.cfg.RealityShortID},
-					},
-					"sockopt": map[string]any{
-						"tcpFastOpen": true,
-						"tcpFragment": true,
-						"tcpMaxSeg":   1350,
-					},
-				},
-				"sniffing": map[string]any{
-					"enabled":      true,
-					"destOverride": []string{"http", "tls", "quic"},
+				"sockopt": map[string]any{
+					"tcpFastOpen": true,
+					"tcpFragment": true,
+					"tcpMaxSeg":   1350,
 				},
 			},
+			"sniffing": map[string]any{
+				"enabled":      true,
+				"destOverride": []string{"http", "tls", "quic"},
+			},
 		},
+	}
+	// A second, structurally different protocol (Shadowsocks over plain TCP,
+	// no REALITY/TLS fingerprint at all) gives clients a fallback transport
+	// when a network specifically targets REALITY/XTLS-Vision traffic
+	// patterns, without touching the primary VLESS+REALITY inbound.
+	if a.cfg.ShadowsocksPort > 0 {
+		inbounds = append(inbounds, map[string]any{
+			"listen":   "0.0.0.0",
+			"port":     a.cfg.ShadowsocksPort,
+			"protocol": "shadowsocks",
+			"settings": map[string]any{
+				"clients": ssClients,
+				"network": "tcp,udp",
+			},
+			"sniffing": map[string]any{
+				"enabled":      true,
+				"destOverride": []string{"http", "tls", "quic"},
+			},
+		})
+	}
+	rendered := map[string]any{
+		"log":      map[string]any{"loglevel": "warning"},
+		"inbounds": inbounds,
 		"outbounds": []map[string]any{
 			{
 				"protocol": "freedom",

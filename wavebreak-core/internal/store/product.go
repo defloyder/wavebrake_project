@@ -111,17 +111,22 @@ type TrafficRow struct {
 }
 
 type AccessGrantConfig struct {
-	Grant         AccessGrant    `json:"grant"`
-	Node          Node           `json:"node"`
-	Device        *Device        `json:"device,omitempty"`
-	ConfigStatus  string         `json:"config_status"`
-	ConfigVersion int            `json:"config_version"`
-	ConnectionURL string         `json:"connection_url,omitempty"`
-	ShareURL      string         `json:"share_url,omitempty"`
-	VLESS         map[string]any `json:"vless,omitempty"`
-	WireGuard     map[string]any `json:"wireguard,omitempty"`
-	Outline       map[string]any `json:"outline,omitempty"`
-	Warnings      []string       `json:"warnings,omitempty"`
+	Grant                 AccessGrant    `json:"grant"`
+	Node                  Node           `json:"node"`
+	Device                *Device        `json:"device,omitempty"`
+	ConfigStatus          string         `json:"config_status"`
+	ConfigVersion         int            `json:"config_version"`
+	ConnectionURL         string         `json:"connection_url,omitempty"`
+	ShareURL              string         `json:"share_url,omitempty"`
+	Links                 []string       `json:"links,omitempty"`
+	VLESS                 map[string]any `json:"vless,omitempty"`
+	Shadowsocks           map[string]any `json:"shadowsocks,omitempty"`
+	WireGuard             map[string]any `json:"wireguard,omitempty"`
+	Outline               map[string]any `json:"outline,omitempty"`
+	PlanName              string         `json:"plan_name,omitempty"`
+	SubscriptionExpiresAt *time.Time     `json:"subscription_expires_at,omitempty"`
+	TrafficLimitBytes     *int64         `json:"traffic_limit_bytes,omitempty"`
+	Warnings              []string       `json:"warnings,omitempty"`
 }
 
 type ClientBootstrap struct {
@@ -563,6 +568,71 @@ func (s *Store) AccessGrantConfig(ctx context.Context, userID, grantID string) (
 				"allowed_ips":          []string{"0.0.0.0/0", "::/0"},
 				"persistent_keepalive": 25,
 			},
+		}
+	}
+	return result, nil
+}
+
+// AccessGrantConfigPublic looks up a grant's runtime config by grant ID only,
+// with no user scoping, for the unauthenticated subscription endpoint: a
+// VPN client refreshes its subscription URL on its own schedule and cannot
+// carry a short-lived JWT for that. It also resolves the grant's plan name
+// and subscription usage limits, which AccessGrantConfig's caller (the
+// authenticated /me-style endpoint) does not need.
+func (s *Store) AccessGrantConfigPublic(ctx context.Context, grantID string) (AccessGrantConfig, error) {
+	var grant AccessGrant
+	err := s.db.QueryRow(ctx, `
+		select id::text, user_id::text, subscription_id::text, device_id::text, node_id::text, protocol, status, expires_at, revoked_at, revoked_reason, desired_revision, created_at
+		from access_grants
+		where id = $1`, grantID,
+	).Scan(&grant.ID, &grant.UserID, &grant.SubscriptionID, &grant.DeviceID, &grant.NodeID, &grant.Protocol, &grant.Status, &grant.ExpiresAt, &grant.RevokedAt, &grant.RevokedReason, &grant.DesiredRevision, &grant.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AccessGrantConfig{}, ErrNotFound
+	}
+	if err != nil {
+		return AccessGrantConfig{}, err
+	}
+	var node Node
+	err = s.db.QueryRow(ctx, `
+		select id::text, code, region, status, desired_revision, applied_revision, last_sync_error, last_heartbeat_at
+		from nodes
+		where id = $1`, grant.NodeID,
+	).Scan(&node.ID, &node.Code, &node.Region, &node.Status, &node.DesiredRevision, &node.AppliedRevision, &node.LastSyncError, &node.LastHeartbeatAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AccessGrantConfig{}, ErrNotFound
+	}
+	if err != nil {
+		return AccessGrantConfig{}, err
+	}
+
+	status := "pending_runtime_config"
+	if grant.Status == "revoked" {
+		status = "revoked"
+	} else if node.AppliedRevision < grant.DesiredRevision {
+		status = "pending_node_ack"
+	}
+
+	result := AccessGrantConfig{
+		Grant:         grant,
+		Node:          node,
+		ConfigStatus:  status,
+		ConfigVersion: grant.DesiredRevision,
+	}
+
+	if grant.SubscriptionID != nil {
+		var planName string
+		var expiresAt time.Time
+		var trafficLimit *int64
+		err = s.db.QueryRow(ctx, `
+			select p.name, s.current_period_end, coalesce(s.traffic_limit_override_bytes, s.traffic_limit_bytes_snapshot)
+			from subscriptions s
+			join plans p on p.id = s.plan_id
+			where s.id = $1`, *grant.SubscriptionID,
+		).Scan(&planName, &expiresAt, &trafficLimit)
+		if err == nil {
+			result.PlanName = planName
+			result.SubscriptionExpiresAt = &expiresAt
+			result.TrafficLimitBytes = trafficLimit
 		}
 	}
 	return result, nil

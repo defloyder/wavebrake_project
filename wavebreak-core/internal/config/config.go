@@ -32,6 +32,8 @@ type VLESSConfig struct {
 	RealityServerName string
 	Fingerprint       string
 	Flow              string
+	ShadowsocksPort   int
+	ShadowsocksMethod string
 }
 
 func Load() (Config, error) {
@@ -42,6 +44,10 @@ func Load() (Config, error) {
 	vlessPort, err := strconv.Atoi(env("WAVEBREAK_VLESS_PORT", "18443"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_VLESS_PORT: %w", err)
+	}
+	ssPort, err := strconv.Atoi(env("WAVEBREAK_SS_PORT", "0"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_SS_PORT: %w", err)
 	}
 
 	cfg := Config{
@@ -65,6 +71,8 @@ func Load() (Config, error) {
 			RealityServerName: env("WAVEBREAK_VLESS_REALITY_SERVER_NAME", "www.microsoft.com"),
 			Fingerprint:       env("WAVEBREAK_VLESS_FINGERPRINT", "chrome"),
 			Flow:              env("WAVEBREAK_VLESS_FLOW", "xtls-rprx-vision"),
+			ShadowsocksPort:   ssPort,
+			ShadowsocksMethod: env("WAVEBREAK_SS_METHOD", "aes-256-gcm"),
 		},
 	}
 	if cfg.Environment == "production" {

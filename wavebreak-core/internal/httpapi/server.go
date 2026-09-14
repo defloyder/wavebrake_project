@@ -40,6 +40,7 @@ func New(app *app.App) http.Handler {
 		r.Post("/auth/logout", s.logout)
 		r.Get("/plans", s.listPlans)
 		r.Post("/node/enroll", s.nodeEnrollWithToken)
+		r.Get("/sub/{grantID}", s.subscriptionByGrant)
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.nodeAuthRequired)

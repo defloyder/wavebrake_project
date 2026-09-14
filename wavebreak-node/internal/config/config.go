@@ -27,6 +27,8 @@ type XrayConfig struct {
 	RealityDest       string
 	RealityServerName string
 	Flow              string
+	ShadowsocksPort   int
+	ShadowsocksMethod string
 	DockerSocket      string
 	DockerContainer   string
 }
@@ -50,6 +52,8 @@ func Load() Config {
 			RealityDest:       env("WAVEBREAK_XRAY_REALITY_DEST", "www.microsoft.com:443"),
 			RealityServerName: env("WAVEBREAK_XRAY_REALITY_SERVER_NAME", "www.microsoft.com"),
 			Flow:              env("WAVEBREAK_XRAY_FLOW", "xtls-rprx-vision"),
+			ShadowsocksPort:   intEnv("WAVEBREAK_XRAY_SS_PORT", 0),
+			ShadowsocksMethod: env("WAVEBREAK_XRAY_SS_METHOD", "aes-256-gcm"),
 			DockerSocket:      env("WAVEBREAK_XRAY_DOCKER_SOCKET", "/var/run/docker.sock"),
 			DockerContainer:   env("WAVEBREAK_XRAY_DOCKER_CONTAINER", ""),
 		},
