@@ -10,6 +10,7 @@ type Config struct {
 	CoreURL           string
 	EnrollmentToken   string
 	NodeAPIToken      string
+	NodeTokenPath     string
 	NodeCode          string
 	Region            string
 	HeartbeatInterval time.Duration
@@ -35,6 +36,7 @@ func Load() Config {
 		CoreURL:           env("WAVEBREAK_CORE_URL", "http://localhost:8080"),
 		EnrollmentToken:   env("WAVEBREAK_NODE_ENROLLMENT_TOKEN", ""),
 		NodeAPIToken:      env("WAVEBREAK_NODE_API_TOKEN", ""),
+		NodeTokenPath:     env("WAVEBREAK_NODE_TOKEN_PATH", ""),
 		NodeCode:          env("WAVEBREAK_NODE_CODE", "TR-IST-01"),
 		Region:            env("WAVEBREAK_NODE_REGION", "TR"),
 		HeartbeatInterval: durationEnv("WAVEBREAK_NODE_HEARTBEAT_INTERVAL", 30*time.Second),

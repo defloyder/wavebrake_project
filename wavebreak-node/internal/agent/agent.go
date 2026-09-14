@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -60,6 +62,14 @@ func New(cfg config.Config, log *slog.Logger) *Agent {
 
 func (a *Agent) Run(ctx context.Context) error {
 	a.nodeToken = a.cfg.NodeAPIToken
+	if a.nodeToken == "" {
+		if token, err := os.ReadFile(a.tokenPath()); err == nil {
+			if trimmed := strings.TrimSpace(string(token)); trimmed != "" {
+				a.nodeToken = trimmed
+				a.log.InfoContext(ctx, "loaded persisted node API token")
+			}
+		}
+	}
 	if a.nodeToken == "" && a.cfg.EnrollmentToken == "" {
 		return fmt.Errorf("WAVEBREAK_NODE_API_TOKEN or WAVEBREAK_NODE_ENROLLMENT_TOKEN is required")
 	}
@@ -99,8 +109,27 @@ func (a *Agent) Enroll(ctx context.Context) error {
 	}
 	a.nodeID = response.Node.ID
 	a.nodeToken = response.NodeAPIToken
+	if err := os.MkdirAll(filepath.Dir(a.tokenPath()), 0o755); err != nil {
+		a.log.WarnContext(ctx, "could not create node token directory", "error", err)
+	} else if err := os.WriteFile(a.tokenPath(), []byte(a.nodeToken), 0o600); err != nil {
+		a.log.WarnContext(ctx, "could not persist node API token", "error", err)
+	}
 	a.log.InfoContext(ctx, "node enrolled", "node_id", response.Node.ID, "code", response.Node.Code, "region", response.Node.Region)
 	return nil
+}
+
+// tokenPath returns where the node API token is persisted across restarts,
+// so a container recreate doesn't have to re-enroll with a (single-use)
+// enrollment token. Defaults to a file alongside the xray runtime config,
+// which is already on a persistent volume in the pilot deployment.
+func (a *Agent) tokenPath() string {
+	if strings.TrimSpace(a.cfg.NodeTokenPath) != "" {
+		return a.cfg.NodeTokenPath
+	}
+	if strings.TrimSpace(a.cfg.Xray.ConfigPath) != "" {
+		return filepath.Join(filepath.Dir(a.cfg.Xray.ConfigPath), ".wavebreak-node-token")
+	}
+	return "/var/lib/wavebreak/node-token"
 }
 
 func (a *Agent) Heartbeat(ctx context.Context) error {
