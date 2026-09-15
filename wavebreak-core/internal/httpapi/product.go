@@ -33,7 +33,13 @@ func (s *Server) clientBootstrap(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load client bootstrap")
 		return
 	}
-	writeJSON(w, http.StatusOK, bootstrap)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user":      bootstrap.User,
+		"overview":  bootstrap.Overview,
+		"plans":     bootstrap.Plans,
+		"nodes":     bootstrap.Nodes,
+		"locations": s.locationPayloads(bootstrap.Nodes),
+	})
 }
 
 func (s *Server) meIdentities(w http.ResponseWriter, r *http.Request) {
@@ -248,6 +254,62 @@ func locationLabel(node store.Node) string {
 	return fmt.Sprintf("%s %s", flag, name)
 }
 
+func locationPayload(node store.Node) map[string]any {
+	region := strings.ToUpper(strings.TrimSpace(node.Region))
+	country := regionNames[region]
+	if country == "" {
+		country = region
+	}
+	city := nodeCities[strings.ToUpper(strings.TrimSpace(node.Code))]
+	label := locationLabel(node)
+	return map[string]any{
+		"id":            node.ID,
+		"node_id":       node.ID,
+		"node_code":     node.Code,
+		"region":        region,
+		"country":       country,
+		"city":          city,
+		"label":         label,
+		"display_name":  label,
+		"status":        node.Status,
+		"online":        node.Status == "online",
+		"desired_rev":   node.DesiredRevision,
+		"applied_rev":   node.AppliedRevision,
+		"last_seen_at":  node.LastHeartbeatAt,
+		"last_error":    node.LastSyncError,
+		"is_available":  node.Status == "online" && node.LastSyncError == nil,
+		"protocol_hint": "vless-reality",
+	}
+}
+
+func (s *Server) locationPayloads(nodes []store.Node) []map[string]any {
+	locations := make([]map[string]any, 0, len(nodes))
+	for _, node := range nodes {
+		location := locationPayload(node)
+		if strings.TrimSpace(s.app.Config.VLESS.PublicHost) != "" {
+			location["connection_test"] = s.connectionTestPayload(node)
+		}
+		locations = append(locations, location)
+	}
+	return locations
+}
+
+func (s *Server) connectionTestPayload(node store.Node) map[string]any {
+	vless := s.app.Config.VLESS
+	return map[string]any{
+		"node_id":      node.ID,
+		"node_code":    node.Code,
+		"protocol":     "vless",
+		"transport":    "tcp",
+		"security":     "reality",
+		"host":         vless.PublicHost,
+		"port":         vless.PublicPort,
+		"sni":          vless.RealityServerName,
+		"timeout_ms":   8000,
+		"test_targets": []string{"api.telegram.org:443", "telegram.org:443", "t.me:443"},
+	}
+}
+
 // subscriptionByGrant is the URL a VPN client (Happ, v2rayNG, NekoBox, ...)
 // is pointed at once and then refreshes on its own schedule, instead of the
 // user re-pasting a raw vless:// link. It is intentionally unauthenticated
@@ -319,6 +381,8 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 	links := make([]string, 0, 2)
 
 	vlessLink := buildVLESSLink(vless, config.Grant.ID, location)
+	config.Location = locationPayload(config.Node)
+	config.ConnectionTest = s.connectionTestPayload(config.Node)
 	links = append(links, vlessLink)
 	config.ConnectionURL = vlessLink
 	config.ShareURL = vlessLink
@@ -335,6 +399,8 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		"reality_public_key": vless.RealityPublicKey,
 		"short_id":           vless.RealityShortID,
 		"uri":                vlessLink,
+		"location":           config.Location,
+		"connection_test":    config.ConnectionTest,
 	}
 	if vlessFlowEnabled(vless.Flow) {
 		config.VLESS["flow"] = vless.Flow

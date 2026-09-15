@@ -323,7 +323,7 @@ func (s *Server) listNodes(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not list nodes")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"nodes": nodes})
+	writeJSON(w, http.StatusOK, map[string]any{"nodes": nodes, "locations": s.locationPayloads(nodes)})
 }
 
 func (s *Server) createAccessGrant(w http.ResponseWriter, r *http.Request) {
