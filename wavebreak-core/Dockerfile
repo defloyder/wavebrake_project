@@ -4,10 +4,10 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/wavebreak-api ./cmd/wavebreak-api \
-    && CGO_ENABLED=0 GOOS=linux go build -o /out/wavebreak-worker ./cmd/wavebreak-worker \
-    && CGO_ENABLED=0 GOOS=linux go build -o /out/wavebreak-cli ./cmd/wavebreak-cli \
-    && CGO_ENABLED=0 GOOS=linux go build -o /out/wavebreak-migrate ./cmd/wavebreak-migrate
+RUN CGO_ENABLED=0 GOOS=linux go build -p=1 -o /out/wavebreak-api ./cmd/wavebreak-api \
+    && CGO_ENABLED=0 GOOS=linux go build -p=1 -o /out/wavebreak-worker ./cmd/wavebreak-worker \
+    && CGO_ENABLED=0 GOOS=linux go build -p=1 -o /out/wavebreak-cli ./cmd/wavebreak-cli \
+    && CGO_ENABLED=0 GOOS=linux go build -p=1 -o /out/wavebreak-migrate ./cmd/wavebreak-migrate
 
 FROM alpine:3.22
 RUN adduser -D -H wavebreak

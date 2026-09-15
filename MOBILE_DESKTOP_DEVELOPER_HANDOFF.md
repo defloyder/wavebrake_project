@@ -669,6 +669,31 @@ GET /v1/access/grants/{grantID}/config
     "name": "MacBook Pro",
     "platform": "macos"
   },
+  "location": {
+    "node_id": "uuid",
+    "node_code": "NL-PILOT-01",
+    "region": "NL",
+    "country": "Netherlands",
+    "city": "Amsterdam",
+    "label": "🇳🇱 Netherlands, Amsterdam",
+    "display_name": "🇳🇱 Netherlands, Amsterdam",
+    "status": "online",
+    "online": true,
+    "is_available": true,
+    "protocol_hint": "vless-reality"
+  },
+  "connection_test": {
+    "node_id": "uuid",
+    "node_code": "NL-PILOT-01",
+    "protocol": "vless",
+    "transport": "tcp",
+    "security": "reality",
+    "host": "91.149.241.52",
+    "port": 18443,
+    "sni": "www.microsoft.com",
+    "timeout_ms": 8000,
+    "test_targets": ["api.telegram.org:443", "telegram.org:443", "t.me:443"]
+  },
   "config_status": "ready",
   "config_version": 4,
   "connection_url": "vless://grant-uuid@91.149.241.52:18443?...#WVB-NL-PILOT-01-XXXXXXXX",
@@ -679,12 +704,17 @@ GET /v1/access/grants/{grantID}/config
     "protocol": "vless",
     "security": "reality",
     "network": "tcp",
-    "flow": "xtls-rprx-vision",
     "server": "91.149.241.52",
-    "port": 18443
+    "port": 18443,
+    "location": { "...": "same shape as top-level location above" },
+    "connection_test": { "...": "same shape as top-level connection_test above" }
   }
 }
 ```
+
+`location` и `connection_test` также приходят в `GET /v1/client/bootstrap` (как `locations: []`, один объект на каждую ноду) и в `GET /v1/locations` — используй их, чтобы показать пользователю человекочитаемую локацию ("🇳🇱 Netherlands, Amsterdam") и чтобы приложение могло само выполнить сетевой тест подключения (TCP-коннект на `host:port` из `connection_test`, не выдумывая endpoint самостоятельно), не дожидаясь фактического VPN-туннеля.
+
+`flow` в `vless` присутствует только если на сервере включен XTLS Vision (`WAVEBREAK_VLESS_FLOW` не `none`); на pilot сейчас используется совместимый режим без flow, так что поле в ответе может отсутствовать — не полагайся на его наличие.
 
 Что делать приложению сейчас:
 

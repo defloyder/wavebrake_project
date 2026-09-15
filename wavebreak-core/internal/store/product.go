@@ -114,6 +114,8 @@ type AccessGrantConfig struct {
 	Grant                 AccessGrant    `json:"grant"`
 	Node                  Node           `json:"node"`
 	Device                *Device        `json:"device,omitempty"`
+	Location              map[string]any `json:"location,omitempty"`
+	ConnectionTest        map[string]any `json:"connection_test,omitempty"`
 	ConfigStatus          string         `json:"config_status"`
 	ConfigVersion         int            `json:"config_version"`
 	ConnectionURL         string         `json:"connection_url,omitempty"`

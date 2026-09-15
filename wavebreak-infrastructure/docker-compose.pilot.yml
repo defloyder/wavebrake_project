@@ -53,7 +53,7 @@ services:
       WAVEBREAK_VLESS_REALITY_SHORT_ID: ${XRAY_REALITY_SHORT_ID:-}
       WAVEBREAK_VLESS_REALITY_SERVER_NAME: ${XRAY_REALITY_SERVER_NAME:-www.microsoft.com}
       WAVEBREAK_VLESS_FINGERPRINT: ${WAVEBREAK_VLESS_FINGERPRINT:-chrome}
-      WAVEBREAK_VLESS_FLOW: ${WAVEBREAK_VLESS_FLOW:-xtls-rprx-vision}
+      WAVEBREAK_VLESS_FLOW: ${WAVEBREAK_VLESS_FLOW:-none}
     depends_on:
       postgres:
         condition: service_healthy
@@ -77,7 +77,7 @@ services:
       WAVEBREAK_VLESS_REALITY_SHORT_ID: ${XRAY_REALITY_SHORT_ID:-}
       WAVEBREAK_VLESS_REALITY_SERVER_NAME: ${XRAY_REALITY_SERVER_NAME:-www.microsoft.com}
       WAVEBREAK_VLESS_FINGERPRINT: ${WAVEBREAK_VLESS_FINGERPRINT:-chrome}
-      WAVEBREAK_VLESS_FLOW: ${WAVEBREAK_VLESS_FLOW:-xtls-rprx-vision}
+      WAVEBREAK_VLESS_FLOW: ${WAVEBREAK_VLESS_FLOW:-none}
       WAVEBREAK_SS_PORT: ${WAVEBREAK_SS_PORT:-0}
       WAVEBREAK_SS_METHOD: ${WAVEBREAK_SS_METHOD:-aes-256-gcm}
     ports:
@@ -172,13 +172,16 @@ services:
       WAVEBREAK_NODE_SYNC_INTERVAL: 20s
       WAVEBREAK_RUNTIME_ADAPTER: ${WAVEBREAK_RUNTIME_ADAPTER:-xray}
       WAVEBREAK_XRAY_CONFIG_PATH: /etc/wavebreak/xray/config.json
-      WAVEBREAK_XRAY_LISTEN_PORT: ${XRAY_LISTEN_PORT:-8443}
+      # Must match wavebreak-xray's own listen port below: with
+      # network_mode: host there is no Docker port mapping to bridge a
+      # different internal/external port, so both read the same public port.
+      WAVEBREAK_XRAY_LISTEN_PORT: ${WAVEBREAK_VLESS_PORT:-18443}
       WAVEBREAK_XRAY_REALITY_PRIVATE_KEY: ${XRAY_REALITY_PRIVATE_KEY:-}
       WAVEBREAK_XRAY_REALITY_SHORT_ID: ${XRAY_REALITY_SHORT_ID:-}
       WAVEBREAK_XRAY_REALITY_DEST: ${XRAY_REALITY_DEST:-www.microsoft.com:443}
       WAVEBREAK_XRAY_REALITY_SERVER_NAME: ${XRAY_REALITY_SERVER_NAME:-www.microsoft.com}
-      WAVEBREAK_XRAY_FLOW: ${WAVEBREAK_VLESS_FLOW:-xtls-rprx-vision}
-      WAVEBREAK_XRAY_SS_PORT: ${XRAY_SS_PORT:-0}
+      WAVEBREAK_XRAY_FLOW: ${WAVEBREAK_VLESS_FLOW:-none}
+      WAVEBREAK_XRAY_SS_PORT: ${WAVEBREAK_XRAY_SS_PORT:-0}
       WAVEBREAK_XRAY_SS_METHOD: ${WAVEBREAK_SS_METHOD:-aes-256-gcm}
       WAVEBREAK_XRAY_DOCKER_CONTAINER: wavebreak-pilot-xray
     depends_on:
@@ -195,18 +198,21 @@ services:
     image: teddysun/xray:latest
     container_name: wavebreak-pilot-xray
     restart: unless-stopped
+    # host networking: Docker's userland docker-proxy relay for published
+    # ports has been observed to accept the client's TCP handshake and then
+    # silently hang right after the REALITY TLS ClientHello, even though the
+    # Xray process itself answers correctly on its container-internal
+    # address. Binding directly to the host's real interface skips that
+    # relay (and the NAT/DNAT path) entirely.
+    network_mode: host
     environment:
       XRAY_CONFIG_PATH: /etc/xray/config.json
-      XRAY_LISTEN_PORT: ${XRAY_LISTEN_PORT:-8443}
+      XRAY_LISTEN_PORT: ${WAVEBREAK_VLESS_PORT:-18443}
       XRAY_REALITY_PRIVATE_KEY: ${XRAY_REALITY_PRIVATE_KEY}
       XRAY_REALITY_SHORT_ID: ${XRAY_REALITY_SHORT_ID}
       XRAY_REALITY_DEST: ${XRAY_REALITY_DEST:-www.microsoft.com:443}
       XRAY_REALITY_SERVER_NAME: ${XRAY_REALITY_SERVER_NAME:-www.microsoft.com}
     command: ["/bin/sh", "/usr/local/bin/start-xray.sh"]
-    ports:
-      - "${WAVEBREAK_VLESS_PORT:-18443}:${XRAY_LISTEN_PORT:-8443}/tcp"
-      - "${WAVEBREAK_SS_PORT:-18388}:${XRAY_SS_PORT:-8388}/tcp"
-      - "${WAVEBREAK_SS_PORT:-18388}:${XRAY_SS_PORT:-8388}/udp"
     volumes:
       - wavebreak_xray_config:/etc/xray
       - ./xray/start-xray.sh:/usr/local/bin/start-xray.sh:ro
