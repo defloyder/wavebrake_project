@@ -166,6 +166,13 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				},
 				"wsSettings": map[string]any{
 					"path": wsPath,
+					// Sends a WS ping frame this often so the connection
+					// keeps looking active to Cloudflare's edge — on the
+					// free plan, an idle WebSocket gets silently dropped
+					// (seen as Telegram flashing back to "Connecting…"
+					// after a quiet stretch), forcing a full CDN-hop
+					// reconnect instead of just resuming.
+					"heartbeatPeriod": 10,
 				},
 				// TCP Fast Open shaves a round trip off connection setup —
 				// safe here (unlike on the REALITY inbound, where it isn't
