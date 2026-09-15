@@ -41,6 +41,11 @@ type VLESSConfig struct {
 	CDNHost   string
 	CDNPort   int
 	CDNWSPath string
+	// PublishDirect controls whether the direct REALITY link is included in
+	// a grant's links/subscription. Default true; set false once a network
+	// is confirmed to actively disrupt REALITY, so clients only see (and
+	// only auto-select) the CDN transport that actually works for them.
+	PublishDirect bool
 }
 
 func Load() (Config, error) {
@@ -88,6 +93,7 @@ func Load() (Config, error) {
 			CDNHost:            env("WAVEBREAK_VLESS_CDN_HOST", ""),
 			CDNPort:            cdnPort,
 			CDNWSPath:          env("WAVEBREAK_VLESS_CDN_WS_PATH", "/wvb-ws"),
+			PublishDirect:      boolEnv("WAVEBREAK_VLESS_PUBLISH_DIRECT", true),
 		},
 	}
 	if cfg.Environment == "production" {

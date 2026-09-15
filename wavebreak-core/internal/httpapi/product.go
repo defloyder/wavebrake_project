@@ -379,13 +379,20 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 
 	location := locationLabel(config.Node)
 	links := make([]string, 0, 2)
+	cdnAvailable := strings.TrimSpace(vless.CDNHost) != "" && vless.CDNPort > 0
 
 	vlessLink := buildVLESSLink(vless, config.Grant.ID, location)
 	config.Location = locationPayload(config.Node)
 	config.ConnectionTest = s.connectionTestPayload(config.Node)
-	links = append(links, vlessLink)
-	config.ConnectionURL = vlessLink
-	config.ShareURL = vlessLink
+	// The direct REALITY link is only published when explicitly enabled —
+	// on a network that's confirmed to actively disrupt REALITY, showing it
+	// alongside a working CDN link just gives a client a broken option to
+	// pick by mistake.
+	if vless.PublishDirect {
+		links = append(links, vlessLink)
+		config.ConnectionURL = vlessLink
+		config.ShareURL = vlessLink
+	}
 	config.VLESS = map[string]any{
 		"client_id":          config.Grant.ID,
 		"label":              location,
@@ -406,9 +413,13 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		config.VLESS["flow"] = vless.Flow
 	}
 
-	if strings.TrimSpace(vless.CDNHost) != "" && vless.CDNPort > 0 {
+	if cdnAvailable {
 		cdnLink := buildVLESSCDNLink(vless, config.Grant.ID, location)
 		links = append(links, cdnLink)
+		if !vless.PublishDirect {
+			config.ConnectionURL = cdnLink
+			config.ShareURL = cdnLink
+		}
 		config.VLESSCDN = map[string]any{
 			"client_id": config.Grant.ID,
 			"label":     location,

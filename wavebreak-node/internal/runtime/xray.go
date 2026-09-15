@@ -167,6 +167,14 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				"wsSettings": map[string]any{
 					"path": wsPath,
 				},
+				// TCP Fast Open shaves a round trip off connection setup —
+				// safe here (unlike on the REALITY inbound, where it isn't
+				// used) because this listener only ever sees ordinary
+				// TLS+WebSocket traffic proxied in by the CDN, not a
+				// direct client needing to look indistinguishable.
+				"sockopt": map[string]any{
+					"tcpFastOpen": true,
+				},
 			},
 			"sniffing": map[string]any{
 				"enabled":      true,
@@ -235,6 +243,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				"sockopt": map[string]any{
 					"domainStrategy": "UseIPv4",
 					"tcpMaxSeg":      1200,
+					"tcpFastOpen":    true,
 				},
 			},
 			{"protocol": "blackhole", "tag": "blocked"},
