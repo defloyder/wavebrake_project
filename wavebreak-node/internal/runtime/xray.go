@@ -91,6 +91,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 	}
 	inbounds := []map[string]any{
 		{
+			"tag":      "vless-reality",
 			"listen":   "0.0.0.0",
 			"port":     a.cfg.ListenPort,
 			"protocol": "vless",
@@ -127,6 +128,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 	// patterns, without touching the primary VLESS+REALITY inbound.
 	if a.cfg.ShadowsocksPort > 0 {
 		inbounds = append(inbounds, map[string]any{
+			"tag":      "shadowsocks",
 			"listen":   "0.0.0.0",
 			"port":     a.cfg.ShadowsocksPort,
 			"protocol": "shadowsocks",
@@ -143,11 +145,44 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 	rendered := map[string]any{
 		"log":      map[string]any{"loglevel": "warning"},
 		"inbounds": inbounds,
+		"dns": map[string]any{
+			"queryStrategy": "UseIPv4",
+			"servers": []any{
+				"1.1.1.1",
+				"8.8.8.8",
+				"localhost",
+			},
+		},
+		"routing": map[string]any{
+			"domainStrategy": "IPIfNonMatch",
+			"rules": []map[string]any{
+				{
+					"type":        "field",
+					"ip":          []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "fc00::/7"},
+					"outboundTag": "blocked",
+				},
+			},
+		},
+		"policy": map[string]any{
+			"levels": map[string]any{
+				"0": map[string]any{
+					"handshake":         4,
+					"connIdle":          300,
+					"uplinkOnly":        2,
+					"downlinkOnly":      5,
+					"statsUserUplink":   true,
+					"statsUserDownlink": true,
+				},
+			},
+		},
 		"outbounds": []map[string]any{
 			{
+				"tag":      "direct",
 				"protocol": "freedom",
-				"settings": map[string]any{},
-				"sockopt":  map[string]any{"tcpFastOpen": true},
+				"settings": map[string]any{
+					"domainStrategy": "UseIPv4",
+				},
+				"sockopt": map[string]any{"tcpFastOpen": true},
 			},
 			{"protocol": "blackhole", "tag": "blocked"},
 		},

@@ -25,15 +25,16 @@ type Config struct {
 }
 
 type VLESSConfig struct {
-	PublicHost        string
-	PublicPort        int
-	RealityPublicKey  string
-	RealityShortID    string
-	RealityServerName string
-	Fingerprint       string
-	Flow              string
-	ShadowsocksPort   int
-	ShadowsocksMethod string
+	PublicHost         string
+	PublicPort         int
+	RealityPublicKey   string
+	RealityShortID     string
+	RealityServerName  string
+	Fingerprint        string
+	Flow               string
+	ShadowsocksPort    int
+	ShadowsocksMethod  string
+	PublishShadowsocks bool
 }
 
 func Load() (Config, error) {
@@ -64,15 +65,16 @@ func Load() (Config, error) {
 		BotServiceToken: env("WAVEBREAK_BOT_SERVICE_TOKEN", ""),
 		OTLPEndpoint:    env("WAVEBREAK_OTLP_ENDPOINT", "localhost:4317"),
 		VLESS: VLESSConfig{
-			PublicHost:        env("WAVEBREAK_VLESS_PUBLIC_HOST", ""),
-			PublicPort:        vlessPort,
-			RealityPublicKey:  env("WAVEBREAK_VLESS_REALITY_PUBLIC_KEY", ""),
-			RealityShortID:    env("WAVEBREAK_VLESS_REALITY_SHORT_ID", ""),
-			RealityServerName: env("WAVEBREAK_VLESS_REALITY_SERVER_NAME", "www.microsoft.com"),
-			Fingerprint:       env("WAVEBREAK_VLESS_FINGERPRINT", "chrome"),
-			Flow:              env("WAVEBREAK_VLESS_FLOW", "xtls-rprx-vision"),
-			ShadowsocksPort:   ssPort,
-			ShadowsocksMethod: env("WAVEBREAK_SS_METHOD", "aes-256-gcm"),
+			PublicHost:         env("WAVEBREAK_VLESS_PUBLIC_HOST", ""),
+			PublicPort:         vlessPort,
+			RealityPublicKey:   env("WAVEBREAK_VLESS_REALITY_PUBLIC_KEY", ""),
+			RealityShortID:     env("WAVEBREAK_VLESS_REALITY_SHORT_ID", ""),
+			RealityServerName:  env("WAVEBREAK_VLESS_REALITY_SERVER_NAME", "www.microsoft.com"),
+			Fingerprint:        env("WAVEBREAK_VLESS_FINGERPRINT", "chrome"),
+			Flow:               env("WAVEBREAK_VLESS_FLOW", "xtls-rprx-vision"),
+			ShadowsocksPort:    ssPort,
+			ShadowsocksMethod:  env("WAVEBREAK_SS_METHOD", "aes-256-gcm"),
+			PublishShadowsocks: boolEnv("WAVEBREAK_PUBLISH_SHADOWSOCKS", false),
 		},
 	}
 	if cfg.Environment == "production" {
@@ -97,6 +99,21 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func boolEnv(key string, fallback bool) bool {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if raw == "" {
+		return fallback
+	}
+	switch raw {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return fallback
+	}
 }
 
 func mustDuration(raw string) time.Duration {

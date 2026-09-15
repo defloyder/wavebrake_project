@@ -253,8 +253,9 @@ func locationLabel(node store.Node) string {
 // user re-pasting a raw vless:// link. It is intentionally unauthenticated
 // (keyed by the grant's own unguessable UUID) since a subscription refresh
 // has no short-lived JWT to present. The body bundles every transport the
-// grant has (VLESS+REALITY, and Shadowsocks when configured) so a client
-// that supports trying multiple nodes/protocols can fall back automatically.
+// grant has. The production subscription publishes the primary VLESS+REALITY
+// profile by default; optional fallback transports must be explicitly enabled
+// so VPN clients do not auto-select a partially supported protocol.
 func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
 	cfg, err := s.app.Store.AccessGrantConfigPublic(r.Context(), chi.URLParam(r, "grantID"))
 	if errors.Is(err, store.ErrNotFound) {
@@ -337,7 +338,7 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		"uri":                vlessLink,
 	}
 
-	if vless.ShadowsocksPort > 0 {
+	if vless.PublishShadowsocks && vless.ShadowsocksPort > 0 {
 		ssLink := buildShadowsocksLink(vless, config.Grant.ID, location)
 		links = append(links, ssLink)
 		config.Shadowsocks = map[string]any{
@@ -368,7 +369,8 @@ func buildVLESSLink(vless config.VLESSConfig, grantID, location string) string {
 	query.Set("sni", vless.RealityServerName)
 	query.Set("sid", vless.RealityShortID)
 	query.Set("flow", vless.Flow)
-	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.QueryEscape(label))
+	query.Set("packetEncoding", "xudp")
+	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
 }
 
 // buildShadowsocksLink renders a second, structurally different transport
@@ -379,7 +381,7 @@ func buildShadowsocksLink(vless config.VLESSConfig, grantID, location string) st
 	label := fmt.Sprintf("%s (Shadowsocks)", location)
 	userinfo := base64.StdEncoding.EncodeToString([]byte(vless.ShadowsocksMethod + ":" + grantID))
 	endpoint := net.JoinHostPort(vless.PublicHost, strconv.Itoa(vless.ShadowsocksPort))
-	return fmt.Sprintf("ss://%s@%s#%s", userinfo, endpoint, url.QueryEscape(label))
+	return fmt.Sprintf("ss://%s@%s#%s", userinfo, endpoint, url.PathEscape(label))
 }
 
 func (s *Server) nodeUsageReport(w http.ResponseWriter, r *http.Request) {
