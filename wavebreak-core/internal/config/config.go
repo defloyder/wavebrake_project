@@ -47,6 +47,10 @@ type VLESSConfig struct {
 	// hop adds real per-connection latency.
 	CDNXHTTPPort int
 	CDNXHTTPPath string
+	// Trojan behind the same CDN — different protocol implementation than
+	// VLESS, for DPI resistance that doesn't depend on one codebase.
+	TrojanCDNPort   int
+	TrojanCDNWSPath string
 	// PublishDirect controls whether the direct REALITY link is included in
 	// a grant's links/subscription. Default true; set false once a network
 	// is confirmed to actively disrupt REALITY, so clients only see (and
@@ -81,6 +85,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_VLESS_CDN_XHTTP_PORT: %w", err)
 	}
+	trojanCDNPort, err := strconv.Atoi(env("WAVEBREAK_TROJAN_CDN_PORT", "0"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_TROJAN_CDN_PORT: %w", err)
+	}
 
 	cfg := Config{
 		Environment:     env("WAVEBREAK_ENV", "development"),
@@ -113,6 +121,8 @@ func Load() (Config, error) {
 			CDNXHTTPPath:       env("WAVEBREAK_VLESS_CDN_XHTTP_PATH", "/wvb-xh"),
 			PublishDirect:      boolEnv("WAVEBREAK_VLESS_PUBLISH_DIRECT", true),
 			PublishCDNXHTTP:    boolEnv("WAVEBREAK_VLESS_PUBLISH_CDN_XHTTP", true),
+			TrojanCDNPort:      trojanCDNPort,
+			TrojanCDNWSPath:    env("WAVEBREAK_TROJAN_CDN_WS_PATH", "/wvb-tr"),
 		},
 	}
 	if cfg.Environment == "production" {

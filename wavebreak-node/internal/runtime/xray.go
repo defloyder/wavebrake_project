@@ -71,6 +71,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 	vlessClients := make([]map[string]any, 0, len(desired.Grants))
 	vlessClientsNoFlow := make([]map[string]any, 0, len(desired.Grants))
 	ssClients := make([]map[string]any, 0, len(desired.Grants))
+	trojanClients := make([]map[string]any, 0, len(desired.Grants))
 	for _, grant := range desired.Grants {
 		if !isVLESSProtocol(grant.Protocol) || grant.Status != "active" {
 			continue
@@ -97,6 +98,10 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 		ssClients = append(ssClients, map[string]any{
 			"password": grant.ID,
 			"method":   a.cfg.ShadowsocksMethod,
+			"email":    email,
+		})
+		trojanClients = append(trojanClients, map[string]any{
+			"password": grant.ID,
 			"email":    email,
 		})
 	}
@@ -217,6 +222,48 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				"xhttpSettings": map[string]any{
 					"path": xhttpPath,
 					"mode": "auto",
+				},
+				"sockopt": map[string]any{
+					"tcpFastOpen": true,
+				},
+			},
+			"sniffing": map[string]any{
+				"enabled":      true,
+				"destOverride": []string{"http", "tls", "quic"},
+			},
+		})
+	}
+	// Trojan is a third, independently-implemented protocol behind the same
+	// CDN — a completely different codebase's traffic fingerprint than
+	// VLESS, so a DPI heuristic tuned to one doesn't automatically catch
+	// both. Same cert, same CDN domain, different port/path.
+	if a.cfg.TrojanCDNListenPort > 0 && strings.TrimSpace(a.cfg.CDNTLSCertPath) != "" && strings.TrimSpace(a.cfg.CDNTLSKeyPath) != "" {
+		trojanPath := strings.TrimSpace(a.cfg.TrojanCDNWSPath)
+		if trojanPath == "" {
+			trojanPath = "/wvb-tr"
+		}
+		inbounds = append(inbounds, map[string]any{
+			"tag":      "trojan-cdn-ws",
+			"listen":   "0.0.0.0",
+			"port":     a.cfg.TrojanCDNListenPort,
+			"protocol": "trojan",
+			"settings": map[string]any{
+				"clients": trojanClients,
+			},
+			"streamSettings": map[string]any{
+				"network":  "ws",
+				"security": "tls",
+				"tlsSettings": map[string]any{
+					"certificates": []map[string]any{
+						{
+							"certificateFile": a.cfg.CDNTLSCertPath,
+							"keyFile":         a.cfg.CDNTLSKeyPath,
+						},
+					},
+				},
+				"wsSettings": map[string]any{
+					"path":            trojanPath,
+					"heartbeatPeriod": 10,
 				},
 				"sockopt": map[string]any{
 					"tcpFastOpen": true,

@@ -457,6 +457,24 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		}
 	}
 
+	if strings.TrimSpace(vless.CDNHost) != "" && vless.TrojanCDNPort > 0 {
+		trojanLink := buildTrojanCDNLink(vless, config.Grant.ID, location)
+		links = append(links, trojanLink)
+		config.TrojanCDN = map[string]any{
+			"client_id": config.Grant.ID,
+			"label":     location,
+			"protocol":  "trojan",
+			"security":  "tls",
+			"network":   "ws",
+			"server":    vless.CDNHost,
+			"port":      vless.TrojanCDNPort,
+			"path":      vless.TrojanCDNWSPath,
+			"sni":       vless.CDNHost,
+			"uri":       trojanLink,
+			"note":      "A different protocol (Trojan, not VLESS) behind the same CDN — try this if a network specifically blocks VLESS traffic patterns.",
+		}
+	}
+
 	if vless.PublishShadowsocks && vless.ShadowsocksPort > 0 {
 		ssLink := buildShadowsocksLink(vless, config.Grant.ID, location)
 		links = append(links, ssLink)
@@ -537,6 +555,28 @@ func buildVLESSCDNXHTTPLink(vless config.VLESSConfig, grantID, location string) 
 	query.Set("sni", vless.CDNHost)
 	query.Set("path", path)
 	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
+}
+
+// buildTrojanCDNLink renders a Trojan+WebSocket+TLS link behind the same CDN
+// domain as the VLESS CDN transport. Trojan is a different protocol
+// implementation from VLESS entirely (distinct wire format, distinct
+// open-source codebase) — offering it alongside VLESS means a DPI signature
+// tuned to one doesn't automatically catch both, without needing a second
+// CDN domain or server.
+func buildTrojanCDNLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (Trojan)", location)
+	endpoint := net.JoinHostPort(vless.CDNHost, strconv.Itoa(vless.TrojanCDNPort))
+	path := vless.TrojanCDNWSPath
+	if path == "" {
+		path = "/wvb-tr"
+	}
+	query := url.Values{}
+	query.Set("type", "ws")
+	query.Set("security", "tls")
+	query.Set("host", vless.CDNHost)
+	query.Set("sni", vless.CDNHost)
+	query.Set("path", path)
+	return fmt.Sprintf("trojan://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
 }
 
 func vlessFlowEnabled(flow string) bool {
