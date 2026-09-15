@@ -406,6 +406,24 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		config.VLESS["flow"] = vless.Flow
 	}
 
+	if strings.TrimSpace(vless.CDNHost) != "" && vless.CDNPort > 0 {
+		cdnLink := buildVLESSCDNLink(vless, config.Grant.ID, location)
+		links = append(links, cdnLink)
+		config.VLESSCDN = map[string]any{
+			"client_id": config.Grant.ID,
+			"label":     location,
+			"protocol":  "vless",
+			"security":  "tls",
+			"network":   "ws",
+			"server":    vless.CDNHost,
+			"port":      vless.CDNPort,
+			"path":      vless.CDNWSPath,
+			"sni":       vless.CDNHost,
+			"uri":       cdnLink,
+			"note":      "Routes through a CDN so it looks like ordinary HTTPS to your network — try this one first if the direct link above gets cut off mid-connection.",
+		}
+	}
+
 	if vless.PublishShadowsocks && vless.ShadowsocksPort > 0 {
 		ssLink := buildShadowsocksLink(vless, config.Grant.ID, location)
 		links = append(links, ssLink)
@@ -441,6 +459,28 @@ func buildVLESSLink(vless config.VLESSConfig, grantID, location string) string {
 		query.Set("flow", vless.Flow)
 		query.Set("packetEncoding", "xudp")
 	}
+	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
+}
+
+// buildVLESSCDNLink renders VLESS over WebSocket+TLS pointed at the CDN
+// domain rather than the VPS's own IP — the CDN (Cloudflare) terminates the
+// visible TLS handshake with a real certificate for that domain and proxies
+// the WebSocket connection to the origin, so nothing about the outer session
+// looks unusual to a network that specifically fingerprints REALITY/XTLS.
+func buildVLESSCDNLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (CDN)", location)
+	endpoint := net.JoinHostPort(vless.CDNHost, strconv.Itoa(vless.CDNPort))
+	wsPath := vless.CDNWSPath
+	if wsPath == "" {
+		wsPath = "/wvb-ws"
+	}
+	query := url.Values{}
+	query.Set("type", "ws")
+	query.Set("security", "tls")
+	query.Set("encryption", "none")
+	query.Set("host", vless.CDNHost)
+	query.Set("sni", vless.CDNHost)
+	query.Set("path", wsPath)
 	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
 }
 

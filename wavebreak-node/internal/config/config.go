@@ -31,6 +31,14 @@ type XrayConfig struct {
 	ShadowsocksMethod string
 	DockerSocket      string
 	DockerContainer   string
+	// CDN transport: a second, structurally ordinary VLESS+WebSocket+TLS
+	// inbound meant to sit behind a CDN proxy (e.g. Cloudflare orange-cloud)
+	// so a client's outer TLS handshake is indistinguishable from any other
+	// site served by that CDN. Disabled unless CDNListenPort is set.
+	CDNListenPort  int
+	CDNWSPath      string
+	CDNTLSCertPath string
+	CDNTLSKeyPath  string
 }
 
 func Load() Config {
@@ -56,6 +64,10 @@ func Load() Config {
 			ShadowsocksMethod: env("WAVEBREAK_XRAY_SS_METHOD", "aes-256-gcm"),
 			DockerSocket:      env("WAVEBREAK_XRAY_DOCKER_SOCKET", "/var/run/docker.sock"),
 			DockerContainer:   env("WAVEBREAK_XRAY_DOCKER_CONTAINER", ""),
+			CDNListenPort:     intEnv("WAVEBREAK_XRAY_CDN_LISTEN_PORT", 0),
+			CDNWSPath:         env("WAVEBREAK_XRAY_CDN_WS_PATH", "/wvb-ws"),
+			CDNTLSCertPath:    env("WAVEBREAK_XRAY_CDN_TLS_CERT_PATH", ""),
+			CDNTLSKeyPath:     env("WAVEBREAK_XRAY_CDN_TLS_KEY_PATH", ""),
 		},
 	}
 }

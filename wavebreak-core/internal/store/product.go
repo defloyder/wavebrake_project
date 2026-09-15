@@ -122,6 +122,7 @@ type AccessGrantConfig struct {
 	ShareURL              string         `json:"share_url,omitempty"`
 	Links                 []string       `json:"links,omitempty"`
 	VLESS                 map[string]any `json:"vless,omitempty"`
+	VLESSCDN              map[string]any `json:"vless_cdn,omitempty"`
 	Shadowsocks           map[string]any `json:"shadowsocks,omitempty"`
 	WireGuard             map[string]any `json:"wireguard,omitempty"`
 	Outline               map[string]any `json:"outline,omitempty"`
