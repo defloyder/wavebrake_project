@@ -17,6 +17,16 @@ import (
 
 type XrayAdapter struct {
 	cfg config.XrayConfig
+	// hyUsers is populated by Render and read by Apply so the Hysteria2
+	// sidecar's user list stays in sync with the same desired-state grants
+	// Xray just rendered, without changing the RuntimeAdapter interface.
+	// A pointer field so it survives XrayAdapter being passed by value.
+	hyUsers *[]hysteriaUser
+}
+
+type hysteriaUser struct {
+	ID    string
+	Email string
 }
 
 type xrayDesiredState struct {
@@ -33,7 +43,7 @@ type xrayGrant struct {
 }
 
 func NewXrayAdapter(cfg config.XrayConfig) XrayAdapter {
-	return XrayAdapter{cfg: cfg}
+	return XrayAdapter{cfg: cfg, hyUsers: &[]hysteriaUser{}}
 }
 
 func (a XrayAdapter) Validate(_ context.Context, state json.RawMessage) error {
@@ -72,6 +82,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 	vlessClientsNoFlow := make([]map[string]any, 0, len(desired.Grants))
 	ssClients := make([]map[string]any, 0, len(desired.Grants))
 	trojanClients := make([]map[string]any, 0, len(desired.Grants))
+	hyUsers := make([]hysteriaUser, 0, len(desired.Grants))
 	for _, grant := range desired.Grants {
 		if !isVLESSProtocol(grant.Protocol) || grant.Status != "active" {
 			continue
@@ -104,6 +115,10 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			"password": grant.ID,
 			"email":    email,
 		})
+		hyUsers = append(hyUsers, hysteriaUser{ID: grant.ID, Email: email})
+	}
+	if a.hyUsers != nil {
+		*a.hyUsers = hyUsers
 	}
 	inbounds := []map[string]any{
 		{
@@ -398,8 +413,66 @@ func (a XrayAdapter) Apply(ctx context.Context, rendered []byte) error {
 	if err := os.Rename(tmp, a.cfg.ConfigPath); err != nil {
 		return err
 	}
+	if err := a.applyHysteria(ctx); err != nil {
+		return fmt.Errorf("apply hysteria2 sidecar: %w", err)
+	}
 	if strings.TrimSpace(a.cfg.DockerContainer) != "" {
 		return a.restartDockerContainer(ctx)
+	}
+	return nil
+}
+
+// applyHysteria writes the Hysteria2 sidecar's config from the same
+// desired-state grants Render just used for Xray (see hyUsers) and restarts
+// its container. A no-op unless HysteriaListenPort/ConfigPath are set.
+func (a XrayAdapter) applyHysteria(ctx context.Context) error {
+	if a.cfg.HysteriaListenPort <= 0 || strings.TrimSpace(a.cfg.HysteriaConfigPath) == "" {
+		return nil
+	}
+	if strings.TrimSpace(a.cfg.HysteriaTLSCertPath) == "" || strings.TrimSpace(a.cfg.HysteriaTLSKeyPath) == "" {
+		return fmt.Errorf("WAVEBREAK_HYSTERIA_TLS_CERT_PATH and WAVEBREAK_HYSTERIA_TLS_KEY_PATH are required")
+	}
+	var users []hysteriaUser
+	if a.hyUsers != nil {
+		users = *a.hyUsers
+	}
+	// userpass keys the client's auth string as "grantID:grantID" — self
+	// consistent and trivially revocable (the grant simply drops out of
+	// this map once it's no longer active), no separate secret to track.
+	var userpass strings.Builder
+	for _, u := range users {
+		fmt.Fprintf(&userpass, "    %q: %q\n", u.ID, u.ID)
+	}
+	masqueradeURL := strings.TrimSpace(a.cfg.HysteriaMasqueradeURL)
+	if masqueradeURL == "" {
+		masqueradeURL = "https://www.bing.com"
+	}
+	yaml := fmt.Sprintf(`listen: :%d
+tls:
+  cert: %q
+  key: %q
+auth:
+  type: userpass
+  userpass:
+%smasquerade:
+  type: proxy
+  proxy:
+    url: %q
+    rewriteHost: true
+`, a.cfg.HysteriaListenPort, a.cfg.HysteriaTLSCertPath, a.cfg.HysteriaTLSKeyPath, userpass.String(), masqueradeURL)
+
+	if err := os.MkdirAll(filepath.Dir(a.cfg.HysteriaConfigPath), 0o755); err != nil {
+		return err
+	}
+	tmp := a.cfg.HysteriaConfigPath + ".tmp"
+	if err := os.WriteFile(tmp, []byte(yaml), 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, a.cfg.HysteriaConfigPath); err != nil {
+		return err
+	}
+	if strings.TrimSpace(a.cfg.HysteriaDockerContainer) != "" {
+		return a.restartNamedDockerContainer(ctx, a.cfg.HysteriaDockerContainer)
 	}
 	return nil
 }
@@ -416,13 +489,17 @@ func (a XrayAdapter) Rollback(context.Context) error {
 }
 
 func (a XrayAdapter) restartDockerContainer(ctx context.Context) error {
+	return a.restartNamedDockerContainer(ctx, a.cfg.DockerContainer)
+}
+
+func (a XrayAdapter) restartNamedDockerContainer(ctx context.Context, name string) error {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return (&net.Dialer{}).DialContext(ctx, "unix", a.cfg.DockerSocket)
 		},
 	}
 	client := &http.Client{Transport: transport, Timeout: 15 * time.Second}
-	path := "/containers/" + strings.TrimSpace(a.cfg.DockerContainer) + "/restart?t=5"
+	path := "/containers/" + strings.TrimSpace(name) + "/restart?t=5"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://docker"+path, bytes.NewReader(nil))
 	if err != nil {
 		return err
@@ -433,7 +510,7 @@ func (a XrayAdapter) restartDockerContainer(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("restart xray container returned status %d", resp.StatusCode)
+		return fmt.Errorf("restart %s container returned status %d", name, resp.StatusCode)
 	}
 	return nil
 }

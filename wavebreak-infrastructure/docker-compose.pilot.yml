@@ -91,6 +91,10 @@ services:
       WAVEBREAK_TROJAN_CDN_WS_PATH: ${WAVEBREAK_TROJAN_CDN_WS_PATH:-/wvb-tr}
       WAVEBREAK_VLESS_CDN_GRPC_PORT: ${WAVEBREAK_VLESS_CDN_GRPC_PORT:-0}
       WAVEBREAK_VLESS_CDN_GRPC_SERVICE: ${WAVEBREAK_VLESS_CDN_GRPC_SERVICE:-wvb-grpc}
+      WAVEBREAK_HYSTERIA_HOST: ${WAVEBREAK_HYSTERIA_HOST:-}
+      WAVEBREAK_HYSTERIA_PORT: ${WAVEBREAK_HYSTERIA_PORT:-0}
+      WAVEBREAK_HYSTERIA_SNI: ${WAVEBREAK_HYSTERIA_SNI:-}
+      WAVEBREAK_HYSTERIA_INSECURE: ${WAVEBREAK_HYSTERIA_INSECURE:-true}
     ports:
       - "${WAVEBREAK_API_PORT:-18080}:8080"
     healthcheck:
@@ -205,10 +209,18 @@ services:
       WAVEBREAK_XRAY_TROJAN_CDN_WS_PATH: ${WAVEBREAK_TROJAN_CDN_WS_PATH:-/wvb-tr}
       WAVEBREAK_XRAY_CDN_GRPC_LISTEN_PORT: ${WAVEBREAK_VLESS_CDN_GRPC_PORT:-0}
       WAVEBREAK_XRAY_CDN_GRPC_SERVICE: ${WAVEBREAK_VLESS_CDN_GRPC_SERVICE:-wvb-grpc}
+      WAVEBREAK_HYSTERIA_LISTEN_PORT: ${WAVEBREAK_HYSTERIA_PORT:-0}
+      WAVEBREAK_HYSTERIA_CONFIG_PATH: /etc/wavebreak/xray/hysteria.yaml
+      WAVEBREAK_HYSTERIA_TLS_CERT_PATH: ${WAVEBREAK_HYSTERIA_TLS_CERT_PATH:-/etc/wavebreak/xray/hy-cert.pem}
+      WAVEBREAK_HYSTERIA_TLS_KEY_PATH: ${WAVEBREAK_HYSTERIA_TLS_KEY_PATH:-/etc/wavebreak/xray/hy-key.pem}
+      WAVEBREAK_HYSTERIA_DOCKER_CONTAINER: wavebreak-pilot-hysteria
+      WAVEBREAK_HYSTERIA_MASQUERADE_URL: ${WAVEBREAK_HYSTERIA_MASQUERADE_URL:-https://www.bing.com}
     depends_on:
       wavebreak-api:
         condition: service_healthy
       wavebreak-xray:
+        condition: service_started
+      wavebreak-hysteria:
         condition: service_started
     user: "0:0"
     volumes:
@@ -237,6 +249,20 @@ services:
     volumes:
       - wavebreak_xray_config:/etc/xray
       - ./xray/start-xray.sh:/usr/local/bin/start-xray.sh:ro
+
+  wavebreak-hysteria:
+    image: tobyxdd/hysteria:latest
+    container_name: wavebreak-pilot-hysteria
+    restart: unless-stopped
+    # host networking, not just for the docker-proxy issue seen on the xray
+    # container: Hysteria dialing outbound over Docker's isolated bridge
+    # network has no IPv6 route, so any destination that resolves to an
+    # IPv6 address (Telegram included) fails with "cannot assign requested
+    # address" even though the host itself has working IPv6.
+    network_mode: host
+    command: ["server", "-c", "/etc/wavebreak/xray/hysteria.yaml"]
+    volumes:
+      - wavebreak_xray_config:/etc/wavebreak/xray
 
 volumes:
   wavebreak_postgres:

@@ -457,6 +457,21 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		}
 	}
 
+	if strings.TrimSpace(vless.HysteriaHost) != "" && vless.HysteriaPort > 0 {
+		hyLink := buildHysteriaLink(vless, config.Grant.ID, location)
+		links = append(links, hyLink)
+		config.Hysteria = map[string]any{
+			"client_id": config.Grant.ID,
+			"label":     location,
+			"protocol":  "hysteria2",
+			"server":    vless.HysteriaHost,
+			"port":      vless.HysteriaPort,
+			"insecure":  vless.HysteriaInsecure,
+			"uri":       hyLink,
+			"note":      "Direct connection, no CDN — fastest and most reliable option, but only works in clients that support Hysteria2 (not Happ; Karing and others do).",
+		}
+	}
+
 	if strings.TrimSpace(vless.CDNHost) != "" && vless.CDNGRPCPort > 0 {
 		grpcLink := buildVLESSCDNGRPCLink(vless, config.Grant.ID, location)
 		links = append(links, grpcLink)
@@ -615,6 +630,27 @@ func buildVLESSCDNGRPCLink(vless config.VLESSConfig, grantID, location string) s
 	query.Set("serviceName", service)
 	query.Set("sni", vless.CDNHost)
 	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
+}
+
+// buildHysteriaLink renders a Hysteria2 URI. Unlike the other transports,
+// this connects directly to the VPS's own IP — Hysteria2 is QUIC/UDP-native
+// and Cloudflare's free tier can't proxy raw UDP, so there's no CDN to hide
+// behind here. auth is "grantID:grantID" (see wavebreak-node's userpass
+// config) so the grant ID alone is both username and password.
+func buildHysteriaLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (Hysteria2)", location)
+	endpoint := net.JoinHostPort(vless.HysteriaHost, strconv.Itoa(vless.HysteriaPort))
+	auth := fmt.Sprintf("%s:%s", grantID, grantID)
+	query := url.Values{}
+	sni := vless.HysteriaSNI
+	if sni == "" {
+		sni = vless.HysteriaHost
+	}
+	query.Set("sni", sni)
+	if vless.HysteriaInsecure {
+		query.Set("insecure", "1")
+	}
+	return fmt.Sprintf("hysteria2://%s@%s/?%s#%s", auth, endpoint, query.Encode(), url.PathEscape(label))
 }
 
 func vlessFlowEnabled(flow string) bool {

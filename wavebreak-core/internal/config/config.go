@@ -55,6 +55,16 @@ type VLESSConfig struct {
 	// comment for why this exists alongside XHTTP.
 	CDNGRPCPort    int
 	CDNGRPCService string
+	// Hysteria2: direct (non-CDN) UDP/QUIC transport. Confirmed to survive
+	// the pilot's active-DPI blocking where direct REALITY did not, and
+	// doesn't suffer the QUIC-in-TCP-tunnel degradation the CDN transports
+	// do — but is a separate protocol most VLESS/Trojan clients don't
+	// support (e.g. Happ), so it's offered alongside, not instead of, the
+	// CDN transports above.
+	HysteriaHost     string
+	HysteriaPort     int
+	HysteriaSNI      string
+	HysteriaInsecure bool
 	// PublishDirect controls whether the direct REALITY link is included in
 	// a grant's links/subscription. Default true; set false once a network
 	// is confirmed to actively disrupt REALITY, so clients only see (and
@@ -97,6 +107,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_VLESS_CDN_GRPC_PORT: %w", err)
 	}
+	hysteriaPort, err := strconv.Atoi(env("WAVEBREAK_HYSTERIA_PORT", "0"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_HYSTERIA_PORT: %w", err)
+	}
 
 	cfg := Config{
 		Environment:     env("WAVEBREAK_ENV", "development"),
@@ -133,6 +147,10 @@ func Load() (Config, error) {
 			TrojanCDNWSPath:    env("WAVEBREAK_TROJAN_CDN_WS_PATH", "/wvb-tr"),
 			CDNGRPCPort:        cdnGRPCPort,
 			CDNGRPCService:     env("WAVEBREAK_VLESS_CDN_GRPC_SERVICE", "wvb-grpc"),
+			HysteriaHost:       env("WAVEBREAK_HYSTERIA_HOST", ""),
+			HysteriaPort:       hysteriaPort,
+			HysteriaSNI:        env("WAVEBREAK_HYSTERIA_SNI", ""),
+			HysteriaInsecure:   boolEnv("WAVEBREAK_HYSTERIA_INSECURE", true),
 		},
 	}
 	if cfg.Environment == "production" {
