@@ -114,9 +114,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"shortIds":    []string{a.cfg.RealityShortID},
 				},
 				"sockopt": map[string]any{
-					"tcpFastOpen": true,
-					"tcpFragment": true,
-					"tcpMaxSeg":   1350,
+					"tcpMaxSeg": 1200,
 				},
 			},
 			"sniffing": map[string]any{
@@ -184,8 +182,8 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				"protocol": "freedom",
 				"settings": map[string]any{},
 				"sockopt": map[string]any{
-					"tcpFastOpen":    true,
 					"domainStrategy": "UseIPv4",
+					"tcpMaxSeg":      1200,
 				},
 			},
 			{"protocol": "blackhole", "tag": "blocked"},
