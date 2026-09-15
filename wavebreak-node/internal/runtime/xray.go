@@ -69,6 +69,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 		}
 	}
 	vlessClients := make([]map[string]any, 0, len(desired.Grants))
+	vlessClientsNoFlow := make([]map[string]any, 0, len(desired.Grants))
 	ssClients := make([]map[string]any, 0, len(desired.Grants))
 	for _, grant := range desired.Grants {
 		if !isVLESSProtocol(grant.Protocol) || grant.Status != "active" {
@@ -86,6 +87,13 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			vlessClient["flow"] = a.cfg.Flow
 		}
 		vlessClients = append(vlessClients, vlessClient)
+		// The WS+TLS/CDN inbound is a separate stream transport, not raw
+		// TCP, and XTLS Vision's flow only applies to the latter — Xray
+		// rejects it here, so this inbound always gets a flow-less client.
+		vlessClientsNoFlow = append(vlessClientsNoFlow, map[string]any{
+			"id":    grant.ID,
+			"email": email,
+		})
 		ssClients = append(ssClients, map[string]any{
 			"password": grant.ID,
 			"method":   a.cfg.ShadowsocksMethod,
@@ -122,6 +130,57 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				"destOverride": []string{"http", "tls", "quic"},
 			},
 		},
+	}
+	// CDN transport: VLESS over WebSocket+TLS, meant to be proxied through a
+	// CDN (Cloudflare orange-cloud) so the outer TLS handshake terminates at
+	// the CDN edge with a real, CA-issued certificate for the public domain
+	// — indistinguishable from any other site behind that CDN. This is the
+	// answer to active/behavioral DPI that fingerprints REALITY's traffic
+	// shape rather than just its SNI: nothing about this connection's outer
+	// TLS session is unusual at all. Requires cert/key files already placed
+	// on the shared config volume (see CDNTLSCertPath/CDNTLSKeyPath).
+	if a.cfg.CDNListenPort > 0 && strings.TrimSpace(a.cfg.CDNTLSCertPath) != "" && strings.TrimSpace(a.cfg.CDNTLSKeyPath) != "" {
+		wsPath := strings.TrimSpace(a.cfg.CDNWSPath)
+		if wsPath == "" {
+			wsPath = "/wvb-ws"
+		}
+		inbounds = append(inbounds, map[string]any{
+			"tag":      "vless-cdn-ws",
+			"listen":   "0.0.0.0",
+			"port":     a.cfg.CDNListenPort,
+			"protocol": "vless",
+			"settings": map[string]any{
+				"clients":    vlessClientsNoFlow,
+				"decryption": "none",
+			},
+			"streamSettings": map[string]any{
+				"network":  "ws",
+				"security": "tls",
+				"tlsSettings": map[string]any{
+					"certificates": []map[string]any{
+						{
+							"certificateFile": a.cfg.CDNTLSCertPath,
+							"keyFile":         a.cfg.CDNTLSKeyPath,
+						},
+					},
+				},
+				"wsSettings": map[string]any{
+					"path": wsPath,
+				},
+				// TCP Fast Open shaves a round trip off connection setup —
+				// safe here (unlike on the REALITY inbound, where it isn't
+				// used) because this listener only ever sees ordinary
+				// TLS+WebSocket traffic proxied in by the CDN, not a
+				// direct client needing to look indistinguishable.
+				"sockopt": map[string]any{
+					"tcpFastOpen": true,
+				},
+			},
+			"sniffing": map[string]any{
+				"enabled":      true,
+				"destOverride": []string{"http", "tls", "quic"},
+			},
+		})
 	}
 	// A second, structurally different protocol (Shadowsocks over plain TCP,
 	// no REALITY/TLS fingerprint at all) gives clients a fallback transport
@@ -184,6 +243,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				"sockopt": map[string]any{
 					"domainStrategy": "UseIPv4",
 					"tcpMaxSeg":      1200,
+					"tcpFastOpen":    true,
 				},
 			},
 			{"protocol": "blackhole", "tag": "blocked"},

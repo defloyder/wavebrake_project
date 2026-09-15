@@ -689,15 +689,15 @@ GET /v1/access/grants/{grantID}/config
     "transport": "tcp",
     "security": "reality",
     "host": "91.149.241.52",
-    "port": 18443,
+    "port": 443,
     "sni": "www.microsoft.com",
     "timeout_ms": 8000,
     "test_targets": ["api.telegram.org:443", "telegram.org:443", "t.me:443"]
   },
   "config_status": "ready",
   "config_version": 4,
-  "connection_url": "vless://grant-uuid@91.149.241.52:18443?...#WVB-NL-PILOT-01-XXXXXXXX",
-  "share_url": "vless://grant-uuid@91.149.241.52:18443?...#WVB-NL-PILOT-01-XXXXXXXX",
+  "connection_url": "vless://grant-uuid@91.149.241.52:443?...#WVB-NL-PILOT-01-XXXXXXXX",
+  "share_url": "vless://grant-uuid@91.149.241.52:443?...#WVB-NL-PILOT-01-XXXXXXXX",
   "vless": {
     "client_id": "uuid",
     "label": "WVB-NL-PILOT-01-XXXXXXXX",
@@ -705,7 +705,7 @@ GET /v1/access/grants/{grantID}/config
     "security": "reality",
     "network": "tcp",
     "server": "91.149.241.52",
-    "port": 18443,
+    "port": 443,
     "location": { "...": "same shape as top-level location above" },
     "connection_test": { "...": "same shape as top-level connection_test above" }
   }

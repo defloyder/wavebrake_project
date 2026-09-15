@@ -35,6 +35,17 @@ type VLESSConfig struct {
 	ShadowsocksPort    int
 	ShadowsocksMethod  string
 	PublishShadowsocks bool
+	// CDN transport: VLESS+WebSocket+TLS fronted by a CDN (Cloudflare), for
+	// networks whose DPI actively disrupts the REALITY transport above.
+	// CDNHost is the public domain the CDN proxies (not the VPS's own IP).
+	CDNHost   string
+	CDNPort   int
+	CDNWSPath string
+	// PublishDirect controls whether the direct REALITY link is included in
+	// a grant's links/subscription. Default true; set false once a network
+	// is confirmed to actively disrupt REALITY, so clients only see (and
+	// only auto-select) the CDN transport that actually works for them.
+	PublishDirect bool
 }
 
 func Load() (Config, error) {
@@ -49,6 +60,10 @@ func Load() (Config, error) {
 	ssPort, err := strconv.Atoi(env("WAVEBREAK_SS_PORT", "0"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_SS_PORT: %w", err)
+	}
+	cdnPort, err := strconv.Atoi(env("WAVEBREAK_VLESS_CDN_PORT", "0"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_VLESS_CDN_PORT: %w", err)
 	}
 
 	cfg := Config{
@@ -75,6 +90,10 @@ func Load() (Config, error) {
 			ShadowsocksPort:    ssPort,
 			ShadowsocksMethod:  env("WAVEBREAK_SS_METHOD", "aes-256-gcm"),
 			PublishShadowsocks: boolEnv("WAVEBREAK_PUBLISH_SHADOWSOCKS", false),
+			CDNHost:            env("WAVEBREAK_VLESS_CDN_HOST", ""),
+			CDNPort:            cdnPort,
+			CDNWSPath:          env("WAVEBREAK_VLESS_CDN_WS_PATH", "/wvb-ws"),
+			PublishDirect:      boolEnv("WAVEBREAK_VLESS_PUBLISH_DIRECT", true),
 		},
 	}
 	if cfg.Environment == "production" {
