@@ -179,10 +179,11 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			{
 				"tag":      "direct",
 				"protocol": "freedom",
-				"settings": map[string]any{
+				"settings": map[string]any{},
+				"sockopt": map[string]any{
+					"tcpFastOpen":    true,
 					"domainStrategy": "UseIPv4",
 				},
-				"sockopt": map[string]any{"tcpFastOpen": true},
 			},
 			{"protocol": "blackhole", "tag": "blocked"},
 		},
