@@ -413,7 +413,7 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		config.VLESS["flow"] = vless.Flow
 	}
 
-	cdnXHTTPAvailable := strings.TrimSpace(vless.CDNHost) != "" && vless.CDNXHTTPPort > 0
+	cdnXHTTPAvailable := strings.TrimSpace(vless.CDNHost) != "" && vless.CDNXHTTPPort > 0 && vless.PublishCDNXHTTP
 	if cdnXHTTPAvailable {
 		cdnXHTTPLink := buildVLESSCDNXHTTPLink(vless, config.Grant.ID, location)
 		links = append(links, cdnXHTTPLink)

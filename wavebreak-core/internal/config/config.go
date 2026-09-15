@@ -52,6 +52,12 @@ type VLESSConfig struct {
 	// is confirmed to actively disrupt REALITY, so clients only see (and
 	// only auto-select) the CDN transport that actually works for them.
 	PublishDirect bool
+	// PublishCDNXHTTP controls whether the XHTTP CDN link is published.
+	// Default true; set false once XHTTP is confirmed to break long-lived
+	// connections (e.g. Telegram's MTProto sessions) even though it handles
+	// ordinary HTTPS requests fine — better to publish only the transport
+	// that's actually confirmed reliable than a faster-looking broken one.
+	PublishCDNXHTTP bool
 }
 
 func Load() (Config, error) {
@@ -106,6 +112,7 @@ func Load() (Config, error) {
 			CDNXHTTPPort:       cdnXHTTPPort,
 			CDNXHTTPPath:       env("WAVEBREAK_VLESS_CDN_XHTTP_PATH", "/wvb-xh"),
 			PublishDirect:      boolEnv("WAVEBREAK_VLESS_PUBLISH_DIRECT", true),
+			PublishCDNXHTTP:    boolEnv("WAVEBREAK_VLESS_PUBLISH_CDN_XHTTP", true),
 		},
 	}
 	if cfg.Environment == "production" {
