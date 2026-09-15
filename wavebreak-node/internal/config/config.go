@@ -39,6 +39,14 @@ type XrayConfig struct {
 	CDNWSPath      string
 	CDNTLSCertPath string
 	CDNTLSKeyPath  string
+	// A second CDN inbound using XHTTP instead of WebSocket: XHTTP can ride
+	// over one H2 connection to the CDN edge, so many concurrent app
+	// requests (loading a chat full of photos, say) share one handshake
+	// instead of each paying it separately the way one-stream-per-WS-
+	// connection does. Kept alongside the WS inbound rather than replacing
+	// it, since XHTTP client support is newer and less universal.
+	CDNXHTTPListenPort int
+	CDNXHTTPPath       string
 }
 
 func Load() Config {
@@ -53,21 +61,23 @@ func Load() Config {
 		SyncInterval:      durationEnv("WAVEBREAK_NODE_SYNC_INTERVAL", 20*time.Second),
 		RuntimeAdapter:    env("WAVEBREAK_RUNTIME_ADAPTER", "noop"),
 		Xray: XrayConfig{
-			ConfigPath:        env("WAVEBREAK_XRAY_CONFIG_PATH", "/etc/wavebreak/xray/config.json"),
-			ListenPort:        intEnv("WAVEBREAK_XRAY_LISTEN_PORT", 8443),
-			RealityPrivateKey: env("WAVEBREAK_XRAY_REALITY_PRIVATE_KEY", ""),
-			RealityShortID:    env("WAVEBREAK_XRAY_REALITY_SHORT_ID", ""),
-			RealityDest:       env("WAVEBREAK_XRAY_REALITY_DEST", "www.microsoft.com:443"),
-			RealityServerName: env("WAVEBREAK_XRAY_REALITY_SERVER_NAME", "www.microsoft.com"),
-			Flow:              env("WAVEBREAK_XRAY_FLOW", "xtls-rprx-vision"),
-			ShadowsocksPort:   intEnv("WAVEBREAK_XRAY_SS_PORT", 0),
-			ShadowsocksMethod: env("WAVEBREAK_XRAY_SS_METHOD", "aes-256-gcm"),
-			DockerSocket:      env("WAVEBREAK_XRAY_DOCKER_SOCKET", "/var/run/docker.sock"),
-			DockerContainer:   env("WAVEBREAK_XRAY_DOCKER_CONTAINER", ""),
-			CDNListenPort:     intEnv("WAVEBREAK_XRAY_CDN_LISTEN_PORT", 0),
-			CDNWSPath:         env("WAVEBREAK_XRAY_CDN_WS_PATH", "/wvb-ws"),
-			CDNTLSCertPath:    env("WAVEBREAK_XRAY_CDN_TLS_CERT_PATH", ""),
-			CDNTLSKeyPath:     env("WAVEBREAK_XRAY_CDN_TLS_KEY_PATH", ""),
+			ConfigPath:         env("WAVEBREAK_XRAY_CONFIG_PATH", "/etc/wavebreak/xray/config.json"),
+			ListenPort:         intEnv("WAVEBREAK_XRAY_LISTEN_PORT", 8443),
+			RealityPrivateKey:  env("WAVEBREAK_XRAY_REALITY_PRIVATE_KEY", ""),
+			RealityShortID:     env("WAVEBREAK_XRAY_REALITY_SHORT_ID", ""),
+			RealityDest:        env("WAVEBREAK_XRAY_REALITY_DEST", "www.microsoft.com:443"),
+			RealityServerName:  env("WAVEBREAK_XRAY_REALITY_SERVER_NAME", "www.microsoft.com"),
+			Flow:               env("WAVEBREAK_XRAY_FLOW", "xtls-rprx-vision"),
+			ShadowsocksPort:    intEnv("WAVEBREAK_XRAY_SS_PORT", 0),
+			ShadowsocksMethod:  env("WAVEBREAK_XRAY_SS_METHOD", "aes-256-gcm"),
+			DockerSocket:       env("WAVEBREAK_XRAY_DOCKER_SOCKET", "/var/run/docker.sock"),
+			DockerContainer:    env("WAVEBREAK_XRAY_DOCKER_CONTAINER", ""),
+			CDNListenPort:      intEnv("WAVEBREAK_XRAY_CDN_LISTEN_PORT", 0),
+			CDNWSPath:          env("WAVEBREAK_XRAY_CDN_WS_PATH", "/wvb-ws"),
+			CDNTLSCertPath:     env("WAVEBREAK_XRAY_CDN_TLS_CERT_PATH", ""),
+			CDNTLSKeyPath:      env("WAVEBREAK_XRAY_CDN_TLS_KEY_PATH", ""),
+			CDNXHTTPListenPort: intEnv("WAVEBREAK_XRAY_CDN_XHTTP_LISTEN_PORT", 0),
+			CDNXHTTPPath:       env("WAVEBREAK_XRAY_CDN_XHTTP_PATH", "/wvb-xh"),
 		},
 	}
 }

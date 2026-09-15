@@ -182,6 +182,45 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			},
 		})
 	}
+	if a.cfg.CDNXHTTPListenPort > 0 && strings.TrimSpace(a.cfg.CDNTLSCertPath) != "" && strings.TrimSpace(a.cfg.CDNTLSKeyPath) != "" {
+		xhttpPath := strings.TrimSpace(a.cfg.CDNXHTTPPath)
+		if xhttpPath == "" {
+			xhttpPath = "/wvb-xh"
+		}
+		inbounds = append(inbounds, map[string]any{
+			"tag":      "vless-cdn-xhttp",
+			"listen":   "0.0.0.0",
+			"port":     a.cfg.CDNXHTTPListenPort,
+			"protocol": "vless",
+			"settings": map[string]any{
+				"clients":    vlessClientsNoFlow,
+				"decryption": "none",
+			},
+			"streamSettings": map[string]any{
+				"network":  "xhttp",
+				"security": "tls",
+				"tlsSettings": map[string]any{
+					"certificates": []map[string]any{
+						{
+							"certificateFile": a.cfg.CDNTLSCertPath,
+							"keyFile":         a.cfg.CDNTLSKeyPath,
+						},
+					},
+				},
+				"xhttpSettings": map[string]any{
+					"path": xhttpPath,
+					"mode": "auto",
+				},
+				"sockopt": map[string]any{
+					"tcpFastOpen": true,
+				},
+			},
+			"sniffing": map[string]any{
+				"enabled":      true,
+				"destOverride": []string{"http", "tls", "quic"},
+			},
+		})
+	}
 	// A second, structurally different protocol (Shadowsocks over plain TCP,
 	// no REALITY/TLS fingerprint at all) gives clients a fallback transport
 	// when a network specifically targets REALITY/XTLS-Vision traffic

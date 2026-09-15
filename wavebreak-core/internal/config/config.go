@@ -41,6 +41,12 @@ type VLESSConfig struct {
 	CDNHost   string
 	CDNPort   int
 	CDNWSPath string
+	// XHTTP sibling of the WS CDN transport above — multiplexes many app
+	// requests over one H2 connection to the CDN edge instead of opening a
+	// new one per request, which matters a lot once a network's extra CDN
+	// hop adds real per-connection latency.
+	CDNXHTTPPort int
+	CDNXHTTPPath string
 	// PublishDirect controls whether the direct REALITY link is included in
 	// a grant's links/subscription. Default true; set false once a network
 	// is confirmed to actively disrupt REALITY, so clients only see (and
@@ -64,6 +70,10 @@ func Load() (Config, error) {
 	cdnPort, err := strconv.Atoi(env("WAVEBREAK_VLESS_CDN_PORT", "0"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_VLESS_CDN_PORT: %w", err)
+	}
+	cdnXHTTPPort, err := strconv.Atoi(env("WAVEBREAK_VLESS_CDN_XHTTP_PORT", "0"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_VLESS_CDN_XHTTP_PORT: %w", err)
 	}
 
 	cfg := Config{
@@ -93,6 +103,8 @@ func Load() (Config, error) {
 			CDNHost:            env("WAVEBREAK_VLESS_CDN_HOST", ""),
 			CDNPort:            cdnPort,
 			CDNWSPath:          env("WAVEBREAK_VLESS_CDN_WS_PATH", "/wvb-ws"),
+			CDNXHTTPPort:       cdnXHTTPPort,
+			CDNXHTTPPath:       env("WAVEBREAK_VLESS_CDN_XHTTP_PATH", "/wvb-xh"),
 			PublishDirect:      boolEnv("WAVEBREAK_VLESS_PUBLISH_DIRECT", true),
 		},
 	}

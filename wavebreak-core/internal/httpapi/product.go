@@ -413,10 +413,32 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		config.VLESS["flow"] = vless.Flow
 	}
 
+	cdnXHTTPAvailable := strings.TrimSpace(vless.CDNHost) != "" && vless.CDNXHTTPPort > 0
+	if cdnXHTTPAvailable {
+		cdnXHTTPLink := buildVLESSCDNXHTTPLink(vless, config.Grant.ID, location)
+		links = append(links, cdnXHTTPLink)
+		if !vless.PublishDirect {
+			config.ConnectionURL = cdnXHTTPLink
+			config.ShareURL = cdnXHTTPLink
+		}
+		config.VLESSCDNXHTTP = map[string]any{
+			"client_id": config.Grant.ID,
+			"label":     location,
+			"protocol":  "vless",
+			"security":  "tls",
+			"network":   "xhttp",
+			"server":    vless.CDNHost,
+			"port":      vless.CDNXHTTPPort,
+			"path":      vless.CDNXHTTPPath,
+			"sni":       vless.CDNHost,
+			"uri":       cdnXHTTPLink,
+			"note":      "Try this one first — same CDN path as the WS link below, but shares one connection across requests so loading media/chat history is much faster.",
+		}
+	}
 	if cdnAvailable {
 		cdnLink := buildVLESSCDNLink(vless, config.Grant.ID, location)
 		links = append(links, cdnLink)
-		if !vless.PublishDirect {
+		if !vless.PublishDirect && !cdnXHTTPAvailable {
 			config.ConnectionURL = cdnLink
 			config.ShareURL = cdnLink
 		}
@@ -431,7 +453,7 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 			"path":      vless.CDNWSPath,
 			"sni":       vless.CDNHost,
 			"uri":       cdnLink,
-			"note":      "Routes through a CDN so it looks like ordinary HTTPS to your network — try this one first if the direct link above gets cut off mid-connection.",
+			"note":      "Routes through a CDN so it looks like ordinary HTTPS to your network — use this if the XHTTP link above doesn't connect.",
 		}
 	}
 
@@ -492,6 +514,28 @@ func buildVLESSCDNLink(vless config.VLESSConfig, grantID, location string) strin
 	query.Set("host", vless.CDNHost)
 	query.Set("sni", vless.CDNHost)
 	query.Set("path", wsPath)
+	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
+}
+
+// buildVLESSCDNXHTTPLink is the XHTTP sibling of buildVLESSCDNLink: same CDN
+// domain and TLS, but the app requests share one H2 connection to the edge
+// instead of each opening its own WebSocket, which is what actually costs
+// time once a CDN hop adds real per-connection latency.
+func buildVLESSCDNXHTTPLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (CDN-XHTTP)", location)
+	endpoint := net.JoinHostPort(vless.CDNHost, strconv.Itoa(vless.CDNXHTTPPort))
+	path := vless.CDNXHTTPPath
+	if path == "" {
+		path = "/wvb-xh"
+	}
+	query := url.Values{}
+	query.Set("type", "xhttp")
+	query.Set("mode", "auto")
+	query.Set("security", "tls")
+	query.Set("encryption", "none")
+	query.Set("host", vless.CDNHost)
+	query.Set("sni", vless.CDNHost)
+	query.Set("path", path)
 	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
 }
 
