@@ -696,30 +696,44 @@ GET /v1/access/grants/{grantID}/config
   },
   "config_status": "ready",
   "config_version": 4,
-  "connection_url": "vless://grant-uuid@91.149.241.52:443?...#WVB-NL-PILOT-01-XXXXXXXX",
-  "share_url": "vless://grant-uuid@91.149.241.52:443?...#WVB-NL-PILOT-01-XXXXXXXX",
-  "vless": {
-    "client_id": "uuid",
-    "label": "WVB-NL-PILOT-01-XXXXXXXX",
-    "protocol": "vless",
-    "security": "reality",
-    "network": "tcp",
-    "server": "91.149.241.52",
-    "port": 443,
-    "location": { "...": "same shape as top-level location above" },
-    "connection_test": { "...": "same shape as top-level connection_test above" }
+  "connection_url": "vless://grant-uuid@cdn.wavebreak.com.tr:2053?...#...(CDN)",
+  "share_url": "vless://grant-uuid@cdn.wavebreak.com.tr:2053?...#...(CDN)",
+  "links": [
+    "vless://grant-uuid@cdn.wavebreak.com.tr:2053?type=ws&security=tls&...#...(CDN)",
+    "hysteria2://grant-uuid:grant-uuid@91.149.241.52:36712/?insecure=1&sni=...#...(Hysteria2)",
+    "trojan://grant-uuid@cdn.wavebreak.com.tr:2087?type=ws&security=tls&...#...(Trojan)"
+  ],
+  "vless": { "...": "direct VLESS+REALITY metadata — see 'Что пока не готово' below, currently unpublished on pilot" },
+  "vless_cdn": {
+    "client_id": "uuid", "protocol": "vless", "security": "tls", "network": "ws",
+    "server": "cdn.wavebreak.com.tr", "port": 2053, "path": "/wvb-ws", "sni": "cdn.wavebreak.com.tr",
+    "uri": "vless://..."
+  },
+  "trojan_cdn": {
+    "client_id": "uuid", "protocol": "trojan", "security": "tls", "network": "ws",
+    "server": "cdn.wavebreak.com.tr", "port": 2087, "path": "/wvb-tr", "sni": "cdn.wavebreak.com.tr",
+    "uri": "trojan://..."
+  },
+  "hysteria": {
+    "client_id": "uuid", "protocol": "hysteria2", "server": "91.149.241.52", "port": 36712,
+    "insecure": true, "uri": "hysteria2://...",
+    "note": "Direct connection, no CDN — fastest and most reliable option, but only works in clients that support Hysteria2 (not Happ; Karing and others do)."
   }
 }
 ```
 
-`location` и `connection_test` также приходят в `GET /v1/client/bootstrap` (как `locations: []`, один объект на каждую ноду) и в `GET /v1/locations` — используй их, чтобы показать пользователю человекочитаемую локацию ("🇳🇱 Netherlands, Amsterdam") и чтобы приложение могло само выполнить сетевой тест подключения (TCP-коннект на `host:port` из `connection_test`, не выдумывая endpoint самостоятельно), не дожидаясь фактического VPN-туннеля.
+**Почему несколько транспортов на один grant.** Пилот столкнулся с провайдером, который активно рвёт прямое VLESS+REALITY-соединение (RST-инъекция через 20-25 секунд после установки). Решение — несколько параллельных путей под один и тот же grant:
 
-`flow` в `vless` присутствует только если на сервере включен XTLS Vision (`WAVEBREAK_VLESS_FLOW` не `none`); на pilot сейчас используется совместимый режим без flow, так что поле в ответе может отсутствовать — не полагайся на его наличие.
+- **`vless_cdn` / `trojan_cdn`** — VLESS и Trojan поверх WebSocket+TLS, спрятаны за Cloudflare (`cdn.wavebreak.com.tr`). Работают в любом клиенте с поддержкой VLESS/Trojan (Happ, v2rayNG, Karing), но с задержкой из-за лишнего хопа через CDN — это потолок, который даёт бесплатный тариф Cloudflare (XHTTP и gRPC транспорты тестировались как более быстрая альтернатива — оба оказались сломаны именно на бесплатном Cloudflare, не используются).
+- **`hysteria`** — прямое подключение без CDN, протокол Hysteria2 (QUIC/UDP-native, отдельный от Xray). Заметно быстрее и переживает блокировку провайдера там, где прямой VLESS+REALITY — нет. Минус: поддерживается не всеми клиентами (в Happ не работает, в Karing — работает и подтверждено быстро).
+- **`vless`** (прямой REALITY, порт 443) — присутствует в ответе для справки, но на pilot **не публикуется** в `links`/`connection_url` (провайдер его блокирует); значение `WAVEBREAK_VLESS_PUBLISH_DIRECT=false`.
+
+`location` и `connection_test` также приходят в `GET /v1/client/bootstrap` (как `locations: []`, один объект на каждую ноду) и в `GET /v1/locations` — используй их, чтобы показать пользователю человекочитаемую локацию ("🇳🇱 Netherlands, Amsterdam") и чтобы приложение могло само выполнить сетевой тест подключения (TCP-коннект на `host:port` из `connection_test`, не выдумывая endpoint самостоятельно), не дожидаясь фактического VPN-туннеля.
 
 Что делать приложению сейчас:
 
 - если `config_status = pending_node_ack`, показать "Конфигурация готовится" и повторить запрос через несколько секунд;
-- если `config_status = ready`, использовать `connection_url` / `share_url`;
+- если `config_status = ready`, показать пользователю выбор из `links` (или из отдельных `vless_cdn`/`trojan_cdn`/`hysteria` объектов) — предпочтительно пробовать `hysteria` первым, если клиентский движок его поддерживает, иначе `vless_cdn`/`trojan_cdn`;
 - хранить grant и polling state;
 - после revoke остановить подключение и удалить локальный runtime config.
 
