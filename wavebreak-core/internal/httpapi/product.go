@@ -457,6 +457,24 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		}
 	}
 
+	if strings.TrimSpace(vless.CDNHost) != "" && vless.CDNGRPCPort > 0 {
+		grpcLink := buildVLESSCDNGRPCLink(vless, config.Grant.ID, location)
+		links = append(links, grpcLink)
+		config.VLESSCDNGRPC = map[string]any{
+			"client_id":    config.Grant.ID,
+			"label":        location,
+			"protocol":     "vless",
+			"security":     "tls",
+			"network":      "grpc",
+			"server":       vless.CDNHost,
+			"port":         vless.CDNGRPCPort,
+			"service_name": vless.CDNGRPCService,
+			"sni":          vless.CDNHost,
+			"uri":          grpcLink,
+			"note":         "Try this one first — multiplexes requests over one connection like the CDN-XHTTP option, but gRPC is much more widely supported by client apps.",
+		}
+	}
+
 	if strings.TrimSpace(vless.CDNHost) != "" && vless.TrojanCDNPort > 0 {
 		trojanLink := buildTrojanCDNLink(vless, config.Grant.ID, location)
 		links = append(links, trojanLink)
@@ -577,6 +595,26 @@ func buildTrojanCDNLink(vless config.VLESSConfig, grantID, location string) stri
 	query.Set("sni", vless.CDNHost)
 	query.Set("path", path)
 	return fmt.Sprintf("trojan://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
+}
+
+// buildVLESSCDNGRPCLink is the gRPC sibling of buildVLESSCDNLink — same CDN
+// domain and TLS, but requests share one H2 connection to the edge instead
+// of each opening its own WebSocket. gRPC has been in Xray-core (and in
+// client apps) far longer than XHTTP, so it's the safer multiplexing option.
+func buildVLESSCDNGRPCLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (CDN-gRPC)", location)
+	endpoint := net.JoinHostPort(vless.CDNHost, strconv.Itoa(vless.CDNGRPCPort))
+	service := vless.CDNGRPCService
+	if service == "" {
+		service = "wvb-grpc"
+	}
+	query := url.Values{}
+	query.Set("type", "grpc")
+	query.Set("security", "tls")
+	query.Set("encryption", "none")
+	query.Set("serviceName", service)
+	query.Set("sni", vless.CDNHost)
+	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
 }
 
 func vlessFlowEnabled(flow string) bool {

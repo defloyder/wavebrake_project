@@ -52,6 +52,12 @@ type XrayConfig struct {
 	// fingerprint rather than REALITY/XHTTP/WS traffic shape in general.
 	TrojanCDNListenPort int
 	TrojanCDNWSPath     string
+	// gRPC sibling of the WS CDN transport: also multiplexes many app
+	// requests over one H2 connection like XHTTP does, but gRPC has been in
+	// Xray-core (and in client apps) far longer, so it's a safer bet for
+	// broad client compatibility than XHTTP turned out to be.
+	CDNGRPCListenPort int
+	CDNGRPCService    string
 }
 
 func Load() Config {
@@ -85,6 +91,8 @@ func Load() Config {
 			CDNXHTTPPath:        env("WAVEBREAK_XRAY_CDN_XHTTP_PATH", "/wvb-xh"),
 			TrojanCDNListenPort: intEnv("WAVEBREAK_XRAY_TROJAN_CDN_LISTEN_PORT", 0),
 			TrojanCDNWSPath:     env("WAVEBREAK_XRAY_TROJAN_CDN_WS_PATH", "/wvb-tr"),
+			CDNGRPCListenPort:   intEnv("WAVEBREAK_XRAY_CDN_GRPC_LISTEN_PORT", 0),
+			CDNGRPCService:      env("WAVEBREAK_XRAY_CDN_GRPC_SERVICE", "wvb-grpc"),
 		},
 	}
 }

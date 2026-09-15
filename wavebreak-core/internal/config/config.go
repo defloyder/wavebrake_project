@@ -51,6 +51,10 @@ type VLESSConfig struct {
 	// VLESS, for DPI resistance that doesn't depend on one codebase.
 	TrojanCDNPort   int
 	TrojanCDNWSPath string
+	// gRPC sibling of the WS CDN transport — see wavebreak-node's XrayConfig
+	// comment for why this exists alongside XHTTP.
+	CDNGRPCPort    int
+	CDNGRPCService string
 	// PublishDirect controls whether the direct REALITY link is included in
 	// a grant's links/subscription. Default true; set false once a network
 	// is confirmed to actively disrupt REALITY, so clients only see (and
@@ -89,6 +93,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_TROJAN_CDN_PORT: %w", err)
 	}
+	cdnGRPCPort, err := strconv.Atoi(env("WAVEBREAK_VLESS_CDN_GRPC_PORT", "0"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_VLESS_CDN_GRPC_PORT: %w", err)
+	}
 
 	cfg := Config{
 		Environment:     env("WAVEBREAK_ENV", "development"),
@@ -123,6 +131,8 @@ func Load() (Config, error) {
 			PublishCDNXHTTP:    boolEnv("WAVEBREAK_VLESS_PUBLISH_CDN_XHTTP", true),
 			TrojanCDNPort:      trojanCDNPort,
 			TrojanCDNWSPath:    env("WAVEBREAK_TROJAN_CDN_WS_PATH", "/wvb-tr"),
+			CDNGRPCPort:        cdnGRPCPort,
+			CDNGRPCService:     env("WAVEBREAK_VLESS_CDN_GRPC_SERVICE", "wvb-grpc"),
 		},
 	}
 	if cfg.Environment == "production" {

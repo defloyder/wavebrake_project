@@ -233,6 +233,48 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			},
 		})
 	}
+	// gRPC sibling of the WS CDN transport: rides over one H2 connection to
+	// the CDN edge like XHTTP does (avoiding a fresh TCP+TLS handshake per
+	// app request), but gRPC has shipped in Xray-core and in client apps
+	// for far longer, so it's the safer bet for broad compatibility.
+	if a.cfg.CDNGRPCListenPort > 0 && strings.TrimSpace(a.cfg.CDNTLSCertPath) != "" && strings.TrimSpace(a.cfg.CDNTLSKeyPath) != "" {
+		grpcService := strings.TrimSpace(a.cfg.CDNGRPCService)
+		if grpcService == "" {
+			grpcService = "wvb-grpc"
+		}
+		inbounds = append(inbounds, map[string]any{
+			"tag":      "vless-cdn-grpc",
+			"listen":   "0.0.0.0",
+			"port":     a.cfg.CDNGRPCListenPort,
+			"protocol": "vless",
+			"settings": map[string]any{
+				"clients":    vlessClientsNoFlow,
+				"decryption": "none",
+			},
+			"streamSettings": map[string]any{
+				"network":  "grpc",
+				"security": "tls",
+				"tlsSettings": map[string]any{
+					"certificates": []map[string]any{
+						{
+							"certificateFile": a.cfg.CDNTLSCertPath,
+							"keyFile":         a.cfg.CDNTLSKeyPath,
+						},
+					},
+				},
+				"grpcSettings": map[string]any{
+					"serviceName": grpcService,
+				},
+				"sockopt": map[string]any{
+					"tcpFastOpen": true,
+				},
+			},
+			"sniffing": map[string]any{
+				"enabled":      true,
+				"destOverride": []string{"http", "tls", "quic"},
+			},
+		})
+	}
 	// Trojan is a third, independently-implemented protocol behind the same
 	// CDN — a completely different codebase's traffic fingerprint than
 	// VLESS, so a DPI heuristic tuned to one doesn't automatically catch
