@@ -178,7 +178,7 @@ services:
       WAVEBREAK_XRAY_REALITY_DEST: ${XRAY_REALITY_DEST:-www.microsoft.com:443}
       WAVEBREAK_XRAY_REALITY_SERVER_NAME: ${XRAY_REALITY_SERVER_NAME:-www.microsoft.com}
       WAVEBREAK_XRAY_FLOW: ${WAVEBREAK_VLESS_FLOW:-xtls-rprx-vision}
-      WAVEBREAK_XRAY_SS_PORT: ${XRAY_SS_PORT:-0}
+      WAVEBREAK_XRAY_SS_PORT: ${WAVEBREAK_XRAY_SS_PORT:-0}
       WAVEBREAK_XRAY_SS_METHOD: ${WAVEBREAK_SS_METHOD:-aes-256-gcm}
       WAVEBREAK_XRAY_DOCKER_CONTAINER: wavebreak-pilot-xray
     depends_on:
@@ -205,8 +205,6 @@ services:
     command: ["/bin/sh", "/usr/local/bin/start-xray.sh"]
     ports:
       - "${WAVEBREAK_VLESS_PORT:-18443}:${XRAY_LISTEN_PORT:-8443}/tcp"
-      - "${WAVEBREAK_SS_PORT:-18388}:${XRAY_SS_PORT:-8388}/tcp"
-      - "${WAVEBREAK_SS_PORT:-18388}:${XRAY_SS_PORT:-8388}/udp"
     volumes:
       - wavebreak_xray_config:/etc/xray
       - ./xray/start-xray.sh:/usr/local/bin/start-xray.sh:ro

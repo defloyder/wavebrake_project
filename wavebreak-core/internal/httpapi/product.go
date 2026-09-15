@@ -328,7 +328,6 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		"protocol":           "vless",
 		"security":           "reality",
 		"network":            "tcp",
-		"flow":               vless.Flow,
 		"server":             vless.PublicHost,
 		"port":               vless.PublicPort,
 		"sni":                vless.RealityServerName,
@@ -336,6 +335,9 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		"reality_public_key": vless.RealityPublicKey,
 		"short_id":           vless.RealityShortID,
 		"uri":                vlessLink,
+	}
+	if vlessFlowEnabled(vless.Flow) {
+		config.VLESS["flow"] = vless.Flow
 	}
 
 	if vless.PublishShadowsocks && vless.ShadowsocksPort > 0 {
@@ -368,9 +370,21 @@ func buildVLESSLink(vless config.VLESSConfig, grantID, location string) string {
 	query.Set("fp", vless.Fingerprint)
 	query.Set("sni", vless.RealityServerName)
 	query.Set("sid", vless.RealityShortID)
-	query.Set("flow", vless.Flow)
-	query.Set("packetEncoding", "xudp")
+	query.Set("spx", "/")
+	if vlessFlowEnabled(vless.Flow) {
+		query.Set("flow", vless.Flow)
+		query.Set("packetEncoding", "xudp")
+	}
 	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
+}
+
+func vlessFlowEnabled(flow string) bool {
+	switch strings.ToLower(strings.TrimSpace(flow)) {
+	case "", "none", "off", "false", "0":
+		return false
+	default:
+		return true
+	}
 }
 
 // buildShadowsocksLink renders a second, structurally different transport

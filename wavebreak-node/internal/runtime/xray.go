@@ -78,11 +78,14 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 		if email == "" {
 			email = "WVB-" + strings.ToUpper(strings.ReplaceAll(grant.ID, "-", ""))[:8]
 		}
-		vlessClients = append(vlessClients, map[string]any{
+		vlessClient := map[string]any{
 			"id":    grant.ID,
-			"flow":  a.cfg.Flow,
 			"email": email,
-		})
+		}
+		if xrayFlowEnabled(a.cfg.Flow) {
+			vlessClient["flow"] = a.cfg.Flow
+		}
+		vlessClients = append(vlessClients, vlessClient)
 		ssClients = append(ssClients, map[string]any{
 			"password": grant.ID,
 			"method":   a.cfg.ShadowsocksMethod,
@@ -268,4 +271,13 @@ func isUUIDLike(value string) bool {
 		}
 	}
 	return true
+}
+
+func xrayFlowEnabled(flow string) bool {
+	switch strings.ToLower(strings.TrimSpace(flow)) {
+	case "", "none", "off", "false", "0":
+		return false
+	default:
+		return true
+	}
 }
