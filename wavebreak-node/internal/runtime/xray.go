@@ -290,6 +290,50 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			},
 		})
 	}
+	// Direct VLESS+WS+TLS with a real certificate, straight to this VPS's
+	// own IP — no CDN, no REALITY fake-handshake. See config.go's
+	// DirectTLSListenPort comment for why this might dodge active DPI that
+	// direct REALITY doesn't, while giving up nothing on speed since
+	// there's no CDN hop at all.
+	if a.cfg.DirectTLSListenPort > 0 && strings.TrimSpace(a.cfg.DirectTLSCertPath) != "" && strings.TrimSpace(a.cfg.DirectTLSKeyPath) != "" {
+		directPath := strings.TrimSpace(a.cfg.DirectTLSWSPath)
+		if directPath == "" {
+			directPath = "/wvb-dt"
+		}
+		inbounds = append(inbounds, map[string]any{
+			"tag":      "vless-direct-tls",
+			"listen":   "0.0.0.0",
+			"port":     a.cfg.DirectTLSListenPort,
+			"protocol": "vless",
+			"settings": map[string]any{
+				"clients":    vlessClientsNoFlow,
+				"decryption": "none",
+			},
+			"streamSettings": map[string]any{
+				"network":  "ws",
+				"security": "tls",
+				"tlsSettings": map[string]any{
+					"certificates": []map[string]any{
+						{
+							"certificateFile": a.cfg.DirectTLSCertPath,
+							"keyFile":         a.cfg.DirectTLSKeyPath,
+						},
+					},
+				},
+				"wsSettings": map[string]any{
+					"path":            directPath,
+					"heartbeatPeriod": 10,
+				},
+				"sockopt": map[string]any{
+					"tcpFastOpen": true,
+				},
+			},
+			"sniffing": map[string]any{
+				"enabled":      true,
+				"destOverride": []string{"http", "tls", "quic"},
+			},
+		})
+	}
 	// Trojan is a third, independently-implemented protocol behind the same
 	// CDN — a completely different codebase's traffic fingerprint than
 	// VLESS, so a DPI heuristic tuned to one doesn't automatically catch

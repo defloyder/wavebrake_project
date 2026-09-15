@@ -457,6 +457,24 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		}
 	}
 
+	if strings.TrimSpace(vless.DirectTLSHost) != "" && vless.DirectTLSPort > 0 {
+		directLink := buildVLESSDirectTLSLink(vless, config.Grant.ID, location)
+		links = append(links, directLink)
+		config.VLESSDirectTLS = map[string]any{
+			"client_id": config.Grant.ID,
+			"label":     location,
+			"protocol":  "vless",
+			"security":  "tls",
+			"network":   "ws",
+			"server":    vless.DirectTLSHost,
+			"port":      vless.DirectTLSPort,
+			"path":      vless.DirectTLSPath,
+			"sni":       vless.DirectTLSHost,
+			"uri":       directLink,
+			"note":      "Direct connection with a real certificate, no CDN — try this first in VLESS/Trojan-only clients (Happ included): as fast as the direct connection gets, and a real TLS handshake instead of REALITY's camouflage.",
+		}
+	}
+
 	if strings.TrimSpace(vless.HysteriaHost) != "" && vless.HysteriaPort > 0 {
 		hyLink := buildHysteriaLink(vless, config.Grant.ID, location)
 		links = append(links, hyLink)
@@ -629,6 +647,26 @@ func buildVLESSCDNGRPCLink(vless config.VLESSConfig, grantID, location string) s
 	query.Set("encryption", "none")
 	query.Set("serviceName", service)
 	query.Set("sni", vless.CDNHost)
+	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
+}
+
+// buildVLESSDirectTLSLink renders VLESS+WS+TLS pointed straight at the VPS's
+// own domain (not the CDN one) with a real Let's Encrypt certificate — no
+// REALITY camouflage, no CDN hop, just an ordinary, valid TLS handshake.
+func buildVLESSDirectTLSLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (Direct-TLS)", location)
+	endpoint := net.JoinHostPort(vless.DirectTLSHost, strconv.Itoa(vless.DirectTLSPort))
+	path := vless.DirectTLSPath
+	if path == "" {
+		path = "/wvb-dt"
+	}
+	query := url.Values{}
+	query.Set("type", "ws")
+	query.Set("security", "tls")
+	query.Set("encryption", "none")
+	query.Set("host", vless.DirectTLSHost)
+	query.Set("sni", vless.DirectTLSHost)
+	query.Set("path", path)
 	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
 }
 

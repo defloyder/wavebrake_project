@@ -58,6 +58,19 @@ type XrayConfig struct {
 	// broad client compatibility than XHTTP turned out to be.
 	CDNGRPCListenPort int
 	CDNGRPCService    string
+	// DirectTLS: VLESS+WebSocket+TLS with a real, CA-issued certificate
+	// (Let's Encrypt), connecting straight to the VPS's own IP — no CDN, no
+	// REALITY fake-handshake trick. Hypothesis: what got the ISP's active
+	// DPI to flag and RST direct REALITY was specifically its uTLS
+	// ClientHello mimicry looking almost-but-not-quite like real Chrome
+	// traffic; a genuinely valid TLS handshake (same as what Cloudflare's
+	// edge already terminates for the CDN transports, which never got
+	// flagged) might not trigger the same signature, while skipping the
+	// CDN hop entirely for CDN-transport-level speed.
+	DirectTLSListenPort int
+	DirectTLSWSPath     string
+	DirectTLSCertPath   string
+	DirectTLSKeyPath    string
 	// Hysteria2 is a direct (non-CDN) sidecar transport, run by a separate
 	// binary (github.com/apernet/hysteria, not Xray-core) restarted through
 	// the same docker socket Apply already uses for Xray. It needs its own
@@ -110,6 +123,10 @@ func Load() Config {
 			HysteriaTLSKeyPath:      env("WAVEBREAK_HYSTERIA_TLS_KEY_PATH", ""),
 			HysteriaDockerContainer: env("WAVEBREAK_HYSTERIA_DOCKER_CONTAINER", ""),
 			HysteriaMasqueradeURL:   env("WAVEBREAK_HYSTERIA_MASQUERADE_URL", "https://www.bing.com"),
+			DirectTLSListenPort:     intEnv("WAVEBREAK_XRAY_DIRECT_TLS_LISTEN_PORT", 0),
+			DirectTLSWSPath:         env("WAVEBREAK_XRAY_DIRECT_TLS_WS_PATH", "/wvb-dt"),
+			DirectTLSCertPath:       env("WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH", ""),
+			DirectTLSKeyPath:        env("WAVEBREAK_XRAY_DIRECT_TLS_KEY_PATH", ""),
 		},
 	}
 }

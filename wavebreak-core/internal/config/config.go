@@ -65,6 +65,12 @@ type VLESSConfig struct {
 	HysteriaPort     int
 	HysteriaSNI      string
 	HysteriaInsecure bool
+	// Direct VLESS+WS+TLS with a real cert, no CDN — see wavebreak-node's
+	// XrayConfig comment for the DPI-evasion hypothesis behind this.
+	// DirectTLSHost is the VPS's own domain/IP, not the CDN host.
+	DirectTLSHost string
+	DirectTLSPort int
+	DirectTLSPath string
 	// PublishDirect controls whether the direct REALITY link is included in
 	// a grant's links/subscription. Default true; set false once a network
 	// is confirmed to actively disrupt REALITY, so clients only see (and
@@ -111,6 +117,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_HYSTERIA_PORT: %w", err)
 	}
+	directTLSPort, err := strconv.Atoi(env("WAVEBREAK_DIRECT_TLS_PORT", "0"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_DIRECT_TLS_PORT: %w", err)
+	}
 
 	cfg := Config{
 		Environment:     env("WAVEBREAK_ENV", "development"),
@@ -151,6 +161,9 @@ func Load() (Config, error) {
 			HysteriaPort:       hysteriaPort,
 			HysteriaSNI:        env("WAVEBREAK_HYSTERIA_SNI", ""),
 			HysteriaInsecure:   boolEnv("WAVEBREAK_HYSTERIA_INSECURE", true),
+			DirectTLSHost:      env("WAVEBREAK_DIRECT_TLS_HOST", ""),
+			DirectTLSPort:      directTLSPort,
+			DirectTLSPath:      env("WAVEBREAK_DIRECT_TLS_PATH", "/wvb-dt"),
 		},
 	}
 	if cfg.Environment == "production" {
