@@ -693,6 +693,12 @@ func buildHysteriaLink(vless config.VLESSConfig, grantID, location string) strin
 		sni = vless.HysteriaHost
 	}
 	query.Set("sni", sni)
+	query.Set("alpn", "h3")
+	// insecure=1 (skip cert validation) was needed for the earlier
+	// self-signed cert; a real Let's Encrypt cert on a proper domain
+	// doesn't need it — and some clients (Happ included) apparently don't
+	// handle that flag correctly, connecting to nothing instead of falling
+	// back to a real handshake.
 	if vless.HysteriaInsecure {
 		query.Set("insecure", "1")
 	}
