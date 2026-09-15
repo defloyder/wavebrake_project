@@ -82,6 +82,12 @@ type VLESSConfig struct {
 	// ordinary HTTPS requests fine — better to publish only the transport
 	// that's actually confirmed reliable than a faster-looking broken one.
 	PublishCDNXHTTP bool
+	// PublishCDNWS / PublishTrojanCDN: same idea as PublishDirect/
+	// PublishCDNXHTTP — toggle whether these confirmed-working but slower
+	// CDN transports still get published once faster options
+	// (Hysteria2/Direct-TLS) are confirmed good enough on their own.
+	PublishCDNWS     bool
+	PublishTrojanCDN bool
 }
 
 func Load() (Config, error) {
@@ -164,6 +170,8 @@ func Load() (Config, error) {
 			DirectTLSHost:      env("WAVEBREAK_DIRECT_TLS_HOST", ""),
 			DirectTLSPort:      directTLSPort,
 			DirectTLSPath:      env("WAVEBREAK_DIRECT_TLS_PATH", "/wvb-dt"),
+			PublishCDNWS:       boolEnv("WAVEBREAK_VLESS_PUBLISH_CDN_WS", true),
+			PublishTrojanCDN:   boolEnv("WAVEBREAK_VLESS_PUBLISH_TROJAN_CDN", true),
 		},
 	}
 	if cfg.Environment == "production" {

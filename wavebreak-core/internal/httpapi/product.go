@@ -379,7 +379,7 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 
 	location := locationLabel(config.Node)
 	links := make([]string, 0, 2)
-	cdnAvailable := strings.TrimSpace(vless.CDNHost) != "" && vless.CDNPort > 0
+	cdnAvailable := strings.TrimSpace(vless.CDNHost) != "" && vless.CDNPort > 0 && vless.PublishCDNWS
 
 	vlessLink := buildVLESSLink(vless, config.Grant.ID, location)
 	config.Location = locationPayload(config.Node)
@@ -460,6 +460,10 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 	if strings.TrimSpace(vless.DirectTLSHost) != "" && vless.DirectTLSPort > 0 {
 		directLink := buildVLESSDirectTLSLink(vless, config.Grant.ID, location)
 		links = append(links, directLink)
+		if config.ConnectionURL == "" {
+			config.ConnectionURL = directLink
+			config.ShareURL = directLink
+		}
 		config.VLESSDirectTLS = map[string]any{
 			"client_id": config.Grant.ID,
 			"label":     location,
@@ -478,6 +482,10 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 	if strings.TrimSpace(vless.HysteriaHost) != "" && vless.HysteriaPort > 0 {
 		hyLink := buildHysteriaLink(vless, config.Grant.ID, location)
 		links = append(links, hyLink)
+		if config.ConnectionURL == "" {
+			config.ConnectionURL = hyLink
+			config.ShareURL = hyLink
+		}
 		config.Hysteria = map[string]any{
 			"client_id": config.Grant.ID,
 			"label":     location,
@@ -508,7 +516,7 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		}
 	}
 
-	if strings.TrimSpace(vless.CDNHost) != "" && vless.TrojanCDNPort > 0 {
+	if strings.TrimSpace(vless.CDNHost) != "" && vless.TrojanCDNPort > 0 && vless.PublishTrojanCDN {
 		trojanLink := buildTrojanCDNLink(vless, config.Grant.ID, location)
 		links = append(links, trojanLink)
 		config.TrojanCDN = map[string]any{
