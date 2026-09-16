@@ -224,21 +224,29 @@
         wallRightPts.push([wallXAt(yFrac) + (16 + sampleSeed(wallRightSeed, yFrac) * 22), y]);
       }
 
-      const wallFill = bwCtx.createLinearGradient(splitX - 36, 0, splitX + 36, 0);
-      wallFill.addColorStop(0, '#1c3a52');
-      wallFill.addColorStop(0.45, '#2f5975');
-      wallFill.addColorStop(0.55, '#2f5975');
-      wallFill.addColorStop(1, '#12222f');
-
       bwCtx.beginPath();
       wallLeftPts.forEach(([x, y], i) => (i === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y)));
       for (let i = wallRightPts.length - 1; i >= 0; i--) bwCtx.lineTo(wallRightPts[i][0], wallRightPts[i][1]);
       bwCtx.closePath();
-      bwCtx.fillStyle = wallFill;
+      bwCtx.fillStyle = '#5c7d95';
       bwCtx.fill();
-      bwCtx.lineWidth = 1;
-      bwCtx.strokeStyle = 'rgba(4,10,16,.6)';
-      bwCtx.stroke();
+
+      // Banding within the rock, darker than the flat fill — reads as
+      // texture instead of a smooth blob.
+      for (let i = 0; i < rows; i += 2) {
+        const a = wallLeftPts[i];
+        const b = wallLeftPts[Math.min(i + 1, rows)];
+        const c = wallRightPts[rows - Math.min(i + 1, rows)];
+        const d = wallRightPts[rows - i];
+        bwCtx.beginPath();
+        bwCtx.moveTo(a[0], a[1]);
+        bwCtx.lineTo(b[0], b[1]);
+        bwCtx.lineTo(c[0], c[1]);
+        bwCtx.lineTo(d[0], d[1]);
+        bwCtx.closePath();
+        bwCtx.fillStyle = i % 4 === 0 ? 'rgba(15,30,42,.35)' : 'rgba(255,255,255,.05)';
+        bwCtx.fill();
+      }
 
       // Bright rim on the storm-facing edge (spray-lit), a dim one on the
       // harbor-facing edge — the asymmetry itself sells which side is which.
