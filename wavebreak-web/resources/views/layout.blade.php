@@ -10,6 +10,8 @@
         $title = trim($__env->yieldContent('title')) ?: 'WAVEBREAK - защищенная инфраструктура для бизнеса';
         $cssPath = public_path('css/wavebreak-site.css');
         $cssVersion = file_exists($cssPath) ? filemtime($cssPath) : time();
+        $jsPath = public_path('js/wavebreak-motion.js');
+        $jsVersion = file_exists($jsPath) ? filemtime($jsPath) : time();
     @endphp
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -39,6 +41,6 @@
 <body class="@yield('body_class')">
     @yield('content')
     @stack('scripts')
-    <script src="{{ asset('js/wavebreak-motion.js') }}" defer></script>
+    <script src="{{ asset('js/wavebreak-motion.js') }}?v={{ $jsVersion }}" defer></script>
 </body>
 </html>
