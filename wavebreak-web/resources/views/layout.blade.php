@@ -7,6 +7,8 @@
         $description = trim($__env->yieldContent('description')) ?: 'WAVEBREAK - защищенная инфраструктура для бизнеса: личный кабинет, тарифы, серверы доступа и понятный контроль подключений.';
         $image = trim($__env->yieldContent('og_image')) ?: asset('images/wavebreak-logo.png');
         $title = trim($__env->yieldContent('title')) ?: 'WAVEBREAK - защищенная инфраструктура для бизнеса';
+        $cssPath = public_path('css/wavebreak-site.css');
+        $cssVersion = file_exists($cssPath) ? filemtime($cssPath) : time();
     @endphp
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -29,7 +31,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/wavebreak-site.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/wavebreak-site.css') }}?v={{ $cssVersion }}">
     @stack('schema')
     @stack('styles')
 </head>

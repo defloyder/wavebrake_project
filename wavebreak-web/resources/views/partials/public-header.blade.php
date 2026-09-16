@@ -3,7 +3,7 @@
 <header class="wb-header">
     <div class="wb-container wb-nav">
         <a href="/" class="wb-brand" aria-label="WAVEBREAK">
-            <img src="{{ asset('images/wavebreak-logo.png') }}" class="wb-logo" alt="">
+            <img src="{{ asset('images/wavebreak-logo-mark.png') }}" class="wb-logo" alt="">
             <span class="wb-brand-word">
                 <span>WAVEBREAK</span>
                 <small>Secure Infrastructure</small>

@@ -1,8 +1,8 @@
-﻿@extends('layout')
+@extends('layout')
 
 @section('title', 'WAVEBREAK - защищенная инфраструктура для бизнеса')
-@section('description', 'WAVEBREAK помогает бизнесу продавать и сопровождать защищенный доступ: личный кабинет, тарифы, серверы доступа, панель оператора и понятное состояние подключений.')
-@section('body_class', 'wb-shell wb-public')
+@section('description', 'WAVEBREAK помогает запускать и сопровождать защищенный доступ: тарифы, личный кабинет, серверы доступа, внешние ссылки подключения и панель оператора.')
+@section('body_class', 'wb-shell wb-public wb-clearwave-page')
 
 @push('schema')
 <script type="application/ld+json">
@@ -12,7 +12,7 @@
   "name": "WAVEBREAK",
   "url": "{{ rtrim(config('app.url'), '/') }}",
   "logo": "{{ asset('images/wavebreak-logo.png') }}",
-  "description": "Защищенная инфраструктура для бизнеса: личный кабинет, тарифы, серверы доступа и панель оператора."
+  "description": "Защищенная инфраструктура для бизнеса: личный кабинет, тарифы, серверы доступа и внешние ссылки подключения."
 }
 </script>
 <script type="application/ld+json">
@@ -22,7 +22,7 @@
   "name": "WAVEBREAK",
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web, iOS, Android, Windows, macOS",
-  "description": "Платформа для запуска и сопровождения защищенного доступа для клиентов и команд."
+  "description": "Платформа и приложения для управления защищенным доступом, тарифами и подключениями."
 }
 </script>
 @endpush
@@ -31,116 +31,129 @@
 @include('partials.public-header', ['active' => 'home'])
 
 <main>
-    <section class="wb-hero wb-hero--command">
-        <div class="wb-container wb-hero-grid">
-            <div class="wb-hero-copy">
-                <p class="wb-kicker">Защищенная инфраструктура для бизнеса</p>
-                <h1>Доступ для клиентов без ручной настройки и хаоса в операциях</h1>
+    <section class="cw-hero">
+        <div class="cw-ambient" aria-hidden="true">
+            <span></span><span></span><span></span>
+        </div>
+        <div class="wb-container cw-hero-grid">
+            <div class="cw-hero-copy">
+                <p class="wb-kicker">WAVEBREAK для бизнеса и личного использования</p>
+                <h1>Один кабинет для тарифов, серверов и своих ссылок подключения</h1>
                 <p class="wb-lead">
-                    WAVEBREAK собирает в одном продукте личный кабинет, тарифы, серверы доступа и панель оператора.
-                    При этом приложение можно использовать и шире: добавить свою ссылку подключения от другого продавца
-                    и держать все рабочие профили в одном понятном месте.
+                    Запускайте собственный сервис доступа с тарифами и панелью оператора. А если у пользователя
+                    уже есть ссылка от другого продавца, он может добавить ее в приложение и держать все профили рядом.
                 </p>
                 <div class="wb-hero-actions">
                     <a href="/register" class="wb-btn wb-btn--primary">Создать аккаунт</a>
-                    <a href="/pricing" class="wb-btn">Посмотреть тарифы</a>
-                    <a href="/access" class="wb-btn wb-btn--ghost">Как это устроено</a>
+                    <a href="/access" class="wb-btn">Как устроено</a>
                 </div>
-                <div class="wb-trust-strip" aria-label="Состояние платформы">
-                    <span><b>{{ $health['status'] ?? 'ok' }}</b> платформа</span>
-                    <span><b>{{ count($plans) ?: 3 }}</b> тарифа</span>
-                    <span><b>online</b> серверы доступа</span>
+                <div class="cw-metrics" aria-label="Ключевые возможности">
+                    <div><strong>2</strong><span>режима: свои тарифы и внешние ссылки</span></div>
+                    <div><strong>3</strong><span>готовых уровня сервиса</span></div>
+                    <div><strong>24/7</strong><span>контроль состояния инфраструктуры</span></div>
                 </div>
             </div>
 
-            <div class="wb-command-console" aria-label="Операционный контур WAVEBREAK">
-                <div class="wb-console-top">
-                    <span class="wb-status-dot">live</span>
-                    <strong>WAVEBREAK Control</strong>
-                    <span>ready</span>
+            <div class="cw-product-stage" aria-label="Интерфейс WAVEBREAK">
+                <div class="cw-glass-card cw-card-main">
+                    <div class="cw-card-top">
+                        <span class="cw-live-dot">online</span>
+                        <strong>WAVEBREAK</strong>
+                        <em>ready</em>
+                    </div>
+                    <div class="cw-logo-orbit">
+                        <div class="cw-ring cw-ring-one"></div>
+                        <div class="cw-ring cw-ring-two"></div>
+                        <img src="{{ asset('images/wavebreak-logo-mark.png') }}" alt="WAVEBREAK">
+                        <span class="cw-node cw-node-a">Кабинет</span>
+                        <span class="cw-node cw-node-b">Тариф</span>
+                        <span class="cw-node cw-node-c">Сервер</span>
+                    </div>
+                    <div class="cw-card-feed">
+                        <div><span>01</span><b>Клиент входит в кабинет</b></div>
+                        <div><span>02</span><b>Выбирает тариф или добавляет ссылку</b></div>
+                        <div><span>03</span><b>Получает готовый профиль</b></div>
+                    </div>
                 </div>
-                <div class="wb-console-map">
-                    <div class="wb-orbit wb-orbit--one"></div>
-                    <div class="wb-orbit wb-orbit--two"></div>
-                    <img src="{{ asset('images/wavebreak-logo.png') }}" alt="WAVEBREAK">
-                    <span class="wb-point-chip wb-point-chip--core">Кабинет</span>
-                    <span class="wb-point-chip wb-point-chip--client">Клиент</span>
-                    <span class="wb-point-chip wb-point-chip--edge">Сервер</span>
-                </div>
-                <div class="wb-event-feed">
-                    <div><span>01</span> Клиент выбирает тариф</div>
-                    <div><span>02</span> Система готовит персональное подключение</div>
-                    <div><span>03</span> Сервер принимает новые настройки</div>
-                    <div><span>04</span> Команда видит подтверждение</div>
-                </div>
-            </div>
-        </div>
-    </section>
 
-    <section class="wb-section wb-proof-section">
-        <div class="wb-container wb-proof-grid">
-            <article>
-                <span>01</span>
-                <h3>Клиенту понятно</h3>
-                <p>Регистрация, тариф, устройство и подключение собраны в один спокойный сценарий.</p>
-            </article>
-            <article>
-                <span>02</span>
-                <h3>Команде видно</h3>
-                <p>Панель показывает серверы, активные подключения, тарифы и состояние инфраструктуры.</p>
-            </article>
-            <article>
-                <span>03</span>
-                <h3>Гибко для рынка</h3>
-                <p>Можно работать с тарифами WAVEBREAK или добавить стороннюю ссылку подключения, если она уже есть.</p>
-            </article>
-        </div>
-    </section>
+                <div class="cw-floating-panel cw-floating-panel--left">
+                    <span>External link</span>
+                    <strong>imported</strong>
+                    <small>профиль добавлен вручную</small>
+                </div>
 
-    <section class="wb-section wb-split-section">
-        <div class="wb-container wb-split">
-            <div>
-                <p class="wb-kicker">Без лишней магии</p>
-                <h2>WAVEBREAK превращает технический доступ в управляемый сервис</h2>
-                <p>
-                    Внутри есть все, что нужно для пилота и роста: учет клиентов, тарифы, серверы доступа,
-                    панель оператора и подтверждение того, что подключение действительно готово. А для обычного пользователя
-                    приложение остается удобным клиентом, куда можно добавить свои рабочие ссылки.
-                </p>
-            </div>
-            <div class="wb-stack-list">
-                <div><b>Кабинет</b><span>регистрация, вход, тарифы и устройства</span></div>
-                <div><b>Подключение</b><span>персональные настройки для каждого клиента</span></div>
-                <div><b>Свои ссылки</b><span>импорт подключений от внешних продавцов</span></div>
-                <div><b>Серверы</b><span>локации, статусы и готовность к работе</span></div>
-                <div><b>Операции</b><span>контроль, отзыв доступа и история действий</span></div>
+                <div class="cw-floating-panel cw-floating-panel--right">
+                    <span>Operator</span>
+                    <strong>visible</strong>
+                    <small>тарифы, локации, статусы</small>
+                </div>
             </div>
         </div>
     </section>
 
-    <section class="wb-section">
+    <section class="wb-section cw-route-section">
         <div class="wb-container">
             <div class="wb-section-head">
-                <p class="wb-kicker">Сценарии</p>
-                <h2>Когда WAVEBREAK особенно полезен</h2>
-                <p>Для компаний, которые хотят дать клиентам защищенный доступ как аккуратный продукт, а не как набор инструкций в чате.</p>
+                <p class="wb-kicker">Два понятных сценария</p>
+                <h2>Не только наши тарифы. Приложение работает и со своими ссылками.</h2>
+            </div>
+            <div class="cw-route-grid">
+                <article class="cw-route-card cw-route-card--accent">
+                    <span>01</span>
+                    <h3>Сервис WAVEBREAK</h3>
+                    <p>Клиент регистрируется, выбирает тариф, локацию и получает персональное подключение в кабинете.</p>
+                </article>
+                <article class="cw-route-card">
+                    <span>02</span>
+                    <h3>Своя ссылка</h3>
+                    <p>Пользователь вставляет внешнюю ссылку подключения от другого продавца и использует ее в приложении.</p>
+                </article>
+                <article class="cw-route-card">
+                    <span>03</span>
+                    <h3>Операционный контроль</h3>
+                    <p>Команда видит тарифы, серверы доступа, активные подключения и может быстро помогать клиентам.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="wb-section cw-showcase">
+        <div class="wb-container cw-showcase-grid">
+            <div class="cw-showcase-copy">
+                <p class="wb-kicker">Контур продукта</p>
+                <h2>Витрина, кабинет и приложения работают как единая система</h2>
+                <p>
+                    WAVEBREAK закрывает коммерческий запуск и обычное использование: тарифы для вашего сервиса,
+                    ручной импорт внешних ссылок, устройства клиента и понятная панель для команды.
+                </p>
+            </div>
+            <div class="cw-stack">
+                <div><b>Личный кабинет</b><span>аккаунт, тариф, устройства, подключения</span></div>
+                <div><b>Приложения</b><span>мобильный и десктопный клиент для рабочих профилей</span></div>
+                <div><b>Серверы доступа</b><span>локации, статусы и готовность к работе</span></div>
+                <div><b>Внешние ссылки</b><span>импорт подключений от разных продавцов</span></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="wb-section cw-usecases">
+        <div class="wb-container">
+            <div class="wb-section-head">
+                <p class="wb-kicker">Где полезно</p>
+                <h2>Для запуска продукта и для повседневного использования</h2>
             </div>
             <div class="wb-usecase-grid">
                 <article class="wb-card">
                     <h3>Коммерческий запуск</h3>
-                    <p>Быстро показать клиенту личный кабинет, тариф и готовое подключение.</p>
+                    <p>Быстро показать клиенту тариф, кабинет и готовый путь к подключению.</p>
                 </article>
                 <article class="wb-card">
-                    <h3>Рабочие локации</h3>
-                    <p>Добавлять серверы доступа по странам и видеть, какие из них доступны прямо сейчас.</p>
+                    <h3>Личные профили</h3>
+                    <p>Добавить внешние ссылки подключения и не держать их в заметках или чатах.</p>
                 </article>
                 <article class="wb-card">
                     <h3>Поддержка клиентов</h3>
-                    <p>Понимать, у кого активен тариф, где выдан доступ и что можно отозвать или пересоздать.</p>
-                </article>
-                <article class="wb-card">
-                    <h3>Личное использование</h3>
-                    <p>Добавить свою ссылку подключения и пользоваться приложением без покупки тарифа WAVEBREAK.</p>
+                    <p>Видеть активные тарифы, устройства, локации и состояние серверов доступа.</p>
                 </article>
             </div>
         </div>
@@ -150,12 +163,11 @@
         <div class="wb-container wb-final-panel">
             <div>
                 <p class="wb-kicker">Запуск</p>
-                <h2>Соберите доступ вокруг своего продукта</h2>
-                <p>Начните с аккаунта, активируйте тариф и проверьте путь от кабинета до рабочего подключения.</p>
+                <h2>Соберите защищенный доступ в понятный продукт</h2>
+                <p>Начните с аккаунта: проверьте тарифы, кабинет и сценарий добавления рабочих профилей.</p>
             </div>
             <a href="/register" class="wb-btn wb-btn--primary">Начать работу</a>
         </div>
     </section>
 </main>
 @endsection
-
