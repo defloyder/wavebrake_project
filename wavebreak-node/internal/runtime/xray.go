@@ -47,11 +47,13 @@ func NewXrayAdapter(cfg config.XrayConfig) XrayAdapter {
 }
 
 func (a XrayAdapter) Validate(_ context.Context, state json.RawMessage) error {
-	if strings.TrimSpace(a.cfg.RealityPrivateKey) == "" {
-		return fmt.Errorf("WAVEBREAK_XRAY_REALITY_PRIVATE_KEY is required")
-	}
-	if strings.TrimSpace(a.cfg.RealityShortID) == "" {
-		return fmt.Errorf("WAVEBREAK_XRAY_REALITY_SHORT_ID is required")
+	if a.cfg.ListenPort > 0 {
+		if strings.TrimSpace(a.cfg.RealityPrivateKey) == "" {
+			return fmt.Errorf("WAVEBREAK_XRAY_REALITY_PRIVATE_KEY is required")
+		}
+		if strings.TrimSpace(a.cfg.RealityShortID) == "" {
+			return fmt.Errorf("WAVEBREAK_XRAY_REALITY_SHORT_ID is required")
+		}
 	}
 	var desired xrayDesiredState
 	if len(state) == 0 {
@@ -120,8 +122,9 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 	if a.hyUsers != nil {
 		*a.hyUsers = hyUsers
 	}
-	inbounds := []map[string]any{
-		{
+	inbounds := []map[string]any{}
+	if a.cfg.ListenPort > 0 {
+		inbounds = append(inbounds, map[string]any{
 			"tag":      "vless-reality",
 			"listen":   "0.0.0.0",
 			"port":     a.cfg.ListenPort,
@@ -149,7 +152,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				"enabled":      true,
 				"destOverride": []string{"http", "tls", "quic"},
 			},
-		},
+		})
 	}
 	// CDN transport: VLESS over WebSocket+TLS, meant to be proxied through a
 	// CDN (Cloudflare orange-cloud) so the outer TLS handshake terminates at

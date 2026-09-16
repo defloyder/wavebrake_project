@@ -17,7 +17,8 @@ mkdir -p "$(dirname "$CONFIG_PATH")"
 # "never bootstrapped" apart from "seeded by the image". Use our own marker
 # file instead, written only after we've laid down the real REALITY config.
 if [ ! -f "$BOOTSTRAP_MARKER" ]; then
-  cat > "$CONFIG_PATH" <<EOF
+  if [ "$LISTEN_PORT" -gt 0 ]; then
+    cat > "$CONFIG_PATH" <<EOF
 {
   "log": {
     "loglevel": "warning"
@@ -69,6 +70,26 @@ if [ ! -f "$BOOTSTRAP_MARKER" ]; then
   ]
 }
 EOF
+  else
+    cat > "$CONFIG_PATH" <<EOF
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {}
+    },
+    {
+      "protocol": "blackhole",
+      "tag": "blocked"
+    }
+  ]
+}
+EOF
+  fi
   touch "$BOOTSTRAP_MARKER"
 fi
 

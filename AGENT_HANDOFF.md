@@ -49,7 +49,7 @@ dev
 
 1. Direct VLESS over WebSocket + TLS
    - домен: `direct.wavebreak.com.tr`
-   - порт: `9443`
+   - порт: `443`
    - путь: `/wvb-dt`
    - TLS/SNI: `direct.wavebreak.com.tr`
    - назначение: стабильный прямой TCP/TLS транспорт без Cloudflare/CDN-прослойки.
@@ -149,6 +149,7 @@ Pilot compose использует отдельные настройки для 
 - node-agent генерирует Xray config и Hysteria config.
 - node-agent перезапускает runtime-контейнеры после изменения desired-state.
 - Hysteria получает per-grant auth через username/password на основе grant id.
+- Legacy VLESS REALITY можно выключить через `WAVEBREAK_VLESS_PORT=0`; в этом случае Xray/node не должны занимать лишний TCP-порт под непубликуемый транспорт.
 - Для стабильной работы Hysteria2/QUIC на VPS нужен host-level sysctl tuning из `wavebreak-infrastructure/sysctl/99-wavebreak-vpn.conf`.
 - RabbitMQ healthcheck в pilot compose специально сделан редким, чтобы Erlang diagnostics не создавал лишние CPU-всплески на маленькой VPS.
 
