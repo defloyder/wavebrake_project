@@ -8,8 +8,8 @@
     $section = $section ?? 'overview';
     $email = $me['email'] ?? 'user@wavebreak.local';
     $hasSubscription = (bool) $subscription;
-    $activeGrants = collect($grants)->where('status', 'active')->count();
-    $onlineNodes = collect($nodes)->where('status', 'online')->count();
+    $activeConnections = collect($grants)->where('status', 'active')->count();
+    $onlineServers = collect($nodes)->where('status', 'online')->count();
     $activeDevices = collect($devices ?? [])->filter(fn ($device) => empty($device['revoked_at']))->count();
     $telegramIdentities = collect($overview['telegram'] ?? [])->where('provider', 'telegram');
     $usedBytes = (int) ($usage['bytes_total'] ?? 0);
@@ -20,8 +20,8 @@
     $titles = [
         'overview' => 'Личный кабинет',
         'subscription' => 'Подписка',
-        'access' => 'Доступ',
-        'nodes' => 'Ноды',
+        'access' => 'Подключения',
+        'nodes' => 'Серверы доступа',
         'devices' => 'Устройства',
     ];
 @endphp
@@ -49,11 +49,11 @@
             </a>
             <a href="/dashboard/access" class="{{ $section === 'access' ? 'is-active' : '' }}">
                 <svg viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                Доступ
+                Подключения
             </a>
             <a href="/dashboard/nodes" class="{{ $section === 'nodes' ? 'is-active' : '' }}">
                 <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                Ноды
+                Серверы
             </a>
             <a href="/dashboard/devices" class="{{ $section === 'devices' ? 'is-active' : '' }}">
                 <svg viewBox="0 0 24 24" fill="none"><rect x="6" y="3" width="12" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M10 18h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -84,7 +84,7 @@
             <div>
                 <p class="wb-kicker">WAVEBREAK Cabinet</p>
                 <h1>{{ $titles[$section] ?? 'Личный кабинет' }}</h1>
-                <p>Тариф, лимиты, устройства и access grants берутся из Core API и применяются через desired-state нод.</p>
+                <p>Тариф, устройства, серверы доступа и персональные подключения собраны в одном рабочем пространстве.</p>
             </div>
             <span class="wb-pill">{{ $hasSubscription ? 'подписка активна' : 'подписка не выбрана' }}</span>
         </div>
@@ -93,7 +93,7 @@
             <section class="wb-dashboard-grid">
                 <article class="wb-card wb-metric"><strong>{{ $hasSubscription ? 'Активна' : 'Нет' }}</strong><p>Статус подписки</p></article>
                 <article class="wb-card wb-metric"><strong>{{ $currentPlan['name'] ?? 'Не выбран' }}</strong><p>Текущий тариф</p></article>
-                <article class="wb-card wb-metric"><strong>{{ $activeGrants }}</strong><p>Активные grants</p></article>
+                <article class="wb-card wb-metric"><strong>{{ $activeConnections }}</strong><p>Подключения</p></article>
                 <article class="wb-card wb-metric"><strong>{{ $activeDevices }}</strong><p>Устройства</p></article>
             </section>
 
@@ -101,10 +101,10 @@
                 <article class="wb-card">
                     <h3>Готовность доступа</h3>
                     @if($hasSubscription)
-                        <p>Подписка активна, можно выпускать доступ к нодам. Каждый grant сразу попадает в desired-state и ждет ACK от node-agent.</p>
-                        <div class="wb-card-action"><a href="/dashboard/access" class="wb-btn wb-btn--primary">Создать доступ</a></div>
+                        <p>Подписка активна. Можно выпускать персональные подключения для выбранных серверов доступа.</p>
+                        <div class="wb-card-action"><a href="/dashboard/access" class="wb-btn wb-btn--primary">Создать подключение</a></div>
                     @else
-                        <p>Выберите тариф, чтобы Core зафиксировал лимиты подписки и открыл выпуск access grants.</p>
+                        <p>Выберите тариф, чтобы открыть выдачу подключений и зафиксировать условия обслуживания.</p>
                         <div class="wb-card-action"><a href="/dashboard/subscription" class="wb-btn wb-btn--primary">Выбрать тариф</a></div>
                     @endif
                 </article>
@@ -127,13 +127,13 @@
                         <p><strong>Устройства:</strong> {{ $subscription['device_limit_override'] ?? $subscription['device_limit_snapshot'] ?? 'по тарифу' }}</p>
                         <p><strong>Трафик:</strong> {{ $limitBytes ? number_format($limitBytes / 1073741824, 0).' GB' : 'без лимита' }}</p>
                     @else
-                        <p>Активной подписки пока нет. Выберите тариф, чтобы открыть выдачу доступа.</p>
+                        <p>Активной подписки пока нет. Выберите тариф, чтобы открыть выдачу подключений.</p>
                     @endif
                 </article>
                 <article class="wb-card">
                     <h3>Активировать тариф</h3>
                     @if($hasSubscription)
-                        <p>У аккаунта уже есть активная подписка. Можно переходить к выдаче доступа.</p>
+                        <p>У аккаунта уже есть активная подписка. Можно переходить к выдаче подключений.</p>
                     @else
                         <form method="post" action="/subscriptions" class="wb-form">
                             @csrf
@@ -154,10 +154,10 @@
         @if($section === 'access')
             <section class="wb-workspace">
                 <article class="wb-card">
-                    <h3>Выпустить доступ</h3>
+                    <h3>Создать подключение</h3>
                     <form method="post" action="/access/grants" class="wb-form">
                         @csrf
-                        <label>Нода
+                        <label>Сервер доступа
                             <select name="node_id" required>
                                 @foreach($nodes as $node)
                                     <option value="{{ $node['id'] }}">{{ $node['code'] }} / {{ $node['region'] }} / {{ $node['status'] }}</option>
@@ -170,14 +170,14 @@
                                 <option value="outline">Outline</option>
                             </select>
                         </label>
-                        <button type="submit" class="wb-btn wb-btn--primary">Выпустить доступ</button>
+                        <button type="submit" class="wb-btn wb-btn--primary">Создать подключение</button>
                     </form>
                 </article>
                 <article class="wb-card">
-                    <h3>Активные доступы</h3>
+                    <h3>Активные подключения</h3>
                     <div class="wb-table-wrap">
                         <table class="wb-table">
-                            <thead><tr><th>Нода</th><th>Протокол</th><th>Статус</th><th>Действует до</th><th></th></tr></thead>
+                            <thead><tr><th>Сервер</th><th>Протокол</th><th>Статус</th><th>Действует до</th><th></th></tr></thead>
                             <tbody>
                             @forelse($grants as $grant)
                                 <tr>
@@ -195,7 +195,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5">Доступ пока не выпускался.</td></tr>
+                                <tr><td colspan="5">Подключения пока не создавались.</td></tr>
                             @endforelse
                             </tbody>
                         </table>
@@ -206,11 +206,11 @@
 
         @if($section === 'nodes')
             <section class="wb-card">
-                <h3>Доступные ноды</h3>
-                <p>{{ count($nodes) }} нод из Core, {{ $onlineNodes }} сейчас онлайн.</p>
+                <h3>Серверы доступа</h3>
+                <p>{{ count($nodes) }} серверов в списке, {{ $onlineServers }} сейчас онлайн.</p>
                 <div class="wb-table-wrap">
                     <table class="wb-table">
-                        <thead><tr><th>Code</th><th>Region</th><th>Status</th><th>Heartbeat</th></tr></thead>
+                        <thead><tr><th>Код</th><th>Регион</th><th>Статус</th><th>Последний сигнал</th></tr></thead>
                         <tbody>
                         @forelse($nodes as $node)
                             <tr>
@@ -220,7 +220,7 @@
                                 <td>{{ $node['last_heartbeat_at'] ?? '-' }}</td>
                             </tr>
                         @empty
-                            <tr><td colspan="4">Core пока не вернул доступные ноды.</td></tr>
+                            <tr><td colspan="4">Серверы доступа пока не загружены.</td></tr>
                         @endforelse
                         </tbody>
                     </table>
@@ -246,7 +246,7 @@
                 <article class="wb-card">
                     <h3>Telegram</h3>
                     @if(session('telegram_link_token'))
-                        <p><strong>Link token:</strong> {{ session('telegram_link_token') }}</p>
+                        <p><strong>Код привязки:</strong> {{ session('telegram_link_token') }}</p>
                     @elseif($telegramIdentities->isNotEmpty())
                         <p>Telegram подключен: {{ $telegramIdentities->first()['username'] ?? $telegramIdentities->first()['provider_user_id'] }}.</p>
                         <form method="post" action="/telegram">
@@ -255,10 +255,10 @@
                             <button type="submit" class="wb-btn">Отвязать Telegram</button>
                         </form>
                     @else
-                        <p>Создайте одноразовый token и передайте его в Telegram bot flow. После подтверждения бот будет видеть тот же аккаунт Core.</p>
+                        <p>Создайте одноразовый код и передайте его в Telegram-бот. После подтверждения бот будет связан с этим аккаунтом.</p>
                         <form method="post" action="/telegram/link">
                             @csrf
-                            <button type="submit" class="wb-btn wb-btn--primary">Создать link token</button>
+                            <button type="submit" class="wb-btn wb-btn--primary">Создать код привязки</button>
                         </form>
                     @endif
                 </article>
@@ -288,4 +288,3 @@
     </main>
 </div>
 @endsection
-

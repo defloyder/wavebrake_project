@@ -116,12 +116,15 @@ class CoreClient
             ->withHeaders(['X-Request-ID' => request()?->headers->get('X-Request-ID', (string) Str::uuid())])
             ->acceptJson()
             ->asJson()
+            ->connectTimeout(2)
             ->timeout(5);
     }
 
     private function safe(): PendingRequest
     {
-        return $this->base()->retry(2, 100);
+        return $this->base()
+            ->connectTimeout(0.35)
+            ->timeout(0.35);
     }
 
     private function auth(string $token, bool $safe = false): PendingRequest

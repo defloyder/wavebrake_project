@@ -16,7 +16,7 @@ class WebController extends Controller
 
     public function index(): View
     {
-        return view('home', $this->publicData());
+        return view('home', $this->publicData(loadPlans: false));
     }
 
     public function pricing(): View
@@ -26,7 +26,7 @@ class WebController extends Controller
 
     public function access(): View
     {
-        return view('access', $this->publicData());
+        return view('access', $this->publicData(loadPlans: false));
     }
 
     public function loginPage(Request $request): View|RedirectResponse
@@ -35,7 +35,7 @@ class WebController extends Controller
             return redirect('/dashboard');
         }
 
-        return view('auth', $this->publicData(['mode' => 'login']));
+        return view('auth', $this->publicData(['mode' => 'login'], loadPlans: false));
     }
 
     public function registerPage(Request $request): View|RedirectResponse
@@ -44,7 +44,7 @@ class WebController extends Controller
             return redirect('/dashboard');
         }
 
-        return view('auth', $this->publicData(['mode' => 'register']));
+        return view('auth', $this->publicData(['mode' => 'register'], loadPlans: false));
     }
 
     public function login(Request $request): RedirectResponse
@@ -162,10 +162,10 @@ class WebController extends Controller
         try {
             $this->core->createGrant($token, $data['node_id'], $data['protocol']);
         } catch (Throwable) {
-            return back()->withErrors(['node_id' => 'Не удалось выдать доступ. Проверьте выбранную ноду.']);
+            return back()->withErrors(['node_id' => 'Не удалось создать подключение. Проверьте выбранный сервер доступа.']);
         }
 
-        return redirect('/dashboard/access')->with('success', 'Доступ создан.');
+        return redirect('/dashboard/access')->with('success', 'Подключение создано.');
     }
 
     public function revokeGrant(Request $request, string $grantId): RedirectResponse
@@ -178,10 +178,10 @@ class WebController extends Controller
         try {
             $this->core->revokeGrant($token, $grantId);
         } catch (Throwable) {
-            return back()->withErrors(['grant' => 'Не удалось отозвать доступ.']);
+            return back()->withErrors(['grant' => 'Не удалось отозвать подключение.']);
         }
 
-        return redirect('/dashboard/access')->with('success', 'Доступ отозван.');
+        return redirect('/dashboard/access')->with('success', 'Подключение отозвано.');
     }
 
     public function createDevice(Request $request): RedirectResponse
@@ -215,10 +215,10 @@ class WebController extends Controller
             $link = $this->core->createTelegramLink($token);
             $request->session()->flash('telegram_link_token', $link['token'] ?? '');
         } catch (Throwable) {
-            return back()->withErrors(['telegram' => 'Не удалось создать Telegram link token.']);
+            return back()->withErrors(['telegram' => 'Не удалось создать код привязки Telegram.']);
         }
 
-        return redirect('/dashboard/devices')->with('success', 'Telegram link token создан на 15 минут.');
+        return redirect('/dashboard/devices')->with('success', 'Код привязки Telegram создан на 15 минут.');
     }
 
     public function unlinkTelegram(Request $request): RedirectResponse
@@ -253,11 +253,50 @@ class WebController extends Controller
         return $request->session()->get('wavebreak_tokens.access_token');
     }
 
-    private function publicData(array $extra = []): array
+    private function publicData(array $extra = [], bool $loadPlans = true): array
     {
+        $plans = $loadPlans ? $this->safePlans() : $this->defaultPlans();
+
         return array_merge([
-            'health' => $this->core->health(),
-            'plans' => $this->core->plans(),
+            'health' => ['status' => 'online'],
+            'plans' => $plans,
         ], $extra);
+    }
+
+    private function safePlans(): array
+    {
+        try {
+            $plans = $this->core->plans();
+            return $plans !== [] ? $plans : $this->defaultPlans();
+        } catch (Throwable) {
+            return $this->defaultPlans();
+        }
+    }
+
+    private function defaultPlans(): array
+    {
+        return [
+            [
+                'id' => 'starter',
+                'code' => 'starter',
+                'name' => 'Starter',
+                'price_cents' => 900,
+                'interval' => 'month',
+            ],
+            [
+                'id' => 'plus',
+                'code' => 'plus',
+                'name' => 'Plus',
+                'price_cents' => 1900,
+                'interval' => 'month',
+            ],
+            [
+                'id' => 'fleet',
+                'code' => 'fleet',
+                'name' => 'Fleet',
+                'price_cents' => 4900,
+                'interval' => 'month',
+            ],
+        ];
     }
 }
