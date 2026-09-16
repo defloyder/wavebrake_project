@@ -2775,6 +2775,13 @@ h1,
 }
 
 .wb-btn--primary:hover {
+    /* .wb-btn:hover sets a dim, near-black background that otherwise wins
+       here (same specificity, and this rule never re-declared it) —
+       that's the "button goes dark on hover" bug: the bright gradient was
+       getting silently replaced. Re-affirm it explicitly, slightly
+       brighter, instead of leaving it to fall through. */
+    background: linear-gradient(135deg, #9dffff, var(--cyan-2) 52%, var(--cyan));
+    border-color: transparent;
     transform: translateY(-2px) scale(1.015);
     box-shadow: 0 22px 54px rgba(24, 217, 242, .36);
 }
