@@ -211,50 +211,55 @@
       });
 
       // The wall itself, drawn over the wave endpoints so both sides look
-      // like they terminate against solid rock.
+      // like they terminate against solid rock. Bright, saturated fill —
+      // it needs to read as a solid mass at a glance, not blend into the
+      // atmosphere like the water does.
       const rows = 26;
-      const wallFill = bwCtx.createLinearGradient(splitX - 30, 0, splitX + 30, 0);
-      wallFill.addColorStop(0, '#0a1a26');
-      wallFill.addColorStop(0.5, '#152c3e');
-      wallFill.addColorStop(1, '#0a1a26');
-
-      bwCtx.beginPath();
+      const wallLeftPts = [];
+      const wallRightPts = [];
       for (let i = 0; i <= rows; i++) {
         const yFrac = i / rows;
         const y = yFrac * bh;
-        const half = 14 + sampleSeed(wallLeftSeed, yFrac) * 20;
-        const x = wallXAt(yFrac) - half;
-        i === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
+        wallLeftPts.push([wallXAt(yFrac) - (16 + sampleSeed(wallLeftSeed, yFrac) * 22), y]);
+        wallRightPts.push([wallXAt(yFrac) + (16 + sampleSeed(wallRightSeed, yFrac) * 22), y]);
       }
-      for (let i = rows; i >= 0; i--) {
-        const yFrac = i / rows;
-        const y = yFrac * bh;
-        const half = 14 + sampleSeed(wallRightSeed, yFrac) * 20;
-        const x = wallXAt(yFrac) + half;
-        bwCtx.lineTo(x, y);
-      }
+
+      const wallFill = bwCtx.createLinearGradient(splitX - 36, 0, splitX + 36, 0);
+      wallFill.addColorStop(0, '#1c3a52');
+      wallFill.addColorStop(0.45, '#2f5975');
+      wallFill.addColorStop(0.55, '#2f5975');
+      wallFill.addColorStop(1, '#12222f');
+
+      bwCtx.beginPath();
+      wallLeftPts.forEach(([x, y], i) => (i === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y)));
+      for (let i = wallRightPts.length - 1; i >= 0; i--) bwCtx.lineTo(wallRightPts[i][0], wallRightPts[i][1]);
       bwCtx.closePath();
       bwCtx.fillStyle = wallFill;
       bwCtx.fill();
+      bwCtx.lineWidth = 1;
+      bwCtx.strokeStyle = 'rgba(4,10,16,.6)';
+      bwCtx.stroke();
 
-      bwCtx.shadowColor = 'rgba(150,238,255,.6)';
-      bwCtx.shadowBlur = 12;
-      bwCtx.strokeStyle = 'rgba(170,244,255,.7)';
-      bwCtx.lineWidth = 1.6;
+      // Bright rim on the storm-facing edge (spray-lit), a dim one on the
+      // harbor-facing edge — the asymmetry itself sells which side is which.
+      bwCtx.shadowColor = 'rgba(150,238,255,.7)';
+      bwCtx.shadowBlur = 14;
+      bwCtx.strokeStyle = 'rgba(190,248,255,.9)';
+      bwCtx.lineWidth = 2;
       bwCtx.beginPath();
-      for (let i = 0; i <= rows; i++) {
-        const yFrac = i / rows;
-        const y = yFrac * bh;
-        const half = 14 + sampleSeed(wallLeftSeed, yFrac) * 20;
-        const x = wallXAt(yFrac) - half;
-        i === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
-      }
+      wallLeftPts.forEach(([x, y], i) => (i === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y)));
       bwCtx.stroke();
       bwCtx.shadowBlur = 0;
 
+      bwCtx.strokeStyle = 'rgba(120,190,210,.3)';
+      bwCtx.lineWidth = 1.2;
+      bwCtx.beginPath();
+      wallRightPts.forEach(([x, y], i) => (i === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y)));
+      bwCtx.stroke();
+
       if (!reduceMotion && Math.random() < 0.2 + stormEnergy * 0.6) {
         const yFrac = Math.random();
-        const half = 14 + sampleSeed(wallLeftSeed, yFrac) * 20;
+        const half = 16 + sampleSeed(wallLeftSeed, yFrac) * 22;
         spawnFoam(wallXAt(yFrac) - half, yFrac * bh, 1 + Math.floor(stormEnergy * 4));
       }
 
