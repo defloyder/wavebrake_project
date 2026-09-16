@@ -142,7 +142,7 @@ services:
       APP_ENV: local
       APP_KEY: ${WEB_APP_KEY}
       APP_DEBUG: "false"
-      APP_URL: http://${WAVEBREAK_PUBLIC_HOST:-127.0.0.1}:${WAVEBREAK_WEB_PORT:-18000}
+      APP_URL: ${WAVEBREAK_WEB_APP_URL:-http://${WAVEBREAK_PUBLIC_HOST:-127.0.0.1}:${WAVEBREAK_WEB_PORT:-18000}}
       WAVEBREAK_CORE_URL: http://wavebreak-api:8080
       SESSION_DRIVER: file
     ports:
@@ -165,7 +165,7 @@ services:
       APP_ENV: local
       APP_KEY: ${ADMIN_APP_KEY}
       APP_DEBUG: "false"
-      APP_URL: http://${WAVEBREAK_PUBLIC_HOST:-127.0.0.1}:${WAVEBREAK_ADMIN_PORT:-18002}
+      APP_URL: ${WAVEBREAK_ADMIN_APP_URL:-http://${WAVEBREAK_PUBLIC_HOST:-127.0.0.1}:${WAVEBREAK_ADMIN_PORT:-18002}}
       WAVEBREAK_CORE_URL: http://wavebreak-api:8080
       SESSION_DRIVER: file
     ports:
