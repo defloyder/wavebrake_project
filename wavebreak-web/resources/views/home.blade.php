@@ -27,32 +27,30 @@
         <div class="wb-container art-hero-grid">
             <div class="art-copy" data-reveal>
                 <p class="art-kicker">WAVEBREAK</p>
-                <h1>Тише. Понятнее. Под контролем.</h1>
+                <h1>Штормит снаружи.<br>У вас — тихо.</h1>
                 <p>
-                    Защищенный доступ, тарифы и рабочие профили в одном приложении.
-                    Без лишнего шума. Без ручной суеты.
+                    WAVEBREAK держит соединение там, где обычные VPN обрываются:
+                    агрессивные блокировки, шаткий Wi-Fi, мобильная сеть в метро.
+                    Один линк — и всё просто работает.
                 </p>
                 <div class="art-actions">
                     <a href="/register" class="wb-btn wb-btn--primary">Начать</a>
-                    <a href="#reveal" class="wb-btn">Раскрыть</a>
+                    <a href="#reveal" class="wb-btn">Как это работает</a>
                     <a href="/login" class="wb-btn wb-btn--ghost">Войти</a>
                 </div>
+                <p class="art-tagline">VLESS · Hysteria2 — канал выбирается сам, вручную ничего не нужно</p>
             </div>
 
-            <div class="art-square-scene" aria-label="WAVEBREAK" data-reveal data-reveal-delay="120">
-                <div class="art-square">
-                    <img src="{{ asset('images/wavebreak-logo.png') }}" alt="WAVEBREAK">
-                    <span class="art-cut art-cut--one" aria-hidden="true"></span>
-                    <span class="art-cut art-cut--two" aria-hidden="true"></span>
+            <div class="art-wave-scene" data-reveal data-reveal-delay="120">
+                <div class="art-wave-panel">
+                    <canvas id="wb-wave" role="img" aria-label="Волна связи, которая держит форму"></canvas>
+                    <span class="art-wave-badge">соединение стабильно</span>
                 </div>
-                <p>одна точка входа</p>
+                <p class="art-wave-meta">
+                    <span>NL · AMS-01 → устройство</span>
+                    <span>REALITY / TLS 1.3</span>
+                </p>
             </div>
-        </div>
-
-        <div class="art-wave-floor" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
         </div>
     </section>
 
@@ -60,12 +58,13 @@
         <div class="wb-container art-reveal-grid" data-reveal>
             <div class="art-index">01</div>
             <div>
-                <p class="art-kicker">сначала главное</p>
-                <h2>Клиент видит простой путь. Команда видит систему.</h2>
+                <p class="art-kicker">как это работает</p>
+                <h2>Снаружи — шум сети. У вас — один спокойный экран.</h2>
             </div>
             <p>
-                WAVEBREAK нужен там, где доступ должен выглядеть как продукт:
-                тариф выбран, профиль готов, состояние понятно.
+                Один линк подключает подходящий транспорт — VLESS или Hysteria2 —
+                и держит его, даже когда сеть мешает. Вы просто открываете
+                приложение и работаете.
             </p>
         </div>
     </section>
@@ -74,18 +73,18 @@
         <div class="wb-container art-three-grid" data-reveal="stagger">
             <article>
                 <span>01</span>
-                <h3>Свой сервис</h3>
-                <p>Тарифы, локации и выдача профиля в личном кабинете.</p>
+                <h3>Держит канал</h3>
+                <p>Блокировки, слабый Wi-Fi, мобильный интернет — профиль сам переключает транспорт, чтобы соединение не падало.</p>
             </article>
             <article>
                 <span>02</span>
-                <h3>Свои ссылки</h3>
-                <p>Внешние ссылки подключения остаются внутри приложения.</p>
+                <h3>Один линк на всё</h3>
+                <p>Ссылка обновляется сама. Меняется сервер — пересылать новый конфиг не нужно.</p>
             </article>
             <article>
                 <span>03</span>
-                <h3>Контроль</h3>
-                <p>Статусы, активные подключения и серверы доступа видны команде.</p>
+                <h3>Видно, что происходит</h3>
+                <p>Статус, трафик и устройства — в личном кабинете, без переписки с поддержкой.</p>
             </article>
         </div>
     </section>
@@ -94,20 +93,20 @@
         <div class="wb-container art-details-grid" data-reveal>
             <div>
                 <p class="art-kicker">глубже</p>
-                <h2>Если нужно больше, сайт раскрывается.</h2>
+                <h2>Коротко — выше. Подробности — здесь.</h2>
             </div>
             <div class="art-accordion">
                 <details open>
                     <summary>Для бизнеса</summary>
-                    <p>Запускаете тарифы, показываете клиенту понятный кабинет и убираете ручную сборку каждого подключения.</p>
+                    <p>Подключаете тариф, выдаёте доступ клиенту и не собираете конфиги вручную под каждое устройство.</p>
                 </details>
                 <details>
                     <summary>Для личного использования</summary>
-                    <p>Добавляете внешние ссылки от разных продавцов и держите рабочие профили в одном месте.</p>
+                    <p>Держите тарифы разных провайдеров в одном приложении вместо десятка отдельных ссылок.</p>
                 </details>
                 <details>
                     <summary>Для команды</summary>
-                    <p>Видите локации, статусы и активность без хаоса в чатах, таблицах и заметках.</p>
+                    <p>Видите, у кого какой доступ и какой тариф, без таблиц и переписки в чатах.</p>
                 </details>
             </div>
         </div>
@@ -115,7 +114,7 @@
 
     <section class="art-final">
         <div class="wb-container" data-reveal>
-            <h2>WAVEBREAK оставляет на экране только то, что нужно.</h2>
+            <h2>Ваш угол сети остаётся тихим, даже когда снаружи штормит.</h2>
             <a href="/register" class="wb-btn wb-btn--primary">Начать</a>
         </div>
     </section>
