@@ -495,6 +495,21 @@ func (a XrayAdapter) applyHysteria(ctx context.Context) error {
 tls:
   cert: %q
   key: %q
+quic:
+  initStreamReceiveWindow: 8388608
+  maxStreamReceiveWindow: 8388608
+  initConnReceiveWindow: 20971520
+  maxConnReceiveWindow: 20971520
+  maxIdleTimeout: 60s
+  maxIncomingStreams: 1024
+  disablePathMTUDiscovery: false
+  disableStatelessReset: false
+ignoreClientBandwidth: true
+congestion:
+  type: bbr
+  bbrProfile: conservative
+disableUDP: false
+udpIdleTimeout: 90s
 auth:
   type: userpass
   userpass:

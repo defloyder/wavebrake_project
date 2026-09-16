@@ -32,9 +32,9 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
+      interval: 60s
       timeout: 5s
-      retries: 10
+      retries: 5
 
   wavebreak-migrate:
     build:

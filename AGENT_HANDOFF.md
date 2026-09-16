@@ -149,6 +149,8 @@ Pilot compose использует отдельные настройки для 
 - node-agent генерирует Xray config и Hysteria config.
 - node-agent перезапускает runtime-контейнеры после изменения desired-state.
 - Hysteria получает per-grant auth через username/password на основе grant id.
+- Для стабильной работы Hysteria2/QUIC на VPS нужен host-level sysctl tuning из `wavebreak-infrastructure/sysctl/99-wavebreak-vpn.conf`.
+- RabbitMQ healthcheck в pilot compose специально сделан редким, чтобы Erlang diagnostics не создавал лишние CPU-всплески на маленькой VPS.
 
 ## Web/Admin состояние
 
