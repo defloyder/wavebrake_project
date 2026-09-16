@@ -4,7 +4,7 @@
     @php
         $siteUrl = rtrim(config('app.url'), '/');
         $canonical = trim($__env->yieldContent('canonical')) ?: $siteUrl . request()->getPathInfo();
-        $description = trim($__env->yieldContent('description')) ?: 'WAVEBREAK - защищенная инфраструктура для бизнеса: личный кабинет, тарифы, серверы доступа и понятный контроль подключений.';
+        $description = trim($__env->yieldContent('description')) ?: 'WAVEBREAK - защищенная инфраструктура для бизнеса: кабинет, тарифы, серверы доступа и свои ссылки подключения.';
         $image = trim($__env->yieldContent('og_image')) ?: asset('images/wavebreak-logo.png');
         $title = trim($__env->yieldContent('title')) ?: 'WAVEBREAK - защищенная инфраструктура для бизнеса';
         $cssPath = public_path('css/wavebreak-site.css');

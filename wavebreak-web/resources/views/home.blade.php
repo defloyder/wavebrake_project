@@ -1,7 +1,7 @@
 @extends('layout')
 
 @section('title', 'WAVEBREAK - защищенная инфраструктура для бизнеса')
-@section('description', 'WAVEBREAK помогает запускать и сопровождать защищенный доступ: тарифы, личный кабинет, серверы доступа, внешние ссылки подключения и панель оператора.')
+@section('description', 'WAVEBREAK помогает запускать защищенный доступ для клиентов и использовать свои внешние ссылки подключения в одном приложении.')
 @section('body_class', 'wb-shell wb-public wb-clearwave-page')
 
 @push('schema')
@@ -12,7 +12,7 @@
   "name": "WAVEBREAK",
   "url": "{{ rtrim(config('app.url'), '/') }}",
   "logo": "{{ asset('images/wavebreak-logo.png') }}",
-  "description": "Защищенная инфраструктура для бизнеса: личный кабинет, тарифы, серверы доступа и внешние ссылки подключения."
+  "description": "Защищенная инфраструктура для бизнеса: кабинет, тарифы, серверы доступа и внешние ссылки подключения."
 }
 </script>
 <script type="application/ld+json">
@@ -35,57 +35,63 @@
         <div class="cw-ambient" aria-hidden="true">
             <span></span><span></span><span></span>
         </div>
+
         <div class="wb-container cw-hero-grid">
             <div class="cw-hero-copy">
-                <p class="wb-kicker">WAVEBREAK для бизнеса и личного использования</p>
-                <h1>Один кабинет для тарифов, серверов и своих ссылок подключения</h1>
+                <p class="wb-kicker">Secure access control</p>
+                <h1>Доступ без ручной возни</h1>
                 <p class="wb-lead">
-                    Запускайте собственный сервис доступа с тарифами и панелью оператора. А если у пользователя
-                    уже есть ссылка от другого продавца, он может добавить ее в приложение и держать все профили рядом.
+                    WAVEBREAK объединяет тарифы, серверы доступа и внешние ссылки подключения в одном аккуратном приложении.
                 </p>
+
+                <div class="cw-mode-switch" aria-label="Режимы работы WAVEBREAK">
+                    <span class="cw-switch-glass" aria-hidden="true"></span>
+                    <button type="button">Свой сервис</button>
+                    <button type="button">Внешние ссылки</button>
+                    <button type="button">Контроль</button>
+                </div>
+
                 <div class="wb-hero-actions">
                     <a href="/register" class="wb-btn wb-btn--primary">Создать аккаунт</a>
-                    <a href="/access" class="wb-btn">Как устроено</a>
-                </div>
-                <div class="cw-metrics" aria-label="Ключевые возможности">
-                    <div><strong>2</strong><span>режима: свои тарифы и внешние ссылки</span></div>
-                    <div><strong>3</strong><span>готовых уровня сервиса</span></div>
-                    <div><strong>24/7</strong><span>контроль состояния инфраструктуры</span></div>
+                    <a href="/access" class="wb-btn">Посмотреть схему</a>
                 </div>
             </div>
 
             <div class="cw-product-stage" aria-label="Интерфейс WAVEBREAK">
-                <div class="cw-glass-card cw-card-main">
+                <div class="cw-glass-card">
                     <div class="cw-card-top">
                         <span class="cw-live-dot">online</span>
-                        <strong>WAVEBREAK</strong>
+                        <img src="{{ asset('images/wavebreak-logo.png') }}" alt="WAVEBREAK">
                         <em>ready</em>
                     </div>
-                    <div class="cw-logo-orbit">
-                        <div class="cw-ring cw-ring-one"></div>
-                        <div class="cw-ring cw-ring-two"></div>
-                        <img src="{{ asset('images/wavebreak-logo-mark.png') }}" alt="WAVEBREAK">
+                    <div class="cw-flow-board">
+                        <div class="cw-flow-line cw-flow-line-one"></div>
+                        <div class="cw-flow-line cw-flow-line-two"></div>
+                        <div class="cw-brand-core">
+                            <img src="{{ asset('images/wavebreak-logo.png') }}" alt="WAVEBREAK">
+                        </div>
                         <span class="cw-node cw-node-a">Кабинет</span>
                         <span class="cw-node cw-node-b">Тариф</span>
                         <span class="cw-node cw-node-c">Сервер</span>
+                        <span class="cw-node cw-node-d">Своя ссылка</span>
                     </div>
                     <div class="cw-card-feed">
-                        <div><span>01</span><b>Клиент входит в кабинет</b></div>
-                        <div><span>02</span><b>Выбирает тариф или добавляет ссылку</b></div>
-                        <div><span>03</span><b>Получает готовый профиль</b></div>
+                        <div><span>01</span><b>Пользователь выбирает сценарий</b></div>
+                        <div><span>02</span><b>Приложение собирает профиль</b></div>
+                        <div><span>03</span><b>Команда видит состояние</b></div>
                     </div>
                 </div>
 
                 <div class="cw-floating-panel cw-floating-panel--left">
-                    <span>External link</span>
-                    <strong>imported</strong>
-                    <small>профиль добавлен вручную</small>
+                    <span>Link import</span>
+                    <strong>ready</strong>
+                    <small>свои ссылки внутри приложения</small>
                 </div>
 
                 <div class="cw-floating-panel cw-floating-panel--right">
-                    <span>Operator</span>
-                    <strong>visible</strong>
-                    <small>тарифы, локации, статусы</small>
+                    <span>Business</span>
+                    <strong>plans</strong>
+                    <small>тарифы и локации под контролем</small>
                 </div>
             </div>
         </div>
@@ -93,25 +99,25 @@
 
     <section class="wb-section cw-route-section">
         <div class="wb-container">
-            <div class="wb-section-head">
-                <p class="wb-kicker">Два понятных сценария</p>
-                <h2>Не только наши тарифы. Приложение работает и со своими ссылками.</h2>
+            <div class="wb-section-head wb-section-head--compact">
+                <p class="wb-kicker">Два сценария</p>
+                <h2>Для продажи доступа и для своих рабочих профилей</h2>
             </div>
             <div class="cw-route-grid">
                 <article class="cw-route-card cw-route-card--accent">
                     <span>01</span>
-                    <h3>Сервис WAVEBREAK</h3>
-                    <p>Клиент регистрируется, выбирает тариф, локацию и получает персональное подключение в кабинете.</p>
+                    <h3>Ваш сервис</h3>
+                    <p>Кабинет, тарифы, локации и выдача подключения для клиента.</p>
                 </article>
                 <article class="cw-route-card">
                     <span>02</span>
-                    <h3>Своя ссылка</h3>
-                    <p>Пользователь вставляет внешнюю ссылку подключения от другого продавца и использует ее в приложении.</p>
+                    <h3>Свои ссылки</h3>
+                    <p>Пользователь добавляет внешние ссылки подключения от разных продавцов.</p>
                 </article>
                 <article class="cw-route-card">
                     <span>03</span>
-                    <h3>Операционный контроль</h3>
-                    <p>Команда видит тарифы, серверы доступа, активные подключения и может быстро помогать клиентам.</p>
+                    <h3>Панель команды</h3>
+                    <p>Оператор видит статусы, серверы доступа и активные подключения.</p>
                 </article>
             </div>
         </div>
@@ -120,40 +126,40 @@
     <section class="wb-section cw-showcase">
         <div class="wb-container cw-showcase-grid">
             <div class="cw-showcase-copy">
-                <p class="wb-kicker">Контур продукта</p>
-                <h2>Витрина, кабинет и приложения работают как единая система</h2>
+                <p class="wb-kicker">Система</p>
+                <h2>Не набор инструкций, а цельный продукт</h2>
                 <p>
-                    WAVEBREAK закрывает коммерческий запуск и обычное использование: тарифы для вашего сервиса,
-                    ручной импорт внешних ссылок, устройства клиента и понятная панель для команды.
+                    Витрина, кабинет, приложения и панель оператора работают в одном стиле:
+                    клиенту понятно, команде видно, бизнесу проще сопровождать сервис.
                 </p>
             </div>
             <div class="cw-stack">
-                <div><b>Личный кабинет</b><span>аккаунт, тариф, устройства, подключения</span></div>
-                <div><b>Приложения</b><span>мобильный и десктопный клиент для рабочих профилей</span></div>
-                <div><b>Серверы доступа</b><span>локации, статусы и готовность к работе</span></div>
-                <div><b>Внешние ссылки</b><span>импорт подключений от разных продавцов</span></div>
+                <div><b>Кабинет</b><span>аккаунт, тариф, устройства</span></div>
+                <div><b>Приложения</b><span>мобильный и десктопный клиент</span></div>
+                <div><b>Серверы доступа</b><span>локации и состояние</span></div>
+                <div><b>Внешние ссылки</b><span>импорт профилей от продавцов</span></div>
             </div>
         </div>
     </section>
 
     <section class="wb-section cw-usecases">
         <div class="wb-container">
-            <div class="wb-section-head">
+            <div class="wb-section-head wb-section-head--compact">
                 <p class="wb-kicker">Где полезно</p>
-                <h2>Для запуска продукта и для повседневного использования</h2>
+                <h2>Когда нужен порядок</h2>
             </div>
             <div class="wb-usecase-grid">
                 <article class="wb-card">
                     <h3>Коммерческий запуск</h3>
-                    <p>Быстро показать клиенту тариф, кабинет и готовый путь к подключению.</p>
+                    <p>Показать клиенту тариф, кабинет и готовый путь подключения.</p>
                 </article>
                 <article class="wb-card">
                     <h3>Личные профили</h3>
-                    <p>Добавить внешние ссылки подключения и не держать их в заметках или чатах.</p>
+                    <p>Держать внешние ссылки подключения не в чатах, а в приложении.</p>
                 </article>
                 <article class="wb-card">
-                    <h3>Поддержка клиентов</h3>
-                    <p>Видеть активные тарифы, устройства, локации и состояние серверов доступа.</p>
+                    <h3>Поддержка</h3>
+                    <p>Быстро понимать, что активно и где нужна помощь.</p>
                 </article>
             </div>
         </div>
@@ -162,12 +168,28 @@
     <section class="wb-section wb-final-cta">
         <div class="wb-container wb-final-panel">
             <div>
-                <p class="wb-kicker">Запуск</p>
-                <h2>Соберите защищенный доступ в понятный продукт</h2>
-                <p>Начните с аккаунта: проверьте тарифы, кабинет и сценарий добавления рабочих профилей.</p>
+                <p class="wb-kicker">Старт</p>
+                <h2>Запустите доступ как продукт</h2>
+                <p>Создайте аккаунт и проверьте путь от тарифа до готового профиля.</p>
             </div>
-            <a href="/register" class="wb-btn wb-btn--primary">Начать работу</a>
+            <a href="/register" class="wb-btn wb-btn--primary">Начать</a>
         </div>
     </section>
 </main>
+
+<footer class="wb-footer">
+    <div class="wb-container wb-footer-grid">
+        <div>
+            <img src="{{ asset('images/wavebreak-logo.png') }}" alt="WAVEBREAK">
+            <p>Защищенная инфраструктура для бизнеса и рабочих профилей.</p>
+        </div>
+        <nav aria-label="Нижняя навигация">
+            <a href="/">Главная</a>
+            <a href="/pricing">Тарифы</a>
+            <a href="/access">Инфраструктура</a>
+            <a href="/login">Вход</a>
+        </nav>
+        <span>© {{ date('Y') }} WAVEBREAK</span>
+    </div>
+</footer>
 @endsection
