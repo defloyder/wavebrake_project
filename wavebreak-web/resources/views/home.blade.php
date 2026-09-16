@@ -55,7 +55,7 @@
     </section>
 
     <section class="art-reveal" id="reveal">
-        <div class="wb-container art-reveal-grid" data-reveal>
+        <div class="wb-container art-reveal-grid art-glass" data-reveal>
             <div class="art-index">01</div>
             <div>
                 <p class="art-kicker">как это работает</p>
@@ -113,7 +113,7 @@
     </section>
 
     <section class="art-final">
-        <div class="wb-container" data-reveal>
+        <div class="wb-container art-glass" data-reveal>
             <h2>Один аккаунт. Одна ссылка. Готово.</h2>
             <a href="/register" class="wb-btn wb-btn--primary">Начать</a>
         </div>

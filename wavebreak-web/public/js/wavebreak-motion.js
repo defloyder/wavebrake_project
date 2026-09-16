@@ -121,33 +121,40 @@
     window.addEventListener('resize', bwResize);
     bwResize();
 
-    // Jagged rock profile, generated once so the silhouette stays put.
-    const rockSeed = Array.from({ length: 28 }, () => 0.45 + Math.random() * 0.55);
-    const rockY = (xFrac, baseY, jagH) => {
-      const idx = xFrac * (rockSeed.length - 1);
+    // Jagged breakwater wall, spanning the full height. Two independent
+    // seed arrays give the left (storm-facing) and right (harbor-facing)
+    // edges different irregularity so it reads as a pile of rock, not a
+    // clean bar. wallXAt returns the wall's centerline at a given height;
+    // the wave split uses a single representative x since the wall barely
+    // drifts across the band the waves occupy.
+    const wallSeed = Array.from({ length: 22 }, () => (Math.random() - 0.5) * 2);
+    const wallLeftSeed = Array.from({ length: 22 }, () => Math.random());
+    const wallRightSeed = Array.from({ length: 22 }, () => Math.random());
+    const sampleSeed = (seed, yFrac) => {
+      const idx = yFrac * (seed.length - 1);
       const i0 = Math.floor(idx);
-      const i1 = Math.min(i0 + 1, rockSeed.length - 1);
-      const t = idx - i0;
-      const v = rockSeed[i0] * (1 - t) + rockSeed[i1] * t;
-      return baseY - v * jagH;
+      const i1 = Math.min(i0 + 1, seed.length - 1);
+      const f = idx - i0;
+      return seed[i0] * (1 - f) + seed[i1] * f;
     };
+    const wallXAt = (yFrac) => bw * (0.42 + yFrac * 0.07) + sampleSeed(wallSeed, yFrac) * 16;
 
     let lastScrollY = window.scrollY;
-    let energy = 0.12;
+    let stormEnergy = 0.22;
     window.addEventListener('scroll', () => {
       const dy = Math.abs(window.scrollY - lastScrollY);
       lastScrollY = window.scrollY;
-      energy = Math.min(1, energy + dy * 0.0035);
+      stormEnergy = Math.min(1, stormEnergy + dy * 0.0035);
     }, { passive: true });
 
     const foam = [];
     const spawnFoam = (x, y, count) => {
       for (let i = 0; i < count && foam.length < 160; i++) {
         foam.push({
-          x: x + (Math.random() - 0.5) * 22,
-          y,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: -Math.random() * 1.7 - 0.3,
+          x: x - Math.random() * 14,
+          y: y + (Math.random() - 0.5) * 26,
+          vx: -(Math.random() * 1.1 + 0.2),
+          vy: -Math.random() * 1.6 - 0.3,
           life: 1,
         });
       }
@@ -163,58 +170,92 @@
       bwCtx.fillStyle = atmosphere;
       bwCtx.fillRect(0, 0, bw, bh);
 
-      const baseY = bh * 0.6;
-      const jagH = Math.min(58, bh * 0.075);
-      const step = Math.max(4, bw / 90);
+      const baseY = bh * 0.5;
+      const splitX = wallXAt(baseY / bh);
+      const step = Math.max(4, bw / 110);
 
-      const layers = [
-        { amp: 20, freq: 0.011, speed: 0.00058, color: 'rgba(133,250,255,.85)', width: 2.6 },
-        { amp: 13, freq: 0.017, speed: 0.00088, color: 'rgba(24,217,242,.55)', width: 1.8 },
-        { amp: 8, freq: 0.025, speed: -0.0007, color: 'rgba(191,242,238,.3)', width: 1.2 },
+      // Storm side: chaotic, multi-frequency, amplitude driven by scroll energy.
+      const stormLayers = [
+        { amp: 30, freq: 0.015, speed: 0.001, jitter: 9, color: 'rgba(150,238,255,.9)', width: 2.6 },
+        { amp: 20, freq: 0.023, speed: 0.0015, jitter: 7, color: 'rgba(24,217,242,.6)', width: 1.9 },
+        { amp: 13, freq: 0.033, speed: -0.0012, jitter: 6, color: 'rgba(191,242,238,.35)', width: 1.3 },
       ];
-
-      layers.forEach((layer) => {
+      stormLayers.forEach((layer) => {
         bwCtx.beginPath();
-        for (let x = 0; x <= bw; x += step) {
-          const rock = rockY(x / bw, baseY, jagH);
-          const y = rock - 18 + Math.sin(x * layer.freq + t * layer.speed) * layer.amp * (1 + energy * 1.7);
-          x === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
+        let started = false;
+        for (let x = 0; x <= splitX; x += step) {
+          const chop = Math.sin(x * 0.045 + t * 0.0026) * layer.jitter * (0.5 + stormEnergy);
+          const y = baseY + Math.sin(x * layer.freq + t * layer.speed) * layer.amp * (0.7 + stormEnergy * 1.6) + chop;
+          if (!started) { bwCtx.moveTo(x, y); started = true; } else bwCtx.lineTo(x, y);
         }
         bwCtx.strokeStyle = layer.color;
         bwCtx.lineWidth = layer.width;
         bwCtx.stroke();
       });
 
-      const rockFill = bwCtx.createLinearGradient(0, baseY - jagH, 0, bh);
-      rockFill.addColorStop(0, '#132635');
-      rockFill.addColorStop(0.4, '#0a1620');
-      rockFill.addColorStop(1, '#020608');
+      // Harbor side: near-flat, barely reacts to scroll — the whole point.
+      const calmLayers = [
+        { amp: 4, freq: 0.008, speed: 0.00035, color: 'rgba(150,238,255,.5)', width: 1.6 },
+        { amp: 2.4, freq: 0.013, speed: 0.0005, color: 'rgba(24,217,242,.28)', width: 1 },
+      ];
+      calmLayers.forEach((layer) => {
+        bwCtx.beginPath();
+        let started = false;
+        for (let x = splitX; x <= bw; x += step) {
+          const y = baseY + Math.sin(x * layer.freq + t * layer.speed) * layer.amp * (1 + stormEnergy * 0.12);
+          if (!started) { bwCtx.moveTo(x, y); started = true; } else bwCtx.lineTo(x, y);
+        }
+        bwCtx.strokeStyle = layer.color;
+        bwCtx.lineWidth = layer.width;
+        bwCtx.stroke();
+      });
+
+      // The wall itself, drawn over the wave endpoints so both sides look
+      // like they terminate against solid rock.
+      const rows = 26;
+      const wallFill = bwCtx.createLinearGradient(splitX - 30, 0, splitX + 30, 0);
+      wallFill.addColorStop(0, '#0a1a26');
+      wallFill.addColorStop(0.5, '#152c3e');
+      wallFill.addColorStop(1, '#0a1a26');
 
       bwCtx.beginPath();
-      bwCtx.moveTo(0, bh);
-      for (let x = 0; x <= bw; x += step) {
-        bwCtx.lineTo(x, rockY(x / bw, baseY, jagH));
+      for (let i = 0; i <= rows; i++) {
+        const yFrac = i / rows;
+        const y = yFrac * bh;
+        const half = 14 + sampleSeed(wallLeftSeed, yFrac) * 20;
+        const x = wallXAt(yFrac) - half;
+        i === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
       }
-      bwCtx.lineTo(bw, bh);
+      for (let i = rows; i >= 0; i--) {
+        const yFrac = i / rows;
+        const y = yFrac * bh;
+        const half = 14 + sampleSeed(wallRightSeed, yFrac) * 20;
+        const x = wallXAt(yFrac) + half;
+        bwCtx.lineTo(x, y);
+      }
       bwCtx.closePath();
-      bwCtx.fillStyle = rockFill;
+      bwCtx.fillStyle = wallFill;
       bwCtx.fill();
 
-      bwCtx.beginPath();
-      for (let x = 0; x <= bw; x += step) {
-        const y = rockY(x / bw, baseY, jagH);
-        x === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
-      }
-      bwCtx.shadowColor = 'rgba(109,244,255,.55)';
-      bwCtx.shadowBlur = 10;
-      bwCtx.strokeStyle = 'rgba(150,238,255,.75)';
+      bwCtx.shadowColor = 'rgba(150,238,255,.6)';
+      bwCtx.shadowBlur = 12;
+      bwCtx.strokeStyle = 'rgba(170,244,255,.7)';
       bwCtx.lineWidth = 1.6;
+      bwCtx.beginPath();
+      for (let i = 0; i <= rows; i++) {
+        const yFrac = i / rows;
+        const y = yFrac * bh;
+        const half = 14 + sampleSeed(wallLeftSeed, yFrac) * 20;
+        const x = wallXAt(yFrac) - half;
+        i === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
+      }
       bwCtx.stroke();
       bwCtx.shadowBlur = 0;
 
-      if (!reduceMotion && Math.random() < 0.12 + energy * 0.55) {
-        const x = Math.random() * bw;
-        spawnFoam(x, rockY(x / bw, baseY, jagH), 1 + Math.floor(energy * 4));
+      if (!reduceMotion && Math.random() < 0.2 + stormEnergy * 0.6) {
+        const yFrac = Math.random();
+        const half = 14 + sampleSeed(wallLeftSeed, yFrac) * 20;
+        spawnFoam(wallXAt(yFrac) - half, yFrac * bh, 1 + Math.floor(stormEnergy * 4));
       }
 
       bwCtx.fillStyle = 'rgba(232,251,255,.85)';
@@ -232,7 +273,7 @@
       }
       bwCtx.globalAlpha = 1;
 
-      energy = Math.max(0.12, energy * 0.965);
+      stormEnergy = Math.max(0.22, stormEnergy * 0.965);
     };
 
     if (reduceMotion) {
