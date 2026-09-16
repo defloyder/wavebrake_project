@@ -2804,3 +2804,83 @@ h1,
         transform: none;
     }
 }
+
+/* Dashboard: the cabinet never actually received the site's styling —
+   .wb-logo and .wb-brand-word had zero rules, so the raw brand image
+   rendered at native resolution and bled across the whole layout. */
+.wb-brand {
+    gap: 10px;
+}
+
+.wb-logo {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(24, 217, 242, .28));
+}
+
+.wb-brand-word {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.wb-brand-word span {
+    color: #fff;
+    font-weight: 900;
+    font-size: 15px;
+    letter-spacing: .02em;
+}
+
+.wb-brand-word small {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.wb-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 12px;
+    border: 1px solid rgba(24, 217, 242, .32);
+    border-radius: 999px;
+    background: rgba(24, 217, 242, .1);
+    color: var(--cyan-2);
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.wb-app-top .wb-pill {
+    align-self: flex-start;
+}
+
+.wb-metric,
+.wb-workspace .wb-card {
+    transition: transform .25s cubic-bezier(.16, 1, .3, 1), border-color .25s ease, background .25s ease;
+}
+
+.wb-metric:hover,
+.wb-workspace .wb-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(24, 217, 242, .3);
+    background: rgba(24, 217, 242, .05);
+}
+
+.wb-metric p {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.wb-card-action {
+    margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+    .wb-logo {
+        width: 30px;
+        height: 30px;
+    }
+}
