@@ -8,8 +8,7 @@
         <nav class="wb-links" aria-label="Основная навигация">
             <a href="/" class="{{ $active === 'home' ? 'is-active' : '' }}">Главная</a>
             <a href="/pricing" class="{{ $active === 'pricing' ? 'is-active' : '' }}">Тарифы</a>
-            <a href="/access" class="{{ $active === 'access' ? 'is-active' : '' }}">Инфраструктура</a>
-            <a href="/login">Вход</a>
+            <a href="/access" class="{{ $active === 'access' ? 'is-active' : '' }}">Технология</a>
         </nav>
         <div class="wb-actions">
             <a href="/login" class="wb-btn wb-btn--ghost">Войти</a>

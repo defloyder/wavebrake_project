@@ -1600,7 +1600,12 @@ h3 {
 }
 
 .wb-page-hero h1 {
-    font-size: clamp(42px, 6vw, 72px);
+    font-family: var(--display);
+    font-optical-sizing: auto;
+    font-weight: 560;
+    font-size: clamp(38px, 5.6vw, 62px);
+    line-height: 1.04;
+    letter-spacing: -.01em;
 }
 
 .wb-mini-console,

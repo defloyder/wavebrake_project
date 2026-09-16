@@ -126,7 +126,7 @@
         <nav aria-label="Нижняя навигация">
             <a href="/">Главная</a>
             <a href="/pricing">Тарифы</a>
-            <a href="/access">Инфраструктура</a>
+            <a href="/access">Технология</a>
             <a href="/login">Вход</a>
         </nav>
         <span>© {{ date('Y') }}</span>
