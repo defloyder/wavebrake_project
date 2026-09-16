@@ -157,33 +157,38 @@
       bwCtx.clearRect(0, 0, bw, bh);
 
       const atmosphere = bwCtx.createLinearGradient(0, 0, 0, bh);
-      atmosphere.addColorStop(0, '#040a12');
-      atmosphere.addColorStop(0.62, '#071624');
-      atmosphere.addColorStop(1, '#01050a');
+      atmosphere.addColorStop(0, '#050d16');
+      atmosphere.addColorStop(0.55, '#0a2233');
+      atmosphere.addColorStop(1, '#010305');
       bwCtx.fillStyle = atmosphere;
       bwCtx.fillRect(0, 0, bw, bh);
 
-      const baseY = bh * 0.7;
-      const jagH = Math.min(46, bh * 0.055);
+      const baseY = bh * 0.6;
+      const jagH = Math.min(58, bh * 0.075);
       const step = Math.max(4, bw / 90);
 
       const layers = [
-        { amp: 15, freq: 0.011, speed: 0.00058, color: 'rgba(109,244,255,.5)', width: 2 },
-        { amp: 10, freq: 0.017, speed: 0.00088, color: 'rgba(24,217,242,.3)', width: 1.4 },
-        { amp: 6, freq: 0.025, speed: -0.0007, color: 'rgba(191,242,238,.16)', width: 1 },
+        { amp: 20, freq: 0.011, speed: 0.00058, color: 'rgba(133,250,255,.85)', width: 2.6 },
+        { amp: 13, freq: 0.017, speed: 0.00088, color: 'rgba(24,217,242,.55)', width: 1.8 },
+        { amp: 8, freq: 0.025, speed: -0.0007, color: 'rgba(191,242,238,.3)', width: 1.2 },
       ];
 
       layers.forEach((layer) => {
         bwCtx.beginPath();
         for (let x = 0; x <= bw; x += step) {
           const rock = rockY(x / bw, baseY, jagH);
-          const y = rock - 16 + Math.sin(x * layer.freq + t * layer.speed) * layer.amp * (1 + energy * 1.7);
+          const y = rock - 18 + Math.sin(x * layer.freq + t * layer.speed) * layer.amp * (1 + energy * 1.7);
           x === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
         }
         bwCtx.strokeStyle = layer.color;
         bwCtx.lineWidth = layer.width;
         bwCtx.stroke();
       });
+
+      const rockFill = bwCtx.createLinearGradient(0, baseY - jagH, 0, bh);
+      rockFill.addColorStop(0, '#132635');
+      rockFill.addColorStop(0.4, '#0a1620');
+      rockFill.addColorStop(1, '#020608');
 
       bwCtx.beginPath();
       bwCtx.moveTo(0, bh);
@@ -192,7 +197,7 @@
       }
       bwCtx.lineTo(bw, bh);
       bwCtx.closePath();
-      bwCtx.fillStyle = '#050b12';
+      bwCtx.fillStyle = rockFill;
       bwCtx.fill();
 
       bwCtx.beginPath();
@@ -200,9 +205,12 @@
         const y = rockY(x / bw, baseY, jagH);
         x === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
       }
-      bwCtx.strokeStyle = 'rgba(109,244,255,.32)';
-      bwCtx.lineWidth = 1.3;
+      bwCtx.shadowColor = 'rgba(109,244,255,.55)';
+      bwCtx.shadowBlur = 10;
+      bwCtx.strokeStyle = 'rgba(150,238,255,.75)';
+      bwCtx.lineWidth = 1.6;
       bwCtx.stroke();
+      bwCtx.shadowBlur = 0;
 
       if (!reduceMotion && Math.random() < 0.12 + energy * 0.55) {
         const x = Math.random() * bw;
