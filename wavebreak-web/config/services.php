@@ -37,6 +37,7 @@ return [
 
     'wavebreak' => [
         'core_url' => env('WAVEBREAK_CORE_URL', 'http://localhost:8080'),
+        'sub_url' => env('WAVEBREAK_SUB_URL', 'https://sub.wavebreak.com.tr'),
     ],
 
 ];

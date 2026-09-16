@@ -9,7 +9,6 @@
     $email = $me['email'] ?? 'user@wavebreak.local';
     $hasSubscription = (bool) $subscription;
     $activeConnections = collect($grants)->where('status', 'active')->count();
-    $onlineServers = collect($nodes)->where('status', 'online')->count();
     $activeDevices = collect($devices ?? [])->filter(fn ($device) => empty($device['revoked_at']))->count();
     $telegramIdentities = collect($overview['telegram'] ?? [])->where('provider', 'telegram');
     $usedBytes = (int) ($usage['bytes_total'] ?? 0);
@@ -21,7 +20,6 @@
         'overview' => 'Личный кабинет',
         'subscription' => 'Подписка',
         'access' => 'Подключения',
-        'nodes' => 'Серверы доступа',
         'devices' => 'Устройства',
     ];
 @endphp
@@ -50,10 +48,6 @@
             <a href="/dashboard/access" class="{{ $section === 'access' ? 'is-active' : '' }}">
                 <svg viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                 Подключения
-            </a>
-            <a href="/dashboard/nodes" class="{{ $section === 'nodes' ? 'is-active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                Серверы
             </a>
             <a href="/dashboard/devices" class="{{ $section === 'devices' ? 'is-active' : '' }}">
                 <svg viewBox="0 0 24 24" fill="none"><rect x="6" y="3" width="12" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M10 18h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -84,7 +78,7 @@
             <div>
                 <p class="wb-kicker">WAVEBREAK Cabinet</p>
                 <h1>{{ $titles[$section] ?? 'Личный кабинет' }}</h1>
-                <p>Тариф, устройства, серверы доступа и персональные подключения собраны в одном рабочем пространстве.</p>
+                <p>Тариф, устройства и подключение — всё в одном месте.</p>
             </div>
             <span class="wb-pill">{{ $hasSubscription ? 'подписка активна' : 'подписка не выбрана' }}</span>
         </div>
@@ -152,80 +146,58 @@
         @endif
 
         @if($section === 'access')
-            <section class="wb-workspace">
-                <article class="wb-card">
-                    <h3>Создать подключение</h3>
-                    <form method="post" action="/access/grants" class="wb-form">
+            @if(!$hasSubscription)
+                <section class="wb-card wb-access-empty">
+                    <h3>Сначала нужен тариф</h3>
+                    <p>Выберите тариф, чтобы получить подключение.</p>
+                    <div class="wb-card-action"><a href="/dashboard/subscription" class="wb-btn wb-btn--primary">Выбрать тариф</a></div>
+                </section>
+            @elseif($activeGrant && $subLink)
+                <section class="wb-connect">
+                    <article class="wb-card wb-connect-card">
+                        <h3>Ваше подключение готово</h3>
+                        <p>Отсканируйте QR-код в приложении или скопируйте ссылку — она обновляется сама, ничего не нужно менять вручную.</p>
+                        <div class="wb-qr-wrap">
+                            <div id="wb-qr" class="wb-qr"></div>
+                        </div>
+                        <div class="wb-link-row">
+                            <input type="text" readonly value="{{ $subLink }}" id="wb-sub-link" onclick="this.select()">
+                            <button type="button" class="wb-btn wb-btn--primary" onclick="navigator.clipboard.writeText(document.getElementById('wb-sub-link').value).then(() => { this.textContent = 'Скопировано'; setTimeout(() => this.textContent = 'Копировать', 1500); })">Копировать</button>
+                        </div>
+                        <p class="wb-hint">Приложение: <strong>Happ</strong> (iOS/Android) — добавить подписку по этой ссылке.</p>
+                        <form method="post" action="/access/grants/{{ $activeGrant['id'] }}/revoke" class="wb-connect-revoke">
+                            @csrf
+                            <button type="submit" class="wb-link-button">Отключить это подключение</button>
+                        </form>
+                    </article>
+                </section>
+                @push('scripts')
+                <script src="{{ asset('js/qrcode.min.js') }}"></script>
+                <script>
+                    new QRCode(document.getElementById('wb-qr'), {
+                        text: @json($subLink),
+                        width: 176,
+                        height: 176,
+                        colorDark: '#04111a',
+                        colorLight: '#e8fbff',
+                    });
+                </script>
+                @endpush
+            @else
+                <section class="wb-card wb-access-empty">
+                    <h3>Подключение ещё не выпущено</h3>
+                    <p>Один клик — и ссылка с QR-кодом будут готовы для вашего устройства.</p>
+                    <form method="post" action="/access/grants">
                         @csrf
-                        <label>Сервер доступа
-                            <select name="node_id" required>
-                                @foreach($nodes as $node)
-                                    <option value="{{ $node['id'] }}">{{ $node['code'] }} / {{ $node['region'] }} / {{ $node['status'] }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <label>Протокол
-                            <select name="protocol" required>
-                                <option value="wireguard">WireGuard</option>
-                                <option value="outline">Outline</option>
-                            </select>
-                        </label>
-                        <button type="submit" class="wb-btn wb-btn--primary">Создать подключение</button>
+                        <input type="hidden" name="node_id" value="{{ $primaryNodeId }}">
+                        <input type="hidden" name="protocol" value="vless">
+                        <button type="submit" class="wb-btn wb-btn--primary" {{ $primaryNodeId ? '' : 'disabled' }}>Получить подключение</button>
                     </form>
-                </article>
-                <article class="wb-card">
-                    <h3>Активные подключения</h3>
-                    <div class="wb-table-wrap">
-                        <table class="wb-table">
-                            <thead><tr><th>Сервер</th><th>Протокол</th><th>Статус</th><th>Действует до</th><th></th></tr></thead>
-                            <tbody>
-                            @forelse($grants as $grant)
-                                <tr>
-                                    <td>{{ $grant['node_id'] }}</td>
-                                    <td>{{ $grant['protocol'] }}</td>
-                                    <td><span class="wb-pill">{{ $grant['status'] }}</span></td>
-                                    <td>{{ $grant['expires_at'] }}</td>
-                                    <td>
-                                        @if($grant['status'] === 'active')
-                                            <form method="post" action="/access/grants/{{ $grant['id'] }}/revoke">
-                                                @csrf
-                                                <button type="submit" class="wb-link-button">Отозвать</button>
-                                            </form>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="5">Подключения пока не создавались.</td></tr>
-                            @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </article>
-            </section>
-        @endif
-
-        @if($section === 'nodes')
-            <section class="wb-card">
-                <h3>Серверы доступа</h3>
-                <p>{{ count($nodes) }} серверов в списке, {{ $onlineServers }} сейчас онлайн.</p>
-                <div class="wb-table-wrap">
-                    <table class="wb-table">
-                        <thead><tr><th>Код</th><th>Регион</th><th>Статус</th><th>Последний сигнал</th></tr></thead>
-                        <tbody>
-                        @forelse($nodes as $node)
-                            <tr>
-                                <td>{{ $node['code'] }}</td>
-                                <td>{{ $node['region'] }}</td>
-                                <td><span class="wb-pill">{{ $node['status'] }}</span></td>
-                                <td>{{ $node['last_heartbeat_at'] ?? '-' }}</td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="4">Серверы доступа пока не загружены.</td></tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                    @unless($primaryNodeId)
+                        <p class="wb-hint">Серверы доступа сейчас недоступны, попробуйте чуть позже.</p>
+                    @endunless
+                </section>
+            @endif
         @endif
 
         @if($section === 'devices')

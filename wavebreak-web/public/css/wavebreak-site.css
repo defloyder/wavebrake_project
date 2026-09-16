@@ -2884,3 +2884,90 @@ h1,
         height: 30px;
     }
 }
+
+/* Access page: one link, one QR code, nothing else. */
+.wb-connect {
+    display: flex;
+    justify-content: center;
+}
+
+.wb-access-empty,
+.wb-connect-card {
+    max-width: 560px;
+    text-align: center;
+    padding: 40px 32px;
+}
+
+.wb-access-empty p,
+.wb-connect-card > p {
+    margin: 10px auto 22px;
+    max-width: 420px;
+    color: var(--muted);
+}
+
+.wb-access-empty form,
+.wb-connect-card form.wb-connect-revoke {
+    display: inline-block;
+}
+
+.wb-qr-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 22px;
+}
+
+.wb-qr {
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #e8fbff;
+    box-shadow: 0 20px 50px rgba(24, 217, 242, .16);
+}
+
+.wb-qr img,
+.wb-qr canvas {
+    display: block;
+    border-radius: 6px;
+}
+
+.wb-link-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.wb-link-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, .035);
+    color: var(--soft);
+    font-family: var(--mono);
+    font-size: 12px;
+}
+
+.wb-link-row .wb-btn {
+    white-space: nowrap;
+}
+
+.wb-hint {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.wb-connect-revoke {
+    margin-top: 18px;
+}
+
+@media (max-width: 640px) {
+    .wb-access-empty,
+    .wb-connect-card {
+        padding: 28px 20px;
+    }
+
+    .wb-link-row {
+        flex-direction: column;
+    }
+}

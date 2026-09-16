@@ -117,6 +117,11 @@ class WebController extends Controller
             return redirect('/login');
         }
 
+        $nodes = $this->core->locations($token);
+        $grants = $this->core->grants($token);
+        $activeGrant = collect($grants)->firstWhere('status', 'active');
+        $primaryNode = collect($nodes)->firstWhere('status', 'online') ?? ($nodes[0] ?? null);
+
         return view('dashboard', [
             'section' => $section,
             'me' => $this->core->me($token),
@@ -126,8 +131,11 @@ class WebController extends Controller
             'usage' => $this->core->usage($token),
             'usageHistory' => $this->core->usageHistory($token),
             'devices' => $this->core->devices($token),
-            'nodes' => $this->core->locations($token),
-            'grants' => $this->core->grants($token),
+            'nodes' => $nodes,
+            'grants' => $grants,
+            'activeGrant' => $activeGrant,
+            'primaryNodeId' => $primaryNode['id'] ?? null,
+            'subLink' => $activeGrant ? rtrim(config('services.wavebreak.sub_url'), '/').'/v1/sub/'.$activeGrant['id'] : null,
         ]);
     }
 
