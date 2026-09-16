@@ -25,7 +25,7 @@
         <div class="art-noise" aria-hidden="true"></div>
 
         <div class="wb-container art-hero-grid">
-            <div class="art-copy">
+            <div class="art-copy" data-reveal>
                 <p class="art-kicker">WAVEBREAK</p>
                 <h1>Тише. Понятнее. Под контролем.</h1>
                 <p>
@@ -39,7 +39,7 @@
                 </div>
             </div>
 
-            <div class="art-square-scene" aria-label="WAVEBREAK">
+            <div class="art-square-scene" aria-label="WAVEBREAK" data-reveal data-reveal-delay="120">
                 <div class="art-square">
                     <img src="{{ asset('images/wavebreak-logo.png') }}" alt="WAVEBREAK">
                     <span class="art-cut art-cut--one" aria-hidden="true"></span>
@@ -57,7 +57,7 @@
     </section>
 
     <section class="art-reveal" id="reveal">
-        <div class="wb-container art-reveal-grid">
+        <div class="wb-container art-reveal-grid" data-reveal>
             <div class="art-index">01</div>
             <div>
                 <p class="art-kicker">сначала главное</p>
@@ -71,7 +71,7 @@
     </section>
 
     <section class="art-three">
-        <div class="wb-container art-three-grid">
+        <div class="wb-container art-three-grid" data-reveal="stagger">
             <article>
                 <span>01</span>
                 <h3>Свой сервис</h3>
@@ -91,7 +91,7 @@
     </section>
 
     <section class="art-details">
-        <div class="wb-container art-details-grid">
+        <div class="wb-container art-details-grid" data-reveal>
             <div>
                 <p class="art-kicker">глубже</p>
                 <h2>Если нужно больше, сайт раскрывается.</h2>
@@ -114,7 +114,7 @@
     </section>
 
     <section class="art-final">
-        <div class="wb-container">
+        <div class="wb-container" data-reveal>
             <h2>WAVEBREAK оставляет на экране только то, что нужно.</h2>
             <a href="/register" class="wb-btn wb-btn--primary">Начать</a>
         </div>

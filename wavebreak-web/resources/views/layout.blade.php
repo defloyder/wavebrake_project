@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ru">
 <head>
+    <script>document.documentElement.classList.add('js');</script>
     @php
         $siteUrl = rtrim(config('app.url'), '/');
         $canonical = trim($__env->yieldContent('canonical')) ?: $siteUrl . request()->getPathInfo();
@@ -38,5 +39,6 @@
 <body class="@yield('body_class')">
     @yield('content')
     @stack('scripts')
+    <script src="{{ asset('js/wavebreak-motion.js') }}" defer></script>
 </body>
 </html>

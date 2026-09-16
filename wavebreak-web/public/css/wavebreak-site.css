@@ -2597,3 +2597,203 @@ h1,
         grid-template-columns: 1fr;
     }
 }
+
+/* ---------------------------------------------------------------------
+   Elegance pass: scroll reveal, hero parallax, and refined hover states
+   for the art-* public site. Additive only — nothing above is touched.
+   ------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+    /* Scoped to html.js (set by an inline script at the very top of
+       <head>, before paint) so a page with JS blocked or failing never
+       ends up with permanently invisible content — the unscoped
+       [data-reveal] selector would hide it with no way to recover. */
+    .js [data-reveal] {
+        opacity: 0;
+        transform: translateY(22px);
+        transition: opacity .9s cubic-bezier(.16, 1, .3, 1), transform .9s cubic-bezier(.16, 1, .3, 1);
+        will-change: opacity, transform;
+    }
+
+    .js [data-reveal].is-visible {
+        opacity: 1;
+        transform: none;
+    }
+
+    .js [data-reveal="stagger"] > * {
+        opacity: 0;
+        transform: translateY(18px);
+        transition: opacity .7s cubic-bezier(.16, 1, .3, 1), transform .7s cubic-bezier(.16, 1, .3, 1);
+    }
+
+    /* :where() around just .is-visible keeps this rule's specificity tied
+       with the hidden-state rule above (so normal source order — this one
+       wins, it comes later) without adding a THIRD class-level selector
+       that would outrank a real interactive state like
+       .art-three article:hover. Wrapping the whole selector in :where()
+       (an earlier attempt) zeroed specificity too far and the rule lost
+       to the hidden-state rule instead, leaving content stuck invisible. */
+    .js [data-reveal="stagger"]:where(.is-visible) > * {
+        opacity: 1;
+        transform: none;
+    }
+
+    [data-reveal="stagger"].is-visible > *:nth-child(1) { transition-delay: 0ms; }
+    [data-reveal="stagger"].is-visible > *:nth-child(2) { transition-delay: 90ms; }
+    [data-reveal="stagger"].is-visible > *:nth-child(3) { transition-delay: 180ms; }
+}
+
+/* Hero: pointer-reactive tilt + glow, driven by wavebreak-motion.js setting
+   --tiltX/--tiltY/--glowX/--glowY on the scene element. Falls back to the
+   static rotation already defined above when JS/hover aren't available. */
+.art-square-scene {
+    --tiltX: 0deg;
+    --tiltY: 0deg;
+    --glowX: 50%;
+    --glowY: 50%;
+    perspective: 1400px;
+}
+
+.art-square {
+    transform: rotateX(var(--tiltX)) rotateY(var(--tiltY));
+    transition: transform .5s cubic-bezier(.16, 1, .3, 1), box-shadow .5s ease;
+}
+
+.art-square::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: .85;
+    background: radial-gradient(circle at var(--glowX) var(--glowY), rgba(109, 244, 255, .22), transparent 46%);
+    transition: opacity .4s ease;
+    pointer-events: none;
+}
+
+.art-square-scene:not(:hover) .art-square {
+    animation: ambientGlow 10s ease-in-out infinite;
+}
+
+@keyframes ambientGlow {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(24, 217, 242, .08), inset 0 0 70px rgba(24, 217, 242, .08), 0 40px 120px rgba(0, 0, 0, .72); }
+    50% { box-shadow: inset 0 0 0 1px rgba(24, 217, 242, .14), inset 0 0 90px rgba(24, 217, 242, .14), 0 40px 130px rgba(0, 0, 0, .78); }
+}
+
+/* Feature grid: lift, glowing top edge and a quiet number-to-accent
+   transition instead of a flat bordered box. */
+.art-three article {
+    position: relative;
+    overflow: hidden;
+    transition: transform .45s cubic-bezier(.16, 1, .3, 1), background .45s ease;
+}
+
+.art-three article::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan-2), transparent);
+    transform: scaleX(0);
+    transform-origin: 50% 50%;
+    transition: transform .5s cubic-bezier(.16, 1, .3, 1);
+}
+
+.art-three article:hover {
+    transform: translateY(-6px);
+    background:
+        radial-gradient(circle at 18% 0%, rgba(24, 217, 242, .2), transparent 44%),
+        #020407;
+}
+
+.art-three article:hover::before {
+    transform: scaleX(1);
+}
+
+.art-three span {
+    display: inline-block;
+    transition: color .35s ease, text-shadow .35s ease;
+}
+
+.art-three article:hover span {
+    color: #fff;
+    text-shadow: 0 0 18px rgba(24, 217, 242, .7);
+}
+
+/* Accordion: smoother open state, glowing left rule on the active item. */
+.art-accordion details {
+    position: relative;
+    transition: border-color .35s ease, background .35s ease;
+}
+
+.art-accordion details::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--cyan-2);
+    transform: scaleY(0);
+    transform-origin: 50% 0%;
+    transition: transform .4s cubic-bezier(.16, 1, .3, 1);
+}
+
+.art-accordion details[open] {
+    border-color: rgba(24, 217, 242, .34);
+    background: rgba(24, 217, 242, .04);
+}
+
+.art-accordion details[open]::before {
+    transform: scaleY(1);
+}
+
+.art-accordion summary {
+    transition: color .25s ease;
+}
+
+.art-accordion summary::-webkit-details-marker {
+    display: none;
+}
+
+.art-accordion summary::after {
+    content: "+";
+    margin-left: auto;
+    color: var(--cyan-2);
+    font-family: var(--mono);
+    font-size: 18px;
+    transition: transform .35s cubic-bezier(.16, 1, .3, 1);
+}
+
+.art-accordion details[open] summary::after {
+    transform: rotate(45deg);
+}
+
+/* Buttons: a touch more presence on the primary CTA without changing size. */
+.wb-btn--primary {
+    position: relative;
+    transition: transform .25s cubic-bezier(.16, 1, .3, 1), box-shadow .25s ease;
+}
+
+.wb-btn--primary:hover {
+    transform: translateY(-2px) scale(1.015);
+    box-shadow: 0 22px 54px rgba(24, 217, 242, .36);
+}
+
+/* Section rhythm: replace the flat hairline between art-* sections with a
+   soft glow seam so the page doesn't feel like it's cut into blocks. */
+.art-reveal,
+.art-three,
+.art-details,
+.art-final {
+    border-top-color: transparent;
+    background-image: linear-gradient(180deg, rgba(24, 217, 242, .16), transparent 60%), linear-gradient(180deg, #000, #000);
+    background-repeat: no-repeat;
+    background-size: 100% 1px, 100% 100%;
+    background-position: top, top;
+}
+
+@media (max-width: 720px) {
+    .art-three article:hover {
+        transform: none;
+    }
+}
