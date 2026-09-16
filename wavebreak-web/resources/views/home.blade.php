@@ -27,7 +27,7 @@
         <div class="wb-container art-hero-grid">
             <div class="art-copy" data-reveal>
                 <p class="art-kicker">WAVEBREAK</p>
-                <h1>Штормит снаружи.<br>У вас — тихо.</h1>
+                <h1>Разбивает волны помех —<br>оставляет тишину.</h1>
                 <p>
                     WAVEBREAK держит соединение там, где обычные VPN обрываются:
                     агрессивные блокировки, шаткий Wi-Fi, мобильная сеть в метро.
@@ -59,7 +59,7 @@
             <div class="art-index">01</div>
             <div>
                 <p class="art-kicker">как это работает</p>
-                <h2>Снаружи — шум сети. У вас — один спокойный экран.</h2>
+                <h2>Транспорт меняется на лету. Вы этого не замечаете.</h2>
             </div>
             <p>
                 Один линк подключает подходящий транспорт — VLESS или Hysteria2 —
@@ -114,7 +114,7 @@
 
     <section class="art-final">
         <div class="wb-container" data-reveal>
-            <h2>Ваш угол сети остаётся тихим, даже когда снаружи штормит.</h2>
+            <h2>Один аккаунт. Одна ссылка. Готово.</h2>
             <a href="/register" class="wb-btn wb-btn--primary">Начать</a>
         </div>
     </section>
