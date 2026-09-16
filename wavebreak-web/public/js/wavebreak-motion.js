@@ -99,4 +99,144 @@
       requestAnimationFrame(frame);
     }
   }
+
+  // Sitewide breakwater backdrop — marketing pages only (.wb-public), never
+  // the dashboard or auth screens, which stay calm and functional. Waves
+  // ride the jagged rock silhouette and flare into foam; scrolling pumps
+  // energy into the scene (harder scroll, harder break), which then decays
+  // back to an ambient calm baseline.
+  const bwCanvas = document.getElementById('wb-breakwater');
+  if (bwCanvas && document.body.classList.contains('wb-public')) {
+    const bwCtx = bwCanvas.getContext('2d');
+    let bw = 0, bh = 0;
+    const bwDpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const bwResize = () => {
+      bw = window.innerWidth;
+      bh = window.innerHeight;
+      bwCanvas.width = bw * bwDpr;
+      bwCanvas.height = bh * bwDpr;
+      bwCtx.setTransform(bwDpr, 0, 0, bwDpr, 0, 0);
+    };
+    window.addEventListener('resize', bwResize);
+    bwResize();
+
+    // Jagged rock profile, generated once so the silhouette stays put.
+    const rockSeed = Array.from({ length: 28 }, () => 0.45 + Math.random() * 0.55);
+    const rockY = (xFrac, baseY, jagH) => {
+      const idx = xFrac * (rockSeed.length - 1);
+      const i0 = Math.floor(idx);
+      const i1 = Math.min(i0 + 1, rockSeed.length - 1);
+      const t = idx - i0;
+      const v = rockSeed[i0] * (1 - t) + rockSeed[i1] * t;
+      return baseY - v * jagH;
+    };
+
+    let lastScrollY = window.scrollY;
+    let energy = 0.12;
+    window.addEventListener('scroll', () => {
+      const dy = Math.abs(window.scrollY - lastScrollY);
+      lastScrollY = window.scrollY;
+      energy = Math.min(1, energy + dy * 0.0035);
+    }, { passive: true });
+
+    const foam = [];
+    const spawnFoam = (x, y, count) => {
+      for (let i = 0; i < count && foam.length < 160; i++) {
+        foam.push({
+          x: x + (Math.random() - 0.5) * 22,
+          y,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: -Math.random() * 1.7 - 0.3,
+          life: 1,
+        });
+      }
+    };
+
+    const bwDraw = (t) => {
+      bwCtx.clearRect(0, 0, bw, bh);
+
+      const atmosphere = bwCtx.createLinearGradient(0, 0, 0, bh);
+      atmosphere.addColorStop(0, '#040a12');
+      atmosphere.addColorStop(0.62, '#071624');
+      atmosphere.addColorStop(1, '#01050a');
+      bwCtx.fillStyle = atmosphere;
+      bwCtx.fillRect(0, 0, bw, bh);
+
+      const baseY = bh * 0.7;
+      const jagH = Math.min(46, bh * 0.055);
+      const step = Math.max(4, bw / 90);
+
+      const layers = [
+        { amp: 15, freq: 0.011, speed: 0.00058, color: 'rgba(109,244,255,.5)', width: 2 },
+        { amp: 10, freq: 0.017, speed: 0.00088, color: 'rgba(24,217,242,.3)', width: 1.4 },
+        { amp: 6, freq: 0.025, speed: -0.0007, color: 'rgba(191,242,238,.16)', width: 1 },
+      ];
+
+      layers.forEach((layer) => {
+        bwCtx.beginPath();
+        for (let x = 0; x <= bw; x += step) {
+          const rock = rockY(x / bw, baseY, jagH);
+          const y = rock - 16 + Math.sin(x * layer.freq + t * layer.speed) * layer.amp * (1 + energy * 1.7);
+          x === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
+        }
+        bwCtx.strokeStyle = layer.color;
+        bwCtx.lineWidth = layer.width;
+        bwCtx.stroke();
+      });
+
+      bwCtx.beginPath();
+      bwCtx.moveTo(0, bh);
+      for (let x = 0; x <= bw; x += step) {
+        bwCtx.lineTo(x, rockY(x / bw, baseY, jagH));
+      }
+      bwCtx.lineTo(bw, bh);
+      bwCtx.closePath();
+      bwCtx.fillStyle = '#050b12';
+      bwCtx.fill();
+
+      bwCtx.beginPath();
+      for (let x = 0; x <= bw; x += step) {
+        const y = rockY(x / bw, baseY, jagH);
+        x === 0 ? bwCtx.moveTo(x, y) : bwCtx.lineTo(x, y);
+      }
+      bwCtx.strokeStyle = 'rgba(109,244,255,.32)';
+      bwCtx.lineWidth = 1.3;
+      bwCtx.stroke();
+
+      if (!reduceMotion && Math.random() < 0.12 + energy * 0.55) {
+        const x = Math.random() * bw;
+        spawnFoam(x, rockY(x / bw, baseY, jagH), 1 + Math.floor(energy * 4));
+      }
+
+      bwCtx.fillStyle = 'rgba(232,251,255,.85)';
+      for (let i = foam.length - 1; i >= 0; i--) {
+        const p = foam[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.045;
+        p.life -= 0.02;
+        if (p.life <= 0) { foam.splice(i, 1); continue; }
+        bwCtx.globalAlpha = Math.max(0, p.life);
+        bwCtx.beginPath();
+        bwCtx.arc(p.x, p.y, 1.6, 0, Math.PI * 2);
+        bwCtx.fill();
+      }
+      bwCtx.globalAlpha = 1;
+
+      energy = Math.max(0.12, energy * 0.965);
+    };
+
+    if (reduceMotion) {
+      bwDraw(0);
+    } else {
+      let bwRaf;
+      const bwFrame = (t) => { bwDraw(t); bwRaf = requestAnimationFrame(bwFrame); };
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) cancelAnimationFrame(bwRaf);
+        else bwRaf = requestAnimationFrame(bwFrame);
+      });
+      bwRaf = requestAnimationFrame(bwFrame);
+    }
+  }
 })();

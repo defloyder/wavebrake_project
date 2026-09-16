@@ -39,6 +39,7 @@
     @stack('styles')
 </head>
 <body class="@yield('body_class')">
+    <canvas id="wb-breakwater" aria-hidden="true"></canvas>
     @yield('content')
     @stack('scripts')
     <script src="{{ asset('js/wavebreak-motion.js') }}?v={{ $jsVersion }}" defer></script>
