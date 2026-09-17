@@ -34,7 +34,7 @@
     <aside class="adm-sidebar" id="adm-sidebar">
         <div class="adm-sidebar-header">
             <a href="/" class="adm-brand">
-                <img src="{{ asset('images/wavebreak-logo.png') }}" class="wavebreak-logo" alt="">
+                <img src="{{ asset('images/wavebreak-mark.png') }}" class="wavebreak-logo" alt="">
                 <span class="adm-brand-word"><strong><span class="adm-brand-wave">WAVE</span><span class="adm-brand-break">BREAK</span></strong><small>Admin</small></span>
             </a>
             <button class="adm-hamburger adm-close-btn" onclick="admCloseSidebar()" aria-label="Закрыть меню">

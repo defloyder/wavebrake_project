@@ -2916,7 +2916,7 @@ h1,
 
 .wb-brand-name {
     font-family: "Michroma", var(--font);
-    font-size: 22px;
+    font-size: 16px;
     letter-spacing: .01em;
     white-space: nowrap;
 }
@@ -2937,6 +2937,21 @@ h1,
     height: 34px;
     object-fit: contain;
     filter: drop-shadow(0 0 10px rgba(24, 217, 242, .28));
+}
+
+/* The header uses the standalone mark. Its source canvas has intentional
+   transparent breathing room, so scale the artwork without growing the bar. */
+.wb-header .wb-logo-full {
+    width: 48px;
+    height: 42px;
+    flex: 0 0 48px;
+    transform: scale(1.35);
+    object-fit: contain;
+}
+
+@media (max-width: 720px) {
+    .wb-brand-name { font-size: 14px; }
+    .wb-header .wb-logo-full { width: 44px; height: 38px; flex-basis: 44px; }
 }
 
 .wb-brand-word {
