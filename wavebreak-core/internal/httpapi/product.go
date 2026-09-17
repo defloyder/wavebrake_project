@@ -342,7 +342,7 @@ func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Profile-Title", "base64:"+base64.StdEncoding.EncodeToString([]byte(planName)))
 	w.Header().Set("Profile-Update-Interval", "12")
-	userinfo := "upload=0; download=0"
+	userinfo := fmt.Sprintf("upload=%d; download=%d", cfg.BytesUp, cfg.BytesDown)
 	if cfg.TrafficLimitBytes != nil {
 		userinfo += fmt.Sprintf("; total=%d", *cfg.TrafficLimitBytes)
 	}
@@ -849,6 +849,33 @@ func (s *Server) adminTrafficHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"history": history})
+}
+
+// adminTrafficHealth answers "is anything still reporting usage" — a
+// silently-dead node agent (crashed, mis-configured, stats API
+// unreachable) leaves no error anywhere else in the system, so the admin
+// UI polls this to raise its own alert instead of relying on someone
+// noticing the traffic chart has gone flat.
+func (s *Server) adminTrafficHealth(w http.ResponseWriter, r *http.Request) {
+	lastReportAt, err := s.app.Store.LatestUsageReportAt(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not check traffic health")
+		return
+	}
+	const staleAfterSeconds = 300 // 5x the node's default 60s report interval
+	stale := true
+	var secondsSince *int64
+	if lastReportAt != nil {
+		elapsed := int64(time.Since(*lastReportAt).Seconds())
+		secondsSince = &elapsed
+		stale = elapsed > staleAfterSeconds
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"last_report_at":    lastReportAt,
+		"seconds_since":     secondsSince,
+		"stale":             stale,
+		"threshold_seconds": staleAfterSeconds,
+	})
 }
 
 func (s *Server) adminPlans(w http.ResponseWriter, r *http.Request) {

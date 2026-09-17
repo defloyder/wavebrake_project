@@ -95,6 +95,23 @@ class AdminController extends Controller
         return response()->json(['total_bytes' => $totalBytes, 'timestamp' => now()->toIso8601String()]);
     }
 
+    // Polled by the health badge in the sidebar header on every admin page
+    // (see layout.blade.php) — a dead node agent produces no error anywhere
+    // else in the system, just a growing gap since its last usage report,
+    // so this is the only way anyone would notice without reading raw logs.
+    public function trafficHealth(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $token = $this->token($request);
+        if ($token === null) {
+            return response()->json(['error' => 'unauthenticated'], 401);
+        }
+        try {
+            return response()->json($this->core->trafficHealth($token));
+        } catch (RequestException $e) {
+            return response()->json(['error' => 'core unavailable'], $e->response->status() === 401 ? 401 : 502);
+        }
+    }
+
     public function audit(Request $request): View|RedirectResponse
     {
         return $this->renderAdminPage($request, 'audit');
@@ -150,53 +167,42 @@ class AdminController extends Controller
         $data = $request->validate([
             'role' => ['required', 'string', 'in:user,support,admin,superadmin'],
         ]);
-        $this->core->updateUserRole($this->token($request), $userId, $data['role']);
 
-        return redirect('/users')->with('success', 'Роль обновлена.');
+        return $this->coreAction($request, '/users', 'Роль обновлена.', fn ($token) => $this->core->updateUserRole($token, $userId, $data['role']));
     }
 
     public function disableUser(Request $request, string $userId): RedirectResponse
     {
-        $this->core->disableUser($this->token($request), $userId);
-
-        return redirect('/users')->with('success', 'Пользователь заблокирован.');
+        return $this->coreAction($request, '/users', 'Пользователь заблокирован.', fn ($token) => $this->core->disableUser($token, $userId));
     }
 
     public function enableUser(Request $request, string $userId): RedirectResponse
     {
-        $this->core->enableUser($this->token($request), $userId);
-
-        return redirect('/users')->with('success', 'Пользователь разблокирован.');
+        return $this->coreAction($request, '/users', 'Пользователь разблокирован.', fn ($token) => $this->core->enableUser($token, $userId));
     }
 
     public function createPlan(Request $request): RedirectResponse
     {
         $data = $this->validatedPlan($request);
-        $this->core->createPlan($this->token($request), $data);
 
-        return redirect('/plans')->with('success', 'Тариф создан.');
+        return $this->coreAction($request, '/plans', 'Тариф создан.', fn ($token) => $this->core->createPlan($token, $data));
     }
 
     public function updatePlan(Request $request, string $planId): RedirectResponse
     {
         $data = $this->validatedPlan($request);
-        $this->core->updatePlan($this->token($request), $planId, $data);
 
-        return redirect('/plans')->with('success', 'Тариф обновлён.');
+        return $this->coreAction($request, '/plans', 'Тариф обновлён.', fn ($token) => $this->core->updatePlan($token, $planId, $data));
     }
 
     public function deletePlan(Request $request, string $planId): RedirectResponse
     {
-        $this->core->deletePlan($this->token($request), $planId);
-
-        return redirect('/plans')->with('success', 'Тариф удалён.');
+        return $this->coreAction($request, '/plans', 'Тариф удалён.', fn ($token) => $this->core->deletePlan($token, $planId));
     }
 
     public function revokeDevice(Request $request, string $deviceId): RedirectResponse
     {
-        $this->core->revokeDevice($this->token($request), $deviceId);
-
-        return redirect('/devices')->with('success', 'Устройство отозвано.');
+        return $this->coreAction($request, '/devices', 'Устройство отозвано.', fn ($token) => $this->core->revokeDevice($token, $deviceId));
     }
 
     private function validatedPlan(Request $request): array
@@ -230,7 +236,11 @@ class AdminController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
-        $tokens = $this->core->login($data['email'], $data['password']);
+        try {
+            $tokens = $this->core->login($data['email'], $data['password']);
+        } catch (RequestException) {
+            return back()->withInput($request->only('email'))->withErrors(['email' => 'Неверный email или пароль.']);
+        }
         $request->session()->put('wavebreak_admin_tokens', $tokens);
 
         return redirect('/dashboard');
@@ -242,9 +252,8 @@ class AdminController extends Controller
             'code' => ['required', 'string'],
             'region' => ['required', 'string'],
         ]);
-        $this->core->enrollNode($this->token($request), $data['code'], $data['region']);
 
-        return redirect('/nodes');
+        return $this->coreAction($request, '/nodes', "Нода {$data['code']} зарегистрирована.", fn ($token) => $this->core->enrollNode($token, $data['code'], $data['region']));
     }
 
     public function revokeGrant(Request $request, string $grantId): RedirectResponse
@@ -252,9 +261,8 @@ class AdminController extends Controller
         $data = $request->validate([
             'reason' => ['nullable', 'string', 'max:160'],
         ]);
-        $this->core->revokeGrant($this->token($request), $grantId, $data['reason'] ?? 'admin');
 
-        return redirect('/grants');
+        return $this->coreAction($request, '/grants', 'Подключение отозвано.', fn ($token) => $this->core->revokeGrant($token, $grantId, $data['reason'] ?? 'admin'));
     }
 
     public function updateSubscriptionStatus(Request $request, string $subscriptionId): RedirectResponse
@@ -262,9 +270,37 @@ class AdminController extends Controller
         $data = $request->validate([
             'status' => ['required', 'string', 'in:pending,active,expired,cancelled,suspended'],
         ]);
-        $this->core->updateSubscriptionStatus($this->token($request), $subscriptionId, $data['status']);
 
-        return redirect('/subscriptions');
+        return $this->coreAction($request, '/subscriptions', 'Статус подписки обновлён.', fn ($token) => $this->core->updateSubscriptionStatus($token, $subscriptionId, $data['status']));
+    }
+
+    // Every mutating admin action funnels through here: runs $action with
+    // the current token, flashes a success message on the way back to
+    // $redirectTo, and turns whatever Core says on failure into something
+    // an admin can actually read instead of a raw Laravel 500 — a 401
+    // means the session expired mid-click (same handling as
+    // renderAdminPage), anything else surfaces Core's own error message
+    // when it sent one.
+    private function coreAction(Request $request, string $redirectTo, string $successMessage, \Closure $action): RedirectResponse
+    {
+        $token = $this->token($request);
+        if ($token === null) {
+            return redirect('/login');
+        }
+        try {
+            $action($token);
+
+            return redirect($redirectTo)->with('success', $successMessage);
+        } catch (RequestException $e) {
+            if ($e->response->status() === 401) {
+                $request->session()->forget('wavebreak_admin_tokens');
+
+                return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
+            }
+            $message = $e->response->json('error') ?? $e->response->json('code') ?? 'Не удалось выполнить действие.';
+
+            return redirect($redirectTo)->with('error', is_string($message) ? $message : 'Не удалось выполнить действие.');
+        }
     }
 
     public function logout(Request $request): RedirectResponse

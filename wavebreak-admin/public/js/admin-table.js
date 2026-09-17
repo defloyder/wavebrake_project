@@ -69,6 +69,40 @@
   document.querySelectorAll('.adm-table-wrap[data-enhance]').forEach(enhanceTable);
 })();
 
+// Traffic pipeline health chip, polled on every admin page (it lives in
+// the shared header, not a specific view) — a node agent that's stopped
+// reporting usage produces no error anywhere else, so this is the only
+// place that would ever say so.
+(() => {
+  const chip = document.getElementById('traffic-health-chip');
+  const text = document.getElementById('traffic-health-text');
+  if (!chip || !text) return;
+
+  async function check() {
+    try {
+      const res = await fetch('/traffic/health', { headers: { Accept: 'application/json' } });
+      if (!res.ok) return; // 401 mid-session etc. — next poll retries, don't flap the badge on a blip
+      const data = await res.json();
+      chip.hidden = false;
+      if (data.stale) {
+        chip.classList.remove('alive');
+        chip.classList.add('dead');
+        const mins = data.seconds_since ? Math.round(data.seconds_since / 60) : null;
+        text.textContent = mins === null
+          ? 'Трафик: нет данных ни разу'
+          : `Трафик: не поступает ${mins} мин`;
+      } else {
+        chip.classList.remove('dead');
+        chip.classList.add('alive');
+        text.textContent = 'Трафик: поступает';
+      }
+    } catch (e) { /* transient — next poll retries */ }
+  }
+
+  check();
+  setInterval(check, 30000);
+})();
+
 // Shared by every traffic chart: builds a Chart.js line chart from the
 // already-loaded N-day history and wires a Сегодня/7 дней/30 дней toggle
 // that just re-slices the same array client-side — the 30-day fetch

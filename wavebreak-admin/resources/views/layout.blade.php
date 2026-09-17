@@ -107,6 +107,10 @@
                 <strong>Core:</strong>
                 <span class="health-stat">Status <span>{{ $health['status'] ?? 'unavailable' }}</span></span>
                 <span class="health-stat">Nodes <span>{{ $onlineNodes }}/{{ count($nodeList) }}</span></span>
+                <span class="node-chip" id="traffic-health-chip" hidden>
+                    <span class="node-chip__dot"></span>
+                    <span id="traffic-health-text">Трафик: проверка...</span>
+                </span>
             </div>
             <div class="health-bar-nodes">
                 @foreach($nodeList as $node)

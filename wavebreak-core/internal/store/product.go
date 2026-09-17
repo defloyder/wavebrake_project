@@ -134,6 +134,8 @@ type AccessGrantConfig struct {
 	PlanName              string         `json:"plan_name,omitempty"`
 	SubscriptionExpiresAt *time.Time     `json:"subscription_expires_at,omitempty"`
 	TrafficLimitBytes     *int64         `json:"traffic_limit_bytes,omitempty"`
+	BytesUp               int64          `json:"bytes_up,omitempty"`
+	BytesDown             int64          `json:"bytes_down,omitempty"`
 	Warnings              []string       `json:"warnings,omitempty"`
 }
 
@@ -631,16 +633,21 @@ func (s *Store) AccessGrantConfigPublic(ctx context.Context, grantID string) (Ac
 		var planName string
 		var expiresAt time.Time
 		var trafficLimit *int64
+		var bytesUp, bytesDown int64
 		err = s.db.QueryRow(ctx, `
-			select p.name, s.current_period_end, coalesce(s.traffic_limit_override_bytes, s.traffic_limit_bytes_snapshot)
+			select p.name, s.current_period_end, coalesce(s.traffic_limit_override_bytes, s.traffic_limit_bytes_snapshot),
+			       coalesce(u.bytes_up, 0), coalesce(u.bytes_down, 0)
 			from subscriptions s
 			join plans p on p.id = s.plan_id
+			left join subscription_usage u on u.subscription_id = s.id
 			where s.id = $1`, *grant.SubscriptionID,
-		).Scan(&planName, &expiresAt, &trafficLimit)
+		).Scan(&planName, &expiresAt, &trafficLimit, &bytesUp, &bytesDown)
 		if err == nil {
 			result.PlanName = planName
 			result.SubscriptionExpiresAt = &expiresAt
 			result.TrafficLimitBytes = trafficLimit
+			result.BytesUp = bytesUp
+			result.BytesDown = bytesDown
 		}
 	}
 	return result, nil
@@ -832,6 +839,17 @@ type TrafficDay struct {
 	Date      time.Time `json:"date"`
 	BytesUp   int64     `json:"bytes_up"`
 	BytesDown int64     `json:"bytes_down"`
+}
+
+// LatestUsageReportAt is the timestamp of the most recent row any node has
+// ever written to node_usage_reports — the admin health check's only
+// signal that the reporting pipeline (node -> Core -> these tables) is
+// still alive, since a silently-broken agent leaves no error anywhere,
+// just an ever-growing gap since the last row.
+func (s *Store) LatestUsageReportAt(ctx context.Context) (*time.Time, error) {
+	var reportedAt *time.Time
+	err := s.db.QueryRow(ctx, `select max(reported_at) from node_usage_reports`).Scan(&reportedAt)
+	return reportedAt, err
 }
 
 func (s *Store) AdminTrafficHistory(ctx context.Context, days int) ([]TrafficDay, error) {

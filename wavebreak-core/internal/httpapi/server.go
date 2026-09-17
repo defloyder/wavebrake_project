@@ -100,6 +100,7 @@ func New(app *app.App) http.Handler {
 			r.Post("/admin/devices/{deviceID}/revoke", s.adminRevokeDevice)
 			r.Get("/admin/traffic", s.adminTraffic)
 			r.Get("/admin/traffic/history", s.adminTrafficHistory)
+			r.Get("/admin/traffic/health", s.adminTrafficHealth)
 			r.Get("/admin/audit", s.adminAudit)
 			r.Get("/admin/access/grants", s.adminAccessGrants)
 			r.Post("/admin/access/grants/{grantID}/revoke", s.adminRevokeAccessGrant)

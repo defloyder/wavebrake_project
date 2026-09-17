@@ -103,6 +103,11 @@ class CoreClient
         return $this->auth($token, true)->get('/v1/admin/traffic/history', compact('days'))->throw()->json('history') ?? [];
     }
 
+    public function trafficHealth(string $token): array
+    {
+        return $this->auth($token, true)->get('/v1/admin/traffic/health')->throw()->json() ?? [];
+    }
+
     public function revokeDevice(string $token, string $deviceId): array
     {
         return $this->auth($token)->post("/v1/admin/devices/{$deviceId}/revoke")->throw()->json();
