@@ -24,12 +24,16 @@
     ];
 @endphp
 
+<div class="wb-overlay" id="wb-overlay"></div>
 <div class="wb-app-layout">
-    <aside class="wb-sidebar">
+    <aside class="wb-sidebar" id="wb-sidebar">
         <a href="/" class="wb-brand" aria-label="WAVEBREAK">
             <img src="{{ asset('images/wavebreak-logo.png') }}" class="wb-logo" alt="">
             <span class="wb-brand-word"><span>WAVEBREAK</span><small>Cabinet</small></span>
         </a>
+        <button type="button" class="wb-sidebar-close" id="wb-sidebar-close" aria-label="Закрыть меню">
+            <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
 
         <div class="wb-user-box">
             <strong>{{ $email }}</strong>
@@ -65,6 +69,9 @@
     </aside>
 
     <main class="wb-app-main">
+        <button type="button" class="wb-burger wb-burger--open" id="wb-burger-open" aria-label="Открыть меню">
+            <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
         @if (session('success'))
             <div class="wb-alert wb-alert--success">{{ session('success') }}</div>
         @endif
@@ -259,4 +266,22 @@
         @endif
     </main>
 </div>
+
+@push('scripts')
+<script>
+(() => {
+    const sidebar = document.getElementById('wb-sidebar');
+    const overlay = document.getElementById('wb-overlay');
+    const openBtn = document.getElementById('wb-burger-open');
+    const closeBtn = document.getElementById('wb-sidebar-close');
+    if (!sidebar || !overlay || !openBtn) return;
+    const open = () => { sidebar.classList.add('open'); overlay.classList.add('open'); };
+    const close = () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); };
+    openBtn.addEventListener('click', open);
+    closeBtn?.addEventListener('click', close);
+    overlay.addEventListener('click', close);
+    sidebar.querySelectorAll('a, button[type="submit"]').forEach((el) => el.addEventListener('click', close));
+})();
+</script>
+@endpush
 @endsection

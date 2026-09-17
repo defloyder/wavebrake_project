@@ -40,9 +40,16 @@
         <section class="adm-card adm-chart-card">
             <div class="adm-card-head adm-card-head--row">
                 <div>
-                    <h6>Трафик за 30 дней</h6>
+                    <h6>Трафик</h6>
                     <p>Суммарно по всем подпискам, up + down, за сутки.</p>
                 </div>
+                @if(count($trafficHistory ?? []) > 0)
+                    <div class="adm-range-toggle" data-range-for="chart-traffic-overview">
+                        <button type="button" data-range="1">Сегодня</button>
+                        <button type="button" data-range="7">7 дней</button>
+                        <button type="button" data-range="30" class="is-active">30 дней</button>
+                    </div>
+                @endif
             </div>
             <div class="adm-chart-wrap">
                 @if(count($trafficHistory ?? []) > 0)
@@ -116,35 +123,19 @@
         <script>
         document.addEventListener('DOMContentLoaded', () => {
             const raw = @json($trafficHistory ?? []);
-            const el = document.getElementById('chart-traffic-overview');
-            if (!el || !window.Chart) return;
-            const labels = raw.map(r => new Date(r.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }));
-            const gb = raw.map(r => ((r.bytes_up || 0) + (r.bytes_down || 0)) / 1073741824);
-            new Chart(el, {
-                type: 'line',
-                data: {
-                    labels,
-                    datasets: [{
-                        label: 'GB / день',
-                        data: gb,
-                        borderColor: '#00D6FF',
-                        backgroundColor: 'rgba(0,214,255,.12)',
-                        fill: true,
-                        tension: .35,
-                        pointRadius: 2,
-                        pointBackgroundColor: '#00D6FF',
-                    }],
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { ticks: { color: 'rgba(230,242,247,.55)' }, grid: { color: 'rgba(230,242,247,.06)' } },
-                        y: { ticks: { color: 'rgba(230,242,247,.55)' }, grid: { color: 'rgba(230,242,247,.06)' }, beginAtZero: true },
-                    },
-                },
-            });
+            window.admInitRangeChart('chart-traffic-overview', raw, (rows) => ({
+                datasets: [{
+                    label: 'GB / день',
+                    data: rows.map(r => ((r.bytes_up || 0) + (r.bytes_down || 0)) / 1073741824),
+                    borderColor: '#00D6FF',
+                    backgroundColor: 'rgba(0,214,255,.12)',
+                    fill: true,
+                    tension: .35,
+                    pointRadius: 2,
+                    pointBackgroundColor: '#00D6FF',
+                }],
+                plugins: { legend: { display: false } },
+            }));
         });
         </script>
         @endpush
@@ -561,11 +552,18 @@
 
     @if($section === 'traffic')
         <section class="adm-card adm-chart-card">
-            <div class="adm-card-head">
+            <div class="adm-card-head adm-card-head--row">
                 <div>
-                    <h6>Трафик за 30 дней</h6>
+                    <h6>Трафик</h6>
                     <p>Сумма bytes_up + bytes_down по всем подпискам за сутки — здесь видна просадка.</p>
                 </div>
+                @if(count($trafficHistory ?? []) > 0)
+                    <div class="adm-range-toggle" data-range-for="chart-traffic-detail">
+                        <button type="button" data-range="1">Сегодня</button>
+                        <button type="button" data-range="7">7 дней</button>
+                        <button type="button" data-range="30" class="is-active">30 дней</button>
+                    </div>
+                @endif
             </div>
             <div class="adm-chart-wrap">
                 @if(count($trafficHistory ?? []) > 0)
@@ -613,30 +611,13 @@
         <script>
         document.addEventListener('DOMContentLoaded', () => {
             const raw = @json($trafficHistory ?? []);
-            const el = document.getElementById('chart-traffic-detail');
-            if (!el || !window.Chart || !raw.length) return;
-            const labels = raw.map(r => new Date(r.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }));
-            const up = raw.map(r => (r.bytes_up || 0) / 1073741824);
-            const down = raw.map(r => (r.bytes_down || 0) / 1073741824);
-            new Chart(el, {
-                type: 'line',
-                data: {
-                    labels,
-                    datasets: [
-                        { label: 'Upload, GB', data: up, borderColor: '#00D6FF', backgroundColor: 'rgba(0,214,255,.1)', fill: true, tension: .35, pointRadius: 2 },
-                        { label: 'Download, GB', data: down, borderColor: '#35E0A1', backgroundColor: 'rgba(53,224,161,.1)', fill: true, tension: .35, pointRadius: 2 },
-                    ],
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: 'rgba(230,242,247,.8)' } } },
-                    scales: {
-                        x: { ticks: { color: 'rgba(230,242,247,.55)' }, grid: { color: 'rgba(230,242,247,.06)' } },
-                        y: { ticks: { color: 'rgba(230,242,247,.55)' }, grid: { color: 'rgba(230,242,247,.06)' }, beginAtZero: true },
-                    },
-                },
-            });
+            window.admInitRangeChart('chart-traffic-detail', raw, (rows) => ({
+                datasets: [
+                    { label: 'Upload, GB', data: rows.map(r => (r.bytes_up || 0) / 1073741824), borderColor: '#00D6FF', backgroundColor: 'rgba(0,214,255,.1)', fill: true, tension: .35, pointRadius: 2 },
+                    { label: 'Download, GB', data: rows.map(r => (r.bytes_down || 0) / 1073741824), borderColor: '#35E0A1', backgroundColor: 'rgba(53,224,161,.1)', fill: true, tension: .35, pointRadius: 2 },
+                ],
+                plugins: { legend: { labels: { color: 'rgba(230,242,247,.8)' } } },
+            }));
         });
         </script>
         @endpush

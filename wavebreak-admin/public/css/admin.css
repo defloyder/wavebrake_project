@@ -451,6 +451,29 @@ h1, h2, h3, h4, h5, h6, p { margin: 0; }
 /* ---- Chart ------------------------------------------------------------------------------- */
 
 .adm-chart-card { padding: 20px 22px 14px; }
+.adm-range-toggle {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    border: 1px solid var(--ice-08);
+    border-radius: 999px;
+    background: rgba(230, 242, 247, .03);
+    flex-shrink: 0;
+}
+.adm-range-toggle button {
+    border: 0;
+    background: transparent;
+    color: var(--ice-55);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.adm-range-toggle button.is-active {
+    background: linear-gradient(135deg, var(--wave-cyan), var(--ocean-teal));
+    color: var(--midnight);
+}
 .adm-chart-wrap { position: relative; height: 260px; }
 .adm-chart-empty { color: var(--ice-55); font-size: 13.5px; padding: 30px 0; text-align: center; }
 

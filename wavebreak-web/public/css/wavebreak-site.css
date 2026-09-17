@@ -25,7 +25,7 @@
 
 /* Public home refinement: cleaner brand composition, no fake dashboard mockup. */
 .wb-logo-full {
-    width: 56px;
+    width: 68px;
     filter: drop-shadow(0 0 16px rgba(24, 217, 242, .2));
 }
 
@@ -303,7 +303,7 @@ h1,
 
 @media (max-width: 720px) {
     .wb-logo-full {
-        width: 46px;
+        width: 56px;
     }
 
     .cw-hero {
@@ -363,7 +363,7 @@ h1,
 }
 
 .wb-art-page .wb-logo-full {
-    width: 56px;
+    width: 68px;
     opacity: .95;
 }
 
@@ -893,7 +893,7 @@ ul {
 }
 
 .wb-nav {
-    min-height: 74px;
+    min-height: 88px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -907,10 +907,33 @@ ul {
 }
 
 .wb-logo-full {
-    width: 56px;
+    width: 68px;
     height: auto;
     object-fit: contain;
     filter: drop-shadow(0 0 18px rgba(24, 217, 242, .18));
+}
+
+.wb-burger {
+    display: none;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .04);
+    color: var(--text);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.wb-burger svg {
+    width: 18px;
+    height: 18px;
+}
+
+.wb-nav-panel {
+    display: contents;
 }
 
 .wb-links {
@@ -1921,6 +1944,23 @@ h3 {
     background: rgba(4, 8, 18, .86);
 }
 
+.wb-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: rgba(2, 4, 9, .6);
+}
+
+.wb-overlay.open {
+    display: block;
+}
+
+.wb-sidebar-close,
+.wb-burger--open {
+    display: none;
+}
+
 .wb-user-box,
 .wb-metric,
 .wb-workspace .wb-card {
@@ -2091,14 +2131,66 @@ h3 {
 
 @media (max-width: 900px) {
     .wb-nav {
-        flex-wrap: wrap;
         padding: 14px 0;
+        position: relative;
+    }
+
+    .wb-burger {
+        display: inline-flex;
+    }
+
+    .wb-nav-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        position: absolute;
+        top: calc(100% + 10px);
+        left: 0;
+        right: 0;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #050a14;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-8px);
+        transition: opacity .2s ease, transform .2s ease, visibility .2s;
+        z-index: 60;
+    }
+
+    .wb-nav-panel.open {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
     }
 
     .wb-links {
-        order: 3;
         width: 100%;
-        overflow-x: auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        background: transparent;
+        border: 0;
+        padding: 0;
+    }
+
+    .wb-links a {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .wb-nav-glider {
+        display: none;
+    }
+
+    .wb-actions {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .wb-actions .wb-btn {
+        width: 100%;
     }
 
     .cw-route-grid,
@@ -2121,8 +2213,48 @@ h3 {
     }
 
     .wb-sidebar {
-        position: static;
-        height: auto;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: min(300px, 84vw);
+        z-index: 80;
+        transform: translateX(-100%);
+        transition: transform .22s ease;
+    }
+
+    .wb-sidebar.open {
+        transform: translateX(0);
+    }
+
+    .wb-sidebar-close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        width: 32px;
+        height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+    }
+
+    .wb-burger--open {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        margin-bottom: 16px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, .04);
+        color: var(--text);
+        cursor: pointer;
     }
 }
 
@@ -2132,7 +2264,7 @@ h3 {
     }
 
     .wb-logo-full {
-        width: 46px;
+        width: 56px;
     }
 
     .wb-actions {
@@ -2250,7 +2382,7 @@ h3 {
 
 /* Final public home override: keeps the page away from generated dashboard mockups. */
 .wb-logo-full {
-    width: 56px;
+    width: 68px;
     filter: drop-shadow(0 0 16px rgba(24, 217, 242, .2));
 }
 
@@ -2528,7 +2660,7 @@ h1,
 
 @media (max-width: 720px) {
     .wb-logo-full {
-        width: 46px;
+        width: 56px;
     }
 
     .cw-hero {
@@ -2784,7 +2916,7 @@ h1,
 
 .wb-brand-name {
     font-family: "Michroma", var(--font);
-    font-size: 19px;
+    font-size: 22px;
     letter-spacing: .01em;
     white-space: nowrap;
 }
