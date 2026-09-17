@@ -49,4 +49,40 @@ class AdminAssistantTest extends TestCase
 
         $this->assertStringContainsString('active', $reply['text']);
     }
+
+    public function test_it_understands_conversational_help(): void
+    {
+        $reply = (new AdminAssistant($this->createMock(CoreClient::class)))->reply('token', 'А что ты вообще умеешь?');
+
+        $this->assertStringContainsString('Могу показать сводку', $reply['text']);
+    }
+
+    public function test_subscription_creation_is_a_multi_step_dialogue(): void
+    {
+        $core = $this->createMock(CoreClient::class);
+        $core->method('users')->willReturn([['id' => 'user-id', 'email' => 'owner@example.com']]);
+        $core->method('adminPlans')->willReturn([['id' => 'plan-id', 'code' => 'STARTER', 'name' => 'Starter', 'is_active' => true]]);
+        $assistant = new AdminAssistant($core);
+
+        $start = $assistant->reply('token', 'Давай добавим подписку');
+        $user = $assistant->reply('token', 'owner@example.com', $start['context']);
+        $plan = $assistant->reply('token', 'STARTER', $user['context']);
+
+        $this->assertSame('user', $start['context']['step']);
+        $this->assertSame('plan', $user['context']['step']);
+        $this->assertSame('subscription_create', $plan['confirmation']['action']['type']);
+        $this->assertSame('user-id', $plan['confirmation']['action']['user_id']);
+        $this->assertSame('plan-id', $plan['confirmation']['action']['plan_id']);
+    }
+
+    public function test_it_resolves_user_email_before_preparing_hard_delete(): void
+    {
+        $core = $this->createMock(CoreClient::class);
+        $core->method('users')->willReturn([['id' => 'user-id', 'email' => 'owner@example.com']]);
+
+        $reply = (new AdminAssistant($core))->reply('token', 'Удали пользователя owner@example.com');
+
+        $this->assertSame('user_delete', $reply['confirmation']['action']['type']);
+        $this->assertSame('user-id', $reply['confirmation']['action']['id']);
+    }
 }

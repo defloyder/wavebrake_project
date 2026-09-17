@@ -251,6 +251,10 @@ func (s *Store) ListPlans(ctx context.Context) ([]Plan, error) {
 }
 
 func (s *Store) CreateSubscription(ctx context.Context, userID, planID string) (Subscription, error) {
+	return s.CreateSubscriptionFor(ctx, userID, planID, "web", userID)
+}
+
+func (s *Store) CreateSubscriptionFor(ctx context.Context, userID, planID, source, createdBy string) (Subscription, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return Subscription{}, err
@@ -263,14 +267,14 @@ func (s *Store) CreateSubscription(ctx context.Context, userID, planID string) (
 			user_id, plan_id, status, source, created_by, current_period_end,
 			traffic_limit_bytes_snapshot, device_limit_snapshot, concurrent_connection_limit_snapshot, started_at
 		)
-		select $1, p.id, 'active', 'web', $1, now() + make_interval(days => coalesce(p.duration_days, 30)),
+		select $1, p.id, 'active', $3, $4, now() + make_interval(days => coalesce(p.duration_days, 30)),
 		       p.traffic_limit_bytes, p.device_limit, p.concurrent_connection_limit, now()
 		from plans p
 		where p.id = $2 and p.is_active = true and p.deleted_at is null
 		returning id::text, user_id::text, plan_id::text, status, source, source_reference, created_by::text,
 		          traffic_limit_bytes_snapshot, device_limit_snapshot, concurrent_connection_limit_snapshot,
 		          traffic_limit_override_bytes, device_limit_override, current_period_end, created_at, updated_at`,
-		userID, planID,
+		userID, planID, source, createdBy,
 	).Scan(&sub.ID, &sub.UserID, &sub.PlanID, &sub.Status, &sub.Source, &sub.SourceReference, &sub.CreatedBy, &sub.TrafficLimitBytesSnapshot, &sub.DeviceLimitSnapshot, &sub.ConcurrentConnectionLimitSnapshot, &sub.TrafficLimitOverrideBytes, &sub.DeviceLimitOverride, &sub.CurrentPeriodEnd, &sub.CreatedAt, &sub.UpdatedAt)
 	if err != nil {
 		return Subscription{}, err

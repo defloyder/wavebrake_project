@@ -835,6 +835,47 @@ func (s *Store) AdminSetUserDisabled(ctx context.Context, userID string, disable
 	return u, err
 }
 
+func (s *Store) AdminDeleteUser(ctx context.Context, userID string) error {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `select distinct node_id::text from access_grants where user_id = $1 and status = 'active'`, userID)
+	if err != nil {
+		return err
+	}
+	var nodeIDs []string
+	for rows.Next() {
+		var nodeID string
+		if err := rows.Scan(&nodeID); err != nil {
+			rows.Close()
+			return err
+		}
+		nodeIDs = append(nodeIDs, nodeID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	tag, err := tx.Exec(ctx, `delete from users where id = $1`, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	for _, nodeID := range nodeIDs {
+		if _, err := refreshNodeDesiredStateTx(ctx, tx, nodeID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 type TrafficDay struct {
 	Date      time.Time `json:"date"`
 	BytesUp   int64     `json:"bytes_up"`

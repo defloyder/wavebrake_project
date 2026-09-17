@@ -78,6 +78,11 @@ class CoreClient
         return $this->auth($token)->post("/v1/admin/users/{$userId}/enable")->throw()->json();
     }
 
+    public function deleteUser(string $token, string $userId): array
+    {
+        return $this->auth($token)->delete("/v1/admin/users/{$userId}")->throw()->json();
+    }
+
     public function subscriptions(string $token): array
     {
         return $this->auth($token, true)->get('/v1/admin/subscriptions')->throw()->json('subscriptions') ?? [];
@@ -86,6 +91,14 @@ class CoreClient
     public function updateSubscriptionStatus(string $token, string $subscriptionId, string $status): array
     {
         return $this->auth($token)->patch("/v1/admin/subscriptions/{$subscriptionId}/status", compact('status'))->throw()->json();
+    }
+
+    public function createSubscriptionForUser(string $token, string $userId, string $planId): array
+    {
+        return $this->auth($token)->post('/v1/admin/subscriptions', [
+            'user_id' => $userId,
+            'plan_id' => $planId,
+        ])->throw()->json();
     }
 
     public function devices(string $token): array

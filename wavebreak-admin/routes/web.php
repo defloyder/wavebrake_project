@@ -27,6 +27,7 @@ Route::post('/subscriptions/{subscriptionId}/status', [AdminController::class, '
 Route::post('/users/{userId}/role', [AdminController::class, 'updateUserRole']);
 Route::post('/users/{userId}/disable', [AdminController::class, 'disableUser']);
 Route::post('/users/{userId}/enable', [AdminController::class, 'enableUser']);
+Route::post('/users/{userId}/delete', [AdminController::class, 'deleteUser']);
 Route::post('/plans', [AdminController::class, 'createPlan']);
 Route::post('/plans/{planId}', [AdminController::class, 'updatePlan']);
 Route::post('/plans/{planId}/delete', [AdminController::class, 'deletePlan']);

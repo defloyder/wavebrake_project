@@ -21,7 +21,7 @@ class AdminAssistantTest extends TestCase
             $mock->shouldReceive('me')->once()->with('access-token')->andReturn(['role' => 'admin']);
         });
         $this->mock(AdminAssistant::class, function (MockInterface $mock) {
-            $mock->shouldReceive('reply')->once()->with('access-token', 'сводка')->andReturn(['text' => 'Система работает.']);
+            $mock->shouldReceive('reply')->once()->with('access-token', 'сводка', null)->andReturn(['text' => 'Система работает.']);
         });
 
         $this->withSession(['wavebreak_admin_tokens' => ['access_token' => 'access-token']])

@@ -130,7 +130,16 @@ class AdminController extends Controller
 
         $data = $request->validate(['message' => ['required', 'string', 'max:500']]);
         try {
-            $reply = $this->assistant->reply($token, $data['message']);
+            $context = $request->session()->get('admin_assistant_context');
+            $reply = $this->assistant->reply($token, $data['message'], is_array($context) ? $context : null);
+            if (array_key_exists('context', $reply)) {
+                if (is_array($reply['context'])) {
+                    $request->session()->put('admin_assistant_context', $reply['context']);
+                } else {
+                    $request->session()->forget('admin_assistant_context');
+                }
+                unset($reply['context']);
+            }
             if (isset($reply['confirmation']['action'])) {
                 $confirmationToken = (string) \Illuminate\Support\Str::uuid();
                 $request->session()->put("admin_assistant_actions.{$confirmationToken}", [
@@ -243,6 +252,27 @@ class AdminController extends Controller
     public function enableUser(Request $request, string $userId): RedirectResponse
     {
         return $this->coreAction($request, '/users', 'Пользователь разблокирован.', fn ($token) => $this->core->enableUser($token, $userId));
+    }
+
+    public function deleteUser(Request $request, string $userId): RedirectResponse
+    {
+        $token = $this->token($request);
+        if ($token === null) {
+            return redirect('/login');
+        }
+        try {
+            $me = $this->core->me($token);
+            if (($me['role'] ?? '') !== 'superadmin') {
+                return redirect('/users')->with('error', 'Удаление пользователей доступно только superadmin.');
+            }
+            if (($me['id'] ?? '') === $userId) {
+                return redirect('/users')->with('error', 'Нельзя удалить собственную учётную запись.');
+            }
+        } catch (RequestException) {
+            return redirect('/login');
+        }
+
+        return $this->coreAction($request, '/users', 'Пользователь и связанные данные удалены.', fn ($accessToken) => $this->core->deleteUser($accessToken, $userId));
     }
 
     public function createPlan(Request $request): RedirectResponse

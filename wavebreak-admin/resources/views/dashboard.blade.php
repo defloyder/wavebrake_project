@@ -408,6 +408,12 @@
                                         <button type="submit" class="adm-link-button" style="color: var(--success);">Разблокировать</button>
                                     </form>
                                 @endif
+                                @if(($me['role'] ?? '') === 'superadmin' && ($me['id'] ?? '') !== ($user['id'] ?? ''))
+                                    <form method="post" action="/users/{{ $user['id'] }}/delete" class="adm-inline-form" onsubmit="return confirm('Удалить пользователя {{ $user['email'] ?? $user['id'] }} и все связанные данные без возможности восстановления?')">
+                                        @csrf
+                                        <button type="submit" class="adm-link-button adm-link-button--delete">Удалить</button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -559,8 +565,17 @@
                     <h6>Трафик сейчас</h6>
                     <p>Опрос раз в 4 секунды — сколько прошло с прошлого опроса, а не история за день.</p>
                 </div>
-                <button type="button" class="adm-btn adm-btn-primary" id="live-traffic-reveal">Показать live-трафик</button>
-                <button type="button" class="adm-btn" id="live-traffic-toggle" hidden>Пауза</button>
+                <div class="adm-live-controls">
+                    <button type="button" class="adm-icon-btn adm-icon-btn--live" id="live-traffic-reveal" aria-label="Показать live-трафик" title="Показать live-трафик">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                    </button>
+                    <button type="button" class="adm-icon-btn adm-icon-btn--live" id="live-traffic-toggle" aria-label="Пауза" title="Пауза" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6v12M15 6v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                    <button type="button" class="adm-icon-btn adm-icon-btn--live" id="live-traffic-hide" aria-label="Скрыть live-трафик" title="Скрыть live-трафик" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 0 0 2.7 2.7M9.9 4.2A10.8 10.8 0 0 1 12 4c5 0 8.5 4.2 9.5 6.3a3.7 3.7 0 0 1 0 3.4 13.1 13.1 0 0 1-2.1 3M6.2 6.2a13.3 13.3 0 0 0-3.7 4.1 3.7 3.7 0 0 0 0 3.4C3.5 15.8 7 20 12 20c1 0 2-.2 2.9-.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
             </div>
             <div class="adm-chart-wrap adm-chart-wrap--live" id="live-traffic-wrap" hidden>
                 <canvas id="chart-traffic-live"></canvas>
@@ -593,12 +608,26 @@
         @push('scripts')
         <script>
         document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('live-traffic-reveal')?.addEventListener('click', (e) => {
-                e.target.hidden = true;
-                document.getElementById('live-traffic-toggle').hidden = false;
-                document.getElementById('live-traffic-wrap').hidden = false;
-                window.admInitLiveTraffic('chart-traffic-live', 'live-traffic-toggle');
-            }, { once: true });
+            const reveal = document.getElementById('live-traffic-reveal');
+            const toggle = document.getElementById('live-traffic-toggle');
+            const hide = document.getElementById('live-traffic-hide');
+            const wrap = document.getElementById('live-traffic-wrap');
+            let liveTraffic = null;
+            reveal?.addEventListener('click', () => {
+                reveal.hidden = true;
+                toggle.hidden = false;
+                hide.hidden = false;
+                wrap.hidden = false;
+                if (liveTraffic) liveTraffic.start();
+                else liveTraffic = window.admInitLiveTraffic('chart-traffic-live', 'live-traffic-toggle');
+            });
+            hide?.addEventListener('click', () => {
+                liveTraffic?.stop();
+                wrap.hidden = true;
+                toggle.hidden = true;
+                hide.hidden = true;
+                reveal.hidden = false;
+            });
         });
         </script>
         @endpush

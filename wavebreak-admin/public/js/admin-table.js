@@ -163,6 +163,15 @@ window.admInitLiveTraffic = function admInitLiveTraffic(canvasId, btnId) {
   let lastTotal = null;
   let timer = null;
   let running = false;
+  const pauseIcon = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6v12M15 6v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  const playIcon = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+
+  function setButtonState(label, icon) {
+    if (!btn) return;
+    btn.innerHTML = icon;
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+  }
 
   const chart = new Chart(el, {
     type: 'line',
@@ -209,7 +218,7 @@ window.admInitLiveTraffic = function admInitLiveTraffic(canvasId, btnId) {
 
   function start() {
     running = true;
-    if (btn) btn.textContent = 'Пауза';
+    setButtonState('Пауза', pauseIcon);
     lastTotal = null; // fresh baseline so resuming doesn't show a fake spike for the paused gap
     poll();
     timer = setInterval(poll, 4000);
@@ -217,12 +226,12 @@ window.admInitLiveTraffic = function admInitLiveTraffic(canvasId, btnId) {
 
   function stop() {
     running = false;
-    if (btn) btn.textContent = 'Продолжить';
+    setButtonState('Продолжить', playIcon);
     if (timer) clearInterval(timer);
   }
 
   btn?.addEventListener('click', () => (running ? stop() : start()));
   start();
 
-  return { chart, stop };
+  return { chart, start, stop };
 };

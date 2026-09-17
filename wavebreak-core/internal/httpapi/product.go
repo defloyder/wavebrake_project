@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -836,6 +837,24 @@ func (s *Server) adminEnableUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, user)
 }
 
+func (s *Server) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userID")
+	actor := currentUser(r.Context()).ID
+	if userID == actor {
+		writeError(w, http.StatusBadRequest, "cannot delete current user")
+		return
+	}
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "user.delete_requested", "user", &userID, map[string]any{"hard_delete": true})
+	if err := s.app.Store.AdminDeleteUser(r.Context(), userID); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete user")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
 func (s *Server) adminTrafficHistory(w http.ResponseWriter, r *http.Request) {
 	days := 30
 	if raw := r.URL.Query().Get("days"); raw != "" {
@@ -945,6 +964,29 @@ func (s *Server) adminSubscriptions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"subscriptions": subscriptions})
+}
+
+func (s *Server) adminCreateSubscription(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID string `json:"user_id"`
+		PlanID string `json:"plan_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.UserID) == "" || strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "user_id and plan_id are required")
+		return
+	}
+	actor := currentUser(r.Context()).ID
+	subscription, err := s.app.Store.CreateSubscriptionFor(r.Context(), req.UserID, req.PlanID, "admin", actor)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not create subscription")
+		return
+	}
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "subscription.created", "subscription", &subscription.ID, map[string]any{
+		"user_id": req.UserID,
+		"plan_id": req.PlanID,
+		"source":  "admin",
+	})
+	writeJSON(w, http.StatusCreated, subscription)
 }
 
 func (s *Server) adminUpdateSubscriptionStatus(w http.ResponseWriter, r *http.Request) {

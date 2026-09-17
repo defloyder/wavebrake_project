@@ -10,15 +10,27 @@ class AdminAssistant
     {
     }
 
-    public function reply(string $token, string $message): array
+    public function reply(string $token, string $message, ?array $context = null): array
     {
         $query = Str::lower(trim($message));
+
+        if (($context['intent'] ?? null) === 'create_subscription') {
+            return $this->continueSubscriptionCreation($token, $message, $context);
+        }
+
+        if ($this->contains($query, ['привет', 'здравств', 'добрый день', 'добрый вечер', 'ау', 'ты тут'])) {
+            return [
+                'text' => 'Я здесь. Могу быстро показать состояние системы или помочь с конкретной записью.',
+                'suggestions' => ['Что ты умеешь?', 'Сводка', 'Добавить подписку', 'Найти пользователя'],
+            ];
+        }
 
         if ($query === '' || $this->contains($query, ['сводка', 'статистика', 'что происходит', 'состояние системы'])) {
             return $this->overview($token);
         }
 
-        if ($this->contains($query, ['помощь', 'что умеешь', 'команды'])) {
+        if ($this->contains($query, ['помощь', 'что умеешь', 'что ты умеешь', 'что можешь', 'как работаешь', 'команды'])
+            || preg_match('/что\s+.*(?:уме|мож)/iu', $query)) {
             return [
                 'text' => 'Могу показать сводку, состояние узлов и трафика, найти пользователя или запись, а также подготовить изменение статуса подписки, блокировку пользователя или отзыв подключения. Изменения выполняются только после подтверждения.',
                 'suggestions' => ['Сводка', 'Подписки', 'Узлы', 'Трафик', 'Найти пользователя'],
@@ -27,6 +39,16 @@ class AdminAssistant
 
         if ($action = $this->parseAction($token, $query)) {
             return $action;
+        }
+
+        if ($this->contains($query, ['добав', 'созда', 'оформ', 'подключ'])) {
+            if ($this->contains($query, ['подписк', 'тариф'])) {
+                return [
+                    'text' => 'Хорошо. Для кого создаём подписку? Пришлите email или UUID пользователя.',
+                    'context' => ['intent' => 'create_subscription', 'step' => 'user'],
+                    'suggestions' => ['Отмена'],
+                ];
+            }
         }
 
         if ($this->contains($query, ['подписк'])) {
@@ -55,8 +77,10 @@ class AdminAssistant
     {
         return match ($action['type'] ?? '') {
             'subscription_status' => $this->executeSubscriptionStatus($token, $action),
+            'subscription_create' => $this->executeSubscriptionCreate($token, $action),
             'user_disable' => $this->executeUserState($token, $action, false),
             'user_enable' => $this->executeUserState($token, $action, true),
+            'user_delete' => $this->executeUserDelete($token, $action),
             'grant_revoke' => $this->executeGrantRevoke($token, $action),
             'device_revoke' => $this->executeDeviceRevoke($token, $action),
             default => ['text' => 'Команда устарела или не поддерживается.', 'level' => 'error'],
@@ -183,8 +207,74 @@ class AdminAssistant
         ];
     }
 
+    private function continueSubscriptionCreation(string $token, string $message, array $context): array
+    {
+        $query = Str::lower(trim($message));
+        if ($this->contains($query, ['отмена', 'отмени', 'не надо', 'стоп'])) {
+            return ['text' => 'Создание подписки отменено.', 'context' => null, 'suggestions' => ['Сводка', 'Подписки']];
+        }
+
+        if (($context['step'] ?? '') === 'user') {
+            $needle = Str::lower(trim($message));
+            $matches = array_values(array_filter($this->core->users($token), fn ($user) =>
+                Str::lower((string) ($user['id'] ?? '')) === $needle
+                || Str::lower((string) ($user['email'] ?? '')) === $needle
+            ));
+            if (count($matches) !== 1) {
+                return [
+                    'text' => count($matches) > 1 ? 'Нашлось несколько пользователей. Укажите точный email или UUID.' : 'Пользователь не найден. Проверьте email или UUID.',
+                    'context' => $context,
+                    'suggestions' => ['Отмена'],
+                ];
+            }
+            $plans = array_values(array_filter($this->core->adminPlans($token), fn ($plan) => (bool) ($plan['is_active'] ?? false)));
+            if (! $plans) {
+                return ['text' => 'Нет активных тарифов. Сначала создайте или включите тариф.', 'context' => null, 'link' => ['label' => 'Открыть тарифы', 'href' => '/plans']];
+            }
+            $labels = array_map(fn ($plan) => (string) ($plan['code'] ?? $plan['name'] ?? $plan['id']), $plans);
+            return [
+                'text' => 'Пользователь найден: '.($matches[0]['email'] ?? $matches[0]['id']).'. Какой тариф назначить? Доступны: '.implode(', ', $labels).'.',
+                'context' => ['intent' => 'create_subscription', 'step' => 'plan', 'user_id' => $matches[0]['id'], 'user_label' => $matches[0]['email'] ?? $matches[0]['id']],
+                'suggestions' => array_slice(array_merge($labels, ['Отмена']), 0, 6),
+            ];
+        }
+
+        if (($context['step'] ?? '') === 'plan') {
+            $needle = Str::lower(trim($message));
+            $matches = array_values(array_filter($this->core->adminPlans($token), fn ($plan) =>
+                (bool) ($plan['is_active'] ?? false) && in_array($needle, [
+                    Str::lower((string) ($plan['id'] ?? '')),
+                    Str::lower((string) ($plan['code'] ?? '')),
+                    Str::lower((string) ($plan['name'] ?? '')),
+                ], true)
+            ));
+            if (count($matches) !== 1) {
+                return ['text' => 'Не нашёл такой активный тариф. Напишите его точный код, название или UUID.', 'context' => $context, 'suggestions' => ['Отмена']];
+            }
+            $plan = $matches[0];
+            return [
+                'text' => 'Всё готово. Проверьте данные перед созданием.',
+                'context' => null,
+                'confirmation' => [
+                    'label' => sprintf('Создать подписку %s для %s?', $plan['name'] ?? $plan['code'], $context['user_label'] ?? $context['user_id']),
+                    'action' => ['type' => 'subscription_create', 'user_id' => $context['user_id'], 'plan_id' => $plan['id']],
+                ],
+            ];
+        }
+
+        return ['text' => 'Диалог устарел. Начнём заново: для кого создать подписку?', 'context' => ['intent' => 'create_subscription', 'step' => 'user']];
+    }
+
     private function parseAction(string $token, string $query): ?array
     {
+        if (preg_match('/(?:удал|сотр).*пользовател.*?([\w.+-]+@[\w.-]+\.[a-z]{2,})/iu', $query, $match)) {
+            $email = Str::lower($match[1]);
+            $users = array_values(array_filter($this->core->users($token), fn ($user) => Str::lower((string) ($user['email'] ?? '')) === $email));
+            if (count($users) === 1) {
+                return $this->confirm('user_delete', $users[0]['id'], null, "Навсегда удалить {$users[0]['email']} и все связанные данные? Это действие нельзя отменить.");
+            }
+            return ['text' => 'Не нашёл пользователя с таким email. Проверьте адрес.', 'level' => 'warning'];
+        }
         if (preg_match('/(?:активир|возобнов).*подписк.*?([0-9a-f-]{36})/iu', $query, $match)) {
             return $this->confirm('subscription_status', $match[1], 'active', "Активировать подписку {$match[1]}?");
         }
@@ -199,6 +289,9 @@ class AdminAssistant
         }
         if (preg_match('/(?:разблокир|включ).*пользовател.*?([0-9a-f-]{36})/iu', $query, $match)) {
             return $this->confirm('user_enable', $match[1], null, "Разблокировать пользователя {$match[1]}?");
+        }
+        if (preg_match('/(?:удал|сотр).*пользовател.*?([0-9a-f-]{36})/iu', $query, $match)) {
+            return $this->confirm('user_delete', $match[1], null, "Навсегда удалить пользователя {$match[1]} и все связанные данные? Это действие нельзя отменить.");
         }
         if (preg_match('/(?:отзов|отмен).*подключени.*?([0-9a-f-]{36})/iu', $query, $match)) {
             return $this->confirm('grant_revoke', $match[1], null, "Отозвать подключение {$match[1]}?");
@@ -227,10 +320,25 @@ class AdminAssistant
         return ['text' => "Статус подписки изменён на {$action['value']}.", 'link' => ['label' => 'Открыть подписки', 'href' => '/subscriptions']];
     }
 
+    private function executeSubscriptionCreate(string $token, array $action): array
+    {
+        $subscription = $this->core->createSubscriptionForUser($token, $action['user_id'], $action['plan_id']);
+        return [
+            'text' => 'Подписка создана и активирована.'.(isset($subscription['id']) ? " ID: {$subscription['id']}." : ''),
+            'link' => ['label' => 'Открыть подписки', 'href' => '/subscriptions'],
+        ];
+    }
+
     private function executeUserState(string $token, array $action, bool $enabled): array
     {
         $enabled ? $this->core->enableUser($token, $action['id']) : $this->core->disableUser($token, $action['id']);
         return ['text' => $enabled ? 'Пользователь разблокирован.' : 'Пользователь заблокирован.', 'link' => ['label' => 'Открыть пользователей', 'href' => '/users']];
+    }
+
+    private function executeUserDelete(string $token, array $action): array
+    {
+        $this->core->deleteUser($token, $action['id']);
+        return ['text' => 'Пользователь и связанные с ним данные физически удалены из базы.', 'link' => ['label' => 'Открыть пользователей', 'href' => '/users']];
     }
 
     private function executeGrantRevoke(string $token, array $action): array
