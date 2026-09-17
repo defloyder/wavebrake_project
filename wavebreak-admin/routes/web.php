@@ -16,6 +16,8 @@ Route::get('/devices', [AdminController::class, 'devices']);
 Route::get('/traffic', [AdminController::class, 'traffic']);
 Route::get('/traffic/live', [AdminController::class, 'trafficLive']);
 Route::get('/traffic/health', [AdminController::class, 'trafficHealth']);
+Route::post('/assistant/message', [AdminController::class, 'assistantMessage']);
+Route::post('/assistant/confirm', [AdminController::class, 'assistantConfirm']);
 Route::get('/audit', [AdminController::class, 'audit']);
 Route::post('/login', [AdminController::class, 'login']);
 Route::post('/logout', [AdminController::class, 'logout']);

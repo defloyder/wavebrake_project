@@ -140,7 +140,28 @@
     </main>
 </div>
 
+<button type="button" class="adm-assistant-launcher" id="adm-assistant-launcher" aria-label="Открыть помощника" aria-expanded="false">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 6.5A3.5 3.5 0 0 1 8.5 3h7A3.5 3.5 0 0 1 19 6.5v6a3.5 3.5 0 0 1-3.5 3.5H11l-4.5 4v-4.35A3.5 3.5 0 0 1 5 12.5v-6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 9h6M9 12h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+    <span class="adm-assistant-launcher__dot"></span>
+</button>
+
+<section class="adm-assistant" id="adm-assistant" aria-label="Операторский помощник" aria-hidden="true">
+    <header class="adm-assistant__head">
+        <div><strong>WAVEBREAK Control</strong><span><i></i> данные системы</span></div>
+        <button type="button" id="adm-assistant-close" aria-label="Закрыть">&times;</button>
+    </header>
+    <div class="adm-assistant__messages" id="adm-assistant-messages" aria-live="polite"></div>
+    <div class="adm-assistant__suggestions" id="adm-assistant-suggestions"></div>
+    <form class="adm-assistant__form" id="adm-assistant-form">
+        <textarea id="adm-assistant-input" rows="1" maxlength="500" placeholder="Спросите о системе..." aria-label="Сообщение"></textarea>
+        <button type="submit" aria-label="Отправить">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12 14-7-4 14-3-5-7-2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </button>
+    </form>
+</section>
+
 <script src="{{ asset('js/admin-table.js') }}?v={{ $assetVersion('js/admin-table.js') }}" defer></script>
+<script src="{{ asset('js/admin-assistant.js') }}?v={{ $assetVersion('js/admin-assistant.js') }}" defer></script>
 <script>
 function admToggleSidebar() {
     document.getElementById('adm-sidebar')?.classList.toggle('open');
@@ -157,4 +178,3 @@ document.querySelectorAll('.adm-link').forEach(function (link) {
 @endif
 </body>
 </html>
-

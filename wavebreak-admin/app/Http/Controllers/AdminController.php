@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\CoreClient;
+use App\Services\AdminAssistant;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -10,7 +11,10 @@ use Illuminate\View\View;
 
 class AdminController extends Controller
 {
-    public function __construct(private readonly CoreClient $core)
+    public function __construct(
+        private readonly CoreClient $core,
+        private readonly AdminAssistant $assistant,
+    )
     {
     }
 
@@ -115,6 +119,66 @@ class AdminController extends Controller
     public function audit(Request $request): View|RedirectResponse
     {
         return $this->renderAdminPage($request, 'audit');
+    }
+
+    public function assistantMessage(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $token = $this->assistantToken($request);
+        if ($token === null) {
+            return response()->json(['error' => 'Сессия истекла. Войдите снова.'], 401);
+        }
+
+        $data = $request->validate(['message' => ['required', 'string', 'max:500']]);
+        try {
+            $reply = $this->assistant->reply($token, $data['message']);
+            if (isset($reply['confirmation']['action'])) {
+                $confirmationToken = (string) \Illuminate\Support\Str::uuid();
+                $request->session()->put("admin_assistant_actions.{$confirmationToken}", [
+                    'action' => $reply['confirmation']['action'],
+                    'expires_at' => now()->addMinutes(5)->timestamp,
+                ]);
+                unset($reply['confirmation']['action']);
+                $reply['confirmation']['token'] = $confirmationToken;
+            }
+            return response()->json($reply);
+        } catch (RequestException $e) {
+            return response()->json(['error' => 'Не удалось получить данные системы.'], $e->response->status() === 401 ? 401 : 502);
+        }
+    }
+
+    public function assistantConfirm(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $token = $this->assistantToken($request);
+        if ($token === null) {
+            return response()->json(['error' => 'Сессия истекла. Войдите снова.'], 401);
+        }
+
+        $data = $request->validate(['token' => ['required', 'uuid']]);
+        $key = "admin_assistant_actions.{$data['token']}";
+        $pending = $request->session()->pull($key);
+        if (! is_array($pending) || ($pending['expires_at'] ?? 0) < now()->timestamp) {
+            return response()->json(['error' => 'Подтверждение истекло. Повторите команду.'], 422);
+        }
+
+        try {
+            return response()->json($this->assistant->execute($token, $pending['action'] ?? []));
+        } catch (RequestException $e) {
+            return response()->json(['error' => $e->response->json('error') ?? 'Действие не выполнено.'], $e->response->status() === 401 ? 401 : 502);
+        }
+    }
+
+    private function assistantToken(Request $request): ?string
+    {
+        $token = $this->token($request);
+        if ($token === null) {
+            return null;
+        }
+        try {
+            $me = $this->core->me($token);
+            return in_array($me['role'] ?? 'user', ['admin', 'superadmin'], true) ? $token : null;
+        } catch (RequestException) {
+            return null;
+        }
     }
 
     private function renderAdminPage(Request $request, string $section): View|RedirectResponse
