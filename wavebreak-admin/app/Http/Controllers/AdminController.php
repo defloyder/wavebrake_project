@@ -73,6 +73,28 @@ class AdminController extends Controller
         return $this->renderAdminPage($request, 'traffic');
     }
 
+    // Polled every few seconds by the live-traffic widget (see
+    // dashboard.blade.php) — deliberately tiny (one number, not the whole
+    // per-subscription breakdown /traffic already loads) so polling it
+    // doesn't get heavier than the thing it's watching. The widget itself
+    // computes the delta between polls; this just reports the current
+    // cumulative total across every subscription right now.
+    public function trafficLive(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $token = $this->token($request);
+        if ($token === null) {
+            return response()->json(['error' => 'unauthenticated'], 401);
+        }
+        try {
+            $rows = $this->core->traffic($token);
+        } catch (RequestException $e) {
+            return response()->json(['error' => 'core unavailable'], $e->response->status() === 401 ? 401 : 502);
+        }
+        $totalBytes = array_sum(array_map(fn ($row) => $row['bytes_total'] ?? 0, $rows));
+
+        return response()->json(['total_bytes' => $totalBytes, 'timestamp' => now()->toIso8601String()]);
+    }
+
     public function audit(Request $request): View|RedirectResponse
     {
         return $this->renderAdminPage($request, 'audit');

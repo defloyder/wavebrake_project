@@ -111,3 +111,84 @@ window.admInitRangeChart = function admInitRangeChart(canvasId, raw, buildDatase
 
   return chart;
 };
+
+// Live traffic widget: polls /traffic/live every few seconds and plots the
+// delta since the previous poll — a rolling window, not history, so it
+// answers "is anything moving right now" rather than "what happened
+// today". Pause just stops the timer; the chart keeps whatever it already
+// drew, and Resume picks back up from a fresh baseline (no gap-filling —
+// simpler, and the gap itself is honest: nothing was sampled then).
+window.admInitLiveTraffic = function admInitLiveTraffic(canvasId, btnId) {
+  const el = document.getElementById(canvasId);
+  const btn = document.getElementById(btnId);
+  if (!el || !window.Chart) return null;
+
+  const maxPoints = 40;
+  const labels = [];
+  const data = [];
+  let lastTotal = null;
+  let timer = null;
+  let running = false;
+
+  const chart = new Chart(el, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'MB / интервал',
+        data,
+        borderColor: '#00D6FF',
+        backgroundColor: 'rgba(0,214,255,.12)',
+        fill: true,
+        tension: .3,
+        pointRadius: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: 'rgba(230,242,247,.55)', maxRotation: 0 }, grid: { color: 'rgba(230,242,247,.06)' } },
+        y: { ticks: { color: 'rgba(230,242,247,.55)' }, grid: { color: 'rgba(230,242,247,.06)' }, beginAtZero: true },
+      },
+    },
+  });
+
+  async function poll() {
+    try {
+      const res = await fetch('/traffic/live', { headers: { Accept: 'application/json' } });
+      if (!res.ok) return;
+      const json = await res.json();
+      const total = json.total_bytes || 0;
+      if (lastTotal !== null) {
+        const deltaMB = Math.max(0, total - lastTotal) / 1048576;
+        labels.push(new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        data.push(Number(deltaMB.toFixed(3)));
+        if (labels.length > maxPoints) { labels.shift(); data.shift(); }
+        chart.update();
+      }
+      lastTotal = total;
+    } catch (e) { /* transient network hiccup — next poll retries */ }
+  }
+
+  function start() {
+    running = true;
+    if (btn) btn.textContent = 'Пауза';
+    lastTotal = null; // fresh baseline so resuming doesn't show a fake spike for the paused gap
+    poll();
+    timer = setInterval(poll, 4000);
+  }
+
+  function stop() {
+    running = false;
+    if (btn) btn.textContent = 'Продолжить';
+    if (timer) clearInterval(timer);
+  }
+
+  btn?.addEventListener('click', () => (running ? stop() : start()));
+  start();
+
+  return { chart, stop };
+};

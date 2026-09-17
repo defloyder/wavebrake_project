@@ -21,6 +21,8 @@
         'audit' => 'Audit',
     ];
     $bytesGB = fn ($bytes) => number_format(($bytes ?? 0) / 1073741824, 2);
+    $userById = collect($users ?? [])->keyBy('id');
+    $userLabel = fn ($userId) => $userById->get($userId)['email'] ?? $userId;
 @endphp
 
 <div class="adm-dashboard-lite">
@@ -35,6 +37,19 @@
             <article class="adm-stat"><span>Users</span><strong>{{ $dashboard['users'] ?? count($users ?? []) }}</strong></article>
             <article class="adm-stat"><span>Active subs</span><strong>{{ $dashboard['active_subscriptions'] ?? count($subscriptions ?? []) }}</strong></article>
             <article class="adm-stat"><span>Nodes online</span><strong>{{ $dashboard['nodes_online'] ?? $onlineNodes }}</strong></article>
+        </section>
+
+        <section class="adm-card adm-chart-card">
+            <div class="adm-card-head adm-card-head--row">
+                <div>
+                    <h6>Трафик сейчас</h6>
+                    <p>Опрос раз в 4 секунды — сколько прошло с прошлого опроса.</p>
+                </div>
+                <button type="button" class="adm-btn" id="live-traffic-toggle-dash">Пауза</button>
+            </div>
+            <div class="adm-chart-wrap adm-chart-wrap--live">
+                <canvas id="chart-traffic-live-dash"></canvas>
+            </div>
         </section>
 
         <section class="adm-card adm-chart-card">
@@ -122,6 +137,7 @@
         @push('scripts')
         <script>
         document.addEventListener('DOMContentLoaded', () => {
+            window.admInitLiveTraffic('chart-traffic-live-dash', 'live-traffic-toggle-dash');
             const raw = @json($trafficHistory ?? []);
             window.admInitRangeChart('chart-traffic-overview', raw, (rows) => ({
                 datasets: [{
@@ -436,8 +452,8 @@
                     <thead><tr><th>User</th><th>Plan</th><th>Status</th><th>Source</th><th>Devices</th><th>Ends</th><th></th></tr></thead>
                     <tbody>
                     @forelse($subscriptions ?? [] as $subscription)
-                        <tr data-row data-search="{{ $subscription['user_id'] }} {{ $subscription['plan_id'] }} {{ $subscription['status'] }}">
-                            <td>{{ $subscription['user_id'] }}</td>
+                        <tr data-row data-search="{{ $userLabel($subscription['user_id']) }} {{ $subscription['plan_id'] }} {{ $subscription['status'] }}">
+                            <td>{{ $userLabel($subscription['user_id']) }}</td>
                             <td>{{ $subscription['plan_id'] }}</td>
                             <td><span class="node-chip {{ $subscription['status'] === 'active' ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ $subscription['status'] }}</span></td>
                             <td>{{ $subscription['source'] ?? '-' }}</td>
@@ -482,8 +498,8 @@
                     <thead><tr><th>User</th><th>Node</th><th>Protocol</th><th>Status</th><th>Revision</th><th></th></tr></thead>
                     <tbody>
                     @forelse($grants ?? [] as $grant)
-                        <tr data-row data-search="{{ $grant['user_id'] }} {{ $grant['node_id'] }} {{ $grant['protocol'] }} {{ $grant['status'] }}">
-                            <td>{{ $grant['user_id'] }}</td>
+                        <tr data-row data-search="{{ $userLabel($grant['user_id']) }} {{ $grant['node_id'] }} {{ $grant['protocol'] }} {{ $grant['status'] }}">
+                            <td>{{ $userLabel($grant['user_id']) }}</td>
                             <td>{{ $grant['node_id'] }}</td>
                             <td>{{ $grant['protocol'] }}</td>
                             <td><span class="node-chip {{ $grant['status'] === 'active' ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ $grant['status'] }}</span></td>
@@ -526,8 +542,8 @@
                     <thead><tr><th>User</th><th>Name</th><th>Platform</th><th>Status</th><th>Last seen</th><th></th></tr></thead>
                     <tbody>
                     @forelse($devices ?? [] as $device)
-                        <tr data-row data-search="{{ $device['user_id'] }} {{ $device['name'] }} {{ $device['platform'] ?? '' }}">
-                            <td>{{ $device['user_id'] }}</td>
+                        <tr data-row data-search="{{ $userLabel($device['user_id']) }} {{ $device['name'] }} {{ $device['platform'] ?? '' }}">
+                            <td>{{ $userLabel($device['user_id']) }}</td>
                             <td>{{ $device['name'] }}</td>
                             <td>{{ $device['platform'] ?? '-' }}</td>
                             <td><span class="node-chip {{ empty($device['revoked_at']) ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ empty($device['revoked_at']) ? 'active' : 'revoked' }}</span></td>
@@ -554,6 +570,19 @@
         <section class="adm-card adm-chart-card">
             <div class="adm-card-head adm-card-head--row">
                 <div>
+                    <h6>Трафик сейчас</h6>
+                    <p>Опрос раз в 4 секунды — сколько прошло с прошлого опроса, а не история за день.</p>
+                </div>
+                <button type="button" class="adm-btn" id="live-traffic-toggle">Пауза</button>
+            </div>
+            <div class="adm-chart-wrap adm-chart-wrap--live">
+                <canvas id="chart-traffic-live"></canvas>
+            </div>
+        </section>
+
+        <section class="adm-card adm-chart-card">
+            <div class="adm-card-head adm-card-head--row">
+                <div>
                     <h6>Трафик</h6>
                     <p>Сумма bytes_up + bytes_down по всем подпискам за сутки — здесь видна просадка.</p>
                 </div>
@@ -574,6 +603,14 @@
             </div>
         </section>
 
+        @push('scripts')
+        <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            window.admInitLiveTraffic('chart-traffic-live', 'live-traffic-toggle');
+        });
+        </script>
+        @endpush
+
         <section class="adm-card">
             <div class="adm-card-head">
                 <div>
@@ -592,8 +629,8 @@
                     <thead><tr><th>User</th><th>Subscription</th><th>Status</th><th>Used</th><th>Limit</th></tr></thead>
                     <tbody>
                     @forelse($traffic ?? [] as $row)
-                        <tr data-row data-search="{{ $row['user_id'] }} {{ $row['subscription_id'] }} {{ $row['status'] }}">
-                            <td>{{ $row['user_id'] }}</td>
+                        <tr data-row data-search="{{ $userLabel($row['user_id']) }} {{ $row['subscription_id'] }} {{ $row['status'] }}">
+                            <td>{{ $userLabel($row['user_id']) }}</td>
                             <td>{{ $row['subscription_id'] }}</td>
                             <td>{{ $row['status'] }}</td>
                             <td class="num-cell" data-sort="{{ $row['bytes_total'] ?? 0 }}">{{ $bytesGB($row['bytes_total'] ?? 0) }} GB</td>
