@@ -327,6 +327,12 @@ h1, h2, h3, h4, h5, h6, p { margin: 0; }
 }
 .adm-input:focus, .adm-compact-select:focus { border-color: var(--wave-cyan); box-shadow: 0 0 0 3px rgba(0, 214, 255, .18); }
 
+.adm-compact-select option,
+.adm-role-select option {
+    background: var(--deep-ocean);
+    color: var(--ice);
+}
+
 .adm-btn {
     display: inline-flex;
     align-items: center;
@@ -349,7 +355,10 @@ h1, h2, h3, h4, h5, h6, p { margin: 0; }
     color: var(--midnight);
     box-shadow: 0 10px 28px rgba(0, 214, 255, .28);
 }
-.adm-btn-primary:hover { box-shadow: 0 14px 36px rgba(0, 214, 255, .4); }
+.adm-btn-primary:hover {
+    background: linear-gradient(135deg, #5ce0ff, var(--wave-cyan) 55%, var(--ocean-teal));
+    box-shadow: 0 14px 36px rgba(0, 214, 255, .4);
+}
 
 .adm-inline-form { display: inline-flex; }
 .adm-link-button {

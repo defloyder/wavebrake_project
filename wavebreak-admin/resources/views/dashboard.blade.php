@@ -42,19 +42,6 @@
         <section class="adm-card adm-chart-card">
             <div class="adm-card-head adm-card-head--row">
                 <div>
-                    <h6>Трафик сейчас</h6>
-                    <p>Опрос раз в 4 секунды — сколько прошло с прошлого опроса.</p>
-                </div>
-                <button type="button" class="adm-btn" id="live-traffic-toggle-dash">Пауза</button>
-            </div>
-            <div class="adm-chart-wrap adm-chart-wrap--live">
-                <canvas id="chart-traffic-live-dash"></canvas>
-            </div>
-        </section>
-
-        <section class="adm-card adm-chart-card">
-            <div class="adm-card-head adm-card-head--row">
-                <div>
                     <h6>Трафик</h6>
                     <p>Суммарно по всем подпискам, up + down, за сутки.</p>
                 </div>
@@ -137,7 +124,6 @@
         @push('scripts')
         <script>
         document.addEventListener('DOMContentLoaded', () => {
-            window.admInitLiveTraffic('chart-traffic-live-dash', 'live-traffic-toggle-dash');
             const raw = @json($trafficHistory ?? []);
             window.admInitRangeChart('chart-traffic-overview', raw, (rows) => ({
                 datasets: [{
@@ -573,9 +559,10 @@
                     <h6>Трафик сейчас</h6>
                     <p>Опрос раз в 4 секунды — сколько прошло с прошлого опроса, а не история за день.</p>
                 </div>
-                <button type="button" class="adm-btn" id="live-traffic-toggle">Пауза</button>
+                <button type="button" class="adm-btn adm-btn-primary" id="live-traffic-reveal">Показать live-трафик</button>
+                <button type="button" class="adm-btn" id="live-traffic-toggle" hidden>Пауза</button>
             </div>
-            <div class="adm-chart-wrap adm-chart-wrap--live">
+            <div class="adm-chart-wrap adm-chart-wrap--live" id="live-traffic-wrap" hidden>
                 <canvas id="chart-traffic-live"></canvas>
             </div>
         </section>
@@ -606,7 +593,12 @@
         @push('scripts')
         <script>
         document.addEventListener('DOMContentLoaded', () => {
-            window.admInitLiveTraffic('chart-traffic-live', 'live-traffic-toggle');
+            document.getElementById('live-traffic-reveal')?.addEventListener('click', (e) => {
+                e.target.hidden = true;
+                document.getElementById('live-traffic-toggle').hidden = false;
+                document.getElementById('live-traffic-wrap').hidden = false;
+                window.admInitLiveTraffic('chart-traffic-live', 'live-traffic-toggle');
+            }, { once: true });
         });
         </script>
         @endpush
