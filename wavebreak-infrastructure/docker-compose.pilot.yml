@@ -233,7 +233,9 @@ services:
       WAVEBREAK_HYSTERIA_MASQUERADE_URL: ${WAVEBREAK_HYSTERIA_MASQUERADE_URL:-https://www.bing.com}
       WAVEBREAK_HYSTERIA_STATS_PORT: ${WAVEBREAK_HYSTERIA_STATS_PORT:-19998}
       WAVEBREAK_NODE_USAGE_INTERVAL: ${WAVEBREAK_NODE_USAGE_INTERVAL:-60s}
-      WAVEBREAK_XRAY_DIRECT_TLS_LISTEN_PORT: ${WAVEBREAK_DIRECT_TLS_PORT:-0}
+      # The public Direct TLS port can stay on 443 while edge nginx routes
+      # that SNI to this private host-network listener.
+      WAVEBREAK_XRAY_DIRECT_TLS_LISTEN_PORT: ${WAVEBREAK_DIRECT_TLS_INTERNAL_PORT:-18444}
       WAVEBREAK_XRAY_DIRECT_TLS_WS_PATH: ${WAVEBREAK_DIRECT_TLS_PATH:-/wvb-dt}
       WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH: ${WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH:-}
       WAVEBREAK_XRAY_DIRECT_TLS_KEY_PATH: ${WAVEBREAK_XRAY_DIRECT_TLS_KEY_PATH:-}
@@ -285,6 +287,22 @@ services:
     command: ["server", "-c", "/etc/wavebreak/xray/hysteria.yaml"]
     volumes:
       - wavebreak_xray_config:/etc/wavebreak/xray
+
+  wavebreak-edge:
+    image: nginx:alpine
+    container_name: wavebreak-pilot-public-http
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./nginx/pilot-public-http.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/proxy_params:/etc/nginx/proxy_params:ro
+      - ${WAVEBREAK_ACME_WEBROOT:-./runtime/acme-webroot}:/var/www/acme:ro
+      - ${WAVEBREAK_LETSENCRYPT_DIR:-./runtime/letsencrypt}:/etc/letsencrypt:ro
+    depends_on:
+      wavebreak-web:
+        condition: service_healthy
+      wavebreak-admin:
+        condition: service_healthy
 
 volumes:
   wavebreak_postgres:
