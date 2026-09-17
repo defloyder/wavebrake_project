@@ -183,8 +183,18 @@ services:
     build:
       context: ../wavebreak-node
     restart: unless-stopped
+    # host networking so the usage-reporting loop can reach Hysteria2's
+    # traffic-stats endpoint on its own 127.0.0.1 (Hysteria itself also runs
+    # network_mode: host — see the comment on wavebreak-hysteria below).
+    # Xray's stats are read via `docker exec` instead, so they don't need
+    # this, but Hysteria2 has no exec-friendly CLI for it.
+    network_mode: host
     environment:
-      WAVEBREAK_CORE_URL: http://wavebreak-api:8080
+      # With network_mode: host this container shares the VPS's own network
+      # stack, not the compose bridge network, so it can no longer resolve
+      # other services by container name — reach the API via the same
+      # host-published port everything outside Docker uses.
+      WAVEBREAK_CORE_URL: http://127.0.0.1:${WAVEBREAK_API_PORT:-18080}
       WAVEBREAK_NODE_ENROLLMENT_TOKEN: ${WAVEBREAK_NODE_ENROLLMENT_TOKEN}
       WAVEBREAK_NODE_CODE: ${WAVEBREAK_NODE_CODE:-NL-PILOT-01}
       WAVEBREAK_NODE_REGION: ${WAVEBREAK_NODE_REGION:-NL}
@@ -204,6 +214,7 @@ services:
       WAVEBREAK_XRAY_SS_PORT: ${WAVEBREAK_XRAY_SS_PORT:-0}
       WAVEBREAK_XRAY_SS_METHOD: ${WAVEBREAK_SS_METHOD:-aes-256-gcm}
       WAVEBREAK_XRAY_DOCKER_CONTAINER: wavebreak-pilot-xray
+      WAVEBREAK_XRAY_STATS_API_PORT: ${WAVEBREAK_XRAY_STATS_API_PORT:-19999}
       WAVEBREAK_XRAY_CDN_LISTEN_PORT: ${WAVEBREAK_VLESS_CDN_PORT:-0}
       WAVEBREAK_XRAY_CDN_WS_PATH: ${WAVEBREAK_VLESS_CDN_WS_PATH:-/wvb-ws}
       WAVEBREAK_XRAY_CDN_TLS_CERT_PATH: ${WAVEBREAK_XRAY_CDN_TLS_CERT_PATH:-}
@@ -220,6 +231,8 @@ services:
       WAVEBREAK_HYSTERIA_TLS_KEY_PATH: ${WAVEBREAK_HYSTERIA_TLS_KEY_PATH:-/etc/wavebreak/xray/hy-key.pem}
       WAVEBREAK_HYSTERIA_DOCKER_CONTAINER: wavebreak-pilot-hysteria
       WAVEBREAK_HYSTERIA_MASQUERADE_URL: ${WAVEBREAK_HYSTERIA_MASQUERADE_URL:-https://www.bing.com}
+      WAVEBREAK_HYSTERIA_STATS_PORT: ${WAVEBREAK_HYSTERIA_STATS_PORT:-19998}
+      WAVEBREAK_NODE_USAGE_INTERVAL: ${WAVEBREAK_NODE_USAGE_INTERVAL:-60s}
       WAVEBREAK_XRAY_DIRECT_TLS_LISTEN_PORT: ${WAVEBREAK_DIRECT_TLS_PORT:-0}
       WAVEBREAK_XRAY_DIRECT_TLS_WS_PATH: ${WAVEBREAK_DIRECT_TLS_PATH:-/wvb-dt}
       WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH: ${WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH:-}

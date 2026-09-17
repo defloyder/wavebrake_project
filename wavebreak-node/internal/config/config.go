@@ -15,6 +15,7 @@ type Config struct {
 	Region            string
 	HeartbeatInterval time.Duration
 	SyncInterval      time.Duration
+	UsageInterval     time.Duration
 	RuntimeAdapter    string
 	Xray              XrayConfig
 }
@@ -82,6 +83,17 @@ type XrayConfig struct {
 	HysteriaTLSKeyPath      string
 	HysteriaDockerContainer string
 	HysteriaMasqueradeURL   string
+	// HysteriaStatsPort, when set, binds Hysteria2's built-in per-user
+	// traffic-stats HTTP endpoint to 127.0.0.1:<port> so the agent's usage
+	// reporting loop can poll it directly (wavebreak-node runs with
+	// network_mode: host specifically so that loopback reaches it).
+	HysteriaStatsPort int
+	// StatsAPIPort, when set, enables Xray's own StatsService (gRPC) on
+	// 127.0.0.1:<port> inside the xray container. The agent can't dial gRPC
+	// directly without pulling in xray-core as a Go dependency, so it shells
+	// out via the same docker.sock exec path Apply already uses, running the
+	// `xray` binary's own `api statsquery` CLI inside that container.
+	StatsAPIPort int
 }
 
 func Load() Config {
@@ -94,6 +106,7 @@ func Load() Config {
 		Region:            env("WAVEBREAK_NODE_REGION", "TR"),
 		HeartbeatInterval: durationEnv("WAVEBREAK_NODE_HEARTBEAT_INTERVAL", 30*time.Second),
 		SyncInterval:      durationEnv("WAVEBREAK_NODE_SYNC_INTERVAL", 20*time.Second),
+		UsageInterval:     durationEnv("WAVEBREAK_NODE_USAGE_INTERVAL", 60*time.Second),
 		RuntimeAdapter:    env("WAVEBREAK_RUNTIME_ADAPTER", "noop"),
 		Xray: XrayConfig{
 			ConfigPath:              env("WAVEBREAK_XRAY_CONFIG_PATH", "/etc/wavebreak/xray/config.json"),
@@ -123,6 +136,8 @@ func Load() Config {
 			HysteriaTLSKeyPath:      env("WAVEBREAK_HYSTERIA_TLS_KEY_PATH", ""),
 			HysteriaDockerContainer: env("WAVEBREAK_HYSTERIA_DOCKER_CONTAINER", ""),
 			HysteriaMasqueradeURL:   env("WAVEBREAK_HYSTERIA_MASQUERADE_URL", "https://www.bing.com"),
+			HysteriaStatsPort:       intEnv("WAVEBREAK_HYSTERIA_STATS_PORT", 0),
+			StatsAPIPort:            intEnv("WAVEBREAK_XRAY_STATS_API_PORT", 0),
 			DirectTLSListenPort:     intEnv("WAVEBREAK_XRAY_DIRECT_TLS_LISTEN_PORT", 0),
 			DirectTLSWSPath:         env("WAVEBREAK_XRAY_DIRECT_TLS_WS_PATH", "/wvb-dt"),
 			DirectTLSCertPath:       env("WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH", ""),

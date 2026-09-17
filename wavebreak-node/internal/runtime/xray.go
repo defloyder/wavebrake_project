@@ -3,12 +3,15 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -399,6 +402,54 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			},
 		})
 	}
+	routingRules := []map[string]any{
+		{
+			"type":        "field",
+			"ip":          []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "fc00::/7"},
+			"outboundTag": "blocked",
+		},
+	}
+	outbounds := []map[string]any{
+		{
+			"tag":      "direct",
+			"protocol": "freedom",
+			"settings": map[string]any{},
+			"sockopt": map[string]any{
+				"domainStrategy": "UseIPv4",
+				"tcpMaxSeg":      1200,
+				"tcpFastOpen":    true,
+			},
+		},
+		{"protocol": "blackhole", "tag": "blocked"},
+	}
+	var api map[string]any
+	var stats map[string]any
+	// Per-user uplink/downlink counters (enabled below via policy) are
+	// tracked inside Xray whether or not anything queries them. Without this
+	// inbound+api+stats trio there is no way to read them back out — the
+	// admin's traffic chart stayed empty because nothing on the node side
+	// ever reported usage to Core, and this is the piece that makes the
+	// numbers reachable in the first place. Queried via `xray api
+	// statsquery` run inside the container (see QueryUsage) rather than a
+	// direct gRPC dial, so the agent doesn't need xray-core as a Go
+	// dependency just for one CLI-shaped call.
+	if a.cfg.StatsAPIPort > 0 {
+		inbounds = append(inbounds, map[string]any{
+			"tag":      "api",
+			"listen":   "127.0.0.1",
+			"port":     a.cfg.StatsAPIPort,
+			"protocol": "dokodemo-door",
+			"settings": map[string]any{"address": "127.0.0.1"},
+		})
+		routingRules = append([]map[string]any{{
+			"type":        "field",
+			"inboundTag":  []string{"api"},
+			"outboundTag": "api",
+		}}, routingRules...)
+		outbounds = append(outbounds, map[string]any{"tag": "api", "protocol": "freedom", "settings": map[string]any{}})
+		api = map[string]any{"tag": "api", "services": []string{"StatsService"}}
+		stats = map[string]any{}
+	}
 	rendered := map[string]any{
 		"log":      map[string]any{"loglevel": "warning"},
 		"inbounds": inbounds,
@@ -412,13 +463,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 		},
 		"routing": map[string]any{
 			"domainStrategy": "IPIfNonMatch",
-			"rules": []map[string]any{
-				{
-					"type":        "field",
-					"ip":          []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "fc00::/7"},
-					"outboundTag": "blocked",
-				},
-			},
+			"rules":          routingRules,
 		},
 		"policy": map[string]any{
 			"levels": map[string]any{
@@ -432,19 +477,11 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				},
 			},
 		},
-		"outbounds": []map[string]any{
-			{
-				"tag":      "direct",
-				"protocol": "freedom",
-				"settings": map[string]any{},
-				"sockopt": map[string]any{
-					"domainStrategy": "UseIPv4",
-					"tcpMaxSeg":      1200,
-					"tcpFastOpen":    true,
-				},
-			},
-			{"protocol": "blackhole", "tag": "blocked"},
-		},
+		"outbounds": outbounds,
+	}
+	if api != nil {
+		rendered["api"] = api
+		rendered["stats"] = stats
 	}
 	return json.MarshalIndent(rendered, "", "  ")
 }
@@ -494,6 +531,10 @@ func (a XrayAdapter) applyHysteria(ctx context.Context) error {
 	if masqueradeURL == "" {
 		masqueradeURL = "https://www.bing.com"
 	}
+	var trafficStats string
+	if a.cfg.HysteriaStatsPort > 0 {
+		trafficStats = fmt.Sprintf("trafficStats:\n  listen: 127.0.0.1:%d\n", a.cfg.HysteriaStatsPort)
+	}
 	yaml := fmt.Sprintf(`listen: :%d
 tls:
   cert: %q
@@ -521,7 +562,7 @@ auth:
   proxy:
     url: %q
     rewriteHost: true
-`, a.cfg.HysteriaListenPort, a.cfg.HysteriaTLSCertPath, a.cfg.HysteriaTLSKeyPath, userpass.String(), masqueradeURL)
+%s`, a.cfg.HysteriaListenPort, a.cfg.HysteriaTLSCertPath, a.cfg.HysteriaTLSKeyPath, userpass.String(), masqueradeURL, trafficStats)
 
 	if err := os.MkdirAll(filepath.Dir(a.cfg.HysteriaConfigPath), 0o755); err != nil {
 		return err
@@ -555,24 +596,240 @@ func (a XrayAdapter) restartDockerContainer(ctx context.Context) error {
 }
 
 func (a XrayAdapter) restartNamedDockerContainer(ctx context.Context, name string) error {
-	transport := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return (&net.Dialer{}).DialContext(ctx, "unix", a.cfg.DockerSocket)
-		},
-	}
-	client := &http.Client{Transport: transport, Timeout: 15 * time.Second}
-	path := "/containers/" + strings.TrimSpace(name) + "/restart?t=5"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://docker"+path, bytes.NewReader(nil))
-	if err != nil {
-		return err
-	}
-	resp, err := client.Do(req)
+	resp, err := a.dockerRequest(ctx, http.MethodPost, "/containers/"+strings.TrimSpace(name)+"/restart?t=5", nil)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return fmt.Errorf("restart %s container returned status %d", name, resp.StatusCode)
+	}
+	return nil
+}
+
+func (a XrayAdapter) dockerClient() *http.Client {
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", a.cfg.DockerSocket)
+		},
+	}
+	return &http.Client{Transport: transport, Timeout: 15 * time.Second}
+}
+
+func (a XrayAdapter) dockerRequest(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, "http://docker"+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return a.dockerClient().Do(req)
+}
+
+// dockerExec runs cmd inside the named container via the Docker Engine
+// API's exec create+start calls (the same /var/run/docker.sock the agent
+// already mounts for restarts) and returns its combined stdout, so the
+// agent can shell out to a container-local CLI tool — `xray api
+// statsquery` here — without needing that tool's own client library as a
+// Go dependency.
+func (a XrayAdapter) dockerExec(ctx context.Context, container string, cmd []string) (string, error) {
+	createBody, err := json.Marshal(map[string]any{
+		"AttachStdout": true,
+		"AttachStderr": true,
+		"Cmd":          cmd,
+	})
+	if err != nil {
+		return "", err
+	}
+	createResp, err := a.dockerRequest(ctx, http.MethodPost, "/containers/"+strings.TrimSpace(container)+"/exec", createBody)
+	if err != nil {
+		return "", err
+	}
+	defer createResp.Body.Close()
+	if createResp.StatusCode < 200 || createResp.StatusCode > 299 {
+		return "", fmt.Errorf("create exec in %s returned status %d", container, createResp.StatusCode)
+	}
+	var created struct {
+		ID string `json:"Id"`
+	}
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		return "", err
+	}
+
+	startBody, err := json.Marshal(map[string]any{"Detach": false, "Tty": false})
+	if err != nil {
+		return "", err
+	}
+	startResp, err := a.dockerRequest(ctx, http.MethodPost, "/exec/"+created.ID+"/start", startBody)
+	if err != nil {
+		return "", err
+	}
+	defer startResp.Body.Close()
+	if startResp.StatusCode < 200 || startResp.StatusCode > 299 {
+		return "", fmt.Errorf("start exec in %s returned status %d", container, startResp.StatusCode)
+	}
+	stdout, _, err := demuxDockerStream(startResp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	inspectResp, err := a.dockerRequest(ctx, http.MethodGet, "/exec/"+created.ID+"/json", nil)
+	if err != nil {
+		return stdout, err
+	}
+	defer inspectResp.Body.Close()
+	var inspected struct {
+		ExitCode int `json:"ExitCode"`
+	}
+	if err := json.NewDecoder(inspectResp.Body).Decode(&inspected); err == nil && inspected.ExitCode != 0 {
+		return stdout, fmt.Errorf("exec %v in %s exited %d", cmd, container, inspected.ExitCode)
+	}
+	return stdout, nil
+}
+
+// demuxDockerStream splits a non-Tty docker exec/attach stream into its
+// stdout/stderr framing: each frame is an 8-byte header (1 byte stream
+// type, 3 reserved, 4-byte big-endian payload length) followed by that
+// many bytes of payload.
+func demuxDockerStream(r io.Reader) (stdout, stderr string, err error) {
+	var outBuf, errBuf bytes.Buffer
+	header := make([]byte, 8)
+	for {
+		if _, err := io.ReadFull(r, header); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return outBuf.String(), errBuf.String(), err
+		}
+		size := binary.BigEndian.Uint32(header[4:8])
+		payload := make([]byte, size)
+		if _, err := io.ReadFull(r, payload); err != nil {
+			return outBuf.String(), errBuf.String(), err
+		}
+		if header[0] == 2 {
+			errBuf.Write(payload)
+		} else {
+			outBuf.Write(payload)
+		}
+	}
+	return outBuf.String(), errBuf.String(), nil
+}
+
+// QueryUsage reads back cumulative per-grant traffic from whichever
+// transports are enabled: Xray's counters via `xray api statsquery` run
+// inside its container, Hysteria2's via its own traffic-stats HTTP
+// endpoint. A grant active on both (the pilot's normal case — one grant,
+// several transport links) gets its counters summed across the two.
+func (a XrayAdapter) QueryUsage(ctx context.Context) ([]GrantUsage, error) {
+	var users []hysteriaUser
+	if a.hyUsers != nil {
+		users = *a.hyUsers
+	}
+	if len(users) == 0 {
+		return nil, nil
+	}
+	emailToGrant := make(map[string]string, len(users))
+	totals := make(map[string]*GrantUsage, len(users))
+	for _, u := range users {
+		emailToGrant[u.Email] = u.ID
+		totals[u.ID] = &GrantUsage{GrantID: u.ID}
+	}
+
+	var firstErr error
+	if a.cfg.StatsAPIPort > 0 && strings.TrimSpace(a.cfg.DockerContainer) != "" {
+		if err := a.addXrayUsage(ctx, emailToGrant, totals); err != nil {
+			firstErr = fmt.Errorf("query xray usage: %w", err)
+		}
+	}
+	if a.cfg.HysteriaListenPort > 0 && a.cfg.HysteriaStatsPort > 0 {
+		if err := a.addHysteriaUsage(ctx, totals); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("query hysteria usage: %w", err)
+		}
+	}
+
+	result := make([]GrantUsage, 0, len(totals))
+	for _, usage := range totals {
+		result = append(result, *usage)
+	}
+	return result, firstErr
+}
+
+type xrayStatEntry struct {
+	Name  string `json:"name"`
+	Value int64  `json:"value"`
+}
+
+func (a XrayAdapter) addXrayUsage(ctx context.Context, emailToGrant map[string]string, totals map[string]*GrantUsage) error {
+	out, err := a.dockerExec(ctx, a.cfg.DockerContainer, []string{
+		"xray", "api", "statsquery",
+		"--server=127.0.0.1:" + strconv.Itoa(a.cfg.StatsAPIPort),
+		"-json", "-pattern", "user>>>",
+	})
+	if err != nil {
+		return err
+	}
+	var parsed struct {
+		Stat []xrayStatEntry `json:"stat"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		return fmt.Errorf("decode statsquery output: %w", err)
+	}
+	// Each counter name looks like "user>>>{email}>>>traffic>>>uplink".
+	for _, stat := range parsed.Stat {
+		parts := strings.Split(stat.Name, ">>>")
+		if len(parts) != 4 || parts[0] != "user" || parts[2] != "traffic" {
+			continue
+		}
+		grantID, ok := emailToGrant[parts[1]]
+		if !ok {
+			continue
+		}
+		usage := totals[grantID]
+		if usage == nil {
+			continue
+		}
+		switch parts[3] {
+		case "uplink":
+			usage.BytesUp += stat.Value
+		case "downlink":
+			usage.BytesDown += stat.Value
+		}
+	}
+	return nil
+}
+
+func (a XrayAdapter) addHysteriaUsage(ctx context.Context, totals map[string]*GrantUsage) error {
+	url := fmt.Sprintf("http://127.0.0.1:%d/traffic", a.cfg.HysteriaStatsPort)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("hysteria traffic-stats returned status %d", resp.StatusCode)
+	}
+	var parsed map[string]struct {
+		Tx int64 `json:"tx"`
+		Rx int64 `json:"rx"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return fmt.Errorf("decode traffic-stats: %w", err)
+	}
+	// Hysteria2's userpass auth string is the grant ID itself (see
+	// applyHysteria), so these keys are already grant IDs — no email
+	// lookup needed here, unlike the Xray side.
+	for grantID, counters := range parsed {
+		usage := totals[grantID]
+		if usage == nil {
+			continue
+		}
+		usage.BytesUp += counters.Rx
+		usage.BytesDown += counters.Tx
 	}
 	return nil
 }

@@ -22,6 +22,7 @@ type Agent struct {
 	log             *slog.Logger
 	client          *http.Client
 	adapter         wbruntime.RuntimeAdapter
+	usageReporter   wbruntime.UsageReporter
 	nodeID          string
 	nodeToken       string
 	appliedRevision int
@@ -50,7 +51,7 @@ func New(cfg config.Config, log *slog.Logger) *Agent {
 	if strings.EqualFold(cfg.RuntimeAdapter, "xray") {
 		runtimeAdapter = wbruntime.NewXrayAdapter(cfg.Xray)
 	}
-	return &Agent{
+	agent := &Agent{
 		cfg: cfg,
 		log: log,
 		client: &http.Client{
@@ -58,6 +59,10 @@ func New(cfg config.Config, log *slog.Logger) *Agent {
 		},
 		adapter: runtimeAdapter,
 	}
+	if reporter, ok := runtimeAdapter.(wbruntime.UsageReporter); ok {
+		agent.usageReporter = reporter
+	}
+	return agent
 }
 
 func (a *Agent) Run(ctx context.Context) error {
@@ -85,6 +90,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	defer heartbeatTicker.Stop()
 	syncTicker := time.NewTicker(a.cfg.SyncInterval)
 	defer syncTicker.Stop()
+	var usageTickerC <-chan time.Time
+	if a.usageReporter != nil {
+		usageTicker := time.NewTicker(a.cfg.UsageInterval)
+		defer usageTicker.Stop()
+		usageTickerC = usageTicker.C
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -96,6 +107,10 @@ func (a *Agent) Run(ctx context.Context) error {
 		case <-syncTicker.C:
 			if err := a.Sync(ctx); err != nil {
 				a.log.WarnContext(ctx, "desired state sync failed", "error", err)
+			}
+		case <-usageTickerC:
+			if err := a.ReportUsage(ctx); err != nil {
+				a.log.WarnContext(ctx, "usage report failed", "error", err)
 			}
 		}
 	}
@@ -143,6 +158,36 @@ func (a *Agent) Heartbeat(ctx context.Context) error {
 	a.nodeID = node.ID
 	a.log.InfoContext(ctx, "heartbeat acknowledged", "node_id", node.ID, "status", node.Status)
 	return nil
+}
+
+// ReportUsage reads current cumulative per-grant traffic from the runtime
+// and posts each grant's totals to Core, which tracks the last-seen total
+// itself and derives the delta (see wavebreak-core's
+// RecordNodeUsageReport) — so this always sends raw running totals, never
+// something the agent itself has to diff.
+func (a *Agent) ReportUsage(ctx context.Context) error {
+	if a.usageReporter == nil {
+		return nil
+	}
+	usage, err := a.usageReporter.QueryUsage(ctx)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	var reportErr error
+	for _, grant := range usage {
+		payload := map[string]any{
+			"grant_id":         grant.GrantID,
+			"bytes_up_total":   grant.BytesUp,
+			"bytes_down_total": grant.BytesDown,
+			"timestamp":        now,
+		}
+		if err := a.postWithToken(ctx, "/v1/node/usage", a.nodeToken, payload, &map[string]any{}); err != nil {
+			a.log.WarnContext(ctx, "usage report failed for grant", "grant_id", grant.GrantID, "error", err)
+			reportErr = err
+		}
+	}
+	return reportErr
 }
 
 func (a *Agent) Sync(ctx context.Context) error {
