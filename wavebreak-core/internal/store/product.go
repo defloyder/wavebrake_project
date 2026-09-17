@@ -798,6 +798,64 @@ func (s *Store) ListUsers(ctx context.Context) ([]AdminUser, error) {
 	return users, rows.Err()
 }
 
+func (s *Store) AdminUpdateUserRole(ctx context.Context, userID, role string) (AdminUser, error) {
+	var u AdminUser
+	err := s.db.QueryRow(ctx, `
+		update users
+		set role = $2, updated_at = now()
+		where id = $1 and deleted_at is null
+		returning id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at`,
+		userID, role,
+	).Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AdminUser{}, ErrNotFound
+	}
+	return u, err
+}
+
+func (s *Store) AdminSetUserDisabled(ctx context.Context, userID string, disabled bool) (AdminUser, error) {
+	var u AdminUser
+	err := s.db.QueryRow(ctx, `
+		update users
+		set disabled_at = case when $2 then now() else null end, updated_at = now()
+		where id = $1 and deleted_at is null
+		returning id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at`,
+		userID, disabled,
+	).Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AdminUser{}, ErrNotFound
+	}
+	return u, err
+}
+
+type TrafficDay struct {
+	Date      time.Time `json:"date"`
+	BytesUp   int64     `json:"bytes_up"`
+	BytesDown int64     `json:"bytes_down"`
+}
+
+func (s *Store) AdminTrafficHistory(ctx context.Context, days int) ([]TrafficDay, error) {
+	rows, err := s.db.Query(ctx, `
+		select usage_date::timestamptz, coalesce(sum(bytes_up), 0), coalesce(sum(bytes_down), 0)
+		from subscription_usage_daily
+		where usage_date >= current_date - ($1::int - 1)
+		group by usage_date
+		order by usage_date`, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var history []TrafficDay
+	for rows.Next() {
+		var d TrafficDay
+		if err := rows.Scan(&d.Date, &d.BytesUp, &d.BytesDown); err != nil {
+			return nil, err
+		}
+		history = append(history, d)
+	}
+	return history, rows.Err()
+}
+
 func (s *Store) ListAllPlans(ctx context.Context) ([]Plan, error) {
 	rows, err := s.db.Query(ctx, `
 		select id::text, code, name, description, price_cents, price_minor, currency, interval, duration_days,

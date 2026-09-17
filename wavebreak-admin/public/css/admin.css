@@ -373,6 +373,34 @@ h1, h2, h3, h4, h5, h6, p { margin: 0; }
 
 /* ---- Tables ------------------------------------------------------------------------------ */
 
+.adm-table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.adm-table-search {
+    position: relative;
+    flex: 1 1 240px;
+    max-width: 320px;
+}
+.adm-table-search input {
+    width: 100%;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--ice-14);
+    background: rgba(230, 242, 247, .04);
+    padding: 0 13px;
+    color: var(--ice);
+    font-size: 13px;
+    outline: none;
+}
+.adm-table-search input:focus { border-color: var(--wave-cyan); box-shadow: 0 0 0 3px rgba(0, 214, 255, .18); }
+.adm-table-search input::placeholder { color: var(--ice-30); }
+.adm-table-count { font-size: 12px; color: var(--ice-55); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
 .adm-table-wrap { overflow-x: auto; }
 .adm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .adm-table th {
@@ -386,10 +414,80 @@ h1, h2, h3, h4, h5, h6, p { margin: 0; }
     border-bottom: 1px solid var(--ice-08);
     white-space: nowrap;
 }
+.adm-table th.is-sortable { cursor: pointer; -webkit-user-select: none; user-select: none; }
+.adm-table th.is-sortable:hover { color: var(--ice); }
+.adm-table th.is-sortable::after { content: "\2195"; margin-left: 5px; opacity: .35; }
+.adm-table th.sort-asc::after { content: "\2191"; opacity: 1; color: var(--wave-cyan); }
+.adm-table th.sort-desc::after { content: "\2193"; opacity: 1; color: var(--wave-cyan); }
 .adm-table td { padding: 11px 12px; border-bottom: 1px solid var(--ice-08); color: var(--ice-70); }
 .adm-table tbody tr:last-child td { border-bottom: none; }
 .adm-table tbody tr:hover { background: rgba(230, 242, 247, .03); }
+.adm-table tbody tr[hidden] { display: none; }
 .adm-table .date-cell { color: var(--ice-55); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.adm-table .num-cell { font-variant-numeric: tabular-nums; text-align: right; }
+
+/* ---- Role chip / select --------------------------------------------------------------- */
+
+.adm-role-select {
+    height: 32px;
+    border-radius: 999px;
+    border: 1px solid var(--ice-14);
+    background: rgba(230, 242, 247, .05);
+    color: var(--ice);
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* ---- Chart ------------------------------------------------------------------------------- */
+
+.adm-chart-card { padding: 20px 22px 14px; }
+.adm-chart-wrap { position: relative; height: 260px; }
+.adm-chart-empty { color: var(--ice-55); font-size: 13.5px; padding: 30px 0; text-align: center; }
+
+/* ---- Modal ------------------------------------------------------------------------------- */
+
+.adm-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(3, 8, 18, .68);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.adm-modal-backdrop.open { display: flex; }
+.adm-modal {
+    width: 100%;
+    max-width: 480px;
+    max-height: 88vh;
+    overflow-y: auto;
+    background: var(--deep-ocean);
+    border: 1px solid var(--ice-14);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-card);
+}
+.adm-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.adm-modal-head h6 { font-size: 16px; font-weight: 600; color: #fff; }
+.adm-modal-close {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid var(--ice-14); background: transparent; color: var(--ice-55);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.adm-modal-close:hover { color: var(--ice); }
+.adm-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.adm-form-check { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.adm-form-check input { width: 16px; height: 16px; }
+.adm-form-actions { display: flex; gap: 10px; margin-top: 4px; }
+.adm-icon-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid var(--ice-14); background: rgba(230, 242, 247, .04); color: var(--ice-70);
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.adm-icon-btn:hover { color: var(--wave-cyan); border-color: rgba(0, 214, 255, .3); }
+.adm-row-actions { display: flex; gap: 6px; align-items: center; }
 
 /* ---- Responsive ---------------------------------------------------------------------------- */
 

@@ -90,6 +90,8 @@ class AdminController extends Controller
             return redirect('/')->withErrors(['email' => 'Admin role is required.']);
         }
 
+        $needsTraffic = in_array($section, ['dashboard', 'traffic'], true);
+
         return view('dashboard', [
             'section' => $section,
             'me' => $me,
@@ -102,8 +104,88 @@ class AdminController extends Controller
             'grants' => $this->core->grants($token),
             'devices' => $this->core->devices($token),
             'traffic' => $this->core->traffic($token),
+            'trafficHistory' => $needsTraffic ? $this->core->trafficHistory($token, 30) : [],
             'auditEvents' => $this->core->audit($token),
         ]);
+    }
+
+    public function updateUserRole(Request $request, string $userId): RedirectResponse
+    {
+        $data = $request->validate([
+            'role' => ['required', 'string', 'in:user,support,admin,superadmin'],
+        ]);
+        $this->core->updateUserRole($this->token($request), $userId, $data['role']);
+
+        return redirect('/users')->with('success', 'Роль обновлена.');
+    }
+
+    public function disableUser(Request $request, string $userId): RedirectResponse
+    {
+        $this->core->disableUser($this->token($request), $userId);
+
+        return redirect('/users')->with('success', 'Пользователь заблокирован.');
+    }
+
+    public function enableUser(Request $request, string $userId): RedirectResponse
+    {
+        $this->core->enableUser($this->token($request), $userId);
+
+        return redirect('/users')->with('success', 'Пользователь разблокирован.');
+    }
+
+    public function createPlan(Request $request): RedirectResponse
+    {
+        $data = $this->validatedPlan($request);
+        $this->core->createPlan($this->token($request), $data);
+
+        return redirect('/plans')->with('success', 'Тариф создан.');
+    }
+
+    public function updatePlan(Request $request, string $planId): RedirectResponse
+    {
+        $data = $this->validatedPlan($request);
+        $this->core->updatePlan($this->token($request), $planId, $data);
+
+        return redirect('/plans')->with('success', 'Тариф обновлён.');
+    }
+
+    public function deletePlan(Request $request, string $planId): RedirectResponse
+    {
+        $this->core->deletePlan($this->token($request), $planId);
+
+        return redirect('/plans')->with('success', 'Тариф удалён.');
+    }
+
+    public function revokeDevice(Request $request, string $deviceId): RedirectResponse
+    {
+        $this->core->revokeDevice($this->token($request), $deviceId);
+
+        return redirect('/devices')->with('success', 'Устройство отозвано.');
+    }
+
+    private function validatedPlan(Request $request): array
+    {
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:60'],
+            'name' => ['required', 'string', 'max:120'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'price_minor' => ['required', 'integer', 'min:0'],
+            'currency' => ['nullable', 'string', 'max:6'],
+            'interval' => ['required', 'string', 'in:month,year'],
+            'device_limit' => ['required', 'integer', 'min:1'],
+            'traffic_limit_bytes' => ['nullable', 'integer', 'min:0'],
+            'is_active' => ['nullable', 'boolean'],
+            'is_public' => ['nullable', 'boolean'],
+            'sort_order' => ['nullable', 'integer'],
+        ]);
+        $data['is_active'] = $request->boolean('is_active', true);
+        $data['is_public'] = $request->boolean('is_public', true);
+        $data['sort_order'] = (int) ($data['sort_order'] ?? 0);
+        if (empty($data['traffic_limit_bytes'])) {
+            $data['traffic_limit_bytes'] = null;
+        }
+
+        return $data;
     }
 
     public function login(Request $request): RedirectResponse

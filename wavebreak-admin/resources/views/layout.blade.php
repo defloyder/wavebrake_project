@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
     <link rel="stylesheet" href="{{ asset('css/auth.css') }}">
+    <script src="{{ asset('js/chart.min.js') }}" defer></script>
 </head>
 <body class="@yield('body_class')">
 @hasSection('auth_content')
@@ -125,9 +126,11 @@
         @endif
 
         @yield('content')
+        @stack('scripts')
     </main>
 </div>
 
+<script src="{{ asset('js/admin-table.js') }}" defer></script>
 <script>
 function admToggleSidebar() {
     document.getElementById('adm-sidebar')?.classList.toggle('open');

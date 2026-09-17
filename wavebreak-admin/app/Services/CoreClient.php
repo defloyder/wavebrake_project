@@ -33,6 +33,21 @@ class CoreClient
         return $this->auth($token, true)->get('/v1/admin/plans')->throw()->json('plans') ?? [];
     }
 
+    public function createPlan(string $token, array $data): array
+    {
+        return $this->auth($token)->post('/v1/admin/plans', $data)->throw()->json();
+    }
+
+    public function updatePlan(string $token, string $planId, array $data): array
+    {
+        return $this->auth($token)->put("/v1/admin/plans/{$planId}", $data)->throw()->json();
+    }
+
+    public function deletePlan(string $token, string $planId): array
+    {
+        return $this->auth($token)->delete("/v1/admin/plans/{$planId}")->throw()->json();
+    }
+
     public function nodes(string $token): array
     {
         return $this->auth($token, true)->get('/v1/nodes')->throw()->json('nodes') ?? [];
@@ -46,6 +61,21 @@ class CoreClient
     public function users(string $token): array
     {
         return $this->auth($token, true)->get('/v1/admin/users')->throw()->json('users') ?? [];
+    }
+
+    public function updateUserRole(string $token, string $userId, string $role): array
+    {
+        return $this->auth($token)->patch("/v1/admin/users/{$userId}/role", compact('role'))->throw()->json();
+    }
+
+    public function disableUser(string $token, string $userId): array
+    {
+        return $this->auth($token)->post("/v1/admin/users/{$userId}/disable")->throw()->json();
+    }
+
+    public function enableUser(string $token, string $userId): array
+    {
+        return $this->auth($token)->post("/v1/admin/users/{$userId}/enable")->throw()->json();
     }
 
     public function subscriptions(string $token): array
@@ -66,6 +96,16 @@ class CoreClient
     public function traffic(string $token): array
     {
         return $this->auth($token, true)->get('/v1/admin/traffic')->throw()->json('traffic') ?? [];
+    }
+
+    public function trafficHistory(string $token, int $days = 30): array
+    {
+        return $this->auth($token, true)->get('/v1/admin/traffic/history', compact('days'))->throw()->json('history') ?? [];
+    }
+
+    public function revokeDevice(string $token, string $deviceId): array
+    {
+        return $this->auth($token)->post("/v1/admin/devices/{$deviceId}/revoke")->throw()->json();
     }
 
     public function audit(string $token): array

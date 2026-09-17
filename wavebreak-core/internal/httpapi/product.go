@@ -776,6 +776,81 @@ func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"users": users})
 }
 
+func (s *Server) adminUpdateUserRole(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Role string `json:"role"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	switch req.Role {
+	case "user", "support", "admin", "superadmin":
+	default:
+		writeError(w, http.StatusBadRequest, "invalid role")
+		return
+	}
+	userID := chi.URLParam(r, "userID")
+	user, err := s.app.Store.AdminUpdateUserRole(r.Context(), userID, req.Role)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not update user role")
+		return
+	}
+	actor := currentUser(r.Context()).ID
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "user.role_updated", "user", &userID, map[string]any{"role": req.Role})
+	writeJSON(w, http.StatusOK, user)
+}
+
+func (s *Server) adminDisableUser(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userID")
+	user, err := s.app.Store.AdminSetUserDisabled(r.Context(), userID, true)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not disable user")
+		return
+	}
+	actor := currentUser(r.Context()).ID
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "user.disabled", "user", &userID, nil)
+	writeJSON(w, http.StatusOK, user)
+}
+
+func (s *Server) adminEnableUser(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userID")
+	user, err := s.app.Store.AdminSetUserDisabled(r.Context(), userID, false)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not enable user")
+		return
+	}
+	actor := currentUser(r.Context()).ID
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "user.enabled", "user", &userID, nil)
+	writeJSON(w, http.StatusOK, user)
+}
+
+func (s *Server) adminTrafficHistory(w http.ResponseWriter, r *http.Request) {
+	days := 30
+	if raw := r.URL.Query().Get("days"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 180 {
+			days = parsed
+		}
+	}
+	history, err := s.app.Store.AdminTrafficHistory(r.Context(), days)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load traffic history")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"history": history})
+}
+
 func (s *Server) adminPlans(w http.ResponseWriter, r *http.Request) {
 	plans, err := s.app.Store.ListAllPlans(r.Context())
 	if err != nil {
