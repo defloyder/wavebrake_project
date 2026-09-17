@@ -385,6 +385,7 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 	vlessLink := buildVLESSLink(vless, config.Grant.ID, location)
 	config.Location = locationPayload(config.Node)
 	config.ConnectionTest = s.connectionTestPayload(config.Node)
+	config.RoutingPolicy = smartRoutingPolicy()
 	// The direct REALITY link is only published when explicitly enabled —
 	// on a network that's confirmed to actively disrupt REALITY, showing it
 	// alongside a working CDN link just gives a client a broken option to
@@ -549,6 +550,34 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		}
 	}
 	config.Links = links
+}
+
+func smartRoutingPolicy() map[string]any {
+	return map[string]any{
+		"version":          1,
+		"mode":             "smart_split",
+		"default_action":   "protected",
+		"fallback_action":  "protected",
+		"required_feature": "smart-routing-v1",
+		"direct": map[string]any{
+			"private_networks": true,
+			"domain_suffixes":  []string{".ru", ".рф", ".su"},
+			"geosite":          []string{"ru"},
+			"geoip":            []string{"ru"},
+		},
+		"dns": map[string]any{
+			"strategy":           "follow_route",
+			"direct_resolver":    "system",
+			"protected_resolver": "https://1.1.1.1/dns-query",
+			"prevent_leaks":      true,
+		},
+		"network": map[string]any{
+			"ipv4":                     true,
+			"ipv6":                     true,
+			"block_unrouted_webrtc":    true,
+			"reconnect_on_path_change": true,
+		},
+	}
 }
 
 // buildVLESSLink renders the primary VLESS+REALITY connection URI. This is

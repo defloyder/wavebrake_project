@@ -419,3 +419,25 @@ Minimum happy path:
 7. Poll `GET /v1/access/grants/{grantID}/config`.
 8. When `config_status` is `ready`, use `connection_url` / `share_url`.
 9. Show usage from `/v1/me/usage`.
+
+## Smart routing (`smart-routing-v1`)
+
+`GET /v1/access/grants/{grantID}/config` also returns `routing_policy`. This
+policy is consumed by the WAVEBREAK mobile and desktop clients; it cannot be
+encoded into a plain VLESS/Hysteria subscription link for third-party apps.
+
+The client must apply rules in this order:
+
+1. Keep private/local networks direct.
+2. Route `.ru`, `.рф`, `.su`, `geosite:ru` and `geoip:ru` directly.
+3. Route every unmatched destination through the selected protected profile.
+4. Resolve DNS according to the selected route. Never send protected-route DNS
+   to the system resolver.
+5. If geo databases are missing, stale or unreadable, use `fallback_action`
+   (`protected`) rather than dropping traffic or guessing.
+6. Re-evaluate active routes after Wi-Fi/mobile network changes and prevent
+   non-routed WebRTC UDP traffic.
+
+The app should bundle signed GeoIP/Geosite data and refresh it independently.
+Domain suffix matching alone is insufficient because many Russian services use
+international TLDs and CDN addresses.

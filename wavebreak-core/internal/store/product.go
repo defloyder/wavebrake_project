@@ -116,6 +116,7 @@ type AccessGrantConfig struct {
 	Device                *Device        `json:"device,omitempty"`
 	Location              map[string]any `json:"location,omitempty"`
 	ConnectionTest        map[string]any `json:"connection_test,omitempty"`
+	RoutingPolicy         map[string]any `json:"routing_policy,omitempty"`
 	ConfigStatus          string         `json:"config_status"`
 	ConfigVersion         int            `json:"config_version"`
 	ConnectionURL         string         `json:"connection_url,omitempty"`

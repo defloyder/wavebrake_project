@@ -19,6 +19,12 @@ Live pilot VLESS status:
 
 The endpoint validates grant ownership and returns grant, node, optional device context, and a personal VLESS REALITY link for `protocol = vless`. WireGuard remains a future contract.
 
+The response also contains a versioned `routing_policy` for WAVEBREAK clients.
+Version 1 uses smart split routing: private networks, Russian domain groups and
+Russian destination IP ranges are direct; unmatched traffic and all fallback
+cases use the protected route. DNS follows the selected route to prevent leaks.
+Plain third-party subscription links do not carry this policy.
+
 ## VLESS REALITY Pilot Shape
 
 ```json
