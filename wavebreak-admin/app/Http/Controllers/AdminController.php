@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\CoreClient;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -84,29 +85,42 @@ class AdminController extends Controller
             return view('login', ['health' => $this->core->health()]);
         }
 
-        $me = $this->core->me($token);
-        if (! in_array(($me['role'] ?? 'user'), ['admin', 'superadmin'], true)) {
-            $request->session()->forget('wavebreak_admin_tokens');
-            return redirect('/')->withErrors(['email' => 'Admin role is required.']);
+        // The Core JWT is short-lived (15 min) and this app has no refresh-
+        // token flow yet, so a session left open past that window used to
+        // surface as a raw 500 (uncaught RequestException from the first
+        // Core call to fail) instead of just asking the admin to sign back
+        // in — same session, no data lost, just a fresh token.
+        try {
+            $me = $this->core->me($token);
+            if (! in_array(($me['role'] ?? 'user'), ['admin', 'superadmin'], true)) {
+                $request->session()->forget('wavebreak_admin_tokens');
+                return redirect('/')->withErrors(['email' => 'Admin role is required.']);
+            }
+
+            $needsTraffic = in_array($section, ['dashboard', 'traffic'], true);
+
+            return view('dashboard', [
+                'section' => $section,
+                'me' => $me,
+                'health' => $this->core->health(),
+                'plans' => $this->core->adminPlans($token),
+                'nodes' => $this->core->nodes($token),
+                'dashboard' => $this->core->dashboard($token),
+                'users' => $this->core->users($token),
+                'subscriptions' => $this->core->subscriptions($token),
+                'grants' => $this->core->grants($token),
+                'devices' => $this->core->devices($token),
+                'traffic' => $this->core->traffic($token),
+                'trafficHistory' => $needsTraffic ? $this->core->trafficHistory($token, 30) : [],
+                'auditEvents' => $this->core->audit($token),
+            ]);
+        } catch (RequestException $e) {
+            if ($e->response->status() === 401) {
+                $request->session()->forget('wavebreak_admin_tokens');
+                return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
+            }
+            throw $e;
         }
-
-        $needsTraffic = in_array($section, ['dashboard', 'traffic'], true);
-
-        return view('dashboard', [
-            'section' => $section,
-            'me' => $me,
-            'health' => $this->core->health(),
-            'plans' => $this->core->adminPlans($token),
-            'nodes' => $this->core->nodes($token),
-            'dashboard' => $this->core->dashboard($token),
-            'users' => $this->core->users($token),
-            'subscriptions' => $this->core->subscriptions($token),
-            'grants' => $this->core->grants($token),
-            'devices' => $this->core->devices($token),
-            'traffic' => $this->core->traffic($token),
-            'trafficHistory' => $needsTraffic ? $this->core->trafficHistory($token, 30) : [],
-            'auditEvents' => $this->core->audit($token),
-        ]);
     }
 
     public function updateUserRole(Request $request, string $userId): RedirectResponse
