@@ -18,10 +18,18 @@ class AdminAssistant
             return $this->continueSubscriptionCreation($token, $message, $context);
         }
 
+        if (($context['intent'] ?? null) === 'search') {
+            return $this->continueSearch($token, $message, $context);
+        }
+
+        if (($context['intent'] ?? null) === 'suspend_subscription') {
+            return $this->continueSubscriptionSuspension($token, $message, $context);
+        }
+
         if ($this->contains($query, ['привет', 'здравств', 'добрый день', 'добрый вечер', 'ау', 'ты тут'])) {
             return [
-                'text' => 'Я здесь. Могу быстро показать состояние системы или помочь с конкретной записью.',
-                'suggestions' => ['Что ты умеешь?', 'Сводка', 'Добавить подписку', 'Найти пользователя'],
+                'text' => "Здравствуйте. Я могу показать сводку, узлы, подписки и трафик; найти пользователя или подписку; создать, приостановить или активировать подписку; заблокировать либо удалить пользователя; отозвать подключение или устройство.\n\nПишите обычной фразой: «найди», «создай подписку», «приостанови» или выберите действие ниже. Опасные изменения всегда попрошу подтвердить.",
+                'suggestions' => ['Сводка', 'Найди', 'Создай подписку', 'Приостанови'],
             ];
         }
 
@@ -39,6 +47,18 @@ class AdminAssistant
 
         if ($action = $this->parseAction($token, $query)) {
             return $action;
+        }
+
+        if (preg_match('/^(?:найди|поиск|поищи|найти)[\s.!?]*$/iu', $query)) {
+            return [
+                'text' => 'Что нужно найти? Введите email, имя или UUID пользователя либо подписки.',
+                'context' => ['intent' => 'search', 'step' => 'term'],
+                'suggestions' => ['Пользователя', 'Подписку', 'Отмена'],
+            ];
+        }
+
+        if (preg_match('/^(?:приостанови|приостановить|заморозь|заморозить)(?:\s+подписк\w*)?[\s.!?]*$/iu', $query)) {
+            return $this->startSubscriptionSuspension($token);
         }
 
         if ($this->contains($query, ['добав', 'созда', 'оформ', 'подключ'])) {
@@ -263,6 +283,87 @@ class AdminAssistant
         }
 
         return ['text' => 'Диалог устарел. Начнём заново: для кого создать подписку?', 'context' => ['intent' => 'create_subscription', 'step' => 'user']];
+    }
+
+    private function continueSearch(string $token, string $message, array $context): array
+    {
+        $query = Str::lower(trim($message));
+        if ($this->contains($query, ['отмена', 'отмени', 'стоп'])) {
+            return ['text' => 'Поиск отменён.', 'context' => null, 'suggestions' => ['Сводка', 'Найди']];
+        }
+
+        if (in_array($query, ['пользователь', 'пользователя', 'подписка', 'подписку'], true)) {
+            return [
+                'text' => $this->contains($query, ['подпис'])
+                    ? 'Введите UUID подписки или email её владельца.'
+                    : 'Введите email, имя или UUID пользователя.',
+                'context' => $context,
+                'suggestions' => ['Отмена'],
+            ];
+        }
+
+        $reply = $this->search($token, trim($message));
+        $reply['context'] = mb_strlen(trim($message)) < 3 ? $context : null;
+        return $reply;
+    }
+
+    private function startSubscriptionSuspension(string $token): array
+    {
+        $subscriptions = array_values(array_filter(
+            $this->core->subscriptions($token),
+            fn ($subscription) => ($subscription['status'] ?? '') === 'active'
+        ));
+
+        if (! $subscriptions) {
+            return ['text' => 'Активных подписок для приостановки нет.', 'suggestions' => ['Сводка', 'Подписки']];
+        }
+
+        return [
+            'text' => 'Какую подписку приостановить? Введите UUID подписки или email пользователя. Можно выбрать одну из активных подписок ниже.',
+            'context' => ['intent' => 'suspend_subscription', 'step' => 'target'],
+            'suggestions' => array_slice(array_merge(array_column($subscriptions, 'id'), ['Отмена']), 0, 6),
+        ];
+    }
+
+    private function continueSubscriptionSuspension(string $token, string $message, array $context): array
+    {
+        $query = Str::lower(trim($message));
+        if ($this->contains($query, ['отмена', 'отмени', 'стоп'])) {
+            return ['text' => 'Приостановка отменена.', 'context' => null, 'suggestions' => ['Сводка', 'Подписки']];
+        }
+
+        $userIds = array_column(array_filter(
+            $this->core->users($token),
+            fn ($user) => Str::lower((string) ($user['email'] ?? '')) === $query
+        ), 'id');
+        $subscriptions = array_values(array_filter(
+            $this->core->subscriptions($token),
+            fn ($subscription) => ($subscription['status'] ?? '') === 'active'
+                && (Str::lower((string) ($subscription['id'] ?? '')) === $query
+                    || in_array($subscription['user_id'] ?? null, $userIds, true))
+        ));
+
+        if (count($subscriptions) === 1) {
+            $id = (string) $subscriptions[0]['id'];
+            $reply = $this->confirm('subscription_status', $id, 'suspended', "Приостановить подписку {$id}?");
+            $reply['context'] = null;
+            return $reply;
+        }
+
+        if (count($subscriptions) > 1) {
+            return [
+                'text' => 'У пользователя несколько активных подписок. Выберите нужную.',
+                'context' => $context,
+                'suggestions' => array_slice(array_column($subscriptions, 'id'), 0, 6),
+            ];
+        }
+
+        return [
+            'text' => 'Активная подписка не найдена. Проверьте UUID или email и попробуйте ещё раз.',
+            'level' => 'warning',
+            'context' => $context,
+            'suggestions' => ['Отмена'],
+        ];
     }
 
     private function parseAction(string $token, string $query): ?array

@@ -686,8 +686,8 @@ h1,
 .art-footer-grid {
     min-height: 132px;
     display: grid;
-    grid-template-columns: 180px 1fr auto;
-    gap: 28px;
+    grid-template-columns: minmax(260px, auto) minmax(0, 1fr) auto;
+    gap: 48px;
     align-items: center;
 }
 
@@ -695,6 +695,8 @@ h1,
     display: inline-flex;
     align-items: center;
     gap: 10px;
+    width: max-content;
+    white-space: nowrap;
 }
 
 .art-footer-brand img {
@@ -704,7 +706,8 @@ h1,
 .art-footer nav {
     display: flex;
     flex-wrap: wrap;
-    gap: 18px;
+    justify-content: center;
+    gap: 12px 24px;
     color: rgba(255, 255, 255, .58);
     font-weight: 750;
 }
@@ -793,7 +796,13 @@ h1,
 
     .art-footer-grid {
         grid-template-columns: 1fr;
+        justify-items: start;
+        gap: 22px;
         padding: 28px 0;
+    }
+
+    .art-footer nav {
+        justify-content: flex-start;
     }
 }
 

@@ -85,4 +85,31 @@ class AdminAssistantTest extends TestCase
         $this->assertSame('user_delete', $reply['confirmation']['action']['type']);
         $this->assertSame('user-id', $reply['confirmation']['action']['id']);
     }
+
+    public function test_bare_search_starts_a_guided_dialogue(): void
+    {
+        $assistant = new AdminAssistant($this->createMock(CoreClient::class));
+
+        $start = $assistant->reply('token', 'найди');
+
+        $this->assertSame('search', $start['context']['intent']);
+        $this->assertContains('Пользователя', $start['suggestions']);
+    }
+
+    public function test_bare_suspend_offers_active_subscriptions_and_prepares_confirmation(): void
+    {
+        $id = 'a8128415-e459-4813-9c68-52e9a7ceff70';
+        $core = $this->createMock(CoreClient::class);
+        $core->method('subscriptions')->willReturn([['id' => $id, 'user_id' => 'user-id', 'status' => 'active']]);
+        $core->method('users')->willReturn([]);
+        $assistant = new AdminAssistant($core);
+
+        $start = $assistant->reply('token', 'приостанови');
+        $finish = $assistant->reply('token', $id, $start['context']);
+
+        $this->assertSame('suspend_subscription', $start['context']['intent']);
+        $this->assertContains($id, $start['suggestions']);
+        $this->assertSame('subscription_status', $finish['confirmation']['action']['type']);
+        $this->assertSame('suspended', $finish['confirmation']['action']['value']);
+    }
 }
