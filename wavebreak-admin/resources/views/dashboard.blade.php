@@ -45,7 +45,11 @@
                 </div>
             </div>
             <div class="adm-chart-wrap">
-                <canvas id="chart-traffic-overview"></canvas>
+                @if(count($trafficHistory ?? []) > 0)
+                    <canvas id="chart-traffic-overview"></canvas>
+                @else
+                    <p class="adm-chart-empty">Пока нет данных: ни одна подписка ещё не сообщила суточный трафик.</p>
+                @endif
             </div>
         </section>
 

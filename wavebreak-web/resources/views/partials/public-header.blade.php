@@ -3,7 +3,8 @@
 <header class="wb-header">
     <div class="wb-container wb-nav">
         <a href="/" class="wb-brand" aria-label="WAVEBREAK">
-            <img src="{{ asset('images/wavebreak-logo.png') }}" class="wb-logo wb-logo-full" alt="WAVEBREAK">
+            <img src="{{ asset('images/wavebreak-logo.png') }}" class="wb-logo wb-logo-full" alt="">
+            <span class="wb-brand-name">WAVEBREAK</span>
         </a>
         <nav class="wb-links" aria-label="Основная навигация">
             <a href="/" class="{{ $active === 'home' ? 'is-active' : '' }}">Главная</a>

@@ -122,7 +122,10 @@
 
 <footer class="art-footer">
     <div class="wb-container art-footer-grid">
-        <img src="{{ asset('images/wavebreak-logo.png') }}" alt="WAVEBREAK">
+        <a href="/" class="art-footer-brand" aria-label="WAVEBREAK">
+            <img src="{{ asset('images/wavebreak-logo.png') }}" alt="">
+            <span>WAVEBREAK</span>
+        </a>
         <nav aria-label="Нижняя навигация">
             <a href="/">Главная</a>
             <a href="/pricing">Тарифы</a>

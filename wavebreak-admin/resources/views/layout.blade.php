@@ -1,16 +1,22 @@
 <!doctype html>
 <html lang="ru">
 <head>
+    @php
+        $assetVersion = fn (string $path) => file_exists(public_path($path)) ? filemtime(public_path($path)) : time();
+    @endphp
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Admin') | WAVEBREAK</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('images/favicon.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/apple-touch-icon.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/auth.css') }}">
-    <script src="{{ asset('js/chart.min.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ $assetVersion('css/admin.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/auth.css') }}?v={{ $assetVersion('css/auth.css') }}">
+    <script src="{{ asset('js/chart.min.js') }}?v={{ $assetVersion('js/chart.min.js') }}" defer></script>
 </head>
 <body class="@yield('body_class')">
 @hasSection('auth_content')
@@ -29,7 +35,7 @@
         <div class="adm-sidebar-header">
             <a href="/" class="adm-brand">
                 <img src="{{ asset('images/wavebreak-logo.png') }}" class="wavebreak-logo" alt="">
-                <span>Admin</span>
+                <span class="adm-brand-word"><strong>WAVEBREAK</strong><small>Admin</small></span>
             </a>
             <button class="adm-hamburger adm-close-btn" onclick="admCloseSidebar()" aria-label="Закрыть меню">
                 <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
@@ -130,7 +136,7 @@
     </main>
 </div>
 
-<script src="{{ asset('js/admin-table.js') }}" defer></script>
+<script src="{{ asset('js/admin-table.js') }}?v={{ $assetVersion('js/admin-table.js') }}" defer></script>
 <script>
 function admToggleSidebar() {
     document.getElementById('adm-sidebar')?.classList.toggle('open');
