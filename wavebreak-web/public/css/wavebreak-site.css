@@ -25,7 +25,7 @@
 
 /* Public home refinement: cleaner brand composition, no fake dashboard mockup. */
 .wb-logo-full {
-    width: 40px;
+    width: 56px;
     filter: drop-shadow(0 0 16px rgba(24, 217, 242, .2));
 }
 
@@ -303,7 +303,7 @@ h1,
 
 @media (max-width: 720px) {
     .wb-logo-full {
-        width: 36px;
+        width: 46px;
     }
 
     .cw-hero {
@@ -363,7 +363,7 @@ h1,
 }
 
 .wb-art-page .wb-logo-full {
-    width: 40px;
+    width: 56px;
     opacity: .95;
 }
 
@@ -698,14 +698,7 @@ h1,
 }
 
 .art-footer-brand img {
-    width: 36px;
-}
-
-.art-footer-brand span {
-    color: #fff;
-    font-weight: 900;
-    font-size: 16px;
-    letter-spacing: .01em;
+    width: 48px;
 }
 
 .art-footer nav {
@@ -914,7 +907,7 @@ ul {
 }
 
 .wb-logo-full {
-    width: 40px;
+    width: 56px;
     height: auto;
     object-fit: contain;
     filter: drop-shadow(0 0 18px rgba(24, 217, 242, .18));
@@ -2139,7 +2132,7 @@ h3 {
     }
 
     .wb-logo-full {
-        width: 36px;
+        width: 46px;
     }
 
     .wb-actions {
@@ -2257,7 +2250,7 @@ h3 {
 
 /* Final public home override: keeps the page away from generated dashboard mockups. */
 .wb-logo-full {
-    width: 40px;
+    width: 56px;
     filter: drop-shadow(0 0 16px rgba(24, 217, 242, .2));
 }
 
@@ -2535,7 +2528,7 @@ h1,
 
 @media (max-width: 720px) {
     .wb-logo-full {
-        width: 36px;
+        width: 46px;
     }
 
     .cw-hero {
@@ -2790,10 +2783,21 @@ h1,
 }
 
 .wb-brand-name {
-    color: #fff;
-    font-weight: 900;
-    font-size: 18px;
+    font-family: "Michroma", var(--font);
+    font-size: 19px;
     letter-spacing: .01em;
+    white-space: nowrap;
+}
+
+.wb-brand-wave {
+    color: rgba(255, 255, 255, .92);
+}
+
+.wb-brand-break {
+    background: linear-gradient(120deg, var(--cyan-2), var(--cyan));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 .wb-logo {

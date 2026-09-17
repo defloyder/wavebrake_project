@@ -35,7 +35,7 @@
     <link rel="apple-touch-icon" href="{{ asset('images/apple-touch-icon.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:opsz,wght@9..144,440;9..144,560;9..144,650&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:opsz,wght@9..144,440;9..144,560;9..144,650&family=JetBrains+Mono:wght@500;700&family=Michroma&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/wavebreak-site.css') }}?v={{ $cssVersion }}">
     @stack('schema')
     @stack('styles')

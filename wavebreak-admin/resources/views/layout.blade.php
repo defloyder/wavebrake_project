@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="{{ asset('images/apple-touch-icon.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Michroma&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ $assetVersion('css/admin.css') }}">
     <link rel="stylesheet" href="{{ asset('css/auth.css') }}?v={{ $assetVersion('css/auth.css') }}">
     <script src="{{ asset('js/chart.min.js') }}?v={{ $assetVersion('js/chart.min.js') }}" defer></script>
@@ -35,7 +35,7 @@
         <div class="adm-sidebar-header">
             <a href="/" class="adm-brand">
                 <img src="{{ asset('images/wavebreak-logo.png') }}" class="wavebreak-logo" alt="">
-                <span class="adm-brand-word"><strong>WAVEBREAK</strong><small>Admin</small></span>
+                <span class="adm-brand-word"><strong><span class="adm-brand-wave">WAVE</span><span class="adm-brand-break">BREAK</span></strong><small>Admin</small></span>
             </a>
             <button class="adm-hamburger adm-close-btn" onclick="admCloseSidebar()" aria-label="Закрыть меню">
                 <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
