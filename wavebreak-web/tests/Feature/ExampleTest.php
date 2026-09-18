@@ -21,7 +21,8 @@ class ExampleTest extends TestCase
     {
         $this->get('/download')
             ->assertOk()
-            ->assertSee('Всё управление — на вашем устройстве.')
+            ->assertSee('Волна меняется.')
+            ->assertSee('Ссылки появятся')
             ->assertDontSee('href="/login"', false)
             ->assertDontSee('href="/register"', false);
     }

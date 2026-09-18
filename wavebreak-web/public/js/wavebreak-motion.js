@@ -153,4 +153,139 @@
       bwRaf = requestAnimationFrame(bwFrame);
     }
   }
+
+  // Download page tide: a live break line running through the oversized
+  // wordmark. Pointer movement changes its energy without moving layout.
+  const tideCanvas = document.getElementById('download-tide');
+  if (tideCanvas) {
+    const tideCtx = tideCanvas.getContext('2d');
+    const tideDpr = Math.min(window.devicePixelRatio || 1, 2);
+    let tideW = 0;
+    let tideH = 0;
+    let pointerX = 0.56;
+    let pointerY = 0.48;
+    let energy = 0;
+
+    const tideResize = () => {
+      const rect = tideCanvas.getBoundingClientRect();
+      tideW = rect.width;
+      tideH = rect.height;
+      tideCanvas.width = Math.round(tideW * tideDpr);
+      tideCanvas.height = Math.round(tideH * tideDpr);
+      tideCtx.setTransform(tideDpr, 0, 0, tideDpr, 0, 0);
+    };
+
+    const tideScene = tideCanvas.closest('.download-hero');
+    if (tideScene && !reduceMotion && window.matchMedia('(hover: hover)').matches) {
+      tideScene.addEventListener('pointermove', (event) => {
+        const rect = tideScene.getBoundingClientRect();
+        pointerX = (event.clientX - rect.left) / rect.width;
+        pointerY = (event.clientY - rect.top) / rect.height;
+        energy = 1;
+      });
+      tideScene.addEventListener('pointerleave', () => {
+        pointerX = 0.56;
+        pointerY = 0.48;
+      });
+    }
+
+    window.addEventListener('resize', tideResize);
+    tideResize();
+
+    const tideLayers = [
+      { offset: -34, amp: 36, speed: .00038, color: 'rgba(117, 239, 243, .19)', width: 1 },
+      { offset: -11, amp: 27, speed: .00052, color: 'rgba(119, 104, 255, .34)', width: 1.25 },
+      { offset: 0, amp: 42, speed: .00064, color: 'rgba(102, 241, 244, .92)', width: 2.1 },
+      { offset: 23, amp: 22, speed: -.00048, color: 'rgba(56, 184, 223, .3)', width: 1.15 },
+    ];
+
+    const tideDraw = (time) => {
+      tideCtx.clearRect(0, 0, tideW, tideH);
+      energy += (0 - energy) * .018;
+      const base = tideH * (.66 + (pointerY - .5) * .045);
+      const phaseShift = (pointerX - .5) * 2.4;
+
+      tideLayers.forEach((layer, layerIndex) => {
+        tideCtx.beginPath();
+        for (let x = -8; x <= tideW + 8; x += 5) {
+          const normalized = x / Math.max(tideW, 1);
+          const focus = Math.sin(normalized * Math.PI);
+          const primary = Math.sin(normalized * 8.4 + time * layer.speed + phaseShift);
+          const detail = Math.sin(normalized * 20.5 - time * layer.speed * .58) * .28;
+          const surge = Math.exp(-Math.pow(normalized - pointerX, 2) / .018) * energy * 24;
+          const y = base + layer.offset + (primary + detail) * layer.amp * (.34 + focus * .66) - surge;
+          if (x === -8) tideCtx.moveTo(x, y);
+          else tideCtx.lineTo(x, y);
+        }
+        tideCtx.strokeStyle = layer.color;
+        tideCtx.lineWidth = layer.width;
+        tideCtx.stroke();
+
+        if (layerIndex === 2) {
+          tideCtx.lineTo(tideW + 8, tideH);
+          tideCtx.lineTo(-8, tideH);
+          tideCtx.closePath();
+          tideCtx.fillStyle = 'rgba(16, 105, 122, .055)';
+          tideCtx.fill();
+        }
+      });
+
+      const markerCount = tideW < 700 ? 5 : 9;
+      for (let i = 0; i < markerCount; i += 1) {
+        const progress = (i / markerCount + time * .000018) % 1;
+        const x = progress * tideW;
+        const y = base + Math.sin(progress * 8.4 + time * .00064 + phaseShift) * 42 * Math.sin(progress * Math.PI);
+        tideCtx.fillStyle = i % 3 === 0 ? 'rgba(124, 103, 255, .7)' : 'rgba(112, 241, 244, .72)';
+        tideCtx.fillRect(x - 1.5, y - 1.5, 3, 3);
+      }
+    };
+
+    if (reduceMotion) {
+      tideDraw(0);
+    } else {
+      let tideRaf;
+      const tideFrame = (time) => {
+        tideDraw(time);
+        tideRaf = requestAnimationFrame(tideFrame);
+      };
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) cancelAnimationFrame(tideRaf);
+        else tideRaf = requestAnimationFrame(tideFrame);
+      });
+      tideRaf = requestAnimationFrame(tideFrame);
+    }
+  }
+
+  // Liquid-glass platform marker. It slowly scans the upcoming releases and
+  // follows the pointer when the visitor explores the selector.
+  const platformSwitch = document.querySelector('[data-platform-switch]');
+  if (platformSwitch) {
+    let platformIndex = 0;
+    let platformTimer = null;
+    const setPlatform = (index) => {
+      platformIndex = Math.max(0, Math.min(2, index));
+      platformSwitch.style.setProperty('--platform-index', platformIndex);
+    };
+    const startPlatformCycle = () => {
+      if (reduceMotion || platformTimer) return;
+      platformTimer = window.setInterval(() => setPlatform((platformIndex + 1) % 3), 2600);
+    };
+    const stopPlatformCycle = () => {
+      if (!platformTimer) return;
+      window.clearInterval(platformTimer);
+      platformTimer = null;
+    };
+
+    platformSwitch.addEventListener('pointermove', (event) => {
+      const rect = platformSwitch.getBoundingClientRect();
+      const mobile = window.matchMedia('(max-width: 760px)').matches;
+      const ratio = mobile
+        ? (event.clientY - rect.top) / rect.height
+        : (event.clientX - rect.left) / rect.width;
+      stopPlatformCycle();
+      setPlatform(Math.floor(ratio * 3));
+    });
+    platformSwitch.addEventListener('pointerleave', startPlatformCycle);
+    startPlatformCycle();
+  }
 })();
