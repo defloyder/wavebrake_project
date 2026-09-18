@@ -10,7 +10,7 @@ WAVEBREAK — это единая платформа доступа/VPN с от�
 
 - `wavebreak-core` — Go Core API и worker. Это единственный владелец бизнес-логики, PostgreSQL, подписок, устройств, access grants, node desired-state и API для приложений.
 - `wavebreak-node` — Go node-agent, который получает desired-state из Core и применяет runtime-конфиги на VPN-ноде.
-- `wavebreak-web` — Laravel публичный сайт и личный кабинет пользователя. Работает только через Core API.
+- `wavebreak-web` — только публичный Laravel-сайт и страница загрузки приложений. Регистрация, авторизация и клиентский кабинет должны существовать исключительно в мобильном и десктопном приложениях.
 - `wavebreak-admin` — Laravel админка. Работает только через Core API.
 - `wavebreak-infrastructure` — Docker Compose, pilot/staging/prod окружение, мониторинг и инфраструктурные шаблоны.
 - `docs` — документация для API, деплоя, мобильного/десктопного разработчика и VPN-контракта.

@@ -6,19 +6,15 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [WebController::class, 'index']);
 Route::get('/pricing', [WebController::class, 'pricing']);
 Route::get('/access', [WebController::class, 'access']);
-Route::get('/login', [WebController::class, 'loginPage']);
-Route::get('/register', [WebController::class, 'registerPage']);
-Route::post('/login', [WebController::class, 'login']);
-Route::post('/register', [WebController::class, 'register']);
-Route::post('/logout', [WebController::class, 'logout']);
-Route::get('/dashboard', [WebController::class, 'dashboard']);
-Route::get('/dashboard/subscription', [WebController::class, 'subscription']);
-Route::get('/dashboard/access', [WebController::class, 'accessDashboard']);
-Route::get('/dashboard/nodes', [WebController::class, 'nodes']);
-Route::get('/dashboard/devices', [WebController::class, 'devices']);
-Route::post('/subscriptions', [WebController::class, 'subscribe']);
-Route::post('/access/grants', [WebController::class, 'grant']);
-Route::post('/access/grants/{grantId}/revoke', [WebController::class, 'revokeGrant']);
-Route::post('/devices', [WebController::class, 'createDevice']);
-Route::post('/telegram/link', [WebController::class, 'createTelegramLink']);
-Route::delete('/telegram', [WebController::class, 'unlinkTelegram']);
+Route::get('/download', [WebController::class, 'download']);
+
+// Account management lives in the native clients. Keep old bookmarks useful,
+// while ensuring the website can no longer mutate customer data.
+Route::any('/login', fn () => redirect('/download'));
+Route::any('/register', fn () => redirect('/download'));
+Route::any('/logout', fn () => redirect('/download'));
+Route::any('/dashboard/{path?}', fn () => redirect('/download'))->where('path', '.*');
+Route::any('/subscriptions', fn () => redirect('/download'));
+Route::any('/access/grants/{path?}', fn () => redirect('/download'))->where('path', '.*');
+Route::any('/devices', fn () => redirect('/download'));
+Route::any('/telegram/{path?}', fn () => redirect('/download'))->where('path', '.*');

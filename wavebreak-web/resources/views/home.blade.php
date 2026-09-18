@@ -12,7 +12,7 @@
   "name": "WAVEBREAK",
   "url": "{{ rtrim(config('app.url'), '/') }}",
   "logo": "{{ asset('images/wavebreak-logo.png') }}",
-  "description": "Защищенная инфраструктура для бизнеса: кабинет, тарифы, серверы доступа и внешние ссылки подключения."
+  "description": "Защищенная инфраструктура для бизнеса: тарифы, серверы доступа и управление в приложении."
 }
 </script>
 @endpush
@@ -34,9 +34,8 @@
                     Один линк — и всё просто работает.
                 </p>
                 <div class="art-actions">
-                    <a href="/register" class="wb-btn wb-btn--primary">Начать</a>
+                    <a href="/download" class="wb-btn wb-btn--primary">Скачать приложение</a>
                     <a href="#reveal" class="wb-btn">Как это работает</a>
-                    <a href="/login" class="wb-btn wb-btn--ghost">Войти</a>
                 </div>
                 <p class="art-tagline">VLESS · Hysteria2 — канал выбирается сам, вручную ничего не нужно</p>
             </div>
@@ -84,7 +83,7 @@
             <article>
                 <span>03</span>
                 <h3>Видно, что происходит</h3>
-                <p>Статус, трафик и устройства — в личном кабинете, без переписки с поддержкой.</p>
+                <p>Статус, трафик и устройства всегда под рукой в приложении.</p>
             </article>
         </div>
     </section>
@@ -115,7 +114,7 @@
     <section class="art-final">
         <div class="wb-container art-glass" data-reveal>
             <h2>Один аккаунт. Одна ссылка. Готово.</h2>
-            <a href="/register" class="wb-btn wb-btn--primary">Начать</a>
+            <a href="/download" class="wb-btn wb-btn--primary">Скачать приложение</a>
         </div>
     </section>
 </main>
@@ -130,7 +129,7 @@
             <a href="/">Главная</a>
             <a href="/pricing">Тарифы</a>
             <a href="/access">Технология</a>
-            <a href="/login">Вход</a>
+            <a href="/download">Скачать</a>
         </nav>
         <span>© {{ date('Y') }}</span>
     </div>

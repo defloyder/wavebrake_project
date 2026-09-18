@@ -18,8 +18,7 @@
                 <a href="/access" class="{{ $active === 'access' ? 'is-active' : '' }}">Технология</a>
             </nav>
             <div class="wb-actions">
-                <a href="/login" class="wb-btn wb-btn--ghost">Войти</a>
-                <a href="/register" class="wb-btn wb-btn--primary">Начать</a>
+                <a href="/download" class="wb-btn wb-btn--primary">Скачать</a>
             </div>
         </div>
     </div>
