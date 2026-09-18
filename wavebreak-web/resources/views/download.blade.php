@@ -63,9 +63,15 @@
             <div class="download-device download-device--desktop">
                 <div class="download-device-bar"><i></i><span>WAVEBREAK / DESKTOP</span><b>готово</b></div>
                 <div class="download-device-core">
-                    <span class="download-core-ring"></span>
-                    <strong>Ваша волна</strong>
-                    <small>одним касанием</small>
+                    <span class="download-device-mode">АВТО</span>
+                    <b class="download-device-location">Самая быстрая</b>
+                    <span class="download-core-ring">
+                        <i class="download-globe-meridian"></i>
+                        <i class="download-globe-latitude"></i>
+                        <img src="{{ asset('images/wavebreak-mark.png') }}" alt="">
+                    </span>
+                    <strong>Не подключено</strong>
+                    <small>Нажмите для подключения</small>
                 </div>
             </div>
 
@@ -76,9 +82,15 @@
             <div class="download-device download-device--phone">
                 <div class="download-phone-island"></div>
                 <div class="download-device-core">
-                    <span class="download-core-ring"></span>
-                    <strong>WAVEBREAK</strong>
-                    <small>профиль синхронизирован</small>
+                    <span class="download-device-mode">АВТО</span>
+                    <b class="download-device-location">Самая быстрая</b>
+                    <span class="download-core-ring">
+                        <i class="download-globe-meridian"></i>
+                        <i class="download-globe-latitude"></i>
+                        <img src="{{ asset('images/wavebreak-mark.png') }}" alt="">
+                    </span>
+                    <strong>Не подключено</strong>
+                    <small>Нажмите для подключения</small>
                 </div>
             </div>
         </div>

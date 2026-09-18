@@ -3507,14 +3507,34 @@ h1,
     text-align: center;
 }
 
+.download-device-mode {
+    color: #7f9298;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .18em;
+}
+
+.download-device-location {
+    display: block;
+    margin: 5px 0 18px;
+    color: #eaf7f8;
+    font-size: 19px;
+    letter-spacing: 0;
+}
+
 .download-core-ring {
     position: relative;
-    width: 112px;
-    height: 112px;
-    margin-bottom: 24px;
-    border: 1px solid rgba(107, 235, 240, .56);
+    width: 132px;
+    height: 132px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 20px;
+    border: 1px solid rgba(55, 219, 232, .58);
     border-radius: 50%;
-    box-shadow: 0 0 60px rgba(31, 211, 220, .12);
+    background: rgba(3, 122, 151, .2);
+    box-shadow:
+        inset 0 0 34px rgba(35, 218, 230, .12),
+        0 0 62px rgba(31, 211, 220, .18);
     animation: download-core 4.6s ease-in-out infinite;
 }
 
@@ -3522,18 +3542,37 @@ h1,
 .download-core-ring::after {
     content: "";
     position: absolute;
+    border: 1px solid rgba(74, 220, 232, .36);
     border-radius: 50%;
 }
 
 .download-core-ring::before {
-    inset: 14px;
-    border: 1px solid rgba(123, 109, 255, .5);
+    inset: 6px 39px;
 }
 
 .download-core-ring::after {
-    inset: 38px;
-    background: #72e8ed;
-    box-shadow: 0 0 24px rgba(66, 225, 233, .72);
+    inset: 39px 6px;
+}
+
+.download-globe-meridian,
+.download-globe-latitude {
+    position: absolute;
+    inset: 7px 31px;
+    border: 1px solid rgba(71, 213, 229, .3);
+    border-radius: 50%;
+    animation: download-globe-meridian 7s ease-in-out infinite alternate;
+}
+
+.download-globe-latitude {
+    inset: 24px 7px;
+    animation: download-globe-latitude 5.2s ease-in-out infinite alternate;
+}
+
+.download-core-ring img {
+    position: relative;
+    z-index: 2;
+    width: 60px;
+    filter: drop-shadow(0 0 12px rgba(30, 221, 239, .48));
 }
 
 .download-device-core strong,
@@ -3604,12 +3643,34 @@ h1,
 }
 
 .download-device--phone .download-core-ring {
-    width: 82px;
-    height: 82px;
+    width: 104px;
+    height: 104px;
+    margin-bottom: 17px;
+}
+
+.download-device--phone .download-core-ring::before {
+    inset: 5px 30px;
 }
 
 .download-device--phone .download-core-ring::after {
-    inset: 27px;
+    inset: 30px 5px;
+}
+
+.download-device--phone .download-globe-meridian {
+    inset: 6px 24px;
+}
+
+.download-device--phone .download-globe-latitude {
+    inset: 19px 6px;
+}
+
+.download-device--phone .download-core-ring img {
+    width: 48px;
+}
+
+.download-device--phone .download-device-location {
+    margin-bottom: 15px;
+    font-size: 15px;
 }
 
 .download-manifest {
@@ -3707,6 +3768,16 @@ h1,
 @keyframes download-core {
     0%, 100% { transform: scale(.96); box-shadow: 0 0 38px rgba(31, 211, 220, .08); }
     50% { transform: scale(1); box-shadow: 0 0 72px rgba(31, 211, 220, .2); }
+}
+
+@keyframes download-globe-meridian {
+    from { transform: rotate(-18deg) scaleX(.88); }
+    to { transform: rotate(18deg) scaleX(1.08); }
+}
+
+@keyframes download-globe-latitude {
+    from { transform: scaleY(.82); opacity: .55; }
+    to { transform: scaleY(1.08); opacity: 1; }
 }
 
 @media (max-width: 980px) {
@@ -3823,6 +3894,8 @@ h1,
 @media (prefers-reduced-motion: reduce) {
     .download-signal-dot,
     .download-flow span,
-    .download-core-ring { animation: none; }
+    .download-core-ring,
+    .download-globe-meridian,
+    .download-globe-latitude { animation: none; }
     .download-platform-glass { transition: none; }
 }
