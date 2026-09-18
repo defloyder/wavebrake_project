@@ -1,0 +1,3 @@
+17 3 * * * docker run --rm -v /home/wavebreakdeploy/wavebreak-pilot/shared/acme-webroot:/var/www/acme -v /home/wavebreakdeploy/wavebreak-pilot/shared/letsencrypt:/etc/letsencrypt certbot/certbot renew --webroot -w /var/www/acme --quiet && docker exec wavebreak-pilot-public-http nginx -s reload # wavebreak-cert-renew
+35 2 * * * /home/wavebreakdeploy/wavebreak-pilot/shared/backup-pilot-postgres.sh >> /home/wavebreakdeploy/wavebreak-pilot/shared/logs/postgres-backup.log 2>&1
+10 4 * * 0 /home/wavebreakdeploy/wavebreak-pilot/shared/maintain-pilot-docker.sh >> /home/wavebreakdeploy/wavebreak-pilot/shared/logs/docker-maintenance.log 2>&1
