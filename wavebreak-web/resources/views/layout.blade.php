@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="ru">
 <head>
-    <script>document.documentElement.classList.add('js');</script>
     @php
         $siteUrl = rtrim(config('app.url'), '/');
         $canonical = trim($__env->yieldContent('canonical')) ?: $siteUrl . request()->getPathInfo();
@@ -12,6 +11,14 @@
         $cssVersion = file_exists($cssPath) ? filemtime($cssPath) : time();
         $jsPath = public_path('js/wavebreak-motion.js');
         $jsVersion = file_exists($jsPath) ? filemtime($jsPath) : time();
+        $structuredData = [
+            '@context' => 'https://schema.org',
+            '@graph' => [
+                ['@type' => 'Organization', '@id' => $siteUrl.'/#organization', 'name' => 'WAVEBREAK', 'url' => $siteUrl, 'logo' => asset('images/wavebreak-mark.png')],
+                ['@type' => 'WebSite', '@id' => $siteUrl.'/#website', 'name' => 'WAVEBREAK', 'url' => $siteUrl, 'inLanguage' => 'ru-RU', 'publisher' => ['@id' => $siteUrl.'/#organization']],
+                ['@type' => 'WebPage', 'name' => $title, 'description' => $description, 'url' => $canonical, 'isPartOf' => ['@id' => $siteUrl.'/#website']],
+            ],
+        ];
     @endphp
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -29,7 +36,9 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ $title }}">
     <meta name="twitter:description" content="{{ $description }}">
-    <meta name="theme-color" content="#050812">
+    <meta name="theme-color" content="#020507">
+    <meta property="og:locale" content="ru_RU">
+    <meta name="twitter:image" content="{{ $image }}">
     <link rel="icon" href="{{ asset('favicon.ico') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('images/favicon.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('images/apple-touch-icon.png') }}">
@@ -37,12 +46,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:opsz,wght@9..144,440;9..144,560;9..144,650&family=JetBrains+Mono:wght@500;700&family=Michroma&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/wavebreak-site.css') }}?v={{ $cssVersion }}">
+    <script type="application/ld+json">@json($structuredData)</script>
     @stack('schema')
     @stack('styles')
 </head>
 <body class="@yield('body_class')">
-    <canvas id="wb-breakwater" aria-hidden="true"></canvas>
+    <a class="skip-link" href="#main">К содержимому</a>
+    @include('partials.public-header', ['active' => request()->is('/') ? 'home' : request()->path()])
     @yield('content')
+    @include('partials.public-footer')
     @stack('scripts')
     <script src="{{ asset('js/wavebreak-motion.js') }}?v={{ $jsVersion }}" defer></script>
 </body>

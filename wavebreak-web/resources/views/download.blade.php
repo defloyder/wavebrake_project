@@ -5,9 +5,9 @@
 @section('body_class', 'wb-shell wb-public wb-download-page')
 
 @section('content')
-@include('partials.public-header', ['active' => 'download'])
 
-<main class="download-site">
+
+<main id="main" class="download-site">
     <section class="download-hero" aria-labelledby="download-title">
         <canvas id="download-tide" aria-hidden="true"></canvas>
         <div class="download-grid" aria-hidden="true"></div>
@@ -110,8 +110,8 @@
             </div>
             <div data-reveal data-reveal-delay="160">
                 <span>03</span>
-                <h3>Сеть меняется</h3>
-                <p>Приложение восстанавливает соединение при переходе между сетями.</p>
+                <h3>Выбор локации</h3>
+                <p>Выбирайте доступную локацию и проверяйте состояние подключения в приложении.</p>
             </div>
         </div>
     </section>
@@ -120,23 +120,10 @@
         <div class="wb-container" data-reveal>
             <p class="download-kicker"><span></span> Скоро здесь</p>
             <h2>Ссылки появятся<br>после публикации сборок.</h2>
-            <p>Эта страница станет единственной официальной точкой загрузки приложений WAVEBREAK.</p>
+            <p>Здесь будут доступны официальные сборки для Windows, Android и iOS.</p>
         </div>
     </section>
 </main>
 
-<footer class="art-footer download-footer">
-    <div class="wb-container art-footer-grid">
-        <a href="/" class="art-footer-brand" aria-label="WAVEBREAK">
-            <img src="{{ asset('images/wavebreak-logo.png') }}" alt="">
-            <span class="wb-brand-name"><span class="wb-brand-wave">WAVE</span><span class="wb-brand-break">BREAK</span></span>
-        </a>
-        <nav aria-label="Нижняя навигация">
-            <a href="/">Главная</a>
-            <a href="/pricing">Тарифы</a>
-            <a href="/access">Технология</a>
-        </nav>
-        <span>© {{ date('Y') }}</span>
-    </div>
-</footer>
+
 @endsection

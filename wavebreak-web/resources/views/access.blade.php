@@ -1,135 +1,47 @@
 @extends('layout')
-
-@section('title', 'Технология WAVEBREAK')
-@section('description', 'Как WAVEBREAK держит соединение: несколько транспортов на выбор, автоматическое переключение и один линк, который обновляется сам.')
-@section('body_class', 'wb-shell wb-public')
-
-@push('schema')
-<script type="application/ld+json">
-{
-  "@@context": "https://schema.org",
-  "@@type": "FAQPage",
-  "mainEntity": [
-    {
-      "@@type": "Question",
-      "name": "Нужно вручную выбирать протокол подключения?",
-      "acceptedAnswer": {
-        "@@type": "Answer",
-        "text": "Нет. Профиль пробует несколько транспортов — VLESS и Hysteria2 — и держит тот, что проходит в вашей сети."
-      }
-    },
-    {
-      "@@type": "Question",
-      "name": "Что если сеть ограничивает защищённое соединение?",
-      "acceptedAnswer": {
-        "@@type": "Answer",
-        "text": "WAVEBREAK не завязан на один способ подключения, поэтому канал продолжает работать даже при активных блокировках."
-      }
-    }
-  ]
-}
-</script>
-@endpush
-
+@section('title', 'Технология WAVEBREAK | Приложения и подключения')
+@section('description', 'Как устроен WAVEBREAK: приложения для компьютера и смартфона, подписки сервиса и импорт совместимых профилей других провайдеров.')
+@section('body_class', 'wb-public page-access')
 @section('content')
-@include('partials.public-header', ['active' => 'access'])
-
-<main>
-    <section class="wb-page-hero">
-        <div class="wb-container wb-page-hero-grid">
-            <div>
-                <p class="wb-kicker">Технология</p>
-                <h1>Один линк держит форму, даже когда сеть против</h1>
-                <p class="wb-lead">
-                    WAVEBREAK не привязан к одному протоколу. Профиль сам выбирает канал,
-                    который проходит именно в вашей сети, и переключается, если условия меняются —
-                    вы просто открываете приложение.
-                </p>
+<main id="main">
+    <section class="download-hero site-hero site-hero--compact" aria-labelledby="access-title">
+        @include('partials.tide')
+        <div class="wb-container site-hero-inner">
+            <div class="hero-copy" data-reveal>
+                <p class="download-kicker"><span></span> Что за этим стоит</p>
+                <h1 id="access-title">Технология<br><em>WAVEBREAK.</em></h1>
+                <p class="hero-description">Приложение хранит ваши профили и подключается к выбранному серверу. Вы решаете, чьим сервисом пользоваться.</p>
+                <a class="download-discover" href="#profiles"><span>Как это устроено</span><span aria-hidden="true">↓</span></a>
             </div>
-            <div class="wb-architecture-card">
-                <div class="wb-arch-row"><span>Транспорт</span><b>VLESS · Hysteria2</b></div>
-                <div class="wb-arch-row"><span>Шифрование</span><b>REALITY / TLS 1.3</b></div>
-                <div class="wb-arch-row"><span>Переключение</span><b>автоматическое</b></div>
-                <div class="wb-arch-row"><span>Подписка</span><b>одна ссылка, обновляется сама</b></div>
-                <div class="wb-arch-row"><span>Устройства</span><b>iOS · Android · Windows · macOS</b></div>
-            </div>
+            <div class="hero-bottom"><span>Ваш профиль / Ваша локация</span><span>Компьютер + Смартфон</span></div>
         </div>
     </section>
-
-    <section class="wb-section">
+    <section class="site-section" id="profiles">
         <div class="wb-container">
-            <div class="wb-section-head">
-                <p class="wb-kicker">Маршрут</p>
-                <h2>От оплаты до рабочего подключения</h2>
-                <p>Без ручных конфигов и инструкций в чатах.</p>
-            </div>
-            <div class="wb-timeline">
-                <article>
-                    <span>01</span>
-                    <h3>Аккаунт</h3>
-                    <p>Создаёте аккаунт в приложении на телефоне или компьютере.</p>
-                </article>
-                <article>
-                    <span>02</span>
-                    <h3>Тариф</h3>
-                    <p>Активный тариф открывает лимит трафика и число устройств.</p>
-                </article>
-                <article>
-                    <span>03</span>
-                    <h3>Подключение</h3>
-                    <p>Один QR-код или ссылка — работает в Happ и похожих приложениях.</p>
-                </article>
-                <article>
-                    <span>04</span>
-                    <h3>Устройства</h3>
-                    <p>Добавляете столько устройств, сколько разрешает тариф.</p>
-                </article>
+            <div class="section-heading" data-reveal><p class="download-kicker"><span></span> Основа подключения</p><h2>Всё начинается<br><em>с профиля.</em></h2></div>
+            <div class="choice-grid">
+                <article data-reveal><span class="section-number">01 / СЕРВИС WAVEBREAK</span><h3>Профиль из подписки</h3><p>После оформления подписки в приложении появляются доступные подключения WAVEBREAK. Там же можно проверить срок действия и расход трафика.</p></article>
+                <article data-reveal><span class="section-number">02 / ДРУГОЙ ПРОВАЙДЕР</span><h3>Профиль по ссылке</h3><p>Добавьте совместимую ссылку подключения или подписки. Локации, срок действия и ограничения в этом случае определяет ваш провайдер.</p></article>
             </div>
         </div>
     </section>
-
-    <section class="wb-section wb-dark-band">
-        <div class="wb-container wb-feature-grid">
-            <article class="wb-card">
-                <h3>Не нужно гадать, что вставить</h3>
-                <p>QR-код или ссылка — сканируете или копируете. Инструкция не нужна.</p>
-            </article>
-            <article class="wb-card">
-                <h3>Работает там, где давят блокировки</h3>
-                <p>Активные блокировки не останавливают канал: транспорт подбирается под вашу сеть.</p>
-            </article>
-            <article class="wb-card">
-                <h3>Видно, что происходит</h3>
-                <p>Статус, трафик и устройства видны прямо в приложении.</p>
-            </article>
+    <section class="site-section product-band">
+        <div class="wb-container steps-layout"><div data-reveal><p class="download-kicker"><span></span> В приложении</p><h2>От выбора<br><em>к подключению.</em></h2></div>
+            <ol class="steps">
+                <li><span>01</span><div><h3>Добавьте профиль</h3><p>Войдите в аккаунт WAVEBREAK или импортируйте свою ссылку.</p></div></li>
+                <li><span>02</span><div><h3>Выберите локацию</h3><p>Используйте одну из локаций, доступных в вашем профиле.</p></div></li>
+                <li><span>03</span><div><h3>Подключитесь</h3><p>Нажмите на планету. Текущий статус соединения появится на главном экране приложения.</p></div></li>
+            </ol>
         </div>
     </section>
-
-    <section class="wb-section">
-        <div class="wb-container wb-faq">
-            <div>
-                <p class="wb-kicker">FAQ</p>
-                <h2>Коротко о том, как это работает</h2>
-            </div>
-            <div class="wb-faq-list">
-                <article>
-                    <h3>На скольких устройствах можно подключиться?</h3>
-                    <p>Столько, сколько разрешает тариф. Устройства добавляются в приложении.</p>
-                </article>
-                <article>
-                    <h3>Что если сеть ограничивает защищённое соединение?</h3>
-                    <p>Профиль пробует несколько транспортов и держит тот, что проходит в вашей сети.</p>
-                </article>
-                <article>
-                    <h3>Нужно вручную выбирать протокол?</h3>
-                    <p>Нет — сработает лучший вариант для вашей сети автоматически.</p>
-                </article>
-                <article>
-                    <h3>Что видно в приложении?</h3>
-                    <p>Тариф, использованный трафик, устройства и статус подключения.</p>
-                </article>
-            </div>
-        </div>
+    <section class="site-section">
+        <div class="wb-container faq-layout"><h2>Чуть<br><em>подробнее.</em></h2><div class="faq-list">
+            <details><summary>Какие подключения есть у WAVEBREAK?</summary><p>В тестовой инфраструктуре доступны Direct-TLS и Hysteria2. Список подключений и локаций отображается в приложении и зависит от вашей подписки.</p></details>
+            <details><summary>Подойдёт любая сторонняя ссылка?</summary><p>Не любая. Формат ссылки и протокол должны поддерживаться вашей версией приложения. Условия сторонней подписки остаются у её провайдера.</p></details>
+            <details><summary>Что влияет на скорость?</summary><p>Качество вашей сети, маршрут до сервера и его загрузка. Если соединение нестабильно, попробуйте другую доступную локацию или тип подключения.</p></details>
+            <details><summary>Где управлять подпиской?</summary><p>В аккаунте внутри приложения. На сайте не нужно регистрироваться или вводить платёжные данные.</p></details>
+        </div></div>
     </section>
+    <section class="site-cta"><div class="wb-container"><h2>Следующий шаг.<br><em>Ваше устройство.</em></h2><a href="/download" class="download-discover"><span>Выбрать приложение</span><span aria-hidden="true">↗</span></a></div></section>
 </main>
 @endsection

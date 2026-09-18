@@ -1,119 +1,57 @@
 @extends('layout')
-
-@section('title', 'Тарифы WAVEBREAK')
-@section('description', 'Тарифы WAVEBREAK: подключение по одной ссылке и управление со смартфона или компьютера.')
-@section('body_class', 'wb-shell wb-public')
-
-@push('schema')
-<script type="application/ld+json">
-{
-  "@@context": "https://schema.org",
-  "@@type": "Product",
-  "name": "WAVEBREAK",
-  "description": "Защищенная инфраструктура для бизнеса с тарифами и управлением подключениями в приложении.",
-  "brand": {"@@type": "Brand", "name": "WAVEBREAK"},
-  "offers": [
-    @foreach($plans as $plan)
-    {
-      "@@type": "Offer",
-      "name": "{{ $plan['name'] }}",
-      "price": "{{ number_format(($plan['price_cents'] ?? 0) / 100, 2, '.', '') }}",
-      "priceCurrency": "USD",
-      "availability": "https://schema.org/InStock"
-    }@if(!$loop->last),@endif
-    @endforeach
-  ]
-}
-</script>
-@endpush
-
+@section('title', 'Тарифы WAVEBREAK | Условия подключения')
+@section('description', 'Тарифы WAVEBREAK: стоимость, срок действия, количество устройств и доступный трафик. Подписка и управление подключениями в приложении.')
+@section('body_class', 'wb-public page-pricing')
 @section('content')
-@include('partials.public-header', ['active' => 'pricing'])
-
-<main>
-    <section class="wb-page-hero">
-        <div class="wb-container wb-page-hero-grid">
-            <div>
-                <p class="wb-kicker">Тарифы</p>
-                <h1>Один тариф. Один стабильный канал.</h1>
-                <p class="wb-lead">
-                    Тариф даёт лимит трафика и число устройств. Никаких пилотов и настроек —
-                    выбрали тариф в приложении и получили готовое подключение.
-                </p>
+<main id="main">
+    <section class="download-hero site-hero site-hero--compact" aria-labelledby="pricing-title">
+        @include('partials.tide')
+        <div class="wb-container site-hero-inner">
+            <div class="hero-copy" data-reveal>
+                <p class="download-kicker"><span></span> Подписка на сервис</p>
+                <h1 id="pricing-title">Тарифы<br><em>WAVEBREAK.</em></h1>
+                <p class="hero-description">Выберите подходящие условия. Оформление и управление подпиской доступны в приложении.</p>
+                <a class="download-discover" href="#plans"><span>Посмотреть тарифы</span><span aria-hidden="true">↓</span></a>
             </div>
-            <div class="wb-mini-console">
-                <span>тариф выбран</span>
-                <strong>ссылка готова</strong>
-                <em>статус: активно</em>
-            </div>
+            <div class="hero-bottom"><span>Стоимость / Устройства / Трафик</span><span>Без веб-кабинета</span></div>
         </div>
     </section>
-
-    <section class="wb-section">
-        <div class="wb-container wb-pricing-grid">
-            @forelse($plans as $plan)
-                @php
-                    $code = strtolower($plan['code'] ?? '');
-                    $copy = match (true) {
-                        str_contains($code, 'starter') => [
-                            'Для одного человека и одного устройства.',
-                            ['Один линк — QR-код и ссылка', 'Канал сам держит форму при блокировках', 'Статус прямо в приложении']
-                        ],
-                        str_contains($code, 'plus') => [
-                            'Для нескольких устройств в активном использовании.',
-                            ['Больше устройств на одном тарифе', 'Выше лимит трафика', 'Все транспорты сразу — VLESS и Hysteria2']
-                        ],
-                        str_contains($code, 'fleet') => [
-                            'Для семьи или небольшой команды.',
-                            ['Общий тариф на несколько человек', 'Устройства добавляются в один клик', 'Трафик без строгого лимита']
-                        ],
-                        default => [
-                            'Подключение через WAVEBREAK.',
-                            ['Управление в приложении', 'Одна ссылка на подключение', 'Понятный статус']
-                        ],
-                    };
-                @endphp
-                <article class="wb-card wb-plan-card">
-                    <span class="wb-plan-code">{{ strtoupper($plan['code'] ?? 'PLAN') }}</span>
-                    <h2>{{ $plan['name'] }}</h2>
-                    <p>{{ $copy[0] }}</p>
-                    <div class="wb-price">
-                        <strong>${{ number_format(($plan['price_cents'] ?? 0) / 100, 2) }}</strong>
-                        <span>/ {{ $plan['interval'] ?? 'month' }}</span>
-                    </div>
-                    <ul>
-                        @foreach($copy[1] as $item)
-                            <li>{{ $item }}</li>
-                        @endforeach
-                    </ul>
-                    <a href="/download" class="wb-btn {{ $loop->first ? 'wb-btn--primary' : '' }}">Открыть в приложении</a>
-                </article>
-            @empty
-                <article class="wb-card">
-                    <h2>Тарифы временно недоступны</h2>
-                    <p>Список тарифов не загрузился. Обновите страницу через несколько минут.</p>
-                </article>
-            @endforelse
+    <section class="site-section" id="plans" aria-label="Доступные тарифы">
+        <div class="wb-container">
+            @if ($plans === [])
+                <div class="plans-unavailable" role="status"><span class="section-number">ТАРИФЫ</span><h2>Сейчас не удалось<br><em>загрузить цены.</em></h2><p>Попробуйте обновить страницу немного позже. Ваши действующие подписки от этого не меняются.</p><a href="/pricing" class="text-link">Обновить страницу <span aria-hidden="true">↻</span></a></div>
+            @else
+                <div class="plan-grid">
+                    @foreach ($plans as $plan)
+                        @php
+                            $price = ($plan['price_minor'] ?? $plan['price_cents'] ?? 0) / 100;
+                            $currency = strtoupper($plan['currency'] ?? 'USD');
+                            $currencyLabel = ['RUB' => '₽', 'USD' => '$', 'EUR' => '€', 'TRY' => '₺'][$currency] ?? $currency;
+                            $period = isset($plan['duration_days']) ? $plan['duration_days'].' дней' : (['month' => 'месяц', 'year' => 'год', 'week' => 'неделю'][$plan['interval'] ?? ''] ?? ($plan['interval'] ?? 'период'));
+                            $traffic = $plan['traffic_limit_bytes'] ?? null;
+                        @endphp
+                        <article class="plan" data-reveal>
+                            <span class="section-number">{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }} / ПОДПИСКА</span>
+                            <h2>{{ $plan['name'] }}</h2>
+                            <p class="plan-price">{{ number_format($price, $price == floor($price) ? 0 : 2, ',', ' ') }} <span>{{ $currencyLabel }}</span></p>
+                            <p class="plan-period">за {{ $period }}</p>
+                            <dl>
+                                <div><dt>Устройства</dt><dd>{{ $plan['device_limit'] ?? 'По условиям тарифа' }}</dd></div>
+                                <div><dt>Трафик</dt><dd>{{ $traffic === null || $traffic === 0 ? 'Без лимита' : number_format($traffic / 1073741824, 1, ',', ' ').' ГБ' }}</dd></div>
+                                @if (isset($plan['concurrent_connection_limit']))
+                                    <div><dt>Одновременно</dt><dd>{{ $plan['concurrent_connection_limit'] }}</dd></div>
+                                @endif
+                            </dl>
+                            <a href="/download" class="wb-btn wb-btn--outline">К приложению <span aria-hidden="true">↗</span><span class="sr-only">: {{ $plan['name'] }}</span></a>
+                        </article>
+                    @endforeach
+                </div>
+                <p class="price-note">Перед оформлением проверьте срок и условия подписки в приложении.</p>
+            @endif
         </div>
     </section>
-
-    <section class="wb-section wb-split-section">
-        <div class="wb-container wb-split">
-            <div>
-                <p class="wb-kicker">После оплаты</p>
-                <h2>Открываете приложение — подключение уже готово</h2>
-                <p>
-                    Тариф, QR-код, ссылка и устройства находятся в приложении.
-                    Настраивать транспорт вручную не нужно: подходящий вариант выбирается автоматически.
-                </p>
-            </div>
-            <div class="wb-checklist">
-                <span>Аккаунт создан</span>
-                <span>Тариф активен</span>
-                <span>Ссылка готова</span>
-                <span>Устройство подключено</span>
-            </div>
-        </div>
+    <section class="site-section product-band">
+        <div class="wb-container faq-layout"><h2>Уже есть<br><em>своя ссылка?</em></h2><div><p class="section-copy">Для профилей других провайдеров подписка WAVEBREAK не требуется. Достаточно совместимой ссылки подключения.</p><a class="text-link" href="/access#profiles">Подробнее о профилях <span aria-hidden="true">↗</span></a></div></div>
     </section>
 </main>
 @endsection

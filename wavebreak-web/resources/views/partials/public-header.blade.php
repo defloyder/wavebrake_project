@@ -1,40 +1,18 @@
-@php($active = $active ?? '')
-
 <header class="wb-header">
     <div class="wb-container wb-nav">
-        <a href="/" class="wb-brand" aria-label="WAVEBREAK">
-            <img src="{{ asset('images/wavebreak-mark.png') }}" class="wb-logo wb-logo-full" alt="">
-            <span class="wb-brand-name"><span class="wb-brand-wave">WAVE</span><span class="wb-brand-break">BREAK</span></span>
+        <a href="/" class="wb-brand" aria-label="WAVEBREAK, главная">
+            <img src="{{ asset('images/wavebreak-mark.png') }}" width="56" height="40" alt="">
+            <span class="wb-brand-name">WAVE<span>BREAK</span></span>
         </a>
-
-        <button type="button" class="wb-burger" id="wb-burger" aria-label="Открыть меню" aria-expanded="false" aria-controls="wb-nav-panel">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        </button>
-
+        <button type="button" class="wb-burger" id="wb-burger" aria-label="Открыть меню" aria-expanded="false" aria-controls="wb-nav-panel"><span></span><span></span></button>
         <div class="wb-nav-panel" id="wb-nav-panel">
-            <nav class="wb-links" aria-label="Основная навигация">
-                <a href="/" class="{{ $active === 'home' ? 'is-active' : '' }}">Главная</a>
-                <a href="/pricing" class="{{ $active === 'pricing' ? 'is-active' : '' }}">Тарифы</a>
-                <a href="/access" class="{{ $active === 'access' ? 'is-active' : '' }}">Технология</a>
+            <nav class="wb-links" aria-label="Основная навигация" data-glass-nav>
+                <span class="nav-glass" aria-hidden="true"></span>
+                @foreach (['home' => ['/', 'Главная'], 'pricing' => ['/pricing', 'Тарифы'], 'access' => ['/access', 'Технология']] as $key => [$href, $label])
+                    <a href="{{ $href }}" @if ($active === $key) class="is-active" aria-current="page" @endif>{{ $label }}</a>
+                @endforeach
             </nav>
-            <div class="wb-actions">
-                <a href="/download" class="wb-btn wb-btn--primary">Скачать</a>
-            </div>
+            <a href="/download" class="wb-btn wb-btn--primary" @if ($active === 'download') aria-current="page" @endif>Скачать <span aria-hidden="true">↗</span></a>
         </div>
     </div>
 </header>
-
-<script>
-(() => {
-    const burger = document.getElementById('wb-burger');
-    const panel = document.getElementById('wb-nav-panel');
-    if (!burger || !panel) return;
-    const close = () => { panel.classList.remove('open'); burger.setAttribute('aria-expanded', 'false'); };
-    burger.addEventListener('click', () => {
-        const open = panel.classList.toggle('open');
-        burger.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-    panel.querySelectorAll('a').forEach((link) => link.addEventListener('click', close));
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-})();
-</script>

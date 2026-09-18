@@ -14,50 +14,29 @@ class WebController extends Controller
 
     public function index(): View
     {
-        return view('home', $this->publicData(loadPlans: false));
+        return view('home');
     }
 
     public function pricing(): View
     {
-        return view('pricing', $this->publicData());
+        try {
+            $plans = array_values(array_filter($this->core->plans(), fn (array $plan) =>
+                ($plan['is_active'] ?? true) && ($plan['is_public'] ?? true)
+            ));
+        } catch (Throwable) {
+            $plans = [];
+        }
+
+        return view('pricing', compact('plans'));
     }
 
     public function access(): View
     {
-        return view('access', $this->publicData(loadPlans: false));
+        return view('access');
     }
 
     public function download(): View
     {
-        return view('download', $this->publicData(loadPlans: false));
-    }
-
-    private function publicData(array $extra = [], bool $loadPlans = true): array
-    {
-        $plans = $loadPlans ? $this->safePlans() : $this->defaultPlans();
-
-        return array_merge([
-            'health' => ['status' => 'online'],
-            'plans' => $plans,
-        ], $extra);
-    }
-
-    private function safePlans(): array
-    {
-        try {
-            $plans = $this->core->plans();
-            return $plans !== [] ? $plans : $this->defaultPlans();
-        } catch (Throwable) {
-            return $this->defaultPlans();
-        }
-    }
-
-    private function defaultPlans(): array
-    {
-        return [
-            ['id' => 'starter', 'code' => 'starter', 'name' => 'Starter', 'price_cents' => 900, 'interval' => 'month'],
-            ['id' => 'plus', 'code' => 'plus', 'name' => 'Plus', 'price_cents' => 1900, 'interval' => 'month'],
-            ['id' => 'fleet', 'code' => 'fleet', 'name' => 'Fleet', 'price_cents' => 4900, 'interval' => 'month'],
-        ];
+        return view('download');
     }
 }

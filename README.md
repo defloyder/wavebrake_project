@@ -3,7 +3,7 @@
 WAVEBREAK is a standalone platform composed of:
 
 - `wavebreak-core`: Go API and worker. Owns business logic, PostgreSQL schema, Redis cache keys, RabbitMQ topology, OpenAPI, and domain events.
-- `wavebreak-web`: Laravel public website and user cabinet. Calls Core by API only.
+- `wavebreak-web`: Laravel public website and application downloads. Customer accounts exist only in the mobile and desktop applications.
 - `wavebreak-admin`: Laravel admin application. Calls Core by API only.
 - `wavebreak-node`: Go node agent.
 - `wavebreak-infrastructure`: Docker Compose, monitoring, Nginx templates, bootstrap scripts.

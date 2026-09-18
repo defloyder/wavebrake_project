@@ -1,6 +1,15 @@
 # WAVEBREAK Web
 
-Laravel public website and user cabinet for WAVEBREAK.
+Публичный сайт WAVEBREAK: главная, тарифы, технология и приложения.
+
+Клиентского веб-кабинета нет. Регистрация, вход, подписки и устройства находятся
+в мобильном и десктопном приложениях. Старые адреса кабинета перенаправляются на
+`/download`; форм изменения клиентских данных сайт не содержит.
+
+Все четыре страницы используют общий layout, шапку, футер, стили
+`public/css/wavebreak-site.css` и анимацию `public/js/wavebreak-motion.js`.
+Тарифы загружаются из API: при ошибке нет подставных цен.
+Ссылки загрузки пока отключены и обозначены «Скоро».
 
 The application calls `wavebreak-core` through HTTP only. It does not own or migrate Core tables.
 

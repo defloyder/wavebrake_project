@@ -12,3 +12,4 @@ storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*
 wavebreak-infrastructure/runtime/
+.artifacts/
