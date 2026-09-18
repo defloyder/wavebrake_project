@@ -10,15 +10,27 @@ const output = process.env.SCREENSHOT_DIR || '../.artifacts/public-site';
 mkdirSync(output, { recursive: true });
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const report = [];
+const injectedHosts = new Set();
 try {
     for (const width of [320, 390, 768, 1440, 1920]) {
         const context = await browser.newContext({ viewport: { width, height: 960 }, deviceScaleFactor: 1 });
         const page = await context.newPage();
         const errors = [];
+        const externalRequests = [];
         page.on('pageerror', error => errors.push(error.message));
+        page.on('request', request => {
+            const url = new URL(request.url());
+            // Local antivirus injects its own polling script into browser responses.
+            if (url.hostname === 'gc.kis.v2.scr.kaspersky-labs.com') {
+                injectedHosts.add(url.hostname);
+                return;
+            }
+            if (url.origin !== new URL(base).origin) externalRequests.push(request.url());
+        });
         for (const route of ['/', '/pricing', '/access', '/download']) {
-            const response = await page.goto(base + route, { waitUntil: 'networkidle' });
+            const response = await page.goto(base + route, { waitUntil: 'domcontentloaded' });
             assert.equal(response.status(), 200, route);
+            await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(resolve => setTimeout(resolve, 3000))]));
             await page.waitForTimeout(300);
             assert.equal(await page.locator('h1').count(), 1);
             assert.equal(await page.locator('header').count(), 1);
@@ -67,13 +79,15 @@ try {
             await page.waitForTimeout(700);
             await page.screenshot({ path: output + '/' + (route.slice(1) || 'home') + '-' + width + '.png', fullPage: true });
             assert.deepEqual(errors, [], 'JavaScript errors');
+            assert.deepEqual(externalRequests, [], 'Unexpected external dependencies');
             report.push({ route, width, status: 'PASSED', paintedPixels: pixels });
         }
         await context.close();
     }
     const reduced = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
     const page = await reduced.newPage();
-    await page.goto(base, { waitUntil: 'networkidle' });
+    await page.goto(base, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(500);
     const before = await page.locator('canvas').evaluate(c => c.toDataURL());
     await page.waitForTimeout(300);
     assert.equal(await page.locator('canvas').evaluate(c => c.toDataURL()), before, 'Reduced motion ignored');
@@ -85,7 +99,7 @@ try {
     await staticPage.goto(base);
     assert.ok(await staticPage.locator('h1').isVisible(), 'Content requires JavaScript');
     await noJS.close();
-    console.log(JSON.stringify({ checks: report, reducedMotion: 'PASSED', noJavaScript: 'PASSED' }, null, 2));
+    console.log(JSON.stringify({ checks: report, reducedMotion: 'PASSED', noJavaScript: 'PASSED', environmentInjectedHosts: [...injectedHosts] }, null, 2));
 } finally {
     await browser.close();
 }

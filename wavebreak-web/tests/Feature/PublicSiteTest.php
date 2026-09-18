@@ -18,6 +18,8 @@ class PublicSiteTest extends TestCase
                 ->assertSee('images/wavebreak-mark.png', false)
                 ->assertSee('aria-label="Основная навигация"', false)
                 ->assertSee('wavebreak-site.css', false)
+                ->assertSee('wavebreak-fonts.css', false)
+                ->assertDontSee('fonts.googleapis.com')
                 ->assertDontSee('href="/login"', false)
                 ->assertDontSee('href="/register"', false);
 
