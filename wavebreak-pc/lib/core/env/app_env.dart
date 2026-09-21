@@ -17,25 +17,30 @@ class AppEnv {
     defaultValue: 'development',
   );
 
+  // Defaults point at the real pilot Core over HTTPS, not a mock/localhost
+  // instance — a plain `flutter build windows` with no --dart-define flags
+  // must still ship a build that can actually reach the backend. Override
+  // for local development against a docker-compose Core instance with:
+  // --dart-define=CORE_BASE_URL=http://127.0.0.1:18080 --dart-define=USE_MOCK_API=true
   static const coreBaseUrl = String.fromEnvironment(
     'CORE_BASE_URL',
-    defaultValue: 'http://127.0.0.1:18080',
+    defaultValue: 'https://api.wavebreak.com.tr',
   );
 
   static const useMockApi = bool.fromEnvironment(
     'USE_MOCK_API',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   /// Which protocol to request in `POST /v1/access/grants`. The mock
   /// backend and the original WireGuard contract both expect
   /// `"wireguard"`; the pilot Core only accepts `"vless"` (VLESS REALITY)
-  /// and rejects anything else — see
-  /// docs/mobile-desktop-pilot-testing.md. Override per build:
-  /// --dart-define=ACCESS_PROTOCOL=vless
+  /// and rejects anything else — see docs/mobile-desktop-pilot-testing.md.
+  /// Defaults to "vless" to match the real Core; override only for a mock
+  /// or non-pilot backend with --dart-define=ACCESS_PROTOCOL=wireguard
   static const accessProtocol = String.fromEnvironment(
     'ACCESS_PROTOCOL',
-    defaultValue: 'wireguard',
+    defaultValue: 'vless',
   );
 
   /// Whether to fake the VPN tunnel ([SimulatedVpnAdapter]) instead of

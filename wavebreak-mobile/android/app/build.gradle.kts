@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -7,7 +8,10 @@ plugins {
 android {
     namespace = "com.wavebreak.wavebreak"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Pinned above flutter.ndkVersion: several plugins (connectivity_plus,
+    // device_info_plus, flutter_secure_storage, etc.) require NDK
+    // 28.2.13676358, higher than the version Flutter's template defaults to.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -34,6 +38,16 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // Minification disabled for now: the AGP 9.1.0 default of
+            // isMinifyEnabled = true for release builds requires a
+            // proguard-rules.pro that doesn't exist yet, and R8 stripping
+            // classes it can't see used (the hysteria_bridge.aar's Go<->Java
+            // bridge is invoked via go.Seq reflection) is a real risk of
+            // shipping a release build that silently breaks at runtime.
+            // Revisit with proper -keep rules for go.** and
+            // app.wavebreak.bridge.** before re-enabling.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 
