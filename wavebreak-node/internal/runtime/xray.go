@@ -546,7 +546,7 @@ quic:
   maxConnReceiveWindow: 20971520
   maxIdleTimeout: 60s
   maxIncomingStreams: 1024
-  disablePathMTUDiscovery: false
+  disablePathMTUDiscovery: true
   disableStatelessReset: false
 ignoreClientBandwidth: true
 congestion:
