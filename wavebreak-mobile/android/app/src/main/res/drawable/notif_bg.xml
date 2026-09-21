@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A diagonal midnight-to-deep-ocean gradient standing in for the app's
+     animated wave background — a real animated SVG isn't renderable inside
+     a RemoteViews notification, so this is the closest static echo of it:
+     same two colors, same direction the in-app ocean backdrop uses. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="16dp" />
+    <gradient
+        android:angle="115"
+        android:startColor="@color/wb_midnight"
+        android:endColor="@color/wb_deep_ocean"
+        android:type="linear" />
+</shape>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#0B1020</color>
+
+    <!-- Mirrors lib/core/theme/wb_colors.dart so the VPN status
+         notification (native Kotlin, no access to the Dart theme) reads as
+         the same app rather than a stock Android notification bolted on. -->
+    <color name="wb_midnight">#0B1020</color>
+    <color name="wb_deep_ocean">#0F1E2E</color>
+    <color name="wb_wave_cyan">#00D6FF</color>
+    <color name="wb_ocean_teal">#00B4C8</color>
+    <color name="wb_ice">#E6F2F7</color>
+    <color name="wb_ice_60">#99E6F2F7</color>
+    <color name="wb_error">#E57373</color>
+</resources>
