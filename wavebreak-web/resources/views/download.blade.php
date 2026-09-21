@@ -27,23 +27,23 @@
 
             <div class="download-signal" data-reveal data-reveal-delay="180" aria-label="Статус подготовки приложений">
                 <span class="download-signal-dot"></span>
-                <span>Сборки готовятся</span>
+                <span>Android доступен, остальные сборки готовятся</span>
                 <b>01</b>
             </div>
 
             <div class="download-platform-switch" id="platforms" data-platform-switch data-reveal data-reveal-delay="260">
                 <div class="download-platform-glass" aria-hidden="true"></div>
-                <button type="button" data-platform="0" aria-describedby="release-note" disabled>
+                <button type="button" class="download-platform-btn" data-platform="0" aria-describedby="release-note" disabled>
                     <span class="download-platform-index">01</span>
                     <span><b>Windows</b><small>Десктоп</small></span>
                     <em>Скоро</em>
                 </button>
-                <button type="button" data-platform="1" aria-describedby="release-note" disabled>
+                <a class="download-platform-btn" href="{{ asset('downloads/wavebreak-android.apk') }}" data-platform="1" download>
                     <span class="download-platform-index">02</span>
                     <span><b>Android</b><small>Смартфон</small></span>
-                    <em>Скоро</em>
-                </button>
-                <button type="button" data-platform="2" aria-describedby="release-note" disabled>
+                    <em>Скачать</em>
+                </a>
+                <button type="button" class="download-platform-btn" data-platform="2" aria-describedby="release-note" disabled>
                     <span class="download-platform-index">03</span>
                     <span><b>iOS</b><small>Смартфон</small></span>
                     <em>Скоро</em>
@@ -119,8 +119,8 @@
     <section class="download-release" id="release-note">
         <div class="wb-container" data-reveal>
             <p class="download-kicker"><span></span> Скоро здесь</p>
-            <h2>Ссылки появятся<br>после публикации сборок.</h2>
-            <p>Здесь будут доступны официальные сборки для Windows, Android и iOS.</p>
+            <h2>Android уже доступен.<br>Остальные ссылки — после публикации сборок.</h2>
+            <p>Официальная сборка для Android доступна для скачивания выше. Windows и iOS появятся здесь по мере готовности.</p>
         </div>
     </section>
 </main>

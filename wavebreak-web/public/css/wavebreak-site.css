@@ -369,7 +369,7 @@ img { display: block; max-width: 100%; }
     transition: transform .72s cubic-bezier(.22, .85, .24, 1), background .3s ease;
 }
 
-.download-platform-switch button {
+.download-platform-switch .download-platform-btn {
     position: relative;
     z-index: 1;
     min-width: 0;
@@ -385,7 +385,7 @@ img { display: block; max-width: 100%; }
     opacity: 1;
 }
 
-.download-platform-switch button:first-of-type {
+.download-platform-switch .download-platform-btn:first-child {
     border-left: 0;
 }
 
@@ -816,7 +816,7 @@ img { display: block; max-width: 100%; }
     .download-release h2 { font-size: 48px; }
     .download-device-scene { grid-template-columns: minmax(0, 1fr) 90px 200px; }
     .download-device--phone { width: 190px; height: 410px; }
-    .download-platform-switch button { gap: 10px; padding-inline: 14px; }
+    .download-platform-switch .download-platform-btn { gap: 10px; padding-inline: 14px; }
 }
 
 @media (max-width: 760px) {
@@ -852,12 +852,12 @@ img { display: block; max-width: 100%; }
         bottom: auto;
         transform: translateY(calc(var(--platform-index) * 100%));
     }
-    .download-platform-switch button {
+    .download-platform-switch .download-platform-btn {
         min-height: 70px;
         border-top: 1px solid rgba(149, 218, 224, .12);
         border-left: 0;
     }
-    .download-platform-switch button:first-of-type { border-top: 0; }
+    .download-platform-switch .download-platform-btn:first-child { border-top: 0; }
     .download-continuity { padding: 100px 0 110px; }
     .download-continuity::before { left: 20px; }
     .download-continuity-head { grid-template-columns: 1fr; gap: 28px; }
@@ -910,7 +910,7 @@ img { display: block; max-width: 100%; }
     .download-intro h1 { font-size: 41px; }
     .download-continuity h2,
     .download-release h2 { font-size: 36px; }
-    .download-platform-switch button { grid-template-columns: auto 1fr auto; }
+    .download-platform-switch .download-platform-btn { grid-template-columns: auto 1fr auto; }
     .download-platform-switch em { font-size: 9px; }
 }
 
