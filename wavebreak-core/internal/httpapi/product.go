@@ -235,6 +235,7 @@ var regionNames = map[string]string{
 // without an entry here still get a clean "<flag> <country>" label.
 var nodeCities = map[string]string{
 	"NL-PILOT-01": "Amsterdam",
+	"TR-PILOT-01": "Istanbul",
 }
 
 // locationLabel renders a human node code like "NL-PILOT-01" as something
