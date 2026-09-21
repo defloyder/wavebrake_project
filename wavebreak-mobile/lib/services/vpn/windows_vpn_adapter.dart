@@ -44,113 +44,128 @@ class WindowsVpnAdapter implements VpnAdapter {
     await disconnect();
     if (generation != _generation) return;
 
-    final url = _extractUrl(profile.rawJson);
-    if (url == null || url.isEmpty) {
+    final candidates = _extractCandidates(profile.rawJson);
+    if (candidates.isEmpty) {
       if (generation == _generation) _emit(VpnNativeState.failed);
       throw StateError('profile has no usable share link');
     }
 
+    if (generation == _generation) _emit(VpnNativeState.connecting);
+
+    Object? lastError;
+    for (var i = 0; i < candidates.length; i++) {
+      if (generation != _generation) return;
+      try {
+        await _connectOne(candidates[i], generation);
+        return; // First candidate to actually come up wins — done.
+      } catch (e) {
+        lastError = e;
+        AppLogger.warn(
+            'transport ${i + 1}/${candidates.length} (${candidates[i]}) failed: $e');
+        if (generation != _generation) return;
+        // Clean slate before the next candidate — sing-box may still be
+        // holding the TUN interface from the attempt that just failed.
+        await disconnect();
+      }
+    }
+    if (generation == _generation) _emit(VpnNativeState.failed);
+    throw lastError ?? StateError('no transport candidate connected');
+  }
+
+  /// Brings up exactly one transport candidate (launches sing-box against
+  /// a config built for just this [url]) and waits for it to report
+  /// ready — the per-candidate unit [connect] retries across its
+  /// candidate list. Throws (and leaves nothing running) on any failure
+  /// so the caller can move on to the next candidate with a clean slate.
+  Future<void> _connectOne(String url, int generation) async {
     final ShareLink link;
     try {
       link = ShareLink.parse(url);
     } catch (e) {
-      AppLogger.warn('Could not parse share link for sing-box: $e');
-      if (generation == _generation) _emit(VpnNativeState.failed);
-      throw StateError('unsupported share link');
+      throw StateError('unsupported share link: $e');
     }
 
-    if (generation == _generation) _emit(VpnNativeState.connecting);
-
     final exePath = await _singBoxPath();
-    if (generation != _generation) return;
+    if (generation != _generation) throw StateError('superseded');
     if (exePath == null) {
-      _emit(VpnNativeState.failed);
       throw StateError('sing-box.exe not found next to the app');
     }
 
     final configPath = await _writeConfig(link);
-    if (generation != _generation) return;
+    if (generation != _generation) throw StateError('superseded');
     final completer = Completer<void>();
     var resolved = false;
 
-    try {
-      final process = await Process.start(
-        exePath,
-        ['run', '-c', configPath],
-        workingDirectory: File(exePath).parent.path,
-        runInShell: false,
-      );
-      if (generation != _generation) {
-        // A newer connect() (or a disconnect()) already moved on while
-        // sing-box was launching — this attempt is stale. Kill it now
-        // rather than leaving it running alongside whatever superseded
-        // it; there is nothing left here that should touch `_process` or
-        // emit a state for this generation.
-        process.kill(ProcessSignal.sigterm);
-        return;
+    final process = await Process.start(
+      exePath,
+      ['run', '-c', configPath],
+      workingDirectory: File(exePath).parent.path,
+      runInShell: false,
+    );
+    if (generation != _generation) {
+      // A newer connect() (or a disconnect()) already moved on while
+      // sing-box was launching — this attempt is stale. Kill it now
+      // rather than leaving it running alongside whatever superseded it.
+      process.kill(ProcessSignal.sigterm);
+      throw StateError('superseded');
+    }
+    _process = process;
+
+    void onLine(String line, void Function(String) log) {
+      log('[sing-box] $line');
+      if (generation != _generation) return;
+      // sing-box logs this once the tun interface + routes are up —
+      // there is no separate "ready" event to wait for otherwise.
+      // Confirmed by running sing-box.exe directly: it writes its entire
+      // log output — including this line — to stderr, never stdout.
+      // Watching stdout alone meant `resolved` never flipped, so every
+      // connection sat until the timeout killed it and reported
+      // "Connection failed" regardless of whether the tunnel itself had
+      // already come up and was passing real traffic.
+      if (!resolved && line.contains('sing-box started')) {
+        resolved = true;
+        completer.complete();
       }
-      _process = process;
-
-      void onLine(String line, void Function(String) log) {
-        log('[sing-box] $line');
-        if (generation != _generation) return;
-        // sing-box logs this once the tun interface + routes are up —
-        // there is no separate "ready" event to wait for otherwise.
-        // Confirmed by running sing-box.exe directly: it writes its
-        // entire log output — including this line — to stderr, never
-        // stdout. Watching stdout alone meant `resolved` never flipped,
-        // so every connection sat until the 25s timeout killed it and
-        // reported "Connection failed" regardless of whether the tunnel
-        // itself had already come up and was passing real traffic.
-        if (!resolved && line.contains('sing-box started')) {
-          resolved = true;
-          _emit(VpnNativeState.connected);
-          completer.complete();
-        }
-      }
-
-      _stdoutSub = process.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen((line) => onLine(line, AppLogger.debug));
-      _stderrSub = process.stderr
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen((line) => onLine(line, AppLogger.warn));
-
-      unawaited(process.exitCode.then((code) {
-        if (generation != _generation) return;
-        if (!resolved) {
-          resolved = true;
-          _emit(VpnNativeState.failed);
-          if (!completer.isCompleted) {
-            completer.completeError(StateError('sing-box exited early (code $code)'));
-          }
-        } else if (code != 0) {
-          _emit(VpnNativeState.failed);
-        } else {
-          _emit(VpnNativeState.idle);
-        }
-      }));
-    } catch (e) {
-      if (generation == _generation) _emit(VpnNativeState.failed);
-      throw StateError('failed to launch sing-box: $e');
     }
 
-    try {
-      // Was 15s — too tight for a Hysteria2/QUIC handshake over a slow or
-      // lossy path (confirmed this session: real RTT to the pilot node
-      // alone can run into the hundreds of ms, before sing-box's own
-      // DNS-over-HTTPS lookup and the handshake itself), and every
-      // timeout here was indistinguishable from a real failure in the UI.
-      await completer.future.timeout(const Duration(seconds: 25));
-    } on TimeoutException {
-      if (generation == _generation) {
-        await disconnect();
+    _stdoutSub = process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) => onLine(line, AppLogger.debug));
+    _stderrSub = process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) => onLine(line, AppLogger.warn));
+
+    unawaited(process.exitCode.then((code) {
+      if (generation != _generation) return;
+      if (!resolved) {
+        resolved = true;
+        if (!completer.isCompleted) {
+          completer.completeError(StateError('sing-box exited early (code $code)'));
+        }
+      } else if (code != 0) {
         _emit(VpnNativeState.failed);
+      } else {
+        _emit(VpnNativeState.idle);
       }
+    }));
+
+    try {
+      // Per-candidate, not the whole connect() attempt: with several
+      // transports to try in order, a generous timeout on every single one
+      // would make a fully-blocked path take minutes to finally reach the
+      // one that works. Still comfortably above what a real Hysteria2/QUIC
+      // handshake over a slow or lossy path needs (was 15s before this,
+      // confirmed too tight — real RTT to the pilot node alone can run
+      // into the hundreds of ms, before sing-box's own DNS-over-HTTPS
+      // lookup and the handshake itself).
+      await completer.future.timeout(const Duration(seconds: 18));
+    } on TimeoutException {
+      if (generation == _generation) await disconnect();
       throw StateError('sing-box did not report ready in time');
     }
+    if (generation == _generation) _emit(VpnNativeState.connected);
   }
 
   @override
@@ -194,20 +209,32 @@ class WindowsVpnAdapter implements VpnAdapter {
     return file.path;
   }
 
-  /// Mirrors [ConnectionManager]'s two profile shapes — see
-  /// V2RayVpnAdapter's identical helper for the full rationale.
-  String? _extractUrl(String raw) {
+  /// [ConnectionProfile.rawJson] is either a grant-based (WAVEBREAK-hosted)
+  /// envelope — `{"transports": ["hysteria2://...", "vless://...", ...]}`,
+  /// built in ConnectionManager._finishConnecting, already in the order
+  /// [connect] should try them — or, for a custom/BYO location, just the
+  /// raw share-link text handed straight through (a one-candidate list).
+  /// Mirrors NativeVpnAdapter's identical helper for the full rationale.
+  List<String> _extractCandidates(String raw) {
     final trimmed = raw.trim();
     if (trimmed.contains('://') && !trimmed.startsWith('{')) {
-      return trimmed;
+      return [trimmed];
     }
     try {
       final payload = jsonDecode(trimmed) as Map<String, dynamic>;
+      final list = payload['transports'] as List?;
+      if (list != null) {
+        return list.whereType<String>().where((u) => u.isNotEmpty).toList();
+      }
+      // Pre-multi-transport shape, kept for any caller that hasn't moved
+      // to `transports` yet (e.g. a cached profile written by an older
+      // build of this app, restored on a cold start before ever calling
+      // connect() again).
       final vless = payload['vless'] as Map<String, dynamic>?;
       final url = vless?['connection_url'] as String?;
-      return (url != null && url.isNotEmpty) ? url : null;
+      return (url != null && url.isNotEmpty) ? [url] : const [];
     } catch (_) {
-      return null;
+      return const [];
     }
   }
 

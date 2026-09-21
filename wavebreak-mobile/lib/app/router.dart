@@ -20,6 +20,7 @@ import '../features/settings/security_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/support_screen.dart';
 import '../features/shell/app_shell.dart';
+import '../features/speedtest/speedtest_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/subscription/subscription_screen.dart';
 import '../features/update/maintenance_screen.dart';
@@ -113,6 +114,20 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/home',
                 pageBuilder: (_, __) => const NoTransitionPage(
                   child: HomeScreen(),
+                ),
+              ),
+            ],
+          ),
+          // Branch index 1 — between Home and Locations so the mobile
+          // bottom bar's left-to-right order (Home, Speed Test, Settings)
+          // matches branch index order (see app_shell.dart's
+          // _kMobileBranchIndexes, which is just positions into this list).
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/speedtest',
+                pageBuilder: (_, __) => const NoTransitionPage(
+                  child: SpeedtestScreen(),
                 ),
               ),
             ],

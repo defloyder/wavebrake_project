@@ -114,8 +114,8 @@ class LocationsScreen extends ConsumerWidget {
                           final group = matches.isEmpty ? null : matches.first;
                           final connectedToThisGroup = group != null &&
                               connection.status != ConnectionStatus.idle &&
-                              group.servers
-                                  .any((server) => server.id == connection.location.id);
+                              group.servers.any((server) =>
+                                  server.id == connection.effectiveLocation.id);
                           ref.read(customServersProvider.notifier).removeGroup(id);
                           if (connectedToThisGroup) {
                             await ref

@@ -34,6 +34,16 @@ class NativeVpnAdapter implements VpnAdapter {
   StreamSubscription<dynamic>? _eventSub;
   Completer<void>? _connectCompleter;
 
+  /// Whether a native 'FAILED' status should reach [states] (and therefore
+  /// ConnectionManager). True by default (a failure with nothing else
+  /// going on is exactly what it looks like), but [connect] turns it off
+  /// while falling back across transport candidates: every candidate but
+  /// the last failing there just means "try the next one", which should
+  /// read as still connecting from the outside — forwarding each of those
+  /// intermediate failures would flash a false "Couldn't connect" right
+  /// before recovering into "connecting" again for the fallback attempt.
+  bool _forwardNativeFailure = true;
+
   NativeVpnAdapter() {
     _eventSub =
         _events.receiveBroadcastStream().listen(_onStatus, onError: (Object e) {
@@ -46,12 +56,11 @@ class NativeVpnAdapter implements VpnAdapter {
 
   @override
   Future<void> connect(ConnectionProfile profile) async {
-    final url = _extractUrl(profile.rawJson);
-    if (url == null || url.isEmpty) {
+    final candidates = _extractCandidates(profile.rawJson);
+    if (candidates.isEmpty) {
       _emit(VpnNativeState.failed);
       throw StateError('profile has no usable share link');
     }
-    final scheme = Uri.tryParse(url)?.scheme;
 
     // A previous connect() that hasn't resolved yet means its native
     // "connect" call and the Kotlin-side thread it spawned
@@ -80,6 +89,39 @@ class NativeVpnAdapter implements VpnAdapter {
     }
 
     _emit(VpnNativeState.connecting);
+    final routingPolicy = _extractRoutingPolicy(profile.rawJson);
+    Object? lastError;
+    for (var i = 0; i < candidates.length; i++) {
+      final url = candidates[i];
+      final isLast = i == candidates.length - 1;
+      _forwardNativeFailure = isLast;
+      try {
+        await _connectOne(url, routingPolicy);
+        return; // First candidate to actually come up wins — done.
+      } catch (e) {
+        lastError = e;
+        AppLogger.warn(
+            'transport ${i + 1}/${candidates.length} ($url) failed: $e');
+        // Clean slate before the next candidate — the engine that just
+        // failed may still be holding the TUN interface or mid-teardown.
+        try {
+          await _method.invokeMethod('disconnect');
+        } catch (_) {}
+      }
+    }
+    _forwardNativeFailure = true;
+    _emit(VpnNativeState.failed);
+    throw lastError ?? StateError('no transport candidate connected');
+  }
+
+  /// Brings up exactly one transport candidate and waits for it to
+  /// report connected — the per-candidate unit [connect] retries across
+  /// [_extractCandidates]' list. Throws (never emits [VpnNativeState.idle]
+  /// or leaves the engine running) on any failure, so the caller can move
+  /// on to the next candidate with a clean slate.
+  Future<void> _connectOne(String url, Map<String, dynamic>? routingPolicy) async {
+    final scheme = Uri.tryParse(url)?.scheme;
+    _emit(VpnNativeState.connecting);
     final completer = Completer<void>();
     _connectCompleter = completer;
 
@@ -105,7 +147,7 @@ class NativeVpnAdapter implements VpnAdapter {
         // blanket "skip validation" default ever was.
         AppLogger.debug(
             'xray security=${parsed.streamSetting['security']} address=${parsed.address} port=${parsed.port}');
-        applySmartRoutingPolicy(parsed, _extractRoutingPolicy(profile.rawJson));
+        applySmartRoutingPolicy(parsed, routingPolicy);
         if (parsed.streamSetting['security'] == 'tls') {
           final pin = await _probeCertSha256(parsed.address, parsed.port);
           AppLogger.debug('xray cert pin=$pin');
@@ -117,14 +159,19 @@ class NativeVpnAdapter implements VpnAdapter {
         config = parsed.getFullConfiguration();
       } catch (e) {
         _connectCompleter = null;
-        _emit(VpnNativeState.failed);
         throw StateError('unsupported or malformed share link: $e');
       }
       await _method.invokeMethod('connect', {'xrayConfig': config});
     }
 
     try {
-      await completer.future.timeout(const Duration(seconds: 20));
+      // Shorter than the old single-candidate 20s: a failing transport now
+      // costs at most this much before falling back to the next one, and
+      // with up to a few candidates in play a generous per-candidate
+      // timeout would make a fully-blocked path take minutes to finally
+      // reach the one that works. Still comfortably above what a real
+      // Hysteria2/QUIC handshake over a slow or lossy path needs.
+      await completer.future.timeout(const Duration(seconds: 12));
     } on TimeoutException {
       // Backgrounding the app mid-connect can apparently delay or drop the
       // CONNECTING->CONNECTED broadcast reaching this EventChannel listener
@@ -140,8 +187,6 @@ class NativeVpnAdapter implements VpnAdapter {
         _emit(VpnNativeState.connected);
         return;
       }
-      unawaited(_method.invokeMethod('disconnect'));
-      _emit(VpnNativeState.failed);
       throw StateError('VPN tunnel did not come up in time');
     } finally {
       if (identical(_connectCompleter, completer)) _connectCompleter = null;
@@ -186,28 +231,37 @@ class NativeVpnAdapter implements VpnAdapter {
   }
 
   /// [ConnectionProfile.rawJson] is either a grant-based (WAVEBREAK-hosted)
-  /// envelope — `{"vless": {"connection_url": "vless://..."}}`, built in
-  /// ConnectionManager._finishConnecting — or, for a custom/BYO location,
-  /// just the raw share-link text handed straight through.
-  String? _extractUrl(String raw) {
+  /// envelope — `{"transports": ["hysteria2://...", "vless://...", ...]}`,
+  /// built in ConnectionManager._finishConnecting, already in the order
+  /// [connect] should try them — or, for a custom/BYO location, just the
+  /// raw share-link text handed straight through (a one-candidate list).
+  List<String> _extractCandidates(String raw) {
     final trimmed = raw.trim();
     if (trimmed.contains('://') && !trimmed.startsWith('{')) {
-      return trimmed;
+      return [trimmed];
     }
     try {
       final payload = jsonDecode(trimmed) as Map<String, dynamic>;
+      final list = payload['transports'] as List?;
+      if (list != null) {
+        return list.whereType<String>().where((u) => u.isNotEmpty).toList();
+      }
+      // Pre-multi-transport shape, kept for any caller that hasn't moved
+      // to `transports` yet (e.g. a cached profile written by an older
+      // build of this app, restored on a cold start before ever calling
+      // connect() again).
       final vless = payload['vless'] as Map<String, dynamic>?;
       final url = vless?['connection_url'] as String?;
-      return (url != null && url.isNotEmpty) ? url : null;
+      return (url != null && url.isNotEmpty) ? [url] : const [];
     } catch (_) {
-      return null;
+      return const [];
     }
   }
 
-  /// `routing_policy` sits alongside `vless` in the same grant-based
-  /// envelope `_extractUrl` reads — absent entirely for a custom/BYO link
-  /// (raw share-link text, not JSON) or when Core's grant response didn't
-  /// include one.
+  /// `routing_policy` sits alongside `transports` in the same grant-based
+  /// envelope `_extractCandidates` reads — absent entirely for a custom/BYO
+  /// link (raw share-link text, not JSON) or when Core's grant response
+  /// didn't include one.
   Map<String, dynamic>? _extractRoutingPolicy(String raw) {
     final trimmed = raw.trim();
     if (!trimmed.startsWith('{')) return null;
@@ -259,7 +313,9 @@ class NativeVpnAdapter implements VpnAdapter {
       'FAILED' => VpnNativeState.failed,
       _ => VpnNativeState.failed,
     };
-    _emit(state);
+    if (state != VpnNativeState.failed || _forwardNativeFailure) {
+      _emit(state);
+    }
     final completer = _connectCompleter;
     if (completer == null || completer.isCompleted) return;
     if (state == VpnNativeState.connected) {

@@ -44,6 +44,8 @@ class WbConnectionState {
     this.error,
     this.location = LocationItem.auto,
     this.grantId,
+    this.resolvedLocation,
+    this.resolvingAuto = false,
   });
 
   final ConnectionStatus status;
@@ -56,6 +58,29 @@ class WbConnectionState {
   /// dropping the local tunnel.
   final String? grantId;
 
+  /// The concrete node "Auto" actually landed on for the current/pending
+  /// connection attempt — null whenever [location] isn't Auto, or Auto
+  /// hasn't resolved to anything (yet). [location] itself never gets
+  /// overwritten with this: it's the user's actual saved preference (see
+  /// [ConnectionManager.selectLocation] / `PrefsStore.lastLocationId`), and
+  /// silently replacing "Auto" with whatever it happened to resolve to
+  /// last time would break Auto on the next cold start. Anything that
+  /// wants to show or act on whichever server is genuinely in use right
+  /// now — the header's flag/name, a ping test, the ambient tint — should
+  /// read [effectiveLocation] instead of [location] directly.
+  final LocationItem? resolvedLocation;
+
+  /// True while [ConnectionManager._resolveTarget] is actively probing
+  /// candidates for Auto, so the UI can show a distinct "Finding the
+  /// fastest server…" hint instead of the generic connecting copy for
+  /// however long that sweep takes.
+  final bool resolvingAuto;
+
+  /// Whichever [LocationItem] is actually in play right now: the resolved
+  /// concrete server while Auto is connecting/connected, [location] itself
+  /// otherwise.
+  LocationItem get effectiveLocation => resolvedLocation ?? location;
+
   bool get isBusy =>
       status == ConnectionStatus.requestingProfile ||
       status == ConnectionStatus.connecting ||
@@ -67,9 +92,12 @@ class WbConnectionState {
     AppException? error,
     LocationItem? location,
     String? grantId,
+    LocationItem? resolvedLocation,
+    bool? resolvingAuto,
     bool clearError = false,
     bool clearConnectedAt = false,
     bool clearGrantId = false,
+    bool clearResolvedLocation = false,
   }) {
     return WbConnectionState(
       status: status ?? this.status,
@@ -77,6 +105,9 @@ class WbConnectionState {
       error: clearError ? null : (error ?? this.error),
       location: location ?? this.location,
       grantId: clearGrantId ? null : (grantId ?? this.grantId),
+      resolvedLocation:
+          clearResolvedLocation ? null : (resolvedLocation ?? this.resolvedLocation),
+      resolvingAuto: resolvingAuto ?? this.resolvingAuto,
     );
   }
 }
@@ -183,7 +214,12 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     bool subscriptionActive = false,
   }) async {
     final previous = state.location;
-    state = state.copyWith(location: location);
+    // Picking anything from here (including Auto itself, e.g. reselected
+    // after having landed on a real server before) means whatever Auto
+    // previously resolved to no longer applies — leaving it in place would
+    // show the old server's flag/name for a moment before the next connect
+    // ever runs, or forever if the user never reconnects at all.
+    state = state.copyWith(location: location, clearResolvedLocation: true);
     unawaited(PrefsStore.setString(PrefsStore.lastLocationId, location.id));
 
     final switchingServers = previous.id != location.id &&
@@ -256,6 +292,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       clearConnectedAt: true,
       clearError: true,
       clearGrantId: true,
+      clearResolvedLocation: true,
     );
   }
 
@@ -278,6 +315,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     state = state.copyWith(
       status: ConnectionStatus.requestingProfile,
       clearError: true,
+      clearResolvedLocation: true,
     );
 
     try {
@@ -291,6 +329,12 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       // reject.
       final target = await _resolveTarget(location);
       if (generation != _connectGeneration) return;
+      // Record what Auto actually landed on so the header/ping test/tint
+      // (see WbConnectionState.effectiveLocation) reflect the real server
+      // the moment it's known, not just once the tunnel finishes coming up.
+      if (location.isAuto && !target.isAuto) {
+        state = state.copyWith(resolvedLocation: target);
+      }
 
       if (target.isCustom) {
         final profile = ConnectionProfile(target.rawLink ?? '');
@@ -370,6 +414,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         status: ConnectionStatus.error,
         error: mapped,
         clearConnectedAt: true,
+        clearResolvedLocation: true,
       );
     }
   }
@@ -403,28 +448,30 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         },
       };
     } else {
-      // VLESS REALITY (the pilot's actual protocol), consumed by
-      // V2RayVpnAdapter / WindowsVpnAdapter — see connection_profile
-      // shape there. Core's top-level connectionUrl now defaults to the
-      // CDN-fronted WebSocket+TLS fallback (see docs/vpn-config-
-      // contract.md's `vless_cdn`) — the direct link (plain TCP +
-      // REALITY, no WebSocket framing) is preferred here whenever it's
-      // present: fewer moving parts, no dependency on the CDN hostname
-      // staying up, and it's the shape actually confirmed end-to-end
-      // (real proxied HTTP traffic) during testing — the WS variant is
-      // suspected of tripping up UDP/DNS relaying through some native
-      // VPN clients even though the tunnel itself connects.
+      // Every transport Core offered for this grant, in the priority order
+      // it documents (see VpnConfigResponse.transports): Hysteria2 first
+      // — direct QUIC/UDP, no CDN hop, the fastest and most resilient path
+      // when the platform's engine supports it — then the CDN-fronted
+      // WS/TLS fallbacks. `connectionUrl`/[VlessConfig.uri] is appended
+      // last as a catch-all: it's usually just the same link as
+      // `vless_cdn` under Core's current defaults, but keeping it means an
+      // older Core (or the mock backend, neither of which populate
+      // `transports` at all) still gets a working single-candidate list
+      // exactly like before this multi-transport support existed.
+      //
+      // The adapters (NativeVpnAdapter / WindowsVpnAdapter) walk this list
+      // in order and fall back to the next entry the moment one fails to
+      // come up, instead of the old behavior of committing to a single
+      // transport and surfacing a bare "couldn't connect" if that one
+      // happened to be blocked or down.
+      final transports = <String>{
+        for (final t in config.transports) t.uri,
+        if ((config.vless?.uri ?? '').isNotEmpty) config.vless!.uri!,
+        if ((config.connectionUrl ?? '').isNotEmpty) config.connectionUrl!,
+      }.toList();
       payload = {
         'grant_id': grantId,
-        'vless': {
-          'connection_url': config.vless?.uri ?? config.connectionUrl,
-          'client_id': config.vless?.clientId,
-          'server': config.vless?.server,
-          'port': config.vless?.port,
-          'security': config.vless?.security,
-          'network': config.vless?.network,
-          'flow': config.vless?.flow,
-        },
+        'transports': transports,
         if (config.routingPolicy != null) 'routing_policy': config.routingPolicy,
       };
     }
@@ -457,6 +504,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         status: ConnectionStatus.error,
         error: mapped,
         clearConnectedAt: true,
+        clearResolvedLocation: true,
       );
     }
   }
@@ -522,13 +570,19 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   /// candidate compared equal and "Auto" just connected to whatever
   /// happened to be first in the list, never actually the fastest one.
   ///
-  /// Tested one at a time, not all in parallel — these probes run through
-  /// the same native protect() path every real Xray-core/Hysteria dial
-  /// does, and firing a whole batch of them at once turned out to be
-  /// exactly the kind of burst that pushed the protect socket server
-  /// toward running out of file descriptors on-device (see
-  /// connection_test_service.dart's timeout comment for the full story).
-  /// Sequential keeps at most one of these test sockets open at a time.
+  /// Bounded parallel, not fully sequential and not fully parallel either:
+  /// a strictly one-at-a-time sweep made Auto visibly crawl once a pilot
+  /// had more than a couple of online candidates (each probe capped at up
+  /// to 4s — 5 candidates could mean a ~20s wait before the real connect
+  /// attempt even starts), which is exactly the kind of delay this app
+  /// shouldn't have. But firing every candidate at once reintroduces the
+  /// original problem this sequential version was written to fix: these
+  /// probes run through the same native protect() path every real
+  /// Xray-core/Hysteria dial does, and a big-enough burst of them pushed
+  /// the protect socket server toward running out of file descriptors
+  /// on-device (see connection_test_service.dart's timeout comment for the
+  /// full story). [_kAutoProbeConcurrency] keeps at most a handful of
+  /// these test sockets open at once — fast without recreating that burst.
   Future<LocationItem> _resolveTarget(LocationItem location) async {
     if (!location.isAuto) return location;
     final all =
@@ -537,17 +591,31 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     if (online.isEmpty) {
       throw AppException(AppErrorKind.locationUnavailable);
     }
-    const test = ConnectionTestService();
-    var best = online.first;
-    var bestPing = 1 << 30;
-    for (final candidate in online) {
-      final ping = await test.testLocation(candidate) ?? (1 << 30);
-      if (ping < bestPing) {
-        bestPing = ping;
-        best = candidate;
+    state = state.copyWith(resolvingAuto: true);
+    try {
+      const test = ConnectionTestService();
+      final pings = await _boundedParallel<int?>(
+        [for (final candidate in online) () => test.testLocation(candidate)],
+        _kAutoProbeConcurrency,
+      );
+      var best = online.first;
+      var bestPing = 1 << 30;
+      for (var i = 0; i < online.length; i++) {
+        final ping = pings[i] ?? (1 << 30);
+        if (ping < bestPing) {
+          bestPing = ping;
+          best = online[i];
+        }
       }
+      return best;
+    } finally {
+      // Not gated on `generation`/mount checks like the rest of connect()
+      // — this only ever flips a transient "still looking" hint back off,
+      // so even a stale/abandoned attempt clearing it is harmless, and
+      // skipping that on a cancelled attempt would leave the hint stuck on
+      // screen for whatever the user actually did next.
+      state = state.copyWith(resolvingAuto: false);
     }
-    return best;
   }
 
   Future<void> disconnect() async {
@@ -568,6 +636,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       clearConnectedAt: true,
       clearError: true,
       clearGrantId: true,
+      clearResolvedLocation: true,
     );
   }
 
@@ -644,7 +713,40 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         status: ConnectionStatus.idle,
         clearConnectedAt: true,
         clearGrantId: true,
+        clearResolvedLocation: true,
       );
     }
   }
+}
+
+/// How many of Auto's reachability probes [ConnectionManager._resolveTarget]
+/// allows in flight at once — see that method's own comment for why this is
+/// neither 1 (too slow) nor unbounded (recreates an EMFILE risk on-device).
+const _kAutoProbeConcurrency = 4;
+
+/// Runs [tasks] with at most [limit] in flight at once, preserving each
+/// result at its original index regardless of finish order. Plain
+/// `Future.wait` has no concurrency cap at all, and there's nothing in the
+/// standard library for "parallel, but bounded" short of pulling in a
+/// package for one call site.
+Future<List<T>> _boundedParallel<T>(
+  List<Future<T> Function()> tasks,
+  int limit,
+) async {
+  if (tasks.isEmpty) return const [];
+  final results = List<T?>.filled(tasks.length, null);
+  var next = 0;
+  Future<void> worker() async {
+    while (true) {
+      final i = next;
+      if (i >= tasks.length) return;
+      next++;
+      results[i] = await tasks[i]();
+    }
+  }
+
+  await Future.wait(
+    List.generate(limit.clamp(1, tasks.length), (_) => worker()),
+  );
+  return results.cast<T>();
 }

@@ -22,9 +22,10 @@ final navExpandedProvider = StateProvider<bool>((ref) => false);
 /// Locations doesn't get its own bottom-bar destination on mobile —
 /// location picking lives entirely on Home (tap the location header).
 /// The branch/route still exists (desktop's rail still links to it), this
-/// just keeps the *mobile* nav UI down to the two things worth a thumb's
-/// reach: Home and Settings.
-const _kMobileBranchIndexes = [0, 2];
+/// just keeps the *mobile* nav UI down to the things worth a thumb's
+/// reach: Home, Speed Test, and Settings. Positions here are indexes into
+/// router.dart's branches list, in the order the mobile bar shows them.
+const _kMobileBranchIndexes = [0, 1, 3];
 
 /// Height the floating mobile bottom bar occupies (pill content + its
 /// bottom margin, not counting the device's own safe-area inset) — screens
@@ -48,8 +49,11 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
     final waveParams = ref.watch(appWaveParamsProvider);
+    // Order matches router.dart's branch list exactly — each entry's index
+    // here IS the branch index navigationShell.currentIndex reports.
     final items = [
       _NavItemData(icon: Icons.home_outlined, filledIcon: Icons.home_rounded, label: s.navHome),
+      _NavItemData(icon: Icons.speed_outlined, filledIcon: Icons.speed_rounded, label: s.navSpeedtest),
       _NavItemData(icon: Icons.public_outlined, filledIcon: Icons.public, label: s.navLocations),
       _NavItemData(icon: Icons.settings_outlined, filledIcon: Icons.settings, label: s.navSettings),
     ];
@@ -136,8 +140,8 @@ class _MobileShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
-    // Which of the two bottom-bar buttons corresponds to the active
-    // branch — branch 1 (Locations) has no button, so nothing lights up
+    // Which of the bottom-bar buttons corresponds to the active branch —
+    // branch 2 (Locations) has no button of its own, so nothing lights up
     // for it (it's only ever reached via Home's own location picker).
     final activeButton = _kMobileBranchIndexes.indexOf(navigationShell.currentIndex);
 
@@ -198,14 +202,25 @@ class _MobileShell extends ConsumerWidget {
                             ),
                           ),
                           _MobileNavButton(
-                            icon: Icons.settings_outlined,
-                            filledIcon: Icons.settings,
-                            label: s.navSettings,
+                            icon: Icons.speed_outlined,
+                            filledIcon: Icons.speed_rounded,
+                            label: s.navSpeedtest,
                             selected: activeButton == 1,
                             tint: waveParams.tint,
                             onTap: () => navigationShell.goBranch(
-                              2,
-                              initialLocation: navigationShell.currentIndex == 2,
+                              1,
+                              initialLocation: navigationShell.currentIndex == 1,
+                            ),
+                          ),
+                          _MobileNavButton(
+                            icon: Icons.settings_outlined,
+                            filledIcon: Icons.settings,
+                            label: s.navSettings,
+                            selected: activeButton == 2,
+                            tint: waveParams.tint,
+                            onTap: () => navigationShell.goBranch(
+                              3,
+                              initialLocation: navigationShell.currentIndex == 3,
                             ),
                           ),
                         ],

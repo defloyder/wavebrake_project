@@ -29,12 +29,16 @@ class WaveParams {
 final appWaveParamsProvider = Provider<WaveParams>((ref) {
   final connection = ref.watch(connectionManagerProvider);
   final personalization = ref.watch(personalizationProvider);
+  // The location actually in play right now — the concrete server Auto
+  // resolved to, once it has, rather than the never-tinted Auto
+  // placeholder itself (see WbConnectionState.effectiveLocation).
+  final effective = connection.effectiveLocation;
+
   // A manually chosen accent always wins over the automatic per-server
   // flag color — that automatic tint is a nice default, not something a
   // user who picked their own accent wants overridden the moment they
   // connect somewhere.
-  final autoTint =
-      connection.location.isAuto ? null : accentColorFor(connection.location.countryCode);
+  final autoTint = effective.isAuto ? null : accentColorFor(effective.countryCode);
   final tint = personalization.accent.color ?? autoTint;
 
   final raw = switch (connection.status) {
@@ -46,7 +50,7 @@ final appWaveParamsProvider = Provider<WaveParams>((ref) {
     ConnectionStatus.disconnecting =>
       const WaveParams(speed: 1.1, amplitude: 1.0),
     ConnectionStatus.error => const WaveParams(speed: 0.6, amplitude: 0.7),
-    ConnectionStatus.connected => _connectedWaveParams(connection.location.pingMs),
+    ConnectionStatus.connected => _connectedWaveParams(effective.pingMs),
   };
 
   if (!personalization.reduceMotion) {

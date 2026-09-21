@@ -559,6 +559,17 @@ class VlessConfig {
   }
 }
 
+/// One ready-to-use transport for a grant, alongside the others Core may
+/// offer for the very same grant (see [VpnConfigResponse.transports]) —
+/// `kind` is which of Core's `hysteria`/`vless_cdn`/`trojan_cdn` blocks
+/// this came from, `uri` is that block's own share-link string.
+class TransportOption {
+  const TransportOption({required this.kind, required this.uri});
+
+  final String kind;
+  final String uri;
+}
+
 /// Response of `GET /v1/access/grants/{grantID}/config`. Two backends, two
 /// shapes: the mock/legacy WireGuard contract ([wireguard], still null
 /// until `config_status` is `"ready"`), and the pilot's real VLESS REALITY
@@ -583,6 +594,7 @@ class VpnConfigResponse {
     this.routingPolicy,
     this.bytesUp,
     this.bytesDown,
+    this.transports = const [],
   });
 
   final AccessGrant grant;
@@ -613,6 +625,16 @@ class VpnConfigResponse {
   /// fresh as the last successful connect/reconnect.
   final int? bytesUp;
   final int? bytesDown;
+
+  /// Every transport Core offered for this exact grant, already in the
+  /// priority order the client should try them in: Hysteria2 (direct
+  /// QUIC/UDP, no CDN hop, fastest and most resilient — but not every
+  /// client engine supports it) first, then the CDN-fronted WS/TLS
+  /// fallbacks. See docs/mobile-desktop-api.md's "why several transports
+  /// on one grant" and the two VPN adapters' own `connect()` for how each
+  /// platform's engine works through this list, falling back to the next
+  /// entry when one fails to come up rather than giving up after just one.
+  final List<TransportOption> transports;
 
   bool get hasUsableVless => connectionUrl != null && connectionUrl!.isNotEmpty;
 
@@ -651,8 +673,31 @@ class VpnConfigResponse {
           : null,
       bytesUp: _asInt(json['bytes_up']),
       bytesDown: _asInt(json['bytes_down']),
+      transports: _parseTransports(json),
     );
   }
+}
+
+/// Pulls `hysteria`/`vless_cdn`/`trojan_cdn` (each `{"uri": "scheme://..."}`
+/// among other fields — see docs/mobile-desktop-api.md) out of a grant
+/// config response, in the fixed priority order documented there. A block
+/// that's absent, or present but without a non-empty `uri`, is simply
+/// skipped rather than producing an unusable placeholder entry.
+List<TransportOption> _parseTransports(Map<String, dynamic> json) {
+  final options = <TransportOption>[];
+  for (final kind in const ['hysteria', 'vless_cdn', 'trojan_cdn']) {
+    final block = json[kind];
+    if (block is! Map) continue;
+    final uri = block['uri'];
+    if (uri is String && uri.isNotEmpty) {
+      // Core's own `hysteria` key names the block, not the scheme — the
+      // client only ever cares about the latter (matching a URI's own
+      // `scheme://`), so this is normalized to `hysteria2` right here
+      // rather than every caller having to know Core's naming quirk.
+      options.add(TransportOption(kind: kind == 'hysteria' ? 'hysteria2' : kind, uri: uri));
+    }
+  }
+  return options;
 }
 
 class ClientConfig {

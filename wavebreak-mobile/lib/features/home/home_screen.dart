@@ -62,7 +62,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // it through tun2socks like ordinary traffic. Testing the real node's
     // own host:port instead has no such special case and — as a bonus —
     // now reads the same number the location list shows for consistency.
-    final result = await const ConnectionTestService().testLocation(connection.location);
+    final result =
+        await const ConnectionTestService().testLocation(connection.effectiveLocation);
     if (!mounted) return;
     setState(() {
       _pingTesting = false;
@@ -221,7 +222,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final group = matches.isEmpty ? null : matches.first;
     final connectedToThisGroup = group != null &&
         connection.status != ConnectionStatus.idle &&
-        group.servers.any((server) => server.id == connection.location.id);
+        group.servers.any((server) => server.id == connection.effectiveLocation.id);
     ref.read(customServersProvider.notifier).removeGroup(id);
     if (connectedToThisGroup) {
       await ref.read(connectionManagerProvider.notifier).disconnect();
@@ -390,9 +391,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           connection.status == ConnectionStatus.connecting ||
           connection.status == ConnectionStatus.requestingProfile ||
           connection.status == ConnectionStatus.disconnecting,
-      accentColors: connection.location.isAuto
+      accentColors: connection.effectiveLocation.isAuto
           ? null
-          : accentPairFor(connection.location.countryCode),
+          : accentPairFor(connection.effectiveLocation.countryCode),
       onPressed: () {
         ref
             .read(connectionManagerProvider.notifier)
@@ -437,6 +438,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       link: _locationLink,
       child: _LocationHeader(
         location: connection.location,
+        resolved: connection.resolvedLocation,
         s: s,
         open: _dropdownOpen,
         onTap: () => locations.whenData(_openLocationPicker),
@@ -683,6 +685,7 @@ class _LocationHeader extends StatelessWidget {
     required this.s,
     required this.open,
     required this.onTap,
+    this.resolved,
     this.tint,
   });
 
@@ -690,10 +693,21 @@ class _LocationHeader extends StatelessWidget {
   final AppStrings s;
   final bool open;
   final VoidCallback onTap;
+
+  /// The concrete server Auto actually landed on, once known — see
+  /// WbConnectionState.resolvedLocation. Null whenever [location] isn't
+  /// Auto, or Auto hasn't resolved yet, in which case this still reads as
+  /// the plain "Fastest location" placeholder it always used to.
+  final LocationItem? resolved;
   final Color? tint;
 
   @override
   Widget build(BuildContext context) {
+    // The small caps label above always names the user's actual selection
+    // ("AUTO" stays "AUTO" even once it's resolved to a real server) — only
+    // the big line below swaps in what Auto is actually using right now.
+    final display = location.isAuto ? (resolved ?? location) : location;
+    final showFlag = !location.isAuto || resolved != null;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -726,17 +740,15 @@ class _LocationHeader extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (!location.isAuto) ...[
-                  FlagIcon(countryCode: location.countryCode, width: 26),
+                if (showFlag) ...[
+                  FlagIcon(countryCode: display.countryCode, width: 26),
                   const SizedBox(width: 8),
                 ],
                 Flexible(
                   child: Text(
-                    location.isAuto
+                    location.isAuto && resolved == null
                         ? s.fastestLocation
-                        : (location.city.isEmpty
-                            ? location.country
-                            : location.city),
+                        : (display.city.isEmpty ? display.country : display.city),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -851,13 +863,18 @@ class _StatusCopy extends StatelessWidget {
       ConnectionStatus.disconnecting => s.disconnecting,
       ConnectionStatus.error => s.couldNotConnect,
     };
-    final subtitle = switch (connection.status) {
-      ConnectionStatus.idle => s.tapToConnect,
-      ConnectionStatus.connected => _duration(connection.connectedAt, s),
-      ConnectionStatus.configPending => s.configPendingHint,
-      ConnectionStatus.error => connection.error?.localized(s) ?? s.tryAgain,
-      _ => '',
-    };
+    // Auto's probe sweep can take a moment even bounded-parallel — worth a
+    // dedicated hint instead of the generic connecting copy going blank,
+    // so it doesn't read as stalled while it's actually working.
+    final subtitle = connection.resolvingAuto
+        ? s.resolvingFastest
+        : switch (connection.status) {
+            ConnectionStatus.idle => s.tapToConnect,
+            ConnectionStatus.connected => _duration(connection.connectedAt, s),
+            ConnectionStatus.configPending => s.configPendingHint,
+            ConnectionStatus.error => connection.error?.localized(s) ?? s.tryAgain,
+            _ => '',
+          };
 
     final titleColor =
         connection.status == ConnectionStatus.connected && tint != null
