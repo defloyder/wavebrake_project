@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/notif_bg"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@mipmap/ic_launcher"
+            android:contentDescription="@null" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/notif_location_exp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/wb_ice"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="WAVEBREAK" />
+
+            <TextView
+                android:id="@+id/notif_status_exp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textColor="@color/wb_ice_60"
+                android:textSize="12.5sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/notif_ping_exp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/wb_wave_cyan"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:gravity="end"
+            android:text="" />
+    </LinearLayout>
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        android:layout_marginTop="10dp"
+        android:scaleType="fitXY"
+        android:src="@drawable/notif_wave_accent"
+        android:contentDescription="@null" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:id="@+id/notif_check_ping"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:minHeight="42dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingStart="6dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:background="@drawable/notif_btn_outline">
+
+            <ImageView
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:src="@drawable/notif_ic_ping"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/notif_check_ping_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:textColor="@color/wb_wave_cyan"
+                android:textSize="12.5sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textStyle="bold"
+                android:text="" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/notif_disconnect_exp"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:minHeight="42dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingStart="6dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:background="@drawable/notif_btn_danger">
+
+            <ImageView
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:src="@drawable/notif_ic_power"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/notif_disconnect_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:textColor="@color/wb_error"
+                android:textSize="12.5sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textStyle="bold"
+                android:text="" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>
