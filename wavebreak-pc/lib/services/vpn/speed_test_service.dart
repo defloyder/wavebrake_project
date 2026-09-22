@@ -172,31 +172,49 @@ class _ProgressSampler {
   final SpeedTestPhase phase;
   final void Function(SpeedTestSample sample)? onSample;
 
+  // Below this, a bytes/seconds division is dominated by callback jitter
+  // rather than anything real — two Dio progress ticks can fire a handful
+  // of microseconds apart when several buffered chunks flush back to
+  // back, and dividing real bytes by a near-zero elapsed time produces an
+  // enormous, meaningless rate (confirmed real-device bug: the gauge
+  // occasionally showed something like "349349" Mbps). 15ms is well
+  // below anything a real network round trip takes, so it only ever
+  // filters out these same-tick artifacts, never a genuine fast sample.
+  static const _minMeaningfulInterval = Duration(milliseconds: 15);
+
   final Stopwatch _stopwatch = Stopwatch()..start();
   int _lastBytes = 0;
   Duration _lastElapsed = Duration.zero;
+  double _lastInstantMbps = 0;
 
   void onProgress(int count, int total) {
     if (onSample == null || total <= 0) return;
     final elapsed = _stopwatch.elapsed;
     final sinceLastSample = elapsed - _lastElapsed;
-    // Always let the final callback (count == total) through even if it
-    // arrives before the throttle window — otherwise a fast transfer
-    // could finish between two throttled samples and the gauge would
-    // visibly freeze short of 100% for the rest of that phase.
-    if (sinceLastSample < SpeedTestService._minSampleInterval &&
-        count < total) {
+    final isFinal = count >= total;
+    // Always let the final callback through even if it arrives before the
+    // throttle window — otherwise a fast transfer could finish between
+    // two throttled samples and the gauge would visibly freeze short of
+    // 100% for the rest of that phase.
+    if (sinceLastSample < SpeedTestService._minSampleInterval && !isFinal) {
       return;
     }
-    final deltaBytes = count - _lastBytes;
-    final deltaSeconds = sinceLastSample.inMicroseconds / 1e6;
-    final instantMbps =
-        deltaSeconds > 0 ? (deltaBytes * 8) / deltaSeconds / 1e6 : 0.0;
-    _lastBytes = count;
-    _lastElapsed = elapsed;
+    // The final callback still needs to report progress: 1.0, but if it
+    // arrived too soon after the last real sample to compute a sane rate
+    // from, reuse the last good instantMbps instead of dividing by a
+    // near-zero elapsed time — a repeated-but-plausible number reads as
+    // "the test just finished right where it was," not a display glitch.
+    if (sinceLastSample >= _minMeaningfulInterval) {
+      final deltaBytes = count - _lastBytes;
+      final deltaSeconds = sinceLastSample.inMicroseconds / 1e6;
+      final instantMbps = (deltaBytes * 8) / deltaSeconds / 1e6;
+      _lastInstantMbps = instantMbps < 0 ? 0 : instantMbps;
+      _lastBytes = count;
+      _lastElapsed = elapsed;
+    }
     onSample!(SpeedTestSample(
       phase: phase,
-      instantMbps: instantMbps < 0 ? 0 : instantMbps,
+      instantMbps: _lastInstantMbps,
       progress: count / total,
     ));
   }
