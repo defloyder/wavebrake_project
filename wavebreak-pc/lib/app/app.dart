@@ -183,7 +183,12 @@ class _OfflineBanner extends ConsumerWidget {
         if (child != null) child!,
         // A floating glass pill, not a flat bar — matches the rest of the
         // app's frosted-card language instead of a jarring solid strip
-        // pasted across the very top of the screen.
+        // pasted across the very top of the screen. Pushed down past
+        // every screen's own top row (Home's wordmark+toolbar chip,
+        // every DetailScaffold screen's back-button+title row — both
+        // land in roughly the same ~50-60px band below the safe area) —
+        // this used to sit right at the top and visually overlap those,
+        // including the toolbar chip's tappable refresh/restart buttons.
         Positioned(
           top: 0,
           left: 0,
@@ -200,7 +205,7 @@ class _OfflineBanner extends ConsumerWidget {
                   duration: const Duration(milliseconds: 200),
                   opacity: offline ? 1 : 0,
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 10),
+                    padding: const EdgeInsets.only(top: 68),
                     child: Material(
                       color: Colors.transparent,
                       child: Container(
