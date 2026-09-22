@@ -42,6 +42,8 @@ class AppStrings {
     required this.unlockWavebreak,
     required this.continueLabel,
     required this.testPing,
+    required this.speedTest,
+    required this.speedTestRunning,
     required this.pingUnavailable,
     required this.measuringPing,
     required this.notifDisconnectAction,
@@ -148,6 +150,7 @@ class AppStrings {
     required this.maintenanceTitle,
     required this.maintenanceBody,
     required this.noInternetBanner,
+    required this.showingSavedDataBanner,
     required this.preparingApp,
     required this.locationsWord,
     required this.shareSubscription,
@@ -197,6 +200,8 @@ class AppStrings {
   final String unlockWavebreak;
   final String continueLabel;
   final String testPing;
+  final String speedTest;
+  final String speedTestRunning;
   final String pingUnavailable;
   final String measuringPing;
   final String notifDisconnectAction;
@@ -303,6 +308,7 @@ class AppStrings {
   final String maintenanceTitle;
   final String maintenanceBody;
   final String noInternetBanner;
+  final String showingSavedDataBanner;
   final String preparingApp;
   final String locationsWord;
   final String shareSubscription;
@@ -354,6 +360,8 @@ const kEnglishStrings = AppStrings(
   unlockWavebreak: 'Unlock WAVEBREAK',
   continueLabel: 'Continue',
   testPing: 'Test ping',
+  speedTest: 'Speed test',
+  speedTestRunning: 'Testing…',
   pingUnavailable: 'Ping isn\'t available for this connection yet',
   measuringPing: 'Measuring…',
   notifDisconnectAction: 'Disconnect',
@@ -462,6 +470,7 @@ const kEnglishStrings = AppStrings(
   maintenanceTitle: 'WAVEBREAK is under maintenance',
   maintenanceBody: 'We\'re making some improvements. Please try again shortly.',
   noInternetBanner: 'No internet connection',
+  showingSavedDataBanner: 'Showing saved data — offline',
   preparingApp: 'Preparing your connection…',
   locationsWord: 'locations',
   shareSubscription: 'Share',
@@ -513,6 +522,8 @@ const kRussianStrings = AppStrings(
   unlockWavebreak: 'Разблокировать WAVEBREAK',
   continueLabel: 'Продолжить',
   testPing: 'Проверить пинг',
+  speedTest: 'Тест скорости',
+  speedTestRunning: 'Проверка…',
   pingUnavailable: 'Пинг пока недоступен для этого типа подключения',
   measuringPing: 'Измеряем…',
   notifDisconnectAction: 'Отключиться',
@@ -621,6 +632,7 @@ const kRussianStrings = AppStrings(
   maintenanceTitle: 'WAVEBREAK на техобслуживании',
   maintenanceBody: 'Мы делаем сервис лучше. Пожалуйста, попробуйте чуть позже.',
   noInternetBanner: 'Нет подключения к интернету',
+  showingSavedDataBanner: 'Показаны сохранённые данные — офлайн',
   preparingApp: 'Готовим подключение…',
   locationsWord: 'локаций',
   shareSubscription: 'Поделиться',
@@ -672,6 +684,8 @@ const kSpanishStrings = AppStrings(
   unlockWavebreak: 'Desbloquear WAVEBREAK',
   continueLabel: 'Continuar',
   testPing: 'Probar ping',
+  speedTest: 'Test de velocidad',
+  speedTestRunning: 'Probando…',
   pingUnavailable: 'El ping aún no está disponible para esta conexión',
   measuringPing: 'Midiendo…',
   notifDisconnectAction: 'Desconectar',
@@ -781,6 +795,7 @@ const kSpanishStrings = AppStrings(
   maintenanceTitle: 'WAVEBREAK está en mantenimiento',
   maintenanceBody: 'Estamos haciendo mejoras. Inténtalo de nuevo en breve.',
   noInternetBanner: 'Sin conexión a internet',
+  showingSavedDataBanner: 'Mostrando datos guardados — sin conexión',
   preparingApp: 'Preparando tu conexión…',
   locationsWord: 'ubicaciones',
   shareSubscription: 'Compartir',
@@ -832,6 +847,8 @@ const kGermanStrings = AppStrings(
   unlockWavebreak: 'WAVEBREAK entsperren',
   continueLabel: 'Weiter',
   testPing: 'Ping testen',
+  speedTest: 'Geschwindigkeitstest',
+  speedTestRunning: 'Wird getestet…',
   pingUnavailable: 'Ping ist für diese Verbindung noch nicht verfügbar',
   measuringPing: 'Wird gemessen…',
   notifDisconnectAction: 'Trennen',
@@ -941,6 +958,7 @@ const kGermanStrings = AppStrings(
   maintenanceTitle: 'WAVEBREAK wird gewartet',
   maintenanceBody: 'Wir verbessern gerade den Dienst. Bitte versuche es in Kürze erneut.',
   noInternetBanner: 'Keine Internetverbindung',
+  showingSavedDataBanner: 'Gespeicherte Daten werden angezeigt — offline',
   preparingApp: 'Verbindung wird vorbereitet…',
   locationsWord: 'Standorte',
   shareSubscription: 'Teilen',
@@ -992,6 +1010,8 @@ const kFrenchStrings = AppStrings(
   unlockWavebreak: 'Déverrouiller WAVEBREAK',
   continueLabel: 'Continuer',
   testPing: 'Tester le ping',
+  speedTest: 'Test de vitesse',
+  speedTestRunning: 'Test en cours…',
   pingUnavailable: "Le ping n'est pas encore disponible pour cette connexion",
   measuringPing: 'Mesure en cours…',
   notifDisconnectAction: 'Déconnecter',
@@ -1101,6 +1121,7 @@ const kFrenchStrings = AppStrings(
   maintenanceTitle: 'WAVEBREAK est en maintenance',
   maintenanceBody: 'Nous apportons des améliorations. Veuillez réessayer bientôt.',
   noInternetBanner: 'Pas de connexion internet',
+  showingSavedDataBanner: 'Affichage des données enregistrées — hors ligne',
   preparingApp: 'Préparation de votre connexion…',
   locationsWord: 'emplacements',
   shareSubscription: 'Partager',
@@ -1152,6 +1173,8 @@ const kPortugueseStrings = AppStrings(
   unlockWavebreak: 'Desbloquear o WAVEBREAK',
   continueLabel: 'Continuar',
   testPing: 'Testar ping',
+  speedTest: 'Teste de velocidade',
+  speedTestRunning: 'Testando…',
   pingUnavailable: 'O ping ainda não está disponível para esta conexão',
   measuringPing: 'Medindo…',
   notifDisconnectAction: 'Desconectar',
@@ -1260,6 +1283,7 @@ const kPortugueseStrings = AppStrings(
   maintenanceTitle: 'WAVEBREAK está em manutenção',
   maintenanceBody: 'Estamos fazendo melhorias. Tente novamente em breve.',
   noInternetBanner: 'Sem conexão à internet',
+  showingSavedDataBanner: 'Mostrando dados salvos — offline',
   preparingApp: 'Preparando sua conexão…',
   locationsWord: 'locais',
   shareSubscription: 'Compartilhar',
@@ -1311,6 +1335,8 @@ const kTurkishStrings = AppStrings(
   unlockWavebreak: 'WAVEBREAK kilidini aç',
   continueLabel: 'Devam et',
   testPing: 'Pingi test et',
+  speedTest: 'Hız testi',
+  speedTestRunning: 'Test ediliyor…',
   pingUnavailable: 'Bu bağlantı için ping henüz kullanılamıyor',
   measuringPing: 'Ölçülüyor…',
   notifDisconnectAction: 'Bağlantıyı kes',
@@ -1420,6 +1446,7 @@ const kTurkishStrings = AppStrings(
   maintenanceTitle: 'WAVEBREAK bakımda',
   maintenanceBody: 'Bazı iyileştirmeler yapıyoruz. Lütfen kısa süre sonra tekrar deneyin.',
   noInternetBanner: 'İnternet bağlantısı yok',
+  showingSavedDataBanner: 'Kaydedilmiş veriler gösteriliyor — çevrimdışı',
   preparingApp: 'Bağlantınız hazırlanıyor…',
   locationsWord: 'konum',
   shareSubscription: 'Paylaş',

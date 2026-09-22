@@ -102,6 +102,24 @@ class Plan {
       sortOrder: _asInt(json['sort_order']) ?? 0,
     );
   }
+
+  /// Round-trips with [Plan.fromJson] — used only to cache the last
+  /// successful fetch on-device for offline fallback (see
+  /// features/shared/data_providers.dart), never sent anywhere.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'code': code,
+        'name': name,
+        'price_minor': priceMinor,
+        'currency': currency,
+        'interval': interval,
+        'device_limit': deviceLimit,
+        'traffic_limit_bytes': trafficLimitBytes,
+        'concurrent_connection_limit': concurrentConnectionLimit,
+        'is_active': isActive,
+        'is_public': isPublic,
+        'sort_order': sortOrder,
+      };
 }
 
 class SubscriptionInfo {
@@ -177,6 +195,18 @@ class SubscriptionInfo {
       manageUrl: nested['manage_url'] as String?,
     );
   }
+
+  /// Round-trips with [SubscriptionInfo.fromJson] — offline cache only.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'status': status,
+        'plan_id': planId,
+        'plan_name': planName,
+        'current_period_ends_at': expiresAt?.toIso8601String(),
+        'device_limit_snapshot': deviceLimit,
+        'traffic_limit_bytes_snapshot': trafficLimitBytes,
+        'manage_url': manageUrl,
+      };
 }
 
 /// `GET /v1/me/usage` — traffic used this billing period, keyed on the
@@ -207,6 +237,15 @@ class UsageSummary {
       limitBytes: _asInt(json['limit_bytes']),
     );
   }
+
+  /// Round-trips with [UsageSummary.fromJson] — offline cache only.
+  Map<String, dynamic> toJson() => {
+        'subscription_id': subscriptionId,
+        'bytes_up': bytesUp,
+        'bytes_down': bytesDown,
+        'bytes_total': bytesTotal,
+        'limit_bytes': limitBytes,
+      };
 }
 
 /// A Core node/location (`GET /v1/locations`). Core doesn't send a
@@ -260,6 +299,20 @@ class ConnectionTest {
           (json['test_targets'] as List?)?.map((e) => e.toString()).toList() ?? const [],
     );
   }
+
+  /// Round-trips with [ConnectionTest.fromJson] — offline cache only.
+  Map<String, dynamic> toJson() => {
+        'host': host,
+        'port': port,
+        'node_id': nodeId,
+        'node_code': nodeCode,
+        'protocol': protocol,
+        'transport': transport,
+        'security': security,
+        'sni': sni,
+        'timeout_ms': timeoutMs,
+        'test_targets': testTargets,
+      };
 }
 
 class LocationItem {
@@ -351,6 +404,21 @@ class LocationItem {
       available: (json['status'] ?? '').toString().toLowerCase() == 'online',
     );
   }
+
+  /// Round-trips with [LocationItem.fromJson] — always encoded in the
+  /// "rich Core shape" (carries `node_code` so it decodes back through
+  /// that branch) regardless of which branch originally produced this
+  /// instance. Offline cache only.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'node_id': id,
+        'node_code': city,
+        'region': countryCode,
+        'country': country,
+        'city': city,
+        'online': available,
+        'connection_test': connectionTest?.toJson(),
+      };
 }
 
 class DeviceItem {
@@ -390,6 +458,18 @@ class DeviceItem {
       revokedAt: _parseDate(json['revoked_at']),
     );
   }
+
+  /// Round-trips with [DeviceItem.fromJson] — offline cache only.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'device_public_id': publicId,
+        'platform': platform,
+        'name': name,
+        'current': current,
+        'created_at': createdAt?.toIso8601String(),
+        'last_seen_at': lastSeenAt?.toIso8601String(),
+        'revoked_at': revokedAt?.toIso8601String(),
+      };
 }
 
 /// A server-side permission to access one node from one device

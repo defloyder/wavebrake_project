@@ -11,7 +11,7 @@ void main() {
   setUp(setUpTestEnvironment);
 
   test('login succeeds with valid credentials and reaches authenticated', () async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: mockCoreOverrides());
     addTearDown(container.dispose);
 
     final tokens = await container
@@ -30,7 +30,7 @@ void main() {
   });
 
   test('login fails with invalid credentials', () async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: mockCoreOverrides());
     addTearDown(container.dispose);
 
     expect(
@@ -42,7 +42,7 @@ void main() {
   });
 
   test('bootstrapSession is unauthenticated with no stored session', () async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: mockCoreOverrides());
     addTearDown(container.dispose);
 
     await container.read(sessionControllerProvider.notifier).bootstrapSession();
@@ -55,9 +55,7 @@ void main() {
 
   test('token refresh restores authenticated session after 401', () async {
     final mock = MockCoreBackend();
-    final container = ProviderContainer(
-      overrides: [mockBackendProvider.overrideWithValue(mock)],
-    );
+    final container = ProviderContainer(overrides: mockCoreOverrides(mock));
     addTearDown(container.dispose);
 
     final tokens = await container.read(coreGatewayProvider).login(
@@ -74,9 +72,7 @@ void main() {
 
   test('failed refresh forces logout', () async {
     final mock = MockCoreBackend()..refreshShouldFail = true;
-    final container = ProviderContainer(
-      overrides: [mockBackendProvider.overrideWithValue(mock)],
-    );
+    final container = ProviderContainer(overrides: mockCoreOverrides(mock));
     addTearDown(container.dispose);
 
     final tokens = await container.read(coreGatewayProvider).login(
@@ -91,7 +87,7 @@ void main() {
   });
 
   test('logout clears session', () async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: mockCoreOverrides());
     addTearDown(container.dispose);
 
     final tokens = await container.read(coreGatewayProvider).login(

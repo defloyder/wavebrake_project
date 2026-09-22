@@ -24,6 +24,17 @@ class PrefsStore {
   static const textScale = 'text_scale';
   static const reduceMotion = 'reduce_motion';
 
+  // Last-known-good snapshots of Core data, used to render something
+  // real instead of a blank/error screen when a refresh fails offline —
+  // see features/shared/data_providers.dart. Each is a plain JSON blob
+  // matching that model's own fromJson/toJson shape, not a Core response
+  // verbatim.
+  static const cachedSubscription = 'cache_subscription_v1';
+  static const cachedLocations = 'cache_locations_v1';
+  static const cachedDevices = 'cache_devices_v1';
+  static const cachedPlans = 'cache_plans_v1';
+  static const cachedUsage = 'cache_usage_v1';
+
   static void init(SharedPreferences prefs) {
     _prefs = prefs;
   }

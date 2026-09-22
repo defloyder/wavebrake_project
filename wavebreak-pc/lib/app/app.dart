@@ -12,6 +12,7 @@ import '../core/theme/personalization_controller.dart';
 import '../core/theme/wb_colors.dart';
 import '../core/theme/wb_theme.dart';
 import '../features/shared/app_lock_gate.dart';
+import '../features/shared/data_providers.dart';
 import '../services/notification/status_notification_service.dart';
 import '../services/vpn/connection_manager.dart';
 import 'router.dart';
@@ -163,7 +164,15 @@ class _OfflineBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
-    final offline = ref.watch(isOfflineProvider).asData?.value ?? false;
+    final deviceOffline = ref.watch(isOfflineProvider).asData?.value ?? false;
+    // Device connectivity is only one way to end up looking at stale data —
+    // the device can have a perfectly good signal while Core itself is
+    // unreachable/erroring, in which case data_providers.dart's cache
+    // fallback kicks in and flips this instead. Either one shows the same
+    // pill; the label just says which happened.
+    final usingCache = ref.watch(usingCachedDataProvider);
+    final offline = deviceOffline || usingCache;
+    final bannerText = deviceOffline ? s.noInternetBanner : s.showingSavedDataBanner;
     return Stack(
       children: [
         if (child != null) child!,
@@ -208,11 +217,14 @@ class _OfflineBanner extends ConsumerWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.wifi_off_rounded,
+                            Icon(
+                                deviceOffline
+                                    ? Icons.wifi_off_rounded
+                                    : Icons.cloud_off_rounded,
                                 color: WbColors.warning, size: 16),
                             const SizedBox(width: 8),
                             Text(
-                              s.noInternetBanner,
+                              bannerText,
                               style: const TextStyle(
                                 color: WbColors.warning,
                                 fontSize: 12.5,

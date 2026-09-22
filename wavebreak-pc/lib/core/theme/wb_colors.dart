@@ -1,19 +1,37 @@
 import 'package:flutter/material.dart';
 
+// Palette ported from wavebreak-web's design tokens
+// (wavebreak-web/public/css/wavebreak-site.css :root — --paper, --muted,
+// --cyan, --line, and the body/section backgrounds) so the app reads as
+// the same product as the public site: a near-black background rather
+// than the app's previous navy-blue, and the site's softer cyan
+// (`#80edf0`) instead of a saturated neon one. Kept as the same named
+// constants the rest of the app already references (WbColors.waveCyan,
+// .midnight, .card, ...) so this is a palette retune, not a rewrite —
+// every screen picks the new colors up automatically.
 class WbColors {
   const WbColors._();
 
-  static const midnight = Color(0xFF0B1020);
-  static const deepOcean = Color(0xFF0F1E2E);
-  static const waveCyan = Color(0xFF00D6FF);
-  static const oceanTeal = Color(0xFF00B4C8);
-  static const ice = Color(0xFFE6F2F7);
-  static const background = Color(0xFF080D18);
-  static const card = Color(0xFF111A2B);
+  static const midnight = Color(0xFF030708);
+  static const deepOcean = Color(0xFF0A1214);
+  static const waveCyan = Color(0xFF80EDF0);
+  static const oceanTeal = Color(0xFF4FC7CC);
+  static const ice = Color(0xFFF0F5F6);
+  static const background = Color(0xFF020507);
+  static const card = Color(0xFF0B1315);
   static const oceanBlue = Color(0xFF0876C9);
 
-  static const ice60 = Color(0x99E6F2F7);
-  static const ice08 = Color(0x14E6F2F7);
+  /// Site's `--muted` (#93a4aa) — secondary/dimmed text. New token; the
+  /// app's existing screens mostly use [ice60] for this role already, so
+  /// this is additive rather than a replacement everywhere.
+  static const muted = Color(0xFF93A4AA);
+
+  /// Site's `--line` (#1b2b30) — hairline borders/dividers on dark
+  /// surfaces. New token, same reasoning as [muted].
+  static const hairline = Color(0xFF1B2B30);
+
+  static const ice60 = Color(0x99F0F5F6);
+  static const ice08 = Color(0x14F0F5F6);
 
   static const warning = Color(0xFFE8B84A);
   static const error = Color(0xFFE57373);
