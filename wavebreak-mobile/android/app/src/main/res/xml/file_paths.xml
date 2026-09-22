@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Exposes only this app's own external-files dir (getExternalFilesDir),
+    where the downloaded update APK is staged — never public/shared
+    storage. Matches "external-files" path type to
+    Context.getExternalFilesDir(null) exactly, per FileProvider's own
+    contract (see UpdateInstaller.kt).
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path name="updates" path="updates/" />
+</paths>

@@ -109,6 +109,27 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/updater")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getApkStagingDir" -> result.success(UpdateInstaller.stagingDir(this))
+                    "canRequestInstall" -> result.success(UpdateInstaller.canRequestInstall(this))
+                    "openInstallUnknownAppsSettings" -> {
+                        startActivity(UpdateInstaller.installUnknownAppsSettingsIntent(this))
+                        result.success(null)
+                    }
+                    "installApk" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("bad_args", "path is required", null)
+                        } else {
+                            result.success(UpdateInstaller.installApk(this, path))
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, engineChannelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {

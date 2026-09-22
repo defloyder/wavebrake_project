@@ -5,6 +5,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- In-app updater: this is a direct-APK-distribution app (no Play
+         Store), so a self-triggered installer intent is the only way to
+         let a user apply an update without manually re-downloading and
+         opening the APK from a browser/file manager. Android still gates
+         the intent itself behind a per-app user toggle
+         (Settings > Install unknown apps) the first time — this
+         permission only lets the app *request* that intent, not bypass
+         the user's own consent. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
         android:label="wavebreak"
@@ -54,6 +63,20 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+        <!-- In-app updater: exposes the downloaded APK (staged in this
+             app's own external-files dir, never public storage) to the
+             system package installer via a content:// Uri — required
+             since Android 7 forbids handing a plain file:// Uri to
+             another app (FileUriExposedException). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

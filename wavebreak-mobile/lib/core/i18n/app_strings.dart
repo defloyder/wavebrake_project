@@ -44,6 +44,10 @@ class AppStrings {
     required this.testPing,
     required this.speedTest,
     required this.speedTestRunning,
+    required this.updateAvailable,
+    required this.updateDownloading,
+    required this.updateInstall,
+    required this.updateAllowInstalls,
     required this.pingUnavailable,
     required this.measuringPing,
     required this.notifDisconnectAction,
@@ -202,6 +206,10 @@ class AppStrings {
   final String testPing;
   final String speedTest;
   final String speedTestRunning;
+  final String updateAvailable;
+  final String updateDownloading;
+  final String updateInstall;
+  final String updateAllowInstalls;
   final String pingUnavailable;
   final String measuringPing;
   final String notifDisconnectAction;
@@ -362,6 +370,10 @@ const kEnglishStrings = AppStrings(
   testPing: 'Test ping',
   speedTest: 'Speed test',
   speedTestRunning: 'Testing…',
+  updateAvailable: 'Update available',
+  updateDownloading: 'Downloading update…',
+  updateInstall: 'Install',
+  updateAllowInstalls: 'Allow installs',
   pingUnavailable: 'Ping isn\'t available for this connection yet',
   measuringPing: 'Measuring…',
   notifDisconnectAction: 'Disconnect',
@@ -372,15 +384,19 @@ const kEnglishStrings = AppStrings(
   cancel: 'Cancel',
   personalization: 'Personalization',
   accentColor: 'Accent color',
-  accentColorHint: 'Pin the whole app to one color, or let it follow the server you connect to',
+  accentColorHint:
+      'Pin the whole app to one color, or let it follow the server you connect to',
   textSize: 'Text size',
   reduceMotion: 'Reduce motion',
   reduceMotionHint: 'Calms the animated background waves throughout the app',
   removeDeviceTitle: 'Remove this device?',
-  removeDeviceBody: 'It will need to sign in again to reconnect, and frees up a slot under your plan\'s device limit.',
+  removeDeviceBody:
+      'It will need to sign in again to reconnect, and frees up a slot under your plan\'s device limit.',
   removeCustomServerTitle: 'Remove this server?',
-  removeCustomServerBody: 'Its saved link will be deleted from this device. You can add it again later by pasting the link.',
-  errUnsupportedProtocol: 'This link\'s protocol isn\'t supported on this device yet',
+  removeCustomServerBody:
+      'Its saved link will be deleted from this device. You can add it again later by pasting the link.',
+  errUnsupportedProtocol:
+      'This link\'s protocol isn\'t supported on this device yet',
   subscriptionRequiredTitle: 'Subscription required',
   choosePlan: 'Choose plan',
   selectPlanHint: 'Pick a plan to activate your subscription',
@@ -479,7 +495,8 @@ const kEnglishStrings = AppStrings(
   qrCode: 'QR code',
   close: 'Close',
   pasteFromClipboard: 'Paste',
-  blockedSubscriptionLink: 'https:// only — local/private addresses are not allowed',
+  blockedSubscriptionLink:
+      'https:// only — local/private addresses are not allowed',
 );
 
 const kRussianStrings = AppStrings(
@@ -524,6 +541,10 @@ const kRussianStrings = AppStrings(
   testPing: 'Проверить пинг',
   speedTest: 'Тест скорости',
   speedTestRunning: 'Проверка…',
+  updateAvailable: 'Доступно обновление',
+  updateDownloading: 'Загрузка обновления…',
+  updateInstall: 'Установить',
+  updateAllowInstalls: 'Разрешить установку',
   pingUnavailable: 'Пинг пока недоступен для этого типа подключения',
   measuringPing: 'Измеряем…',
   notifDisconnectAction: 'Отключиться',
@@ -534,15 +555,20 @@ const kRussianStrings = AppStrings(
   cancel: 'Отмена',
   personalization: 'Персонализация',
   accentColor: 'Акцентный цвет',
-  accentColorHint: 'Закрепите единый цвет для всего приложения или оставьте автоподбор по серверу',
+  accentColorHint:
+      'Закрепите единый цвет для всего приложения или оставьте автоподбор по серверу',
   textSize: 'Размер текста',
   reduceMotion: 'Меньше анимации',
-  reduceMotionHint: 'Делает анимированные волны фона спокойнее по всему приложению',
+  reduceMotionHint:
+      'Делает анимированные волны фона спокойнее по всему приложению',
   removeDeviceTitle: 'Удалить это устройство?',
-  removeDeviceBody: 'Ему нужно будет войти заново, чтобы снова подключиться — это освободит место в лимите устройств вашего тарифа.',
+  removeDeviceBody:
+      'Ему нужно будет войти заново, чтобы снова подключиться — это освободит место в лимите устройств вашего тарифа.',
   removeCustomServerTitle: 'Удалить этот сервер?',
-  removeCustomServerBody: 'Сохранённая ссылка будет удалена с этого устройства. Позже её можно будет добавить заново, вставив ссылку.',
-  errUnsupportedProtocol: 'Протокол этой ссылки пока не поддерживается на этом устройстве',
+  removeCustomServerBody:
+      'Сохранённая ссылка будет удалена с этого устройства. Позже её можно будет добавить заново, вставив ссылку.',
+  errUnsupportedProtocol:
+      'Протокол этой ссылки пока не поддерживается на этом устройстве',
   subscriptionRequiredTitle: 'Требуется подписка',
   choosePlan: 'Выбрать тариф',
   selectPlanHint: 'Выберите тариф, чтобы активировать подписку',
@@ -597,7 +623,8 @@ const kRussianStrings = AppStrings(
   until: 'Действует до',
   manageSubscription: 'Управление подпиской',
   updateRequiredTitle: 'Требуется обновление',
-  updateRequiredBody: 'Для продолжения работы обновите WAVEBREAK до новой версии.',
+  updateRequiredBody:
+      'Для продолжения работы обновите WAVEBREAK до новой версии.',
   updateNow: 'Обновить',
   errNoInternet: 'Нет подключения к интернету',
   errUnavailable:
@@ -641,7 +668,8 @@ const kRussianStrings = AppStrings(
   qrCode: 'QR-код',
   close: 'Закрыть',
   pasteFromClipboard: 'Вставить',
-  blockedSubscriptionLink: 'Только https:// — локальные/приватные адреса запрещены',
+  blockedSubscriptionLink:
+      'Только https:// — локальные/приватные адреса запрещены',
 );
 
 const kSpanishStrings = AppStrings(
@@ -652,12 +680,14 @@ const kSpanishStrings = AppStrings(
   forgotPassword: '¿Olvidaste tu contraseña?',
   noAccount: '¿No tienes cuenta? ',
   createAccount: 'Crear cuenta',
-  biometricPromptTitle: '¿Usar Face ID / huella dactilar para desbloqueo rápido?',
+  biometricPromptTitle:
+      '¿Usar Face ID / huella dactilar para desbloqueo rápido?',
   biometricPromptBody:
       'La biometría protege la sesión en este dispositivo. No reemplaza tu cuenta de WAVEBREAK.',
   notNow: 'Ahora no',
   enable: 'Activar',
-  enterEmailReset: 'Ingresa tu correo y te enviaremos instrucciones para restablecer la contraseña.',
+  enterEmailReset:
+      'Ingresa tu correo y te enviaremos instrucciones para restablecer la contraseña.',
   checkEmailToContinue: 'Revisa tu correo para continuar.',
   send: 'Enviar',
   auto: 'AUTO',
@@ -686,6 +716,10 @@ const kSpanishStrings = AppStrings(
   testPing: 'Probar ping',
   speedTest: 'Test de velocidad',
   speedTestRunning: 'Probando…',
+  updateAvailable: 'Actualización disponible',
+  updateDownloading: 'Descargando actualización…',
+  updateInstall: 'Instalar',
+  updateAllowInstalls: 'Permitir instalación',
   pingUnavailable: 'El ping aún no está disponible para esta conexión',
   measuringPing: 'Midiendo…',
   notifDisconnectAction: 'Desconectar',
@@ -702,10 +736,13 @@ const kSpanishStrings = AppStrings(
   reduceMotion: 'Reducir movimiento',
   reduceMotionHint: 'Calma las olas animadas del fondo en toda la app',
   removeDeviceTitle: '¿Eliminar este dispositivo?',
-  removeDeviceBody: 'Tendrá que iniciar sesión de nuevo para reconectarse, y libera un espacio en el límite de dispositivos de tu plan.',
+  removeDeviceBody:
+      'Tendrá que iniciar sesión de nuevo para reconectarse, y libera un espacio en el límite de dispositivos de tu plan.',
   removeCustomServerTitle: '¿Eliminar este servidor?',
-  removeCustomServerBody: 'Su enlace guardado se eliminará de este dispositivo. Puedes añadirlo de nuevo más tarde pegando el enlace.',
-  errUnsupportedProtocol: 'El protocolo de este enlace aún no es compatible con este dispositivo',
+  removeCustomServerBody:
+      'Su enlace guardado se eliminará de este dispositivo. Puedes añadirlo de nuevo más tarde pegando el enlace.',
+  errUnsupportedProtocol:
+      'El protocolo de este enlace aún no es compatible con este dispositivo',
   subscriptionRequiredTitle: 'Suscripción requerida',
   choosePlan: 'Elegir plan',
   selectPlanHint: 'Elige un plan para activar tu suscripción',
@@ -760,7 +797,8 @@ const kSpanishStrings = AppStrings(
   until: 'Hasta',
   manageSubscription: 'Gestionar suscripción',
   updateRequiredTitle: 'Actualización requerida',
-  updateRequiredBody: 'Se requiere una nueva versión de WAVEBREAK para continuar.',
+  updateRequiredBody:
+      'Se requiere una nueva versión de WAVEBREAK para continuar.',
   updateNow: 'Actualizar ahora',
   errNoInternet: 'Sin conexión a internet',
   errUnavailable:
@@ -804,7 +842,8 @@ const kSpanishStrings = AppStrings(
   qrCode: 'Código QR',
   close: 'Cerrar',
   pasteFromClipboard: 'Pegar',
-  blockedSubscriptionLink: 'Solo https:// — direcciones locales/privadas no están permitidas',
+  blockedSubscriptionLink:
+      'Solo https:// — direcciones locales/privadas no están permitidas',
 );
 
 const kGermanStrings = AppStrings(
@@ -815,12 +854,14 @@ const kGermanStrings = AppStrings(
   forgotPassword: 'Passwort vergessen?',
   noAccount: 'Kein Konto? ',
   createAccount: 'Konto erstellen',
-  biometricPromptTitle: 'Face ID / Fingerabdruck für schnelles Entsperren verwenden?',
+  biometricPromptTitle:
+      'Face ID / Fingerabdruck für schnelles Entsperren verwenden?',
   biometricPromptBody:
       'Biometrie schützt diese Gerätesitzung. Sie ersetzt nicht dein WAVEBREAK-Konto.',
   notNow: 'Nicht jetzt',
   enable: 'Aktivieren',
-  enterEmailReset: 'Gib deine E-Mail ein, wir senden dir Anweisungen zum Zurücksetzen.',
+  enterEmailReset:
+      'Gib deine E-Mail ein, wir senden dir Anweisungen zum Zurücksetzen.',
   checkEmailToContinue: 'Prüfe deine E-Mails, um fortzufahren.',
   send: 'Senden',
   auto: 'AUTO',
@@ -830,7 +871,8 @@ const kGermanStrings = AppStrings(
   connecting: 'Verbindung wird hergestellt…',
   connected: 'Verbunden',
   configPending: 'Konfiguration wird vorbereitet',
-  configPendingHint: 'Der Server richtet deine VPN-Konfiguration ein — einen Moment',
+  configPendingHint:
+      'Der Server richtet deine VPN-Konfiguration ein — einen Moment',
   disconnecting: 'Trennen…',
   couldNotConnect: 'Verbindung fehlgeschlagen',
   tryAgain: 'Erneut versuchen',
@@ -849,6 +891,10 @@ const kGermanStrings = AppStrings(
   testPing: 'Ping testen',
   speedTest: 'Geschwindigkeitstest',
   speedTestRunning: 'Wird getestet…',
+  updateAvailable: 'Update verfügbar',
+  updateDownloading: 'Update wird heruntergeladen…',
+  updateInstall: 'Installieren',
+  updateAllowInstalls: 'Installationen erlauben',
   pingUnavailable: 'Ping ist für diese Verbindung noch nicht verfügbar',
   measuringPing: 'Wird gemessen…',
   notifDisconnectAction: 'Trennen',
@@ -863,12 +909,16 @@ const kGermanStrings = AppStrings(
       'Lege eine feste Farbe für die ganze App fest, oder lass sie dem verbundenen Server folgen',
   textSize: 'Textgröße',
   reduceMotion: 'Bewegung reduzieren',
-  reduceMotionHint: 'Beruhigt die animierten Hintergrundwellen in der ganzen App',
+  reduceMotionHint:
+      'Beruhigt die animierten Hintergrundwellen in der ganzen App',
   removeDeviceTitle: 'Dieses Gerät entfernen?',
-  removeDeviceBody: 'Es muss sich neu anmelden, um wieder zu verbinden, und macht einen Platz im Geräte-Limit deines Tarifs frei.',
+  removeDeviceBody:
+      'Es muss sich neu anmelden, um wieder zu verbinden, und macht einen Platz im Geräte-Limit deines Tarifs frei.',
   removeCustomServerTitle: 'Diesen Server entfernen?',
-  removeCustomServerBody: 'Der gespeicherte Link wird von diesem Gerät gelöscht. Du kannst ihn später erneut hinzufügen, indem du den Link einfügst.',
-  errUnsupportedProtocol: 'Das Protokoll dieses Links wird auf diesem Gerät noch nicht unterstützt',
+  removeCustomServerBody:
+      'Der gespeicherte Link wird von diesem Gerät gelöscht. Du kannst ihn später erneut hinzufügen, indem du den Link einfügst.',
+  errUnsupportedProtocol:
+      'Das Protokoll dieses Links wird auf diesem Gerät noch nicht unterstützt',
   subscriptionRequiredTitle: 'Abo erforderlich',
   choosePlan: 'Tarif wählen',
   selectPlanHint: 'Wähle einen Tarif, um dein Abo zu aktivieren',
@@ -900,7 +950,8 @@ const kGermanStrings = AppStrings(
   biometricsNotAvailable: 'Auf diesem Gerät nicht verfügbar',
   requireBiometricAuth: 'Biometrische Authentifizierung erfordern',
   whenOpeningWavebreak: 'Beim Öffnen von WAVEBREAK',
-  confirmToEnableBiometric: 'Bestätige, um biometrisches Entsperren zu aktivieren',
+  confirmToEnableBiometric:
+      'Bestätige, um biometrisches Entsperren zu aktivieren',
   autoConnect: 'Automatisch verbinden',
   onAppLaunch: 'Beim App-Start',
   onUntrustedWifi: 'Bei nicht vertrauenswürdigem WLAN',
@@ -923,7 +974,8 @@ const kGermanStrings = AppStrings(
   until: 'Bis',
   manageSubscription: 'Abo verwalten',
   updateRequiredTitle: 'Update erforderlich',
-  updateRequiredBody: 'Eine neue Version von WAVEBREAK wird benötigt, um fortzufahren.',
+  updateRequiredBody:
+      'Eine neue Version von WAVEBREAK wird benötigt, um fortzufahren.',
   updateNow: 'Jetzt aktualisieren',
   errNoInternet: 'Keine Internetverbindung',
   errUnavailable:
@@ -954,9 +1006,11 @@ const kGermanStrings = AppStrings(
   refreshServers: 'Server aktualisieren',
   serversUpdated: 'Serverliste aktualisiert',
   restarting: 'Verbindung wird wiederhergestellt…',
-  sessionExpiredNotice: 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
+  sessionExpiredNotice:
+      'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
   maintenanceTitle: 'WAVEBREAK wird gewartet',
-  maintenanceBody: 'Wir verbessern gerade den Dienst. Bitte versuche es in Kürze erneut.',
+  maintenanceBody:
+      'Wir verbessern gerade den Dienst. Bitte versuche es in Kürze erneut.',
   noInternetBanner: 'Keine Internetverbindung',
   showingSavedDataBanner: 'Gespeicherte Daten werden angezeigt — offline',
   preparingApp: 'Verbindung wird vorbereitet…',
@@ -967,7 +1021,8 @@ const kGermanStrings = AppStrings(
   qrCode: 'QR-Code',
   close: 'Schließen',
   pasteFromClipboard: 'Einfügen',
-  blockedSubscriptionLink: 'Nur https:// — lokale/private Adressen sind nicht erlaubt',
+  blockedSubscriptionLink:
+      'Nur https:// — lokale/private Adressen sind nicht erlaubt',
 );
 
 const kFrenchStrings = AppStrings(
@@ -978,12 +1033,14 @@ const kFrenchStrings = AppStrings(
   forgotPassword: 'Mot de passe oublié ?',
   noAccount: 'Pas de compte ? ',
   createAccount: 'Créer un compte',
-  biometricPromptTitle: 'Utiliser Face ID / empreinte pour un déverrouillage rapide ?',
+  biometricPromptTitle:
+      'Utiliser Face ID / empreinte pour un déverrouillage rapide ?',
   biometricPromptBody:
       'La biométrie protège cette session sur l\'appareil. Elle ne remplace pas votre compte WAVEBREAK.',
   notNow: 'Plus tard',
   enable: 'Activer',
-  enterEmailReset: 'Entrez votre e-mail, nous vous enverrons les instructions de réinitialisation.',
+  enterEmailReset:
+      'Entrez votre e-mail, nous vous enverrons les instructions de réinitialisation.',
   checkEmailToContinue: 'Consultez votre e-mail pour continuer.',
   send: 'Envoyer',
   auto: 'AUTO',
@@ -1012,6 +1069,10 @@ const kFrenchStrings = AppStrings(
   testPing: 'Tester le ping',
   speedTest: 'Test de vitesse',
   speedTestRunning: 'Test en cours…',
+  updateAvailable: 'Mise à jour disponible',
+  updateDownloading: 'Téléchargement de la mise à jour…',
+  updateInstall: 'Installer',
+  updateAllowInstalls: 'Autoriser les installations',
   pingUnavailable: "Le ping n'est pas encore disponible pour cette connexion",
   measuringPing: 'Mesure en cours…',
   notifDisconnectAction: 'Déconnecter',
@@ -1026,12 +1087,16 @@ const kFrenchStrings = AppStrings(
       "Fixez une couleur pour toute l'app, ou laissez-la suivre le serveur connecté",
   textSize: 'Taille du texte',
   reduceMotion: 'Réduire les animations',
-  reduceMotionHint: "Calme les vagues animées de l'arrière-plan dans toute l'app",
+  reduceMotionHint:
+      "Calme les vagues animées de l'arrière-plan dans toute l'app",
   removeDeviceTitle: 'Supprimer cet appareil ?',
-  removeDeviceBody: 'Il devra se reconnecter pour se reconnecter, ce qui libère une place dans la limite d\'appareils de votre forfait.',
+  removeDeviceBody:
+      'Il devra se reconnecter pour se reconnecter, ce qui libère une place dans la limite d\'appareils de votre forfait.',
   removeCustomServerTitle: 'Supprimer ce serveur ?',
-  removeCustomServerBody: 'Son lien enregistré sera supprimé de cet appareil. Vous pourrez l\'ajouter à nouveau plus tard en collant le lien.',
-  errUnsupportedProtocol: "Le protocole de ce lien n'est pas encore pris en charge sur cet appareil",
+  removeCustomServerBody:
+      'Son lien enregistré sera supprimé de cet appareil. Vous pourrez l\'ajouter à nouveau plus tard en collant le lien.',
+  errUnsupportedProtocol:
+      "Le protocole de ce lien n'est pas encore pris en charge sur cet appareil",
   subscriptionRequiredTitle: 'Abonnement requis',
   choosePlan: 'Choisir un forfait',
   selectPlanHint: 'Choisissez un forfait pour activer votre abonnement',
@@ -1059,11 +1124,13 @@ const kFrenchStrings = AppStrings(
   trafficUnlimited: 'Illimité',
   logOut: 'Se déconnecter',
   faceIdTouchId: 'Face ID / Touch ID',
-  useBiometricsForQuickUnlock: 'Utiliser la biométrie pour un déverrouillage rapide',
+  useBiometricsForQuickUnlock:
+      'Utiliser la biométrie pour un déverrouillage rapide',
   biometricsNotAvailable: 'Indisponible sur cet appareil',
   requireBiometricAuth: 'Exiger l\'authentification biométrique',
   whenOpeningWavebreak: 'À l\'ouverture de WAVEBREAK',
-  confirmToEnableBiometric: 'Confirmez pour activer le déverrouillage biométrique',
+  confirmToEnableBiometric:
+      'Confirmez pour activer le déverrouillage biométrique',
   autoConnect: 'Connexion automatique',
   onAppLaunch: 'Au lancement de l\'app',
   onUntrustedWifi: 'Sur un Wi-Fi non fiable',
@@ -1086,7 +1153,8 @@ const kFrenchStrings = AppStrings(
   until: 'Jusqu\'au',
   manageSubscription: 'Gérer l\'abonnement',
   updateRequiredTitle: 'Mise à jour requise',
-  updateRequiredBody: 'Une nouvelle version de WAVEBREAK est nécessaire pour continuer.',
+  updateRequiredBody:
+      'Une nouvelle version de WAVEBREAK est nécessaire pour continuer.',
   updateNow: 'Mettre à jour',
   errNoInternet: 'Pas de connexion internet',
   errUnavailable:
@@ -1119,7 +1187,8 @@ const kFrenchStrings = AppStrings(
   restarting: 'Reconnexion…',
   sessionExpiredNotice: 'Votre session a expiré. Veuillez vous reconnecter.',
   maintenanceTitle: 'WAVEBREAK est en maintenance',
-  maintenanceBody: 'Nous apportons des améliorations. Veuillez réessayer bientôt.',
+  maintenanceBody:
+      'Nous apportons des améliorations. Veuillez réessayer bientôt.',
   noInternetBanner: 'Pas de connexion internet',
   showingSavedDataBanner: 'Affichage des données enregistrées — hors ligne',
   preparingApp: 'Préparation de votre connexion…',
@@ -1130,7 +1199,8 @@ const kFrenchStrings = AppStrings(
   qrCode: 'Code QR',
   close: 'Fermer',
   pasteFromClipboard: 'Coller',
-  blockedSubscriptionLink: 'https:// uniquement — adresses locales/privées non autorisées',
+  blockedSubscriptionLink:
+      'https:// uniquement — adresses locales/privées non autorisées',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -1141,12 +1211,14 @@ const kPortugueseStrings = AppStrings(
   forgotPassword: 'Esqueceu a senha?',
   noAccount: 'Não tem conta? ',
   createAccount: 'Criar conta',
-  biometricPromptTitle: 'Usar Face ID / impressão digital para desbloqueio rápido?',
+  biometricPromptTitle:
+      'Usar Face ID / impressão digital para desbloqueio rápido?',
   biometricPromptBody:
       'A biometria protege esta sessão no dispositivo. Ela não substitui sua conta WAVEBREAK.',
   notNow: 'Agora não',
   enable: 'Ativar',
-  enterEmailReset: 'Digite seu e-mail e enviaremos instruções para redefinir a senha.',
+  enterEmailReset:
+      'Digite seu e-mail e enviaremos instruções para redefinir a senha.',
   checkEmailToContinue: 'Verifique seu e-mail para continuar.',
   send: 'Enviar',
   auto: 'AUTO',
@@ -1175,6 +1247,10 @@ const kPortugueseStrings = AppStrings(
   testPing: 'Testar ping',
   speedTest: 'Teste de velocidade',
   speedTestRunning: 'Testando…',
+  updateAvailable: 'Atualização disponível',
+  updateDownloading: 'Baixando atualização…',
+  updateInstall: 'Instalar',
+  updateAllowInstalls: 'Permitir instalação',
   pingUnavailable: 'O ping ainda não está disponível para esta conexão',
   measuringPing: 'Medindo…',
   notifDisconnectAction: 'Desconectar',
@@ -1185,15 +1261,20 @@ const kPortugueseStrings = AppStrings(
   cancel: 'Cancelar',
   personalization: 'Personalização',
   accentColor: 'Cor de destaque',
-  accentColorHint: 'Fixe uma cor para todo o app ou deixe seguir a cor do servidor conectado',
+  accentColorHint:
+      'Fixe uma cor para todo o app ou deixe seguir a cor do servidor conectado',
   textSize: 'Tamanho do texto',
   reduceMotion: 'Reduzir movimento',
-  reduceMotionHint: 'Deixa as ondas animadas do fundo mais calmas em todo o app',
+  reduceMotionHint:
+      'Deixa as ondas animadas do fundo mais calmas em todo o app',
   removeDeviceTitle: 'Remover este dispositivo?',
-  removeDeviceBody: 'Ele precisará entrar novamente para reconectar, e libera uma vaga no limite de dispositivos do seu plano.',
+  removeDeviceBody:
+      'Ele precisará entrar novamente para reconectar, e libera uma vaga no limite de dispositivos do seu plano.',
   removeCustomServerTitle: 'Remover este servidor?',
-  removeCustomServerBody: 'O link salvo será excluído deste dispositivo. Você pode adicioná-lo novamente depois colando o link.',
-  errUnsupportedProtocol: 'O protocolo deste link ainda não é compatível com este dispositivo',
+  removeCustomServerBody:
+      'O link salvo será excluído deste dispositivo. Você pode adicioná-lo novamente depois colando o link.',
+  errUnsupportedProtocol:
+      'O protocolo deste link ainda não é compatível com este dispositivo',
   subscriptionRequiredTitle: 'Assinatura necessária',
   choosePlan: 'Escolher plano',
   selectPlanHint: 'Escolha um plano para ativar sua assinatura',
@@ -1248,7 +1329,8 @@ const kPortugueseStrings = AppStrings(
   until: 'Até',
   manageSubscription: 'Gerenciar assinatura',
   updateRequiredTitle: 'Atualização necessária',
-  updateRequiredBody: 'Uma nova versão do WAVEBREAK é necessária para continuar.',
+  updateRequiredBody:
+      'Uma nova versão do WAVEBREAK é necessária para continuar.',
   updateNow: 'Atualizar agora',
   errNoInternet: 'Sem conexão à internet',
   errUnavailable:
@@ -1292,7 +1374,8 @@ const kPortugueseStrings = AppStrings(
   qrCode: 'Código QR',
   close: 'Fechar',
   pasteFromClipboard: 'Colar',
-  blockedSubscriptionLink: 'Apenas https:// — endereços locais/privados não são permitidos',
+  blockedSubscriptionLink:
+      'Apenas https:// — endereços locais/privados não são permitidos',
 );
 
 const kTurkishStrings = AppStrings(
@@ -1303,7 +1386,8 @@ const kTurkishStrings = AppStrings(
   forgotPassword: 'Şifrenizi mi unuttunuz?',
   noAccount: 'Hesabınız yok mu? ',
   createAccount: 'Hesap oluştur',
-  biometricPromptTitle: 'Hızlı kilit açma için Face ID / parmak izi kullanılsın mı?',
+  biometricPromptTitle:
+      'Hızlı kilit açma için Face ID / parmak izi kullanılsın mı?',
   biometricPromptBody:
       'Biyometri bu cihaz oturumunu korur. WAVEBREAK hesabınızın yerini tutmaz.',
   notNow: 'Şimdi değil',
@@ -1337,6 +1421,10 @@ const kTurkishStrings = AppStrings(
   testPing: 'Pingi test et',
   speedTest: 'Hız testi',
   speedTestRunning: 'Test ediliyor…',
+  updateAvailable: 'Güncelleme mevcut',
+  updateDownloading: 'Güncelleme indiriliyor…',
+  updateInstall: 'Yükle',
+  updateAllowInstalls: 'Yüklemelere izin ver',
   pingUnavailable: 'Bu bağlantı için ping henüz kullanılamıyor',
   measuringPing: 'Ölçülüyor…',
   notifDisconnectAction: 'Bağlantıyı kes',
@@ -1353,10 +1441,13 @@ const kTurkishStrings = AppStrings(
   reduceMotion: 'Hareketi azalt',
   reduceMotionHint: 'Uygulama genelinde animasyonlu dalgaları sakinleştirir',
   removeDeviceTitle: 'Bu cihaz kaldırılsın mı?',
-  removeDeviceBody: 'Yeniden bağlanmak için tekrar giriş yapması gerekir ve planınızın cihaz limitinde yer açar.',
+  removeDeviceBody:
+      'Yeniden bağlanmak için tekrar giriş yapması gerekir ve planınızın cihaz limitinde yer açar.',
   removeCustomServerTitle: 'Bu sunucu kaldırılsın mı?',
-  removeCustomServerBody: 'Kayıtlı bağlantısı bu cihazdan silinecek. Bağlantıyı yapıştırarak daha sonra tekrar ekleyebilirsiniz.',
-  errUnsupportedProtocol: 'Bu bağlantının protokolü bu cihazda henüz desteklenmiyor',
+  removeCustomServerBody:
+      'Kayıtlı bağlantısı bu cihazdan silinecek. Bağlantıyı yapıştırarak daha sonra tekrar ekleyebilirsiniz.',
+  errUnsupportedProtocol:
+      'Bu bağlantının protokolü bu cihazda henüz desteklenmiyor',
   subscriptionRequiredTitle: 'Abonelik gerekli',
   choosePlan: 'Plan seç',
   selectPlanHint: 'Aboneliğinizi etkinleştirmek için bir plan seçin',
@@ -1411,7 +1502,8 @@ const kTurkishStrings = AppStrings(
   until: 'Bitiş',
   manageSubscription: 'Aboneliği yönet',
   updateRequiredTitle: 'Güncelleme gerekli',
-  updateRequiredBody: 'Devam etmek için WAVEBREAK\'in yeni bir sürümü gerekiyor.',
+  updateRequiredBody:
+      'Devam etmek için WAVEBREAK\'in yeni bir sürümü gerekiyor.',
   updateNow: 'Şimdi güncelle',
   errNoInternet: 'İnternet bağlantısı yok',
   errUnavailable:
@@ -1444,7 +1536,8 @@ const kTurkishStrings = AppStrings(
   restarting: 'Yeniden bağlanıyor…',
   sessionExpiredNotice: 'Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.',
   maintenanceTitle: 'WAVEBREAK bakımda',
-  maintenanceBody: 'Bazı iyileştirmeler yapıyoruz. Lütfen kısa süre sonra tekrar deneyin.',
+  maintenanceBody:
+      'Bazı iyileştirmeler yapıyoruz. Lütfen kısa süre sonra tekrar deneyin.',
   noInternetBanner: 'İnternet bağlantısı yok',
   showingSavedDataBanner: 'Kaydedilmiş veriler gösteriliyor — çevrimdışı',
   preparingApp: 'Bağlantınız hazırlanıyor…',
@@ -1455,7 +1548,8 @@ const kTurkishStrings = AppStrings(
   qrCode: 'QR kod',
   close: 'Kapat',
   pasteFromClipboard: 'Yapıştır',
-  blockedSubscriptionLink: 'Sadece https:// — yerel/özel adreslere izin verilmez',
+  blockedSubscriptionLink:
+      'Sadece https:// — yerel/özel adreslere izin verilmez',
 );
 
 AppStrings stringsFor(AppLanguage language) {
