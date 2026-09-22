@@ -9,7 +9,9 @@ import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/analytics/analytics.dart';
 import '../../services/biometric/biometric_service.dart';
+import '../../services/pin/pin_service.dart';
 import '../../services/providers.dart';
+import '../settings/pin_setup_screen.dart';
 import '../shared/ocean_background.dart';
 import '../shared/wave_params.dart';
 import '../shared/wavebreak_mark.dart';
@@ -25,6 +27,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _bio = BiometricService();
+  final _pin = const PinService();
   bool _busy = false;
   String? _error;
 
@@ -99,10 +102,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       },
     );
-    if (enable == true) {
-      await _bio.setEnabled(true);
-      await PrefsStore.setBool(PrefsStore.appLockEnabled, true);
+    if (enable != true) return;
+    // Same requirement as turning this on from Security settings (see
+    // security_screen.dart's own comment): a PIN is the only fallback a
+    // failed/misbehaving biometric scan has, and this first-login prompt
+    // was a second, separate path to ending up with biometric-only lock
+    // and no PIN ever set — the exact state that left a product owner
+    // permanently locked out. Not optional here either.
+    if (!_pin.isSet) {
+      if (!mounted) return;
+      final saved = await showPinSetupScreen(
+        context,
+        subtitle: s.pinRequiredForBiometric,
+      );
+      if (saved != true) return;
     }
+    await _bio.setEnabled(true);
+    await PrefsStore.setBool(PrefsStore.appLockEnabled, true);
   }
 
   @override

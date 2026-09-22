@@ -1,13 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'connection_manager.dart';
+import 'connection_test_service.dart';
 import 'speed_test_service.dart';
 
-enum SpeedTestStatus { idle, testingDownload, testingUpload, done, failed }
+enum SpeedTestStatus {
+  idle,
+  testingLatency,
+  testingDownload,
+  testingUpload,
+  done,
+  failed,
+}
 
 class SpeedTestState {
   const SpeedTestState({
     this.status = SpeedTestStatus.idle,
+    this.latencyMs,
     this.downloadMbps,
     this.uploadMbps,
     this.liveMbps = 0,
@@ -15,25 +24,39 @@ class SpeedTestState {
   });
 
   final SpeedTestStatus status;
+
+  /// A real TCP-connect-timing reading against the active location — see
+  /// connection_test_service.dart. Measured as the first step of [run],
+  /// mirroring how established speed-test tools (Ookla, Fast.com,
+  /// Cloudflare's own) always show latency before throughput: it's the
+  /// fastest signal to get back, so the test visibly starts doing
+  /// something within a moment of tapping Start rather than sitting on a
+  /// blank gauge for however long the first download probe takes to ramp
+  /// up. Null while pending/if it failed — a failed ping doesn't fail the
+  /// whole test, download/upload still run.
+  final int? latencyMs;
   final double? downloadMbps;
   final double? uploadMbps;
 
-  /// The most recent live sample — what the gauge animates against while
-  /// [isRunning]. Meaningless once [status] is `done`/`failed`/`idle`
-  /// (the UI should read [downloadMbps]/[uploadMbps] instead at that
-  /// point), but harmless to leave holding its last value.
+  /// The most recent live sample — what the wave meter animates against
+  /// while [isRunning]. Meaningless once [status] is
+  /// `done`/`failed`/`idle` (the UI should read
+  /// [downloadMbps]/[uploadMbps] instead at that point), but harmless to
+  /// leave holding its last value.
   final double liveMbps;
 
-  /// 0..1 through the current phase, for a progress ring/arc-fill
-  /// distinct from the live-speed needle if the UI wants both.
+  /// 0..1 through the current phase, for a determinate progress
+  /// indicator distinct from the live-speed reading.
   final double progress;
 
   bool get isRunning =>
+      status == SpeedTestStatus.testingLatency ||
       status == SpeedTestStatus.testingDownload ||
       status == SpeedTestStatus.testingUpload;
 
   SpeedTestState copyWith({
     SpeedTestStatus? status,
+    int? latencyMs,
     double? downloadMbps,
     double? uploadMbps,
     double? liveMbps,
@@ -41,6 +64,7 @@ class SpeedTestState {
   }) =>
       SpeedTestState(
         status: status ?? this.status,
+        latencyMs: latencyMs ?? this.latencyMs,
         downloadMbps: downloadMbps ?? this.downloadMbps,
         uploadMbps: uploadMbps ?? this.uploadMbps,
         liveMbps: liveMbps ?? this.liveMbps,
@@ -100,7 +124,23 @@ class SpeedTestController extends Notifier<SpeedTestState> {
   Future<void> run() async {
     if (state.isRunning) return;
     final generation = ++_generation;
-    state = const SpeedTestState(status: SpeedTestStatus.testingDownload);
+    state = const SpeedTestState(status: SpeedTestStatus.testingLatency);
+    // A real TCP-connect-timing probe against whatever location is
+    // currently active — same mechanism the location list's own ping
+    // uses (ConnectionTestService), not a fabricated number. A failed
+    // reading (custom server with no resolvable target, Hysteria2's
+    // honest-null, a timeout) leaves latencyMs null rather than aborting
+    // the whole test — download/upload below don't depend on it.
+    try {
+      final location = ref.read(connectionManagerProvider).location;
+      final latency = await const ConnectionTestService().testLocation(location);
+      if (generation != _generation) return;
+      state = state.copyWith(latencyMs: latency);
+    } catch (_) {
+      // Best-effort — see the comment above.
+    }
+    if (generation != _generation) return;
+    state = state.copyWith(status: SpeedTestStatus.testingDownload);
     try {
       final result = await _service.run(
         onPhase: (phase) {
