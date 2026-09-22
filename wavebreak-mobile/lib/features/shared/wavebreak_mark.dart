@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/wb_colors.dart';
 
@@ -59,6 +60,14 @@ class WavebreakWordmark extends StatelessWidget {
 /// A plain-text "WAVEBREAK" label for tight spots (a header row flanked by
 /// icons, the drawer title) where the wordmark image's fixed aspect ratio
 /// would overflow a narrow, space-constrained row.
+///
+/// Michroma — the exact font wavebreak-web uses for its own brand
+/// wordmark (`.wb-brand-name { font-family: "Michroma", ... }`), loaded
+/// via google_fonts (already a dependency) rather than bundling the
+/// site's own woff2 file. Reserved for the wordmark specifically, same
+/// as the site: this is a distinctive geometric display face, not a
+/// general body/heading font (that's still Inter — see wb_theme.dart —
+/// matching the site's own --font choice for everything else).
 class WavebreakWordmarkText extends StatelessWidget {
   const WavebreakWordmarkText({super.key, this.size = 14});
 
@@ -71,10 +80,10 @@ class WavebreakWordmarkText extends StatelessWidget {
       maxLines: 1,
       softWrap: false,
       overflow: TextOverflow.clip,
-      style: TextStyle(
+      style: GoogleFonts.michroma(
         fontSize: size,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 2.4,
+        fontWeight: FontWeight.w400,
+        letterSpacing: 1.2,
         color: WbColors.ice,
       ),
     );

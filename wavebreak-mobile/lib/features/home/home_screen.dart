@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/auth/session_controller.dart';
 import '../../core/errors/app_exception.dart';
@@ -881,8 +882,22 @@ class _StatusCopy extends StatelessWidget {
               title,
               key: ValueKey(title),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 28, fontWeight: FontWeight.w600, color: titleColor),
+              // Fraunces — the same serif wavebreak-web uses for its own
+              // large headlines (site-section h2, hero copy — see
+              // wavebreak-site.css's --font/h1/h2 rules). Kept at this
+              // screen's existing mobile-tuned 28px rather than the
+              // site's 52-70px display scale — the point is matching the
+              // font family/character, not transplanting a desktop type
+              // scale onto a phone. Loaded via google_fonts (already a
+              // dependency, already used for Inter below) rather than
+              // bundling the site's own woff2 files — same OFL-licensed
+              // typeface, no separate asset registration or web-font-
+              // format risk.
+              style: GoogleFonts.fraunces(
+                fontSize: 28,
+                fontWeight: FontWeight.w500,
+                color: titleColor ?? WbColors.ice,
+              ),
             ),
           ),
           const SizedBox(height: 6),
