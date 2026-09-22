@@ -301,16 +301,28 @@ class _UpdateBanner extends ConsumerWidget {
                     child: Material(
                       color: Colors.transparent,
                       child: Container(
+                        // Previously just a neutral card color with a thin
+                        // border — read as too subtle to notice against a
+                        // busy animated background (real-device feedback).
+                        // A colored background tint, not just a colored
+                        // border, is exactly what the offline banner
+                        // already does for the same reason; matching that
+                        // recipe here instead of inventing a louder one.
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
+                            horizontal: 20, vertical: 14),
                         decoration: BoxDecoration(
-                          color: WbColors.card,
+                          color: WbColors.waveCyan.withValues(alpha: 0.16),
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                              color: WbColors.waveCyan.withValues(alpha: 0.35)),
+                          border:
+                              Border.all(color: WbColors.waveCyan, width: 1.4),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
+                              color: WbColors.waveCyan.withValues(alpha: 0.25),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
                               blurRadius: 18,
                               offset: const Offset(0, 8),
                             ),
@@ -320,8 +332,8 @@ class _UpdateBanner extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(Icons.system_update_rounded,
-                                color: WbColors.waveCyan, size: 16),
-                            const SizedBox(width: 8),
+                                color: WbColors.waveCyan, size: 22),
+                            const SizedBox(width: 10),
                             Text(
                               install.status == ApkInstallStatus.downloading
                                   ? '${s.updateDownloading} ${(install.progress * 100).round()}%'
@@ -331,13 +343,13 @@ class _UpdateBanner extends ConsumerWidget {
                                       : s.updateAvailable,
                               style: const TextStyle(
                                 color: WbColors.ice,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                             if (install.status !=
                                 ApkInstallStatus.downloading) ...[
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 12),
                               GestureDetector(
                                 onTap: () {
                                   final notifier = ref.read(
@@ -358,7 +370,7 @@ class _UpdateBanner extends ConsumerWidget {
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 4),
+                                      horizontal: 14, vertical: 7),
                                   decoration: BoxDecoration(
                                     color: WbColors.waveCyan,
                                     borderRadius: BorderRadius.circular(999),
@@ -367,8 +379,8 @@ class _UpdateBanner extends ConsumerWidget {
                                     s.updateInstall,
                                     style: const TextStyle(
                                       color: WbColors.midnight,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
                                 ),
