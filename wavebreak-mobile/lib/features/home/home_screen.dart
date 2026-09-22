@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,9 +29,11 @@ import '../shared/flag_icon.dart';
 import '../shared/share_subscription_sheet.dart';
 import '../shared/subscription_accordion.dart';
 import '../shared/subscription_section.dart';
+import '../shared/update_available_sheet.dart';
 import '../shared/wave_params.dart';
 import '../shared/wb_card.dart';
 import '../shared/wavebreak_mark.dart';
+import '../../services/update/update_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -338,6 +341,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       },
     );
 
+    // Android only — this app ships outside the Play Store, so this is
+    // the only in-app path to a new build (see update_service.dart's own
+    // doc comment). The bell only appears at all once there's something
+    // to say — no permanent fixture taking up toolbar space the rest of
+    // the time, unlike the old always-present bottom pill this replaces.
+    final pendingUpdate = Platform.isAndroid
+        ? ref.watch(availableUpdateProvider).asData?.value
+        : null;
+
     Widget buildTopBar(bool isDesktop) => SizedBox(
           height: 46,
           child: Stack(
@@ -356,6 +368,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 alignment: Alignment.centerRight,
                 child: _ToolbarChip(
                   children: [
+                    if (pendingUpdate != null) ...[
+                      _UpdateBellButton(
+                        tooltip: s.updateAvailable,
+                        onTap: () => showUpdateAvailableSheet(
+                            context, ref, pendingUpdate),
+                      ),
+                      Container(width: 1, height: 20, color: WbColors.ice08),
+                    ],
                     _SpinIconButton(
                       // A reload glyph reads as "refresh the server list" —
                       // kept distinct from the restart icon below rather than
@@ -620,6 +640,58 @@ class _ToolbarChip extends StatelessWidget {
         border: Border.all(color: WbColors.ice08),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+}
+
+/// A bell-with-badge, not just another plain icon button in the toolbar
+/// chip — that dot is the whole point: a persistent, glanceable "there's
+/// an update" signal that survives tapping it and closing the detail
+/// sheet again, unlike the old bottom pill which WAS the notification and
+/// disappeared once installed/dismissed with nowhere else to find it
+/// again (see update_available_sheet.dart's own comment, and About's
+/// matching badge on its "check for updates" row).
+class _UpdateBellButton extends StatelessWidget {
+  const _UpdateBellButton({required this.tooltip, required this.onTap});
+
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(Icons.notifications_rounded,
+                    size: 21, color: WbColors.waveCyan),
+                Positioned(
+                  top: 10,
+                  right: 11,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: WbColors.waveCyan,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: WbColors.card, width: 1.5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

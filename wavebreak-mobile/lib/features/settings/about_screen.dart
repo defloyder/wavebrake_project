@@ -46,6 +46,13 @@ class AboutScreen extends ConsumerWidget {
     final config = ref.watch(sessionControllerProvider).config;
     final s = ref.watch(stringsProvider);
     final installStatus = ref.watch(apkInstallControllerProvider).status;
+    // Mirrors the same pending-update state the Home toolbar's bell badge
+    // reflects (see update_available_sheet.dart's comment on why that
+    // bell needs a second, always-reachable place to point to) — closing
+    // the bell's sheet never loses this, since it never lived only there.
+    final pendingUpdate = Platform.isAndroid
+        ? ref.watch(availableUpdateProvider).asData?.value
+        : null;
 
     return DetailScaffold(
       title: s.about,
@@ -79,10 +86,13 @@ class AboutScreen extends ConsumerWidget {
             _row(
               installStatus == ApkInstallStatus.downloading
                   ? s.updateDownloading
-                  : s.checkForUpdates,
+                  : pendingUpdate != null
+                      ? s.updateAvailable
+                      : s.checkForUpdates,
               installStatus == ApkInstallStatus.downloading
                   ? null
                   : () => _checkForUpdates(context, ref),
+              badged: pendingUpdate != null,
             ),
           if (config.privacyUrl != null)
             _row(s.privacyPolicy,
@@ -97,14 +107,34 @@ class AboutScreen extends ConsumerWidget {
     );
   }
 
-  Widget _row(String title, VoidCallback? onTap) {
+  Widget _row(String title, VoidCallback? onTap, {bool badged = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: WbCard(
         onTap: onTap,
         child: Row(
           children: [
-            Expanded(child: Text(title, style: const TextStyle(fontSize: 15))),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: badged ? WbColors.waveCyan : WbColors.ice,
+                  fontWeight: badged ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+            ),
+            if (badged) ...[
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: const BoxDecoration(
+                  color: WbColors.waveCyan,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
             const Icon(Icons.chevron_right, color: WbColors.ice60),
           ],
         ),
