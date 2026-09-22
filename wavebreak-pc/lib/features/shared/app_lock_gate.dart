@@ -16,7 +16,8 @@ import 'wavebreak_mark.dart';
 /// Whether App Lock can actually engage — it needs *some* unlock method
 /// configured, not just the master switch on. Read by Security settings so
 /// the toggle can't be flipped on with nothing to unlock with.
-bool appLockAvailable() => BiometricService().isEnabled || const PinService().isSet;
+bool appLockAvailable() =>
+    BiometricService().isEnabled || const PinService().isSet;
 
 /// Covers the entire app behind a lock screen whenever App Lock is on —
 /// at cold launch, and again every time the app returns to the foreground
@@ -31,7 +32,8 @@ class AppLockGate extends ConsumerStatefulWidget {
   ConsumerState<AppLockGate> createState() => _AppLockGateState();
 }
 
-class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingObserver {
+class _AppLockGateState extends ConsumerState<AppLockGate>
+    with WidgetsBindingObserver {
   bool _locked = _shouldLock();
 
   static bool _shouldLock() =>
@@ -49,15 +51,34 @@ class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingOb
     super.dispose();
   }
 
-  bool _wasBackgrounded = false;
+  DateTime? _backgroundedAt;
+
+  // Real-device bug this fixes: re-locking on every single pause->resume
+  // transition with no threshold at all re-prompted for biometrics on
+  // completely trivial backgrounding — switching apps for a second,
+  // dismissing a system permission dialog, or (separately) the native
+  // BiometricPrompt itself: showing it can trigger paused/resumed on the
+  // host Activity on some Android versions/OEMs even though the user
+  // never actually left the app, which combined with a zero threshold
+  // here could re-arm the lock while a scan was still in flight and read
+  // as "it re-prompted right after a successful scan." A real elapsed-
+  // time threshold means only an actual meaningful stretch away from the
+  // app re-locks it — most apps use something in this same ballpark
+  // rather than re-prompting on every trivial resume.
+  static const _relockAfterBackground = Duration(minutes: 2);
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _wasBackgrounded = true;
-    } else if (state == AppLifecycleState.resumed && _wasBackgrounded) {
-      _wasBackgrounded = false;
-      if (_shouldLock() && !_locked) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _backgroundedAt ??= DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      final backgroundedAt = _backgroundedAt;
+      _backgroundedAt = null;
+      if (backgroundedAt == null) return;
+      final wasBackgroundedLongEnough =
+          DateTime.now().difference(backgroundedAt) >= _relockAfterBackground;
+      if (wasBackgroundedLongEnough && _shouldLock() && !_locked) {
         setState(() => _locked = true);
       }
     }
@@ -98,7 +119,11 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
   }
 
   Future<void> _tryBiometric() async {
-    if (!_bio.isEnabled) return;
+    // Defensive: the button already disables itself while busy, but the
+    // very first call comes from initState's postFrameCallback rather
+    // than a tap, so this guards that path too against ever overlapping
+    // with a manual retry.
+    if (!_bio.isEnabled || _biometricBusy) return;
     setState(() => _biometricBusy = true);
     final ok = await _bio.authenticate(reason: 'Unlock WAVEBREAK');
     if (!mounted) return;
@@ -156,7 +181,8 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
               const SizedBox(height: 20),
               Text(
                 s.unlockWavebreak,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
               if (showPinPad) ...[
@@ -196,4 +222,3 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
     );
   }
 }
-
