@@ -15,14 +15,33 @@ import '../shared/wave_params.dart';
 /// (not a go_router route — it's a transient flow, not a place worth
 /// bookmarking). Pops `true` once a PIN is saved, `null`/`false` if the
 /// user backs out.
-Future<bool?> showPinSetupScreen(BuildContext context) {
+///
+/// [dismissible] false removes the close button and blocks the system back
+/// gesture/button — for the cases where skipping isn't a safe option: a PIN
+/// is the only fallback biometric lock has, so once biometric is on (or,
+/// for an existing install from before this was enforced, the moment a
+/// biometric-only user next unlocks successfully) a PIN has to actually get
+/// set, not just be offered. [subtitle], when given, explains why —
+/// exactly what a non-dismissible modal that showed up unprompted most
+/// needs.
+Future<bool?> showPinSetupScreen(
+  BuildContext context, {
+  bool dismissible = true,
+  String? subtitle,
+}) {
   return Navigator.of(context, rootNavigator: true).push<bool>(
-    MaterialPageRoute(builder: (_) => const PinSetupScreen()),
+    MaterialPageRoute(
+      builder: (_) =>
+          PinSetupScreen(dismissible: dismissible, subtitle: subtitle),
+    ),
   );
 }
 
 class PinSetupScreen extends ConsumerStatefulWidget {
-  const PinSetupScreen({super.key});
+  const PinSetupScreen({super.key, this.dismissible = true, this.subtitle});
+
+  final bool dismissible;
+  final String? subtitle;
 
   @override
   ConsumerState<PinSetupScreen> createState() => _PinSetupScreenState();
@@ -81,60 +100,82 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
   Widget build(BuildContext context) {
     final s = ref.watch(stringsProvider);
     final waves = ref.watch(appWaveParamsProvider);
-    return Scaffold(
-      body: OceanBackground(
-        illuminate: true,
-        tint: waves.tint,
-        waveSpeed: waves.speed,
-        waveAmplitude: waves.amplitude,
-        child: SafeArea(
-          child: Column(
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
+    return PopScope(
+      // Blocks the system back gesture/button too, not just the on-screen
+      // close button — otherwise a non-dismissible PIN setup (the whole
+      // point of which is "this has to happen before we unlock/enable
+      // biometric") could still be swiped away on Android with nothing set.
+      canPop: widget.dismissible,
+      child: Scaffold(
+        body: OceanBackground(
+          illuminate: true,
+          tint: waves.tint,
+          waveSpeed: waves.speed,
+          waveAmplitude: waves.amplitude,
+          child: SafeArea(
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: widget.dismissible
+                        ? IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                          )
+                        : const SizedBox(height: 48),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                _confirming ? s.confirmPin : s.setPinCode,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              const Spacer(),
-              PinDots(length: _entered.length, error: _error),
-              if (_error) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 24),
                 Text(
-                  s.pinsDontMatch,
-                  style: const TextStyle(color: WbColors.error, fontSize: 13),
+                  _confirming ? s.confirmPin : s.setPinCode,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w600),
                 ),
-              ],
-              const SizedBox(height: 32),
-              PinKeypad(onDigit: _onDigit, onBackspace: _onBackspace),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: 220,
-                height: 52,
-                child: FilledButton(
-                  onPressed: _entered.length >= 4 ? _onNext : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: WbColors.waveCyan,
-                    foregroundColor: WbColors.midnight,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                if (!_confirming && widget.subtitle != null) ...[
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      widget.subtitle!,
+                      textAlign: TextAlign.center,
+                      style:
+                          const TextStyle(color: WbColors.ice60, fontSize: 13),
                     ),
                   ),
-                  child: Text(_confirming ? s.enable : s.continueLabel),
+                ],
+                const Spacer(),
+                PinDots(length: _entered.length, error: _error),
+                if (_error) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    s.pinsDontMatch,
+                    style: const TextStyle(color: WbColors.error, fontSize: 13),
+                  ),
+                ],
+                const SizedBox(height: 32),
+                PinKeypad(onDigit: _onDigit, onBackspace: _onBackspace),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: 220,
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: _entered.length >= 4 ? _onNext : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: WbColors.waveCyan,
+                      foregroundColor: WbColors.midnight,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(_confirming ? s.enable : s.continueLabel),
+                  ),
                 ),
-              ),
-              const Spacer(),
-              const SizedBox(height: 24),
-            ],
+                const Spacer(),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),

@@ -40,6 +40,8 @@ class AppStrings {
     required this.pinsDontMatch,
     required this.incorrectPin,
     required this.unlockWavebreak,
+    required this.pinRequiredForBiometric,
+    required this.troubleUnlockingLogOut,
     required this.continueLabel,
     required this.testPing,
     required this.speedTest,
@@ -213,6 +215,8 @@ class AppStrings {
   final String pinsDontMatch;
   final String incorrectPin;
   final String unlockWavebreak;
+  final String pinRequiredForBiometric;
+  final String troubleUnlockingLogOut;
   final String continueLabel;
   final String testPing;
   final String speedTest;
@@ -388,6 +392,9 @@ const kEnglishStrings = AppStrings(
   pinsDontMatch: "PINs don't match — try again",
   incorrectPin: 'Incorrect PIN',
   unlockWavebreak: 'Unlock WAVEBREAK',
+  pinRequiredForBiometric:
+      'Set a PIN as a backup in case biometric unlock ever fails',
+  troubleUnlockingLogOut: 'Trouble unlocking? Log out',
   continueLabel: 'Continue',
   testPing: 'Test ping',
   speedTest: 'Speed test',
@@ -570,6 +577,8 @@ const kRussianStrings = AppStrings(
   pinsDontMatch: 'PIN-коды не совпадают — попробуйте снова',
   incorrectPin: 'Неверный PIN',
   unlockWavebreak: 'Разблокировать WAVEBREAK',
+  pinRequiredForBiometric: 'Задайте PIN на случай, если биометрия не сработает',
+  troubleUnlockingLogOut: 'Проблемы со входом? Выйти',
   continueLabel: 'Продолжить',
   testPing: 'Проверить пинг',
   speedTest: 'Тест скорости',
@@ -756,6 +765,9 @@ const kSpanishStrings = AppStrings(
   pinsDontMatch: 'Los PIN no coinciden — inténtalo de nuevo',
   incorrectPin: 'PIN incorrecto',
   unlockWavebreak: 'Desbloquear WAVEBREAK',
+  pinRequiredForBiometric:
+      'Configura un PIN de respaldo por si falla el desbloqueo biométrico',
+  troubleUnlockingLogOut: '¿Problemas para desbloquear? Cerrar sesión',
   continueLabel: 'Continuar',
   testPing: 'Probar ping',
   speedTest: 'Test de velocidad',
@@ -942,6 +954,9 @@ const kGermanStrings = AppStrings(
   pinsDontMatch: 'PINs stimmen nicht überein — erneut versuchen',
   incorrectPin: 'Falscher PIN',
   unlockWavebreak: 'WAVEBREAK entsperren',
+  pinRequiredForBiometric:
+      'Lege eine PIN als Backup fest, falls die biometrische Entsperrung fehlschlägt',
+  troubleUnlockingLogOut: 'Probleme beim Entsperren? Abmelden',
   continueLabel: 'Weiter',
   testPing: 'Ping testen',
   speedTest: 'Geschwindigkeitstest',
@@ -1131,6 +1146,9 @@ const kFrenchStrings = AppStrings(
   pinsDontMatch: 'Les PIN ne correspondent pas — réessayez',
   incorrectPin: 'PIN incorrect',
   unlockWavebreak: 'Déverrouiller WAVEBREAK',
+  pinRequiredForBiometric:
+      'Définissez un code PIN de secours en cas d\'échec du déverrouillage biométrique',
+  troubleUnlockingLogOut: 'Problème de déverrouillage ? Se déconnecter',
   continueLabel: 'Continuer',
   testPing: 'Tester le ping',
   speedTest: 'Test de vitesse',
@@ -1320,6 +1338,9 @@ const kPortugueseStrings = AppStrings(
   pinsDontMatch: 'Os PINs não coincidem — tente novamente',
   incorrectPin: 'PIN incorreto',
   unlockWavebreak: 'Desbloquear o WAVEBREAK',
+  pinRequiredForBiometric:
+      'Defina um PIN de backup caso o desbloqueio biométrico falhe',
+  troubleUnlockingLogOut: 'Problemas para desbloquear? Sair',
   continueLabel: 'Continuar',
   testPing: 'Testar ping',
   speedTest: 'Teste de velocidade',
@@ -1505,6 +1526,9 @@ const kTurkishStrings = AppStrings(
   pinsDontMatch: 'PIN\'ler eşleşmiyor — tekrar deneyin',
   incorrectPin: 'Yanlış PIN',
   unlockWavebreak: 'WAVEBREAK kilidini aç',
+  pinRequiredForBiometric:
+      'Biyometrik kilit açma başarısız olursa diye yedek bir PIN belirleyin',
+  troubleUnlockingLogOut: 'Kilidi açmakta sorun mu var? Çıkış yap',
   continueLabel: 'Devam et',
   testPing: 'Pingi test et',
   speedTest: 'Hız testi',
