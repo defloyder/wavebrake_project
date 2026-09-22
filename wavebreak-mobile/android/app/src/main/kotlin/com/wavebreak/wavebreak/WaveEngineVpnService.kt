@@ -20,6 +20,8 @@ import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
 import android.util.Log
 import app.wavebreak.bridge.bridge.Bridge
+import java.net.InetSocketAddress
+import java.net.Socket
 
 /**
  * Real system-level VPN tunnel for every protocol WAVEBREAK supports on
@@ -82,6 +84,8 @@ class WaveEngineVpnService : VpnService() {
     private val reconnectHandler = Handler(Looper.getMainLooper())
     private var pendingReconnect: Runnable? = null
     private var pendingFdCheck: Runnable? = null
+    private var pendingHealthCheck: Runnable? = null
+    private var consecutiveHealthCheckFailures = 0
     private var connectRetryCount = 0
 
     // Everything the notification needs to render as a real, branded
@@ -164,6 +168,7 @@ class WaveEngineVpnService : VpnService() {
         broadcastState(STATE_CONNECTING)
         registerNetworkWatch()
         scheduleFdCheck()
+        scheduleHealthCheck()
         if (!xrayConfig.isNullOrEmpty()) {
             activeEngine = Engine.XRAY
             lastXrayConfig = xrayConfig
@@ -234,6 +239,8 @@ class WaveEngineVpnService : VpnService() {
         pendingReconnect = null
         pendingFdCheck?.let { reconnectHandler.removeCallbacks(it) }
         pendingFdCheck = null
+        pendingHealthCheck?.let { reconnectHandler.removeCallbacks(it) }
+        pendingHealthCheck = null
     }
 
     // Debounced: a handover fires onLost then onAvailable in quick
@@ -304,6 +311,78 @@ class WaveEngineVpnService : VpnService() {
         }
         pendingFdCheck = runnable
         reconnectHandler.postDelayed(runnable, FD_CHECK_INTERVAL_MS)
+    }
+
+    // The bug this exists for: the phone sleeps/locks (or reboots) on an
+    // otherwise-unchanged Wi-Fi network — no handover, so
+    // registerNetworkWatch()'s onLost/onAvailable never fires at all —
+    // while the carrier/router's NAT mapping for the tunnel's actual
+    // outbound socket times out from being idle during that stretch, or
+    // Doze suspends something mid-flight. The TUN interface and this
+    // service both look completely fine the whole time; only an actual
+    // attempt to pass traffic through the tunnel reveals it's dead. Confirmed
+    // as the real-device symptom: app shows "Connected", Telegram (and
+    // everything else) doesn't work, for a long time with nothing to
+    // notice or recover on its own until the user manually toggles the
+    // connection — this is what makes that recovery automatic instead.
+    //
+    // Deliberately a real socket connect, not just a TCP SYN/RST check —
+    // ping-style probes can succeed against a NAT table entry that still
+    // exists locally even once the actual path is dead. This process's
+    // own sockets are captured into the tunnel by VpnService by default
+    // (same as every other app's), so an ordinary unprotected connect
+    // here really does exercise the whole tun2socks -> engine -> real
+    // server path, not a shortcut around it.
+    private fun scheduleHealthCheck() {
+        pendingHealthCheck?.let { reconnectHandler.removeCallbacks(it) }
+        consecutiveHealthCheckFailures = 0
+        val runnable = object : Runnable {
+            override fun run() {
+                if (stopping || activeEngine == null) return
+                Thread({
+                    val alive = probeTunnelAlive()
+                    reconnectHandler.post {
+                        if (stopping || activeEngine == null) return@post
+                        if (alive) {
+                            consecutiveHealthCheckFailures = 0
+                            reconnectHandler.postDelayed(this, HEALTH_CHECK_INTERVAL_MS)
+                        } else {
+                            consecutiveHealthCheckFailures++
+                            Log.w(TAG, "tunnel health check failed ($consecutiveHealthCheckFailures/$HEALTH_CHECK_FAILURE_THRESHOLD)")
+                            if (consecutiveHealthCheckFailures >= HEALTH_CHECK_FAILURE_THRESHOLD) {
+                                consecutiveHealthCheckFailures = 0
+                                scheduleReconnect("health check failed")
+                            } else {
+                                // One failure could just be a genuinely slow
+                                // real network blip — only a SECOND
+                                // consecutive failure earns a reconnect, so
+                                // this doesn't fight a connection that's
+                                // merely momentarily congested.
+                                reconnectHandler.postDelayed(this, HEALTH_CHECK_RETRY_MS)
+                            }
+                        }
+                    }
+                }, "WaveEngineHealthCheck").start()
+            }
+        }
+        pendingHealthCheck = runnable
+        reconnectHandler.postDelayed(runnable, HEALTH_CHECK_INTERVAL_MS)
+    }
+
+    // Runs on a background thread (see scheduleHealthCheck) — blocking
+    // socket I/O, never call this on the main thread.
+    private fun probeTunnelAlive(): Boolean {
+        return try {
+            Socket().use { socket ->
+                socket.connect(
+                    InetSocketAddress(HEALTH_CHECK_HOST, HEALTH_CHECK_PORT),
+                    HEALTH_CHECK_TIMEOUT_MS,
+                )
+            }
+            true
+        } catch (t: Throwable) {
+            false
+        }
     }
 
     // Starts the local protect socket server and points the Go side at it
@@ -874,6 +953,18 @@ class WaveEngineVpnService : VpnService() {
         // work with instead of 3.
         private const val FD_WARN_THRESHOLD = 4000
         private const val FD_CHECK_INTERVAL_MS = 8_000L
+
+        // See scheduleHealthCheck()'s doc comment for the bug this exists
+        // for. 1.1.1.1:443 — same stable, fast, TLS-capable public target
+        // already used elsewhere in this app for reachability probes
+        // (ConnectionTestService's own pattern on the Dart side); no
+        // WAVEBREAK-operated endpoint needed.
+        private const val HEALTH_CHECK_HOST = "1.1.1.1"
+        private const val HEALTH_CHECK_PORT = 443
+        private const val HEALTH_CHECK_TIMEOUT_MS = 6_000
+        private const val HEALTH_CHECK_INTERVAL_MS = 45_000L
+        private const val HEALTH_CHECK_RETRY_MS = 10_000L
+        private const val HEALTH_CHECK_FAILURE_THRESHOLD = 2
 
         // Per-process, not a fixed name: a prior WaveEngineVpnService
         // process that died without a clean onDestroy (OOM-killed, force-
