@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/session_controller.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/biometric/biometric_service.dart';
 import '../../services/pin/pin_service.dart';
+import '../settings/pin_setup_screen.dart';
 import 'ocean_background.dart';
 import 'pin_keypad.dart';
 import 'wavebreak_mark.dart';
@@ -128,7 +130,41 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
     final ok = await _bio.authenticate(reason: 'Unlock WAVEBREAK');
     if (!mounted) return;
     setState(() => _biometricBusy = false);
-    if (ok) widget.onUnlocked();
+    if (!ok) return;
+    if (!_pin.isSet) {
+      // Migration path: biometric lock could be turned on before a PIN
+      // was a mandatory fallback (see security_screen.dart's own
+      // comment), so an existing install can reach this point with
+      // biometric-only lock and no escape hatch at all. This is the one
+      // moment identity is actually confirmed, so close the gap right
+      // here rather than risk the user backgrounding the app again
+      // before ever being asked — non-dismissible: skip it and the lock
+      // stays exactly as unrecoverable as it was a moment ago.
+      final saved = await showPinSetupScreen(
+        context,
+        dismissible: false,
+        subtitle: ref.read(stringsProvider).pinRequiredForBiometric,
+      );
+      if (!mounted || saved != true) return;
+    }
+    widget.onUnlocked();
+  }
+
+  /// Escape hatch for the state this whole change exists to fix: an
+  /// install where biometric lock is on, no PIN was ever set (either it
+  /// never got the mandatory-PIN migration prompt above because biometric
+  /// itself has stopped authenticating at all, or this build is the very
+  /// first one to reach the device), and the fingerprint/face scan simply
+  /// won't succeed. Logging out doesn't bypass anything security-wise —
+  /// it requires the same real credentials a fresh install would — but it
+  /// unconditionally clears the local biometric flag (see
+  /// SessionController.forceLogout), so app lock has nothing left to
+  /// enforce and the user gets back into their own account rather than
+  /// being stuck forever short of reinstalling.
+  Future<void> _logOutToEscape() async {
+    await ref.read(sessionControllerProvider.notifier).forceLogout();
+    if (!mounted) return;
+    widget.onUnlocked();
   }
 
   Future<void> _onDigit(String digit) async {
@@ -212,6 +248,21 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
                         icon: const Icon(Icons.fingerprint_rounded, size: 22),
                         label: Text(s.tryAgain),
                       ),
+                // Biometric-only lock, no PIN ever set — this is exactly
+                // the "permanently locked out" state a flaky scan used to
+                // leave someone in with no way back short of reinstalling.
+                // Always visible here, not tucked behind repeated failures
+                // — a user who already knows the scan isn't working
+                // shouldn't have to keep failing it first to find the way
+                // out.
+                const SizedBox(height: 20),
+                TextButton(
+                  onPressed: _biometricBusy ? null : _logOutToEscape,
+                  child: Text(
+                    s.troubleUnlockingLogOut,
+                    style: const TextStyle(color: WbColors.ice60, fontSize: 13),
+                  ),
+                ),
               ],
               const Spacer(),
               const SizedBox(height: 24),

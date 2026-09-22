@@ -51,8 +51,26 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
         }
         return;
       }
-      final confirmed = await _bio.authenticate(reason: s.confirmToEnableBiometric);
+      final confirmed =
+          await _bio.authenticate(reason: s.confirmToEnableBiometric);
       if (!confirmed) return;
+      // A PIN is the only fallback a failed/misbehaving biometric scan has
+      // — with none set, a bad fingerprint read (already a known flaky
+      // spot on some devices) leaves the account completely inaccessible
+      // short of uninstalling. Require one to already exist, or set it up
+      // right here, before biometric lock can be turned on at all — not
+      // just when App Lock's own toggle happens to have nothing else set
+      // (see _toggleAppLock below), since that check never re-runs once
+      // biometric alone already counts as "an unlock method."
+      if (!_pinSet) {
+        if (!mounted) return;
+        final saved = await showPinSetupScreen(
+          context,
+          subtitle: s.pinRequiredForBiometric,
+        );
+        if (saved != true || !mounted) return;
+        setState(() => _pinSet = true);
+      }
     }
     await _bio.setEnabled(value);
     if (mounted) setState(() => _bioEnabled = value);
@@ -118,7 +136,9 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
               activeTrackColor: WbColors.waveCyan,
               title: Text(s.faceIdTouchId),
               subtitle: Text(
-                _bioAvailable ? s.useBiometricsForQuickUnlock : s.biometricsNotAvailable,
+                _bioAvailable
+                    ? s.useBiometricsForQuickUnlock
+                    : s.biometricsNotAvailable,
                 style: const TextStyle(color: WbColors.ice60, fontSize: 12),
               ),
               value: _bioEnabled,
@@ -137,10 +157,12 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
               ),
               trailing: _pinSet
                   ? IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, color: WbColors.ice60),
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: WbColors.ice60),
                       onPressed: _removePin,
                     )
-                  : const Icon(Icons.chevron_right_rounded, color: WbColors.ice60),
+                  : const Icon(Icons.chevron_right_rounded,
+                      color: WbColors.ice60),
               onTap: _setUpPin,
             ),
           ),
