@@ -21,10 +21,12 @@ final navExpandedProvider = StateProvider<bool>((ref) => false);
 
 /// Locations doesn't get its own bottom-bar destination on mobile —
 /// location picking lives entirely on Home (tap the location header).
-/// The branch/route still exists (desktop's rail still links to it), this
-/// just keeps the *mobile* nav UI down to the two things worth a thumb's
-/// reach: Home and Settings.
-const _kMobileBranchIndexes = [0, 2];
+/// The branch/route still exists (desktop's rail still links to it).
+/// Speed Test DOES get one (branch 3, appended after Settings in
+/// router.dart) — it used to be a small text link buried under the ping
+/// row on Home; this is its own proper tab now, in order Home / Speed
+/// Test / Settings.
+const _kMobileBranchIndexes = [0, 3, 2];
 
 /// Height the floating mobile bottom bar occupies (pill content + its
 /// bottom margin, not counting the device's own safe-area inset) — screens
@@ -36,8 +38,9 @@ const kMobileBottomBarReserve = 74.0;
 /// used for "selected" nav states everywhere (rail item, bottom-bar tab)
 /// so they read as WAVEBREAK cyan first and flag-tinted second, never the
 /// other way around.
-Color _selectedNavColor(Color? tint) =>
-    tint == null ? WbColors.waveCyan : Color.lerp(WbColors.waveCyan, tint, 0.45) ?? WbColors.waveCyan;
+Color _selectedNavColor(Color? tint) => tint == null
+    ? WbColors.waveCyan
+    : Color.lerp(WbColors.waveCyan, tint, 0.45) ?? WbColors.waveCyan;
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.navigationShell});
@@ -49,9 +52,25 @@ class AppShell extends ConsumerWidget {
     final s = ref.watch(stringsProvider);
     final waveParams = ref.watch(appWaveParamsProvider);
     final items = [
-      _NavItemData(icon: Icons.home_outlined, filledIcon: Icons.home_rounded, label: s.navHome),
-      _NavItemData(icon: Icons.public_outlined, filledIcon: Icons.public, label: s.navLocations),
-      _NavItemData(icon: Icons.settings_outlined, filledIcon: Icons.settings, label: s.navSettings),
+      _NavItemData(
+          icon: Icons.home_outlined,
+          filledIcon: Icons.home_rounded,
+          label: s.navHome),
+      _NavItemData(
+          icon: Icons.public_outlined,
+          filledIcon: Icons.public,
+          label: s.navLocations),
+      _NavItemData(
+          icon: Icons.settings_outlined,
+          filledIcon: Icons.settings,
+          label: s.navSettings),
+      // Index 3 — must match router.dart's branch order (appended after
+      // Settings) since _SideNav's onSelect maps position i straight to
+      // navigationShell.goBranch(i).
+      _NavItemData(
+          icon: Icons.speed_outlined,
+          filledIcon: Icons.speed_rounded,
+          label: s.speedTest),
     ];
 
     return LayoutBuilder(
@@ -80,11 +99,13 @@ class AppShell extends ConsumerWidget {
                 Positioned.fill(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => ref.read(navExpandedProvider.notifier).state = false,
+                    onTap: () =>
+                        ref.read(navExpandedProvider.notifier).state = false,
                     child: AnimatedOpacity(
                       duration: const Duration(milliseconds: 200),
                       opacity: 1,
-                      child: Container(color: Colors.black.withValues(alpha: 0.28)),
+                      child: Container(
+                          color: Colors.black.withValues(alpha: 0.28)),
                     ),
                   ),
                 ),
@@ -117,7 +138,8 @@ class AppShell extends ConsumerWidget {
 }
 
 class _NavItemData {
-  const _NavItemData({required this.icon, required this.filledIcon, required this.label});
+  const _NavItemData(
+      {required this.icon, required this.filledIcon, required this.label});
   final IconData icon;
   final IconData filledIcon;
   final String label;
@@ -139,7 +161,8 @@ class _MobileShell extends ConsumerWidget {
     // Which of the two bottom-bar buttons corresponds to the active
     // branch — branch 1 (Locations) has no button, so nothing lights up
     // for it (it's only ever reached via Home's own location picker).
-    final activeButton = _kMobileBranchIndexes.indexOf(navigationShell.currentIndex);
+    final activeButton =
+        _kMobileBranchIndexes.indexOf(navigationShell.currentIndex);
 
     return Scaffold(
       // No slot-based bottomNavigationBar — that slot paints the
@@ -171,7 +194,8 @@ class _MobileShell extends ConsumerWidget {
                         // color instead of a flat, unchanging navy.
                         color: (waveParams.tint == null
                                 ? WbColors.deepOcean
-                                : Color.lerp(WbColors.deepOcean, waveParams.tint, 0.30) ??
+                                : Color.lerp(WbColors.deepOcean,
+                                        waveParams.tint, 0.30) ??
                                     WbColors.deepOcean)
                             .withValues(alpha: 0.72),
                         borderRadius: BorderRadius.circular(28),
@@ -194,18 +218,32 @@ class _MobileShell extends ConsumerWidget {
                             tint: waveParams.tint,
                             onTap: () => navigationShell.goBranch(
                               0,
-                              initialLocation: navigationShell.currentIndex == 0,
+                              initialLocation:
+                                  navigationShell.currentIndex == 0,
+                            ),
+                          ),
+                          _MobileNavButton(
+                            icon: Icons.speed_outlined,
+                            filledIcon: Icons.speed_rounded,
+                            label: s.speedTest,
+                            selected: activeButton == 1,
+                            tint: waveParams.tint,
+                            onTap: () => navigationShell.goBranch(
+                              3,
+                              initialLocation:
+                                  navigationShell.currentIndex == 3,
                             ),
                           ),
                           _MobileNavButton(
                             icon: Icons.settings_outlined,
                             filledIcon: Icons.settings,
                             label: s.navSettings,
-                            selected: activeButton == 1,
+                            selected: activeButton == 2,
                             tint: waveParams.tint,
                             onTap: () => navigationShell.goBranch(
                               2,
-                              initialLocation: navigationShell.currentIndex == 2,
+                              initialLocation:
+                                  navigationShell.currentIndex == 2,
                             ),
                           ),
                         ],
@@ -316,7 +354,8 @@ class _SideNav extends StatelessWidget {
             // before so more of that background shows through.
             color: (waveParams.tint == null
                     ? WbColors.deepOcean
-                    : Color.lerp(WbColors.deepOcean, waveParams.tint, 0.30) ?? WbColors.deepOcean)
+                    : Color.lerp(WbColors.deepOcean, waveParams.tint, 0.30) ??
+                        WbColors.deepOcean)
                 .withValues(alpha: 0.34),
             child: Stack(
               children: [
@@ -334,7 +373,8 @@ class _SideNav extends StatelessWidget {
                                   children: [
                                     WavebreakMark(size: 28),
                                     SizedBox(width: 10),
-                                    Expanded(child: WavebreakWordmarkText(size: 13)),
+                                    Expanded(
+                                        child: WavebreakWordmarkText(size: 13)),
                                   ],
                                 ),
                               )
@@ -343,7 +383,8 @@ class _SideNav extends StatelessWidget {
                       const SizedBox(height: 12),
                       for (var i = 0; i < items.length; i++)
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 5),
                           child: _RailItem(
                             data: items[i],
                             expanded: expanded,
@@ -383,7 +424,8 @@ class _RailItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = selected ? _selectedNavColor(tint) : WbColors.ice60;
     final content = Row(
-      mainAxisAlignment: expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+      mainAxisAlignment:
+          expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
       children: [
         Icon(selected ? data.filledIcon : data.icon, color: color, size: 21),
         if (expanded) ...[
@@ -416,10 +458,12 @@ class _RailItem extends StatelessWidget {
           height: 44,
           padding: EdgeInsets.symmetric(horizontal: expanded ? 14 : 0),
           decoration: BoxDecoration(
-            color: selected ? color.withValues(alpha: 0.14) : Colors.transparent,
+            color:
+                selected ? color.withValues(alpha: 0.14) : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected ? color.withValues(alpha: 0.3) : Colors.transparent,
+              color:
+                  selected ? color.withValues(alpha: 0.3) : Colors.transparent,
             ),
           ),
           child: content,

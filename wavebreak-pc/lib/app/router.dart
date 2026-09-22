@@ -185,17 +185,27 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
+          // Its own proper tab, not a link buried under other UI — see
+          // app_shell.dart's _kMobileBranchIndexes. Branch index 3 (after
+          // Settings) rather than reordering the existing three: nothing
+          // else references branch indices by position, but there's no
+          // reason to risk it when appending is just as easy.
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/speed-test',
+                pageBuilder: (_, __) => const NoTransitionPage(
+                  child: SpeedTestScreen(),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       GoRoute(
         path: '/subscription',
         pageBuilder: (_, state) =>
             fadeThroughPage(state, const SubscriptionScreen()),
-      ),
-      GoRoute(
-        path: '/speed-test',
-        pageBuilder: (_, state) =>
-            fadeThroughPage(state, const SpeedTestScreen()),
       ),
     ],
   );
