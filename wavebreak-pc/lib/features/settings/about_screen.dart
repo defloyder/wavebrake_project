@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -6,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../services/update/apk_installer.dart';
+import '../../services/update/update_service.dart';
 import '../shared/detail_scaffold.dart';
 import '../shared/nav_utils.dart';
 import '../shared/wavebreak_mark.dart';
@@ -14,10 +19,33 @@ import '../shared/wb_card.dart';
 class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
 
+  Future<void> _checkForUpdates(BuildContext context, WidgetRef ref) async {
+    final s = ref.read(stringsProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    // Belt-and-suspenders alongside the automatic check the app already
+    // does on its own (see availableUpdateProvider / the bottom banner in
+    // app.dart) — this just forces that same check to run again right
+    // now instead of waiting for whatever triggered the last one, and
+    // gives feedback either way instead of only ever showing UI when an
+    // update happens to already be available.
+    ref.invalidate(availableUpdateProvider);
+    final update = await ref.read(availableUpdateProvider.future);
+    if (!context.mounted) return;
+    if (update == null) {
+      messenger.showSnackBar(SnackBar(content: Text(s.upToDate)));
+      return;
+    }
+    messenger.showSnackBar(SnackBar(content: Text(s.updateAvailable)));
+    unawaited(ref
+        .read(apkInstallControllerProvider.notifier)
+        .downloadAndInstall(update));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(sessionControllerProvider).config;
     final s = ref.watch(stringsProvider);
+    final installStatus = ref.watch(apkInstallControllerProvider).status;
 
     return DetailScaffold(
       title: s.about,
@@ -25,36 +53,51 @@ class AboutScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-                const SizedBox(height: 8),
-                const Center(child: WavebreakMark(size: 64, glow: true)),
-                const SizedBox(height: 16),
-                const Center(child: WavebreakWordmark()),
-                const SizedBox(height: 8),
-                Center(
-                  child: FutureBuilder<PackageInfo>(
-                    future: PackageInfo.fromPlatform(),
-                    builder: (context, snapshot) {
-                      final version = snapshot.data?.version ?? '1.0.0';
-                      return Text(
-                        '${s.version} $version',
-                        style: const TextStyle(color: WbColors.ice60),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 28),
-                if (config.privacyUrl != null)
-                  _row(s.privacyPolicy, () => launchUrl(Uri.parse(config.privacyUrl!))),
-                if (config.termsUrl != null)
-                  _row(s.termsOfService, () => launchUrl(Uri.parse(config.termsUrl!))),
-                if (config.websiteUrl != null)
-                  _row(s.website, () => launchUrl(Uri.parse(config.websiteUrl!))),
+          const SizedBox(height: 8),
+          const Center(child: WavebreakMark(size: 64, glow: true)),
+          const SizedBox(height: 16),
+          const Center(child: WavebreakWordmark()),
+          const SizedBox(height: 8),
+          Center(
+            child: FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snapshot) {
+                final version = snapshot.data?.version ?? '1.0.0';
+                return Text(
+                  '${s.version} $version',
+                  style: const TextStyle(color: WbColors.ice60),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 28),
+          // Android only — this app ships outside the Play Store,
+          // so this is the only in-app path to a new build (see
+          // services/update/update_service.dart). iOS/Windows have
+          // no equivalent self-update flow yet.
+          if (Platform.isAndroid)
+            _row(
+              installStatus == ApkInstallStatus.downloading
+                  ? s.updateDownloading
+                  : s.checkForUpdates,
+              installStatus == ApkInstallStatus.downloading
+                  ? null
+                  : () => _checkForUpdates(context, ref),
+            ),
+          if (config.privacyUrl != null)
+            _row(s.privacyPolicy,
+                () => launchUrl(Uri.parse(config.privacyUrl!))),
+          if (config.termsUrl != null)
+            _row(
+                s.termsOfService, () => launchUrl(Uri.parse(config.termsUrl!))),
+          if (config.websiteUrl != null)
+            _row(s.website, () => launchUrl(Uri.parse(config.websiteUrl!))),
         ],
       ),
     );
   }
 
-  Widget _row(String title, VoidCallback onTap) {
+  Widget _row(String title, VoidCallback? onTap) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: WbCard(
