@@ -77,6 +77,13 @@ class SpeedTestService {
   // from smaller, noisier deltas.
   static const _minSampleInterval = Duration(milliseconds: 200);
 
+  // One retry per leg — a transient drop/timeout mid-test (a network
+  // blip, or the VPN engine's own reconnect kicking in) used to abandon
+  // the whole measurement with nothing to show at all. Not more than
+  // one: a connection that's genuinely down should still resolve to a
+  // real failure promptly rather than retrying indefinitely.
+  static const _maxRetries = 1;
+
   /// Runs download then upload, each independently best-effort — a failed
   /// or timed-out leg leaves that side of [SpeedTestResult] null rather
   /// than aborting the whole test. [onSample] fires periodically
@@ -98,53 +105,64 @@ class SpeedTestService {
     Duration timeout,
     void Function(SpeedTestSample sample)? onSample,
   ) async {
-    final stopwatch = Stopwatch()..start();
-    final sampler = _ProgressSampler(SpeedTestPhase.download, onSample);
-    try {
-      final response = await _dio.get<List<int>>(
-        _downloadUrl,
-        queryParameters: {'bytes': _downloadBytes},
-        options: Options(
-          responseType: ResponseType.bytes,
-          sendTimeout: timeout,
-          receiveTimeout: timeout,
-        ),
-        onReceiveProgress: sampler.onProgress,
-      );
-      stopwatch.stop();
-      final bytes = response.data?.length ?? 0;
-      return _mbps(bytes, stopwatch.elapsed);
-    } catch (_) {
-      return null;
+    for (var attempt = 0; attempt <= _maxRetries; attempt++) {
+      final stopwatch = Stopwatch()..start();
+      final sampler = _ProgressSampler(SpeedTestPhase.download, onSample);
+      try {
+        final response = await _dio.get<List<int>>(
+          _downloadUrl,
+          queryParameters: {'bytes': _downloadBytes},
+          options: Options(
+            responseType: ResponseType.bytes,
+            sendTimeout: timeout,
+            receiveTimeout: timeout,
+          ),
+          onReceiveProgress: sampler.onProgress,
+        );
+        stopwatch.stop();
+        final bytes = response.data?.length ?? 0;
+        return _mbps(bytes, stopwatch.elapsed);
+      } catch (_) {
+        // A one-off dropped connection/timeout mid-test shouldn't abandon
+        // the whole measurement with nothing to show — retry once before
+        // giving up. Not retried indefinitely: a connection that's
+        // genuinely down should still resolve to a real "failed" state
+        // (see SpeedTestController.run()) rather than hang retrying.
+        if (attempt == _maxRetries) return null;
+      }
     }
+    return null;
   }
 
   Future<double?> _measureUpload(
     Duration timeout,
     void Function(SpeedTestSample sample)? onSample,
   ) async {
-    final payload = _randomBytes(_uploadBytes);
-    final stopwatch = Stopwatch()..start();
-    final sampler = _ProgressSampler(SpeedTestPhase.upload, onSample);
-    try {
-      await _dio.post<void>(
-        _uploadUrl,
-        data: Stream.fromIterable([payload]),
-        options: Options(
-          headers: {
-            Headers.contentLengthHeader: payload.length,
-            Headers.contentTypeHeader: 'application/octet-stream',
-          },
-          sendTimeout: timeout,
-          receiveTimeout: timeout,
-        ),
-        onSendProgress: sampler.onProgress,
-      );
-      stopwatch.stop();
-      return _mbps(payload.length, stopwatch.elapsed);
-    } catch (_) {
-      return null;
+    for (var attempt = 0; attempt <= _maxRetries; attempt++) {
+      final payload = _randomBytes(_uploadBytes);
+      final stopwatch = Stopwatch()..start();
+      final sampler = _ProgressSampler(SpeedTestPhase.upload, onSample);
+      try {
+        await _dio.post<void>(
+          _uploadUrl,
+          data: Stream.fromIterable([payload]),
+          options: Options(
+            headers: {
+              Headers.contentLengthHeader: payload.length,
+              Headers.contentTypeHeader: 'application/octet-stream',
+            },
+            sendTimeout: timeout,
+            receiveTimeout: timeout,
+          ),
+          onSendProgress: sampler.onProgress,
+        );
+        stopwatch.stop();
+        return _mbps(payload.length, stopwatch.elapsed);
+      } catch (_) {
+        if (attempt == _maxRetries) return null;
+      }
     }
+    return null;
   }
 
   double? _mbps(int bytes, Duration elapsed) {
