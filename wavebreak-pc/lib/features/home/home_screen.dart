@@ -264,8 +264,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final subscription = ref.watch(subscriptionProvider);
     final locations = ref.watch(locationsProvider);
     final s = ref.watch(stringsProvider);
-    final isGuest =
-        ref.watch(sessionControllerProvider).phase == SessionPhase.guest;
+    // .select, not the whole SessionState — this screen only cares about
+    // guest-vs-not, but sessionControllerProvider also changes on every
+    // silent background token refresh (see data_providers.dart's own
+    // .select for the identical reasoning). Watching the full object
+    // rebuilt all of Home — including everything under OceanBackground —
+    // on every one of those, not just an actual guest/account change.
+    final isGuest = ref.watch(sessionControllerProvider
+        .select((session) => session.phase == SessionPhase.guest));
     ref.listen(locationsProvider, (prev, next) {
       next.whenData(
         (items) => ref
@@ -313,8 +319,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           wavebreakLocations: items,
           customGroups: ref.watch(customServersProvider),
           s: s,
-          wavebreakShareUrl:
-              ref.watch(sessionControllerProvider).config.websiteUrl,
+          wavebreakShareUrl: ref.watch(sessionControllerProvider
+              .select((session) => session.config.websiteUrl)),
         );
         return SubscriptionAccordion(
           sections: sections,
