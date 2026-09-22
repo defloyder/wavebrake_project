@@ -440,7 +440,7 @@ class WaveEngineVpnService : VpnService() {
         }
         connectRetryCount = 0
         stopAll(broadcastIdle = false)
-        broadcastState(STATE_FAILED)
+        broadcastState(STATE_FAILED, detail = "${error.javaClass.simpleName}: ${error.message}")
     }
 
     // The resource-release half of stopAll(), without any of its
@@ -587,7 +587,7 @@ class WaveEngineVpnService : VpnService() {
         }
     }
 
-    private fun broadcastState(state: String) {
+    private fun broadcastState(state: String, detail: String? = null) {
         notifStatusText = when (state) {
             STATE_CONNECTING -> notifLabelConnecting
             STATE_CONNECTED -> notifLabelConnected
@@ -603,6 +603,14 @@ class WaveEngineVpnService : VpnService() {
         val intent = Intent(ACTION_STATUS)
         intent.setPackage(packageName)
         intent.putExtra(EXTRA_STATE, state)
+        // The actual Xray-core/Hysteria error (a dial failure, TLS/REALITY
+        // handshake rejection, malformed config, ...) previously only
+        // ever reached Log.e — invisible without adb, which is exactly
+        // the tool unavailable for the real-device reports this exists to
+        // help diagnose. Riding along on the same broadcast the Dart side
+        // already listens to costs nothing extra and means
+        // AppLogger/the diagnostic log export actually captures it.
+        if (detail != null) intent.putExtra(EXTRA_ERROR_DETAIL, detail)
         sendBroadcast(intent)
     }
 
@@ -887,6 +895,7 @@ class WaveEngineVpnService : VpnService() {
         const val EXTRA_LINK = "link"
         const val EXTRA_XRAY_CONFIG = "xray_config"
         const val EXTRA_STATE = "state"
+        const val EXTRA_ERROR_DETAIL = "error_detail"
         const val STATE_CONNECTING = "CONNECTING"
         const val STATE_CONNECTED = "CONNECTED"
         const val STATE_FAILED = "FAILED"

@@ -271,7 +271,20 @@ class MainActivity : FlutterFragmentActivity() {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
                     val receiver = object : BroadcastReceiver() {
                         override fun onReceive(context: Context, intent: Intent) {
-                            events.success(intent.getStringExtra(WaveEngineVpnService.EXTRA_STATE))
+                            // A Map, not a bare String, so a real
+                            // Xray-core/Hysteria failure detail (see
+                            // WaveEngineVpnService.broadcastState) rides
+                            // along with the state instead of only ever
+                            // reaching Log.e — see AppLogger's diagnostic
+                            // log export, added specifically because a
+                            // real device reporting a transport failure
+                            // may have no USB/adb access at all.
+                            events.success(
+                                mapOf(
+                                    "state" to intent.getStringExtra(WaveEngineVpnService.EXTRA_STATE),
+                                    "detail" to intent.getStringExtra(WaveEngineVpnService.EXTRA_ERROR_DETAIL),
+                                )
+                            )
                         }
                     }
                     engineStatusReceiver = receiver

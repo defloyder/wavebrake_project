@@ -175,7 +175,8 @@ class NativeVpnAdapter implements VpnAdapter {
     final stopwatch = Stopwatch()..start();
     Socket? socket;
     try {
-      socket = await Socket.connect('1.1.1.1', 443, timeout: const Duration(seconds: 5));
+      socket = await Socket.connect('1.1.1.1', 443,
+          timeout: const Duration(seconds: 5));
       stopwatch.stop();
       return stopwatch.elapsedMilliseconds;
     } catch (_) {
@@ -252,13 +253,26 @@ class NativeVpnAdapter implements VpnAdapter {
   }
 
   void _onStatus(dynamic event) {
-    final state = switch (event as String?) {
+    // A Map (state + an optional real error detail), not a bare String —
+    // see MainActivity.kt's EventChannel forwarding. The detail is the
+    // one piece of "what actually went wrong" that previously only ever
+    // reached Android's own logcat — logging it here is what makes the
+    // diagnostic log export (settings > Export logs) actually useful for
+    // a Hysteria2/REALITY/Direct-TLS failure report from a device with no
+    // USB/adb access.
+    final map = event is Map ? event : const {};
+    final stateStr = map['state'] as String?;
+    final detail = map['detail'] as String?;
+    final state = switch (stateStr) {
       'CONNECTING' => VpnNativeState.connecting,
       'CONNECTED' => VpnNativeState.connected,
       'IDLE' => VpnNativeState.idle,
       'FAILED' => VpnNativeState.failed,
       _ => VpnNativeState.failed,
     };
+    if (state == VpnNativeState.failed && detail != null) {
+      AppLogger.error('native engine failure: $detail');
+    }
     _emit(state);
     final completer = _connectCompleter;
     if (completer == null || completer.isCompleted) return;

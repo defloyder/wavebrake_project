@@ -113,6 +113,7 @@ class AppStrings {
     required this.contactSupportTelegram,
     required this.contactSupportEmail,
     required this.reportAProblem,
+    required this.exportDiagnosticLogs,
     required this.version,
     required this.privacyPolicy,
     required this.termsOfService,
@@ -275,6 +276,7 @@ class AppStrings {
   final String contactSupportTelegram;
   final String contactSupportEmail;
   final String reportAProblem;
+  final String exportDiagnosticLogs;
   final String version;
   final String privacyPolicy;
   final String termsOfService;
@@ -443,6 +445,7 @@ const kEnglishStrings = AppStrings(
   contactSupportTelegram: 'Contact support · Telegram',
   contactSupportEmail: 'Contact support · Email',
   reportAProblem: 'Report a problem',
+  exportDiagnosticLogs: 'Export diagnostic logs',
   version: 'Version',
   privacyPolicy: 'Privacy Policy',
   termsOfService: 'Terms of Service',
@@ -615,6 +618,7 @@ const kRussianStrings = AppStrings(
   contactSupportTelegram: 'Поддержка · Telegram',
   contactSupportEmail: 'Поддержка · Email',
   reportAProblem: 'Сообщить о проблеме',
+  exportDiagnosticLogs: 'Экспортировать диагностические логи',
   version: 'Версия',
   privacyPolicy: 'Политика конфиденциальности',
   termsOfService: 'Условия использования',
@@ -789,6 +793,7 @@ const kSpanishStrings = AppStrings(
   contactSupportTelegram: 'Contactar soporte · Telegram',
   contactSupportEmail: 'Contactar soporte · Email',
   reportAProblem: 'Reportar un problema',
+  exportDiagnosticLogs: 'Exportar registros de diagnóstico',
   version: 'Versión',
   privacyPolicy: 'Política de privacidad',
   termsOfService: 'Términos de servicio',
@@ -966,6 +971,7 @@ const kGermanStrings = AppStrings(
   contactSupportTelegram: 'Support kontaktieren · Telegram',
   contactSupportEmail: 'Support kontaktieren · E-Mail',
   reportAProblem: 'Problem melden',
+  exportDiagnosticLogs: 'Diagnoseprotokolle exportieren',
   version: 'Version',
   privacyPolicy: 'Datenschutzrichtlinie',
   termsOfService: 'Nutzungsbedingungen',
@@ -1145,6 +1151,7 @@ const kFrenchStrings = AppStrings(
   contactSupportTelegram: 'Contacter le support · Telegram',
   contactSupportEmail: 'Contacter le support · E-mail',
   reportAProblem: 'Signaler un problème',
+  exportDiagnosticLogs: 'Exporter les journaux de diagnostic',
   version: 'Version',
   privacyPolicy: 'Politique de confidentialité',
   termsOfService: 'Conditions d\'utilisation',
@@ -1321,6 +1328,7 @@ const kPortugueseStrings = AppStrings(
   contactSupportTelegram: 'Contatar suporte · Telegram',
   contactSupportEmail: 'Contatar suporte · E-mail',
   reportAProblem: 'Reportar um problema',
+  exportDiagnosticLogs: 'Exportar registros de diagnóstico',
   version: 'Versão',
   privacyPolicy: 'Política de privacidade',
   termsOfService: 'Termos de serviço',
@@ -1494,6 +1502,7 @@ const kTurkishStrings = AppStrings(
   contactSupportTelegram: 'Destek ile iletişim · Telegram',
   contactSupportEmail: 'Destek ile iletişim · E-posta',
   reportAProblem: 'Sorun bildir',
+  exportDiagnosticLogs: 'Tanılama günlüklerini dışa aktar',
   version: 'Sürüm',
   privacyPolicy: 'Gizlilik Politikası',
   termsOfService: 'Kullanım Koşulları',
