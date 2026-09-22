@@ -107,7 +107,7 @@ class NativeVpnAdapter implements VpnAdapter {
             'xray security=${parsed.streamSetting['security']} address=${parsed.address} port=${parsed.port}');
         applySmartRoutingPolicy(parsed, _extractRoutingPolicy(profile.rawJson));
         if (parsed.streamSetting['security'] == 'tls') {
-          final pin = await _probeCertSha256(parsed.address, parsed.port);
+          final pin = await _cachedCertSha256(parsed.address, parsed.port);
           AppLogger.debug('xray cert pin=$pin');
           if (pin != null) {
             (parsed.streamSetting['tlsSettings']
@@ -175,7 +175,8 @@ class NativeVpnAdapter implements VpnAdapter {
     final stopwatch = Stopwatch()..start();
     Socket? socket;
     try {
-      socket = await Socket.connect('1.1.1.1', 443, timeout: const Duration(seconds: 5));
+      socket = await Socket.connect('1.1.1.1', 443,
+          timeout: const Duration(seconds: 5));
       stopwatch.stop();
       return stopwatch.elapsedMilliseconds;
     } catch (_) {
@@ -220,6 +221,34 @@ class NativeVpnAdapter implements VpnAdapter {
     }
   }
 
+  // Every switch to/from a Direct-TLS-style location used to pay for a
+  // full extra TLS handshake here, serially, before the real Xray-core
+  // connection even started — confirmed as a real, avoidable chunk of
+  // "switching feels slow": a plain probe-then-connect back-to-back is
+  // two full handshakes to the same host in a row. A short-TTL cache
+  // means repeat switches between the same couple of locations (the
+  // common case while a user is trying different servers) skip the
+  // redundant probe entirely. TTL, not indefinite: this is TOFU pinning,
+  // so caching forever risks a legitimately rotated server certificate
+  // getting rejected by Xray-core's real connection using a now-stale
+  // pin, with no way to recover short of an app restart — 10 minutes
+  // bounds that risk to something that resolves itself on its own.
+  static final Map<String, _CachedPin> _certPinCache = {};
+  static const _certPinTtl = Duration(minutes: 10);
+
+  Future<String?> _cachedCertSha256(String host, int port) async {
+    final key = '$host:$port';
+    final cached = _certPinCache[key];
+    if (cached != null && DateTime.now().isBefore(cached.expiresAt)) {
+      return cached.sha256;
+    }
+    final pin = await _probeCertSha256(host, port);
+    if (pin != null) {
+      _certPinCache[key] = _CachedPin(pin, DateTime.now().add(_certPinTtl));
+    }
+    return pin;
+  }
+
   /// Connects with TLS to (host, port), accepting whatever certificate is
   /// presented (this is the ONLY place in the app that does that — the
   /// cert is inspected, never trusted for anything else), and returns its
@@ -252,13 +281,26 @@ class NativeVpnAdapter implements VpnAdapter {
   }
 
   void _onStatus(dynamic event) {
-    final state = switch (event as String?) {
+    // A Map (state + an optional real error detail), not a bare String —
+    // see MainActivity.kt's EventChannel forwarding. The detail is the
+    // one piece of "what actually went wrong" that previously only ever
+    // reached Android's own logcat — logging it here is what makes the
+    // diagnostic log export (settings > Export logs) actually useful for
+    // a Hysteria2/REALITY/Direct-TLS failure report from a device with no
+    // USB/adb access.
+    final map = event is Map ? event : const {};
+    final stateStr = map['state'] as String?;
+    final detail = map['detail'] as String?;
+    final state = switch (stateStr) {
       'CONNECTING' => VpnNativeState.connecting,
       'CONNECTED' => VpnNativeState.connected,
       'IDLE' => VpnNativeState.idle,
       'FAILED' => VpnNativeState.failed,
       _ => VpnNativeState.failed,
     };
+    if (state == VpnNativeState.failed && detail != null) {
+      AppLogger.error('native engine failure: $detail');
+    }
     _emit(state);
     final completer = _connectCompleter;
     if (completer == null || completer.isCompleted) return;
@@ -277,4 +319,11 @@ class NativeVpnAdapter implements VpnAdapter {
     unawaited(_eventSub?.cancel());
     unawaited(_controller.close());
   }
+}
+
+class _CachedPin {
+  const _CachedPin(this.sha256, this.expiresAt);
+
+  final String sha256;
+  final DateTime expiresAt;
 }
