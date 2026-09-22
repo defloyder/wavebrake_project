@@ -52,6 +52,9 @@ class AppStrings {
     required this.speedTestDone,
     required this.speedTestFailed,
     required this.speedTestLatency,
+    required this.speedTestIdleHint,
+    required this.speedTestDoneHint,
+    required this.speedTestFailedHint,
     required this.speedTestDownload,
     required this.speedTestUpload,
     required this.speedTestStart,
@@ -229,6 +232,9 @@ class AppStrings {
   final String speedTestDone;
   final String speedTestFailed;
   final String speedTestLatency;
+  final String speedTestIdleHint;
+  final String speedTestDoneHint;
+  final String speedTestFailedHint;
   final String speedTestDownload;
   final String speedTestUpload;
   final String speedTestStart;
@@ -409,6 +415,10 @@ const kEnglishStrings = AppStrings(
   speedTestDone: 'Done',
   speedTestFailed: 'Test failed',
   speedTestLatency: 'Latency',
+  speedTestIdleHint: 'Tap Start to measure your connection',
+  speedTestDoneHint: 'Test complete',
+  speedTestFailedHint:
+      'Could not complete the test — check your connection and try again',
   speedTestDownload: 'Download',
   speedTestUpload: 'Upload',
   speedTestStart: 'Start test',
@@ -595,6 +605,10 @@ const kRussianStrings = AppStrings(
   speedTestDone: 'Готово',
   speedTestFailed: 'Тест не удался',
   speedTestLatency: 'Задержка',
+  speedTestIdleHint: 'Нажмите «Начать», чтобы измерить соединение',
+  speedTestDoneHint: 'Тест завершён',
+  speedTestFailedHint:
+      'Не удалось завершить тест — проверьте соединение и попробуйте снова',
   speedTestDownload: 'Загрузка',
   speedTestUpload: 'Отдача',
   speedTestStart: 'Начать тест',
@@ -786,6 +800,10 @@ const kSpanishStrings = AppStrings(
   speedTestDone: 'Listo',
   speedTestFailed: 'La prueba falló',
   speedTestLatency: 'Latencia',
+  speedTestIdleHint: 'Toca Iniciar para medir tu conexión',
+  speedTestDoneHint: 'Prueba completada',
+  speedTestFailedHint:
+      'No se pudo completar la prueba — revisa tu conexión e inténtalo de nuevo',
   speedTestDownload: 'Descarga',
   speedTestUpload: 'Subida',
   speedTestStart: 'Iniciar prueba',
@@ -977,6 +995,10 @@ const kGermanStrings = AppStrings(
   speedTestDone: 'Fertig',
   speedTestFailed: 'Test fehlgeschlagen',
   speedTestLatency: 'Latenz',
+  speedTestIdleHint: 'Tippe auf Start, um deine Verbindung zu messen',
+  speedTestDoneHint: 'Test abgeschlossen',
+  speedTestFailedHint:
+      'Test konnte nicht abgeschlossen werden — Verbindung prüfen und erneut versuchen',
   speedTestDownload: 'Download',
   speedTestUpload: 'Upload',
   speedTestStart: 'Test starten',
@@ -1171,6 +1193,10 @@ const kFrenchStrings = AppStrings(
   speedTestDone: 'Terminé',
   speedTestFailed: 'Échec du test',
   speedTestLatency: 'Latence',
+  speedTestIdleHint: 'Appuyez sur Démarrer pour mesurer votre connexion',
+  speedTestDoneHint: 'Test terminé',
+  speedTestFailedHint:
+      'Impossible de terminer le test — vérifiez votre connexion et réessayez',
   speedTestDownload: 'Téléchargement',
   speedTestUpload: 'Envoi',
   speedTestStart: 'Démarrer le test',
@@ -1365,6 +1391,10 @@ const kPortugueseStrings = AppStrings(
   speedTestDone: 'Concluído',
   speedTestFailed: 'Falha no teste',
   speedTestLatency: 'Latência',
+  speedTestIdleHint: 'Toque em Iniciar para medir sua conexão',
+  speedTestDoneHint: 'Teste concluído',
+  speedTestFailedHint:
+      'Não foi possível concluir o teste — verifique sua conexão e tente novamente',
   speedTestDownload: 'Download',
   speedTestUpload: 'Upload',
   speedTestStart: 'Iniciar teste',
@@ -1555,6 +1585,10 @@ const kTurkishStrings = AppStrings(
   speedTestDone: 'Tamamlandı',
   speedTestFailed: 'Test başarısız',
   speedTestLatency: 'Gecikme',
+  speedTestIdleHint: 'Bağlantınızı ölçmek için Başlat\'a dokunun',
+  speedTestDoneHint: 'Test tamamlandı',
+  speedTestFailedHint:
+      'Test tamamlanamadı — bağlantınızı kontrol edip tekrar deneyin',
   speedTestDownload: 'İndirme',
   speedTestUpload: 'Yükleme',
   speedTestStart: 'Testi başlat',
