@@ -10,14 +10,17 @@ import 'test_helpers.dart';
 void main() {
   setUp(setUpTestEnvironment);
 
-  test('login succeeds with valid credentials and reaches authenticated', () async {
+  test('login succeeds with valid credentials and reaches authenticated',
+      () async {
     final container = ProviderContainer(overrides: mockCoreOverrides());
     addTearDown(container.dispose);
 
     final tokens = await container
         .read(coreGatewayProvider)
         .login(email: 'user@wavebreak.app', password: 'password1');
-    await container.read(sessionControllerProvider.notifier).onAuthenticated(tokens);
+    await container
+        .read(sessionControllerProvider.notifier)
+        .onAuthenticated(tokens);
 
     expect(
       container.read(sessionControllerProvider).phase,
@@ -62,10 +65,13 @@ void main() {
           email: 'user@wavebreak.app',
           password: 'password1',
         );
-    await container.read(sessionControllerProvider.notifier).onAuthenticated(tokens);
+    await container
+        .read(sessionControllerProvider.notifier)
+        .onAuthenticated(tokens);
 
-    final refreshed =
-        await container.read(sessionControllerProvider.notifier).refreshTokens();
+    final refreshed = await container
+        .read(sessionControllerProvider.notifier)
+        .refreshTokens();
 
     expect(refreshed, isTrue);
   });
@@ -79,11 +85,53 @@ void main() {
           email: 'user@wavebreak.app',
           password: 'password1',
         );
-    await container.read(sessionControllerProvider.notifier).onAuthenticated(tokens);
+    await container
+        .read(sessionControllerProvider.notifier)
+        .onAuthenticated(tokens);
 
-    final refreshed =
-        await container.read(sessionControllerProvider.notifier).refreshTokens();
+    final refreshed = await container
+        .read(sessionControllerProvider.notifier)
+        .refreshTokens();
     expect(refreshed, isFalse);
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.unauthenticated,
+      reason: 'Core genuinely rejecting the refresh token must end the session',
+    );
+  });
+
+  // Regression coverage for a real-device bug: "occasionally logs the
+  // user out unexpectedly" / "heavily dependent on WiFi." A transient
+  // network failure DURING the refresh call itself (unlike Core actually
+  // rejecting the refresh token, covered above) must not end a perfectly
+  // good session.
+  test('a transient refresh failure does not force logout', () async {
+    final mock = MockCoreBackend()..refreshShouldFailTransiently = true;
+    final container = ProviderContainer(overrides: mockCoreOverrides(mock));
+    addTearDown(container.dispose);
+
+    final tokens = await container.read(coreGatewayProvider).login(
+          email: 'user@wavebreak.app',
+          password: 'password1',
+        );
+    await container
+        .read(sessionControllerProvider.notifier)
+        .onAuthenticated(tokens);
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.authenticated,
+    );
+
+    final refreshed = await container
+        .read(sessionControllerProvider.notifier)
+        .refreshTokens();
+    expect(refreshed, isFalse,
+        reason: 'the refresh attempt itself still failed, so no new token');
+    expect(
+      container.read(sessionControllerProvider).phase,
+      SessionPhase.authenticated,
+      reason: 'a network hiccup during refresh must not end the session',
+    );
   });
 
   test('logout clears session', () async {
@@ -94,7 +142,9 @@ void main() {
           email: 'user@wavebreak.app',
           password: 'password1',
         );
-    await container.read(sessionControllerProvider.notifier).onAuthenticated(tokens);
+    await container
+        .read(sessionControllerProvider.notifier)
+        .onAuthenticated(tokens);
     await container.read(sessionControllerProvider.notifier).logout();
 
     expect(

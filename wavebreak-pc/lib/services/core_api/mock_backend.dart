@@ -20,6 +20,12 @@ class MockCoreBackend {
   String? accessToken = 'mock-access';
   String? refreshToken = 'mock-refresh';
   bool refreshShouldFail = false;
+
+  /// Distinct from [refreshShouldFail] (Core genuinely rejecting the
+  /// refresh token) — simulates the refresh HTTP call itself failing for
+  /// a network reason, to cover SessionController.refreshTokens()'s own
+  /// distinction between the two (see its doc comment).
+  bool refreshShouldFailTransiently = false;
   bool forceUnauthorized = false;
   bool deviceRevoked = false;
   String email = 'user@wavebreak.app';
@@ -85,18 +91,24 @@ class MockCoreBackend {
     this.email = email;
     accessToken = 'mock-access';
     refreshToken = 'mock-refresh';
-    return TokenPair(accessToken: accessToken!, refreshToken: refreshToken!, expiresIn: 900);
+    return TokenPair(
+        accessToken: accessToken!, refreshToken: refreshToken!, expiresIn: 900);
   }
 
-  Future<TokenPair> register(String email, String password) => login(email, password);
+  Future<TokenPair> register(String email, String password) =>
+      login(email, password);
 
   Future<TokenPair> refresh() async {
     await Future<void>.delayed(const Duration(milliseconds: 80));
     if (refreshShouldFail) {
       throw AppException(AppErrorKind.sessionExpired);
     }
+    if (refreshShouldFailTransiently) {
+      throw AppException(AppErrorKind.noInternet);
+    }
     accessToken = 'mock-access-refreshed';
-    return TokenPair(accessToken: accessToken!, refreshToken: refreshToken!, expiresIn: 900);
+    return TokenPair(
+        accessToken: accessToken!, refreshToken: refreshToken!, expiresIn: 900);
   }
 
   Future<UserProfile> me() async {
@@ -127,7 +139,8 @@ class MockCoreBackend {
       id: 'sub-1',
       status: 'active',
       planId: planId,
-      planName: plans.where((p) => p.id == planId).firstOrNull?.name ?? 'WAVEBREAK',
+      planName:
+          plans.where((p) => p.id == planId).firstOrNull?.name ?? 'WAVEBREAK',
       deviceLimit: plans.where((p) => p.id == planId).firstOrNull?.deviceLimit,
     );
     return subscription;
