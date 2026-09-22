@@ -13,8 +13,6 @@ import '../core/theme/wb_colors.dart';
 import '../core/theme/wb_theme.dart';
 import '../features/shared/app_lock_gate.dart';
 import '../features/shared/data_providers.dart';
-import '../services/update/apk_installer.dart';
-import '../services/update/update_service.dart';
 import '../services/notification/status_notification_service.dart';
 import '../services/vpn/connection_manager.dart';
 import 'router.dart';
@@ -153,7 +151,7 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
         minScaleFactor: textScale,
         maxScaleFactor: textScale,
         child: AppLockGate(
-          child: _UpdateBanner(child: _OfflineBanner(child: child)),
+          child: _OfflineBanner(child: child),
         ),
       ),
     );
@@ -242,150 +240,6 @@ class _OfflineBanner extends ConsumerWidget {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// A bottom-anchored pill offering to download+install a newer build —
-/// see services/update/update_service.dart's doc comment for why this
-/// checks a static JSON file rather than a Core endpoint. Android-only:
-/// this app ships outside the Play Store, so there's no other in-app path
-/// to a new build without this. Sits below [_OfflineBanner] in the
-/// widget tree (wraps it) so both can be visible at once without
-/// overlapping — this one is bottom-anchored, that one top-anchored.
-class _UpdateBanner extends ConsumerWidget {
-  const _UpdateBanner({required this.child});
-
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (!Platform.isAndroid) return child ?? const SizedBox.shrink();
-    final s = ref.watch(stringsProvider);
-    final update = ref.watch(availableUpdateProvider).asData?.value;
-    final install = ref.watch(apkInstallControllerProvider);
-    final visible =
-        update != null && install.status != ApkInstallStatus.readyToInstall;
-
-    return Stack(
-      children: [
-        if (child != null) child!,
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: SafeArea(
-            top: false,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
-                offset: visible ? Offset.zero : const Offset(0, 1.6),
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: visible ? 1 : 0,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Container(
-                        // Previously just a neutral card color with a thin
-                        // border — read as too subtle to notice against a
-                        // busy animated background (real-device feedback).
-                        // A colored background tint, not just a colored
-                        // border, is exactly what the offline banner
-                        // already does for the same reason; matching that
-                        // recipe here instead of inventing a louder one.
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: WbColors.waveCyan.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(999),
-                          border:
-                              Border.all(color: WbColors.waveCyan, width: 1.4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: WbColors.waveCyan.withValues(alpha: 0.25),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.35),
-                              blurRadius: 18,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.system_update_rounded,
-                                color: WbColors.waveCyan, size: 22),
-                            const SizedBox(width: 10),
-                            Text(
-                              install.status == ApkInstallStatus.downloading
-                                  ? '${s.updateDownloading} ${(install.progress * 100).round()}%'
-                                  : install.status ==
-                                          ApkInstallStatus.needsPermission
-                                      ? s.updateAllowInstalls
-                                      : s.updateAvailable,
-                              style: const TextStyle(
-                                color: WbColors.ice,
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (install.status !=
-                                ApkInstallStatus.downloading) ...[
-                              const SizedBox(width: 12),
-                              GestureDetector(
-                                onTap: () {
-                                  final notifier = ref.read(
-                                      apkInstallControllerProvider.notifier);
-                                  if (install.status ==
-                                      ApkInstallStatus.needsPermission) {
-                                    // Already downloaded — this re-checks
-                                    // permission fresh (in case the user
-                                    // already granted it on a previous
-                                    // tap's trip to Settings) and installs
-                                    // straight away rather than
-                                    // re-downloading, or opens Settings
-                                    // again if it's still not granted.
-                                    notifier.retryInstallOrOpenSettings();
-                                  } else if (update != null) {
-                                    notifier.downloadAndInstall(update);
-                                  }
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 7),
-                                  decoration: BoxDecoration(
-                                    color: WbColors.waveCyan,
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Text(
-                                    s.updateInstall,
-                                    style: const TextStyle(
-                                      color: WbColors.midnight,
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
