@@ -34,8 +34,13 @@ import '../custom_servers/share_link_parsing.dart';
 // server IP, and a REALITY transport (SNI-mimicry of www.cloudflare.com,
 // same idea as before but with a fresh keypair/fingerprint) was added
 // alongside the two that were already here.
+//
+// REALITY moved again as of 2026-09-22: port 8443 -> the shared public 443
+// (same nginx SNI-routing pattern Direct-TLS already used) — non-standard
+// TCP ports get filtered by some mobile carriers, confirmed against a
+// competitor VPN's own config also using REALITY straight on 443.
 const _vlessRealityLink =
-    'vless://57afe491-b30b-498f-a8f9-4422d6de1231@45.15.41.3:8443'
+    'vless://57afe491-b30b-498f-a8f9-4422d6de1231@45.15.41.3:443'
     '?encryption=none&flow=xtls-rprx-vision&fp=chrome&packetEncoding=xudp'
     '&pbk=EG5qiADRmZE0Cgsg2zsSLxi6WC3Sk6HMX4ATbbcUBGk&security=reality'
     '&sid=8f5ca48467b440ef&sni=www.cloudflare.com&spx=%2F&type=tcp'
@@ -52,6 +57,8 @@ const _hysteria2Link =
     '@45.15.41.3:443/?alpn=h3&sni=hy2.wavebreak.com.tr'
     '#%F0%9F%87%B9%F0%9F%87%B7%20Turkey%2C%20Istanbul%20%28Hysteria2%29';
 
-final bundledLocationsProvider = FutureProvider<List<LocationItem>>((ref) async {
-  return parseSubscriptionBody('$_vlessRealityLink\n$_directTlsLink\n$_hysteria2Link');
+final bundledLocationsProvider =
+    FutureProvider<List<LocationItem>>((ref) async {
+  return parseSubscriptionBody(
+      '$_vlessRealityLink\n$_directTlsLink\n$_hysteria2Link');
 });
