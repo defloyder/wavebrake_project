@@ -63,17 +63,25 @@ class _AnimatedWavesState extends State<AnimatedWaves>
           // straight into sin() avoids that entirely — sin() is already
           // periodic, so there's nothing to wrap by hand.
           final nowSeconds = DateTime.now().millisecondsSinceEpoch / 1000;
-          return CustomPaint(
-            painter: _WavesPainter(
-              time: nowSeconds,
-              periodSeconds: _wavePeriod.inMilliseconds / 1000,
-              tint: tint,
-              speed: widget.speed.clamp(0.4, 2.6),
-              amplitude: widget.amplitude.clamp(0.3, 2.2),
-              opacity: widget.opacity,
-              lineCount: widget.lineCount,
+          // This repaints every single frame, forever, underneath nearly
+          // every screen in the app (OceanBackground is the shared
+          // backdrop) — without its own compositing layer, that repaint
+          // isn't isolated from whatever else sits in the same paint
+          // pass, which is more repaint work than this purely decorative,
+          // self-contained animation actually needs on every frame.
+          return RepaintBoundary(
+            child: CustomPaint(
+              painter: _WavesPainter(
+                time: nowSeconds,
+                periodSeconds: _wavePeriod.inMilliseconds / 1000,
+                tint: tint,
+                speed: widget.speed.clamp(0.4, 2.6),
+                amplitude: widget.amplitude.clamp(0.3, 2.2),
+                opacity: widget.opacity,
+                lineCount: widget.lineCount,
+              ),
+              size: Size.infinite,
             ),
-            size: Size.infinite,
           );
         },
       ),
