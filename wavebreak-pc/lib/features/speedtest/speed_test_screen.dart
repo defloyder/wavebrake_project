@@ -29,6 +29,7 @@ class SpeedTestScreen extends ConsumerWidget {
     final notifier = ref.read(speedTestControllerProvider.notifier);
 
     final phaseLabel = switch (state.status) {
+      SpeedTestStatus.testingLatency => s.speedTestTestingLatency,
       SpeedTestStatus.testingDownload => s.speedTestDownloading,
       SpeedTestStatus.testingUpload => s.speedTestUploading,
       SpeedTestStatus.idle => s.speedTest,

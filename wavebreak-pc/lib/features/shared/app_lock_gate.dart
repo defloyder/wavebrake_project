@@ -65,9 +65,20 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   // here could re-arm the lock while a scan was still in flight and read
   // as "it re-prompted right after a successful scan." A real elapsed-
   // time threshold means only an actual meaningful stretch away from the
-  // app re-locks it — most apps use something in this same ballpark
-  // rather than re-prompting on every trivial resume.
-  static const _relockAfterBackground = Duration(minutes: 2);
+  // app re-locks it.
+  //
+  // This used to be 2 minutes, which is where the actual real-device
+  // security bug this comment now documents came from: a product owner
+  // swiped the app away from Recents (a deliberate close, not a trivial
+  // app-switch) and reopened it well within that window, and account/
+  // subscription/connection-status content was sitting there fully
+  // visible and interactive with no lock prompt at all — a real exposure
+  // on a security-sensitive VPN app, not just a UX rough edge. A handful
+  // of seconds is still comfortably longer than the trivial-blip cases
+  // above (a permission dialog round-trip, a BiometricPrompt's own
+  // spurious pause/resume) while closing the multi-minute window where a
+  // deliberately-closed-and-reopened app stayed completely unprotected.
+  static const _relockAfterBackground = Duration(seconds: 8);
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
