@@ -769,10 +769,41 @@ class WaveEngineVpnService : VpnService() {
             receiver.send(0, Bundle())
             return
         }
+        // pingHost()'s own socket.connect(address, timeoutMs) only bounds
+        // the TCP handshake leg — `InetSocketAddress(host, port)` resolves
+        // the hostname synchronously BEFORE that line ever runs, with no
+        // timeout of its own. Android's resolver has no hard cap on a
+        // slow/unreachable DNS path, so a bad lookup can block this
+        // worker thread for far longer than the caller's intended
+        // timeoutMs — the connection_test_service.dart side clamps that
+        // value specifically to keep a stuck attempt from tying up a
+        // protect()ed socket for too long (see its own comment on the
+        // protect-socket server hitting EMFILE from exactly this kind of
+        // long-lived attempt), and a DNS hang here would defeat that cap
+        // entirely while still holding one of those same fds open.
+        //
+        // A watchdog bounds what the CALLER sees to timeoutMs regardless:
+        // the worker thread is left to finish (or keep hanging on DNS) on
+        // its own, but the ResultReceiver always fires within bounds, so
+        // the Dart-side await this backs never hangs past what it asked
+        // for. `responded` guards against both firing — Android logs (and
+        // some versions throw) on a ResultReceiver used more than once.
+        val responded = java.util.concurrent.atomic.AtomicBoolean(false)
+        val watchdogHandler = Handler(Looper.getMainLooper())
+        val watchdog = Runnable {
+            if (responded.compareAndSet(false, true)) {
+                Log.w(TAG, "pingHost: watchdog fired past ${timeoutMs}ms for $host:$port (likely a slow/hung DNS lookup)")
+                receiver.send(0, Bundle())
+            }
+        }
+        watchdogHandler.postDelayed(watchdog, (timeoutMs + 500).toLong())
         Thread({
             val ms = pingHost(host, port, timeoutMs)
-            val data = Bundle().apply { if (ms != null) putInt(EXTRA_PING_MS, ms) }
-            receiver.send(0, data)
+            if (responded.compareAndSet(false, true)) {
+                watchdogHandler.removeCallbacks(watchdog)
+                val data = Bundle().apply { if (ms != null) putInt(EXTRA_PING_MS, ms) }
+                receiver.send(0, data)
+            }
         }, "WaveEnginePing").start()
     }
 
