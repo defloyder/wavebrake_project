@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/session_controller.dart';
+import '../../core/network/connectivity_provider.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../services/core_api/models.dart';
 import '../../services/providers.dart';
@@ -34,8 +35,22 @@ import '../../services/vpn/bundled_locations.dart';
 // `.select` on purpose — watching the whole SessionState would re-run
 // every provider below on ANY session change (token refresh, user profile
 // update, etc.), not just an actual phase transition.
-bool _canQueryCore(Ref ref) => ref.watch(
-    sessionControllerProvider.select((s) => s.phase == SessionPhase.authenticated));
+//
+// Also watches [isOfflineProvider] — without this, none of the providers
+// below ever re-run once they've failed once: a plain FutureProvider only
+// re-executes when something it `ref.watch`es changes, and the session
+// phase alone doesn't change just because the device's connection came
+// back. Confirmed bug this fixes: [usingCachedDataProvider] flips true on
+// the first failure and then never flips back, even long after
+// connectivity is restored, because nothing ever gave these providers a
+// reason to retry. Watching connectivity here means every transition
+// (online<->offline) is exactly that reason, for every provider below
+// with no extra wiring per call site.
+bool _canQueryCore(Ref ref) {
+  ref.watch(isOfflineProvider);
+  return ref.watch(sessionControllerProvider
+      .select((s) => s.phase == SessionPhase.authenticated));
+}
 
 const _noSubscription = SubscriptionInfo(status: 'none');
 
@@ -71,12 +86,16 @@ T? _readCachedOne<T>(String key, T Function(Map<String, dynamic>) fromJson) {
   }
 }
 
-List<T> _readCachedList<T>(String key, T Function(Map<String, dynamic>) fromJson) {
+List<T> _readCachedList<T>(
+    String key, T Function(Map<String, dynamic>) fromJson) {
   final raw = PrefsStore.getString(key);
   if (raw == null || raw.isEmpty) return const [];
   try {
     final list = jsonDecode(raw) as List;
-    return list.whereType<Map>().map((e) => fromJson(e.cast<String, dynamic>())).toList();
+    return list
+        .whereType<Map>()
+        .map((e) => fromJson(e.cast<String, dynamic>()))
+        .toList();
   } catch (_) {
     return const [];
   }
@@ -93,7 +112,8 @@ final subscriptionProvider = FutureProvider<SubscriptionInfo>((ref) async {
     _markCacheState(ref, stale: false);
     return result;
   } catch (_) {
-    final cached = _readCachedOne(PrefsStore.cachedSubscription, SubscriptionInfo.fromJson);
+    final cached = _readCachedOne(
+        PrefsStore.cachedSubscription, SubscriptionInfo.fromJson);
     if (cached != null) {
       _markCacheState(ref, stale: true);
       return cached;
@@ -127,11 +147,12 @@ final locationsProvider = FutureProvider<List<LocationItem>>((ref) async {
     coreLocations = rawCoreLocations
         .where((l) => l.connectionTest?.security?.toLowerCase() != 'reality')
         .toList();
-    await _writeCache(
-        PrefsStore.cachedLocations, coreLocations.map((l) => l.toJson()).toList());
+    await _writeCache(PrefsStore.cachedLocations,
+        coreLocations.map((l) => l.toJson()).toList());
     _markCacheState(ref, stale: false);
   } catch (_) {
-    coreLocations = _readCachedList(PrefsStore.cachedLocations, LocationItem.fromJson);
+    coreLocations =
+        _readCachedList(PrefsStore.cachedLocations, LocationItem.fromJson);
     if (coreLocations.isNotEmpty) _markCacheState(ref, stale: true);
   }
   // WAVEBREAK's own bundled pilot nodes (Direct-TLS + Hysteria2) are part
@@ -151,11 +172,13 @@ final devicesProvider = FutureProvider<List<DeviceItem>>((ref) async {
   if (!_canQueryCore(ref)) return const [];
   try {
     final result = await ref.watch(coreGatewayProvider).devices();
-    await _writeCache(PrefsStore.cachedDevices, result.map((d) => d.toJson()).toList());
+    await _writeCache(
+        PrefsStore.cachedDevices, result.map((d) => d.toJson()).toList());
     _markCacheState(ref, stale: false);
     return result;
   } catch (_) {
-    final cached = _readCachedList(PrefsStore.cachedDevices, DeviceItem.fromJson);
+    final cached =
+        _readCachedList(PrefsStore.cachedDevices, DeviceItem.fromJson);
     if (cached.isNotEmpty) {
       _markCacheState(ref, stale: true);
       return cached;
@@ -168,7 +191,8 @@ final plansProvider = FutureProvider<List<Plan>>((ref) async {
   if (!_canQueryCore(ref)) return const [];
   try {
     final result = await ref.watch(coreGatewayProvider).plans();
-    await _writeCache(PrefsStore.cachedPlans, result.map((p) => p.toJson()).toList());
+    await _writeCache(
+        PrefsStore.cachedPlans, result.map((p) => p.toJson()).toList());
     _markCacheState(ref, stale: false);
     return result;
   } catch (_) {
@@ -197,7 +221,8 @@ final trafficUsageProvider = FutureProvider<UsageSummary?>((ref) async {
     _markCacheState(ref, stale: false);
     return result;
   } catch (_) {
-    final cached = _readCachedOne(PrefsStore.cachedUsage, UsageSummary.fromJson);
+    final cached =
+        _readCachedOne(PrefsStore.cachedUsage, UsageSummary.fromJson);
     if (cached != null) {
       _markCacheState(ref, stale: true);
       return cached;
