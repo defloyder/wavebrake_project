@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/auth/session_controller.dart';
 import '../../core/errors/app_exception.dart';
@@ -63,7 +64,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // it through tun2socks like ordinary traffic. Testing the real node's
     // own host:port instead has no such special case and — as a bonus —
     // now reads the same number the location list shows for consistency.
-    final result = await const ConnectionTestService().testLocation(connection.location);
+    final result =
+        await const ConnectionTestService().testLocation(connection.location);
     if (!mounted) return;
     setState(() {
       _pingTesting = false;
@@ -880,8 +882,22 @@ class _StatusCopy extends StatelessWidget {
               title,
               key: ValueKey(title),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 28, fontWeight: FontWeight.w600, color: titleColor),
+              // Fraunces — the same serif wavebreak-web uses for its own
+              // large headlines (site-section h2, hero copy — see
+              // wavebreak-site.css's --font/h1/h2 rules). Kept at this
+              // screen's existing mobile-tuned 28px rather than the
+              // site's 52-70px display scale — the point is matching the
+              // font family/character, not transplanting a desktop type
+              // scale onto a phone. Loaded via google_fonts (already a
+              // dependency, already used for Inter below) rather than
+              // bundling the site's own woff2 files — same OFL-licensed
+              // typeface, no separate asset registration or web-font-
+              // format risk.
+              style: GoogleFonts.fraunces(
+                fontSize: 28,
+                fontWeight: FontWeight.w500,
+                color: titleColor ?? WbColors.ice,
+              ),
             ),
           ),
           const SizedBox(height: 6),
@@ -996,7 +1012,11 @@ class _PingRow extends StatelessWidget {
   }
 }
 
-/// Download/upload throughput pill, styled like [_PingRow] right above it.
+/// Small entry point into the full [SpeedTestScreen] — styled like
+/// [_PingRow] right above it, but this is nav-only now; the actual test
+/// (with its live animated gauge) runs on its own dedicated page rather
+/// than inline here. Shows the last result once one exists so glancing
+/// at Home still tells you something even without opening the page.
 /// Works identically connected or disconnected — see
 /// speed_test_service.dart's doc comment for why a plain HTTP probe is
 /// enough for that (whatever interface this process's sockets currently
@@ -1010,10 +1030,7 @@ class _SpeedTestRow extends ConsumerWidget {
     final state = ref.watch(speedTestControllerProvider);
 
     String label;
-    if (state.status == SpeedTestStatus.testingDownload ||
-        state.status == SpeedTestStatus.testingUpload) {
-      label = s.speedTestRunning;
-    } else if (state.status == SpeedTestStatus.done) {
+    if (state.status == SpeedTestStatus.done) {
       final down = state.downloadMbps;
       final up = state.uploadMbps;
       label = '↓ ${down != null ? down.toStringAsFixed(1) : '–'} '
@@ -1026,22 +1043,13 @@ class _SpeedTestRow extends ConsumerWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        onTap: state.isRunning
-            ? null
-            : () => ref.read(speedTestControllerProvider.notifier).run(),
+        onTap: () => context.push('/speed-test'),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (state.isRunning)
-                const SizedBox(
-                  width: 13,
-                  height: 13,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                const Icon(Icons.swap_vert_rounded, size: 15, color: WbColors.ice60),
+              const Icon(Icons.speed_rounded, size: 15, color: WbColors.ice60),
               const SizedBox(width: 6),
               Text(
                 label,

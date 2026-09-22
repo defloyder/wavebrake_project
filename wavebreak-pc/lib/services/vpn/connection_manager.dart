@@ -289,76 +289,46 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       // a bundled pick straight into createAccessGrant with its random
       // UUID as if it were a real Core nodeId, which Core would just
       // reject.
-      final target = await _resolveTarget(location);
-      if (generation != _connectGeneration) return;
-
-      if (target.isCustom) {
-        final profile = ConnectionProfile(target.rawLink ?? '');
-        await SecureStore.write(SecureStore.connectionProfile, profile.rawJson);
+      //
+      // For a manually-picked location this is always a single-item list
+      // (unchanged behavior: exactly one attempt, exactly one error on
+      // failure). For Auto it's up to [_maxAutoCandidates] candidates
+      // ranked fastest-first — a real handshake attempt against the top
+      // candidate is what actually verifies a location works, not just
+      // that its port answers a TCP SYN (see _rankCandidates's doc for why
+      // that distinction matters: REALITY/DPI-adjacent failures accept the
+      // TCP connect and then go nowhere). If that real attempt throws —
+      // [NativeVpnAdapter.connect]'s own 20s timeout already tears itself
+      // down cleanly on failure — silently try the next-best candidate
+      // instead of leaving the user connected to nothing.
+      final candidates = await _rankCandidates(location);
+      Object lastError = AppException(AppErrorKind.locationUnavailable);
+      for (var i = 0; i < candidates.length; i++) {
         if (generation != _connectGeneration) return;
-        state = state.copyWith(status: ConnectionStatus.connecting);
-        unawaited(VpnNotificationMeta.update(target, ref.read(stringsProvider)));
-        await ref.read(vpnAdapterProvider).connect(profile);
-        if (generation != _connectGeneration) return;
-        state = state.copyWith(
-          status: ConnectionStatus.connected,
-          connectedAt: DateTime.now(),
-          clearError: true,
-        );
-        // Repeated, not just the one before connect(): that first call
-        // races the native service actually starting (WaveEngineVpnService.
-        // instance is still null until MainActivity's "connect" case
-        // launches it), so on the very first connect since install it can
-        // land as a no-op and leave the notification on its English
-        // fallback strings. This one is guaranteed to land on a live
-        // instance, so the notification that actually persists while
-        // connected is always right even if the fleeting "connecting"
-        // frame briefly wasn't.
-        unawaited(VpnNotificationMeta.update(target, ref.read(stringsProvider)));
-        unawaited(HapticFeedback.mediumImpact());
-        _analytics.event('connection_success');
-        return;
+        try {
+          await _attemptConnect(candidates[i], generation: generation);
+          return;
+        } catch (error) {
+          if (generation != _connectGeneration) return;
+          lastError = error;
+          final isLastCandidate = i == candidates.length - 1;
+          if (isLastCandidate) break;
+          AppLogger.warn('Auto-connect candidate failed, trying next');
+          // Best-effort: don't leave a half-created grant from the failed
+          // candidate sitting active on Core while trying the next one.
+          final staleGrantId = state.grantId;
+          if (staleGrantId != null) {
+            try {
+              await ref
+                  .read(coreGatewayProvider)
+                  .revokeAccessGrant(staleGrantId);
+            } catch (_) {}
+          }
+          state = state.copyWith(
+              clearGrantId: true, status: ConnectionStatus.requestingProfile);
+        }
       }
-
-      final gateway = ref.read(coreGatewayProvider);
-      final deviceId = await DeviceService(gateway).deviceId();
-      if (generation != _connectGeneration) return;
-
-      final grant = await gateway.createAccessGrant(
-        nodeId: target.id,
-        deviceId: deviceId,
-        protocol: AppEnv.accessProtocol,
-      );
-      if (generation != _connectGeneration) return;
-      state = state.copyWith(grantId: grant.id);
-
-      // The pilot's node-agent can take anywhere from a couple seconds to
-      // (occasionally) closer to a minute to ack a fresh grant
-      // (`config_status: "pending_node_ack"`) — docs say to show a brief
-      // preparing state and just retry, not treat it as stuck the way the
-      // older `pending_runtime_config` (no backend pass yet at all) is. A
-      // short bounded poll covers the common fast case inline; anything
-      // slower hands off to a background poll below instead of just
-      // giving up with no way out.
-      var config = await gateway.grantConfig(grant.id);
-      var attempts = 0;
-      while (!config.isReady && attempts < 5) {
-        if (generation != _connectGeneration) return;
-        state = state.copyWith(status: ConnectionStatus.configPending);
-        await Future<void>.delayed(const Duration(seconds: 2));
-        if (generation != _connectGeneration) return;
-        config = await gateway.grantConfig(grant.id);
-        attempts++;
-      }
-      if (generation != _connectGeneration) return;
-      if (!config.isReady) {
-        state = state.copyWith(status: ConnectionStatus.configPending);
-        _analytics.event('connection_config_pending');
-        _schedulePendingPoll(grant.id);
-        return;
-      }
-
-      await _finishConnecting(grant.id, config, generation: generation);
+      throw lastError;
     } catch (error) {
       if (generation != _connectGeneration) return;
       AppLogger.warn('Connection failed');
@@ -374,13 +344,97 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     }
   }
 
+  /// One attempt against a single resolved [target] — everything
+  /// [connect] used to do inline before it needed to retry across
+  /// multiple Auto candidates. Throws on failure (including a
+  /// [_finishConnecting] failure, via `rethrowOnError: true`) rather than
+  /// landing on `error` state itself, so [connect]'s loop can decide
+  /// whether to surface it or fall through to the next candidate.
+  Future<void> _attemptConnect(LocationItem target,
+      {required int generation}) async {
+    if (target.isCustom) {
+      final profile = ConnectionProfile(target.rawLink ?? '');
+      await SecureStore.write(SecureStore.connectionProfile, profile.rawJson);
+      if (generation != _connectGeneration) return;
+      state = state.copyWith(status: ConnectionStatus.connecting);
+      unawaited(VpnNotificationMeta.update(target, ref.read(stringsProvider)));
+      await ref.read(vpnAdapterProvider).connect(profile);
+      if (generation != _connectGeneration) return;
+      state = state.copyWith(
+        status: ConnectionStatus.connected,
+        connectedAt: DateTime.now(),
+        clearError: true,
+      );
+      // Repeated, not just the one before connect(): that first call
+      // races the native service actually starting (WaveEngineVpnService.
+      // instance is still null until MainActivity's "connect" case
+      // launches it), so on the very first connect since install it can
+      // land as a no-op and leave the notification on its English
+      // fallback strings. This one is guaranteed to land on a live
+      // instance, so the notification that actually persists while
+      // connected is always right even if the fleeting "connecting"
+      // frame briefly wasn't.
+      unawaited(VpnNotificationMeta.update(target, ref.read(stringsProvider)));
+      unawaited(HapticFeedback.mediumImpact());
+      _analytics.event('connection_success');
+      return;
+    }
+
+    final gateway = ref.read(coreGatewayProvider);
+    final deviceId = await DeviceService(gateway).deviceId();
+    if (generation != _connectGeneration) return;
+
+    final grant = await gateway.createAccessGrant(
+      nodeId: target.id,
+      deviceId: deviceId,
+      protocol: AppEnv.accessProtocol,
+    );
+    if (generation != _connectGeneration) return;
+    state = state.copyWith(grantId: grant.id);
+
+    // The pilot's node-agent can take anywhere from a couple seconds to
+    // (occasionally) closer to a minute to ack a fresh grant
+    // (`config_status: "pending_node_ack"`) — docs say to show a brief
+    // preparing state and just retry, not treat it as stuck the way the
+    // older `pending_runtime_config` (no backend pass yet at all) is. A
+    // short bounded poll covers the common fast case inline; anything
+    // slower hands off to a background poll below instead of just
+    // giving up with no way out.
+    var config = await gateway.grantConfig(grant.id);
+    var attempts = 0;
+    while (!config.isReady && attempts < 5) {
+      if (generation != _connectGeneration) return;
+      state = state.copyWith(status: ConnectionStatus.configPending);
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (generation != _connectGeneration) return;
+      config = await gateway.grantConfig(grant.id);
+      attempts++;
+    }
+    if (generation != _connectGeneration) return;
+    if (!config.isReady) {
+      state = state.copyWith(status: ConnectionStatus.configPending);
+      _analytics.event('connection_config_pending');
+      _schedulePendingPoll(grant.id);
+      return;
+    }
+
+    await _finishConnecting(grant.id, config,
+        generation: generation, rethrowOnError: true);
+  }
+
   /// Builds the native profile from a ready config and hands it to the
   /// adapter — the shared tail end of both the inline-ready path in
   /// [connect] and the background poll in [_schedulePendingPoll], so
   /// there's exactly one place that decides how a [VpnConfigResponse]
   /// becomes a [ConnectionProfile].
+  ///
+  /// [rethrowOnError]: the background poll path (no caller left to react
+  /// to a throw) wants the old behavior — land straight on `error` state.
+  /// [connect]'s own Auto-candidate loop wants the opposite: it needs the
+  /// failure as a real exception so it can try the next-best candidate
+  /// instead of the first one's failure becoming the user-visible result.
   Future<void> _finishConnecting(String grantId, VpnConfigResponse config,
-      {int? generation}) async {
+      {int? generation, bool rethrowOnError = false}) async {
     final wireguard = config.wireguard;
     final Map<String, dynamic> payload;
     if (wireguard != null && wireguard.hasUsablePeer) {
@@ -425,7 +479,8 @@ class ConnectionManager extends Notifier<WbConnectionState> {
           'network': config.vless?.network,
           'flow': config.vless?.flow,
         },
-        if (config.routingPolicy != null) 'routing_policy': config.routingPolicy,
+        if (config.routingPolicy != null)
+          'routing_policy': config.routingPolicy,
       };
     }
     final profile = ConnectionProfile(jsonEncode(payload));
@@ -433,7 +488,8 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     if (generation != null && generation != _connectGeneration) return;
 
     state = state.copyWith(status: ConnectionStatus.connecting);
-    unawaited(VpnNotificationMeta.update(state.location, ref.read(stringsProvider)));
+    unawaited(
+        VpnNotificationMeta.update(state.location, ref.read(stringsProvider)));
     try {
       await ref.read(vpnAdapterProvider).connect(profile);
       if (generation != null && generation != _connectGeneration) return;
@@ -443,7 +499,8 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         clearError: true,
       );
       // See the identical call/comment in connect()'s isCustom branch.
-      unawaited(VpnNotificationMeta.update(state.location, ref.read(stringsProvider)));
+      unawaited(VpnNotificationMeta.update(
+          state.location, ref.read(stringsProvider)));
       unawaited(HapticFeedback.mediumImpact());
       _analytics.event('connection_success');
     } catch (error) {
@@ -453,6 +510,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       final mapped = error is AppException
           ? error
           : AppException(AppErrorKind.connectionFailed);
+      if (rethrowOnError) throw mapped;
       state = state.copyWith(
         status: ConnectionStatus.error,
         error: mapped,
@@ -512,15 +570,31 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     _pendingGrantId = null;
   }
 
+  /// Bounds how many of Auto's ranked candidates [connect] will actually
+  /// try a real handshake against before giving up — each attempt beyond
+  /// the first is a real grant creation (for a Core-managed candidate)
+  /// plus a real tunnel handshake, not a cheap probe, so this stays small.
+  static const _maxAutoCandidates = 3;
+
   /// Auto has no server-side meaning in Core's API — it's a client
-  /// convenience over whatever `/v1/locations` last returned. Actually
-  /// measures each online candidate (a real TCP-connect timing, same as
-  /// the location picker's own ping test) and picks the fastest — a
-  /// static [LocationItem.pingMs] sort used to sit here instead, but Core
-  /// never populates that field for a real location (see
+  /// convenience over whatever `/v1/locations` last returned. Ranks every
+  /// online candidate by a real TCP-connect timing (same as the location
+  /// picker's own ping test) and returns them fastest-first — a static
+  /// [LocationItem.pingMs] sort used to sit here instead, but Core never
+  /// populates that field for a real location (see
   /// connection_test_service.dart's own comment on this), so every
   /// candidate compared equal and "Auto" just connected to whatever
   /// happened to be first in the list, never actually the fastest one.
+  ///
+  /// A fast TCP connect is necessary but not sufficient for "this location
+  /// actually works" — a REALITY/DPI-adjacent server can accept the TCP
+  /// SYN and then go nowhere on the real TLS handshake, and Direct-TLS's
+  /// own WebSocket upgrade can fail for reasons a bare TCP connect never
+  /// sees. [connect] is what does the real verification (a genuine
+  /// handshake through [NativeVpnAdapter.connect]) and falls through this
+  /// list on failure — ranking by latency here just decides the order to
+  /// try them in, not whether any one of them is treated as "confirmed
+  /// working" before that real attempt happens.
   ///
   /// Tested one at a time, not all in parallel — these probes run through
   /// the same native protect() path every real Xray-core/Hysteria dial
@@ -529,8 +603,8 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   /// toward running out of file descriptors on-device (see
   /// connection_test_service.dart's timeout comment for the full story).
   /// Sequential keeps at most one of these test sockets open at a time.
-  Future<LocationItem> _resolveTarget(LocationItem location) async {
-    if (!location.isAuto) return location;
+  Future<List<LocationItem>> _rankCandidates(LocationItem location) async {
+    if (!location.isAuto) return [location];
     final all =
         ref.read(locationsProvider).asData?.value ?? const <LocationItem>[];
     final online = all.where((l) => l.available).toList();
@@ -538,16 +612,12 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       throw AppException(AppErrorKind.locationUnavailable);
     }
     const test = ConnectionTestService();
-    var best = online.first;
-    var bestPing = 1 << 30;
+    final pings = <LocationItem, int>{};
     for (final candidate in online) {
-      final ping = await test.testLocation(candidate) ?? (1 << 30);
-      if (ping < bestPing) {
-        bestPing = ping;
-        best = candidate;
-      }
+      pings[candidate] = await test.testLocation(candidate) ?? (1 << 30);
     }
-    return best;
+    online.sort((a, b) => pings[a]!.compareTo(pings[b]!));
+    return online.take(_maxAutoCandidates).toList();
   }
 
   Future<void> disconnect() async {

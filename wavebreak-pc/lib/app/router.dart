@@ -20,6 +20,7 @@ import '../features/settings/security_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/support_screen.dart';
 import '../features/shell/app_shell.dart';
+import '../features/speedtest/speed_test_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/subscription/subscription_screen.dart';
 import '../features/update/maintenance_screen.dart';
@@ -79,7 +80,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(
         path: '/welcome',
-        pageBuilder: (_, state) => fadeThroughPage(state, const WelcomeScreen()),
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const WelcomeScreen()),
       ),
       GoRoute(
         path: '/login',
@@ -87,19 +89,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/register',
-        pageBuilder: (_, state) => fadeThroughPage(state, const RegisterScreen()),
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const RegisterScreen()),
       ),
       GoRoute(
         path: '/forgot',
-        pageBuilder: (_, state) => fadeThroughPage(state, const ForgotPasswordScreen()),
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const ForgotPasswordScreen()),
       ),
       GoRoute(
         path: '/update-required',
-        pageBuilder: (_, state) => fadeThroughPage(state, const UpdateRequiredScreen()),
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const UpdateRequiredScreen()),
       ),
       GoRoute(
         path: '/maintenance',
-        pageBuilder: (_, state) => fadeThroughPage(state, const MaintenanceScreen()),
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const MaintenanceScreen()),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -137,20 +143,23 @@ final routerProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: 'account',
-                    pageBuilder: (_, state) => fadeThroughPage(state, const AccountScreen()),
+                    pageBuilder: (_, state) =>
+                        fadeThroughPage(state, const AccountScreen()),
                   ),
                   GoRoute(
                     path: 'security',
-                    pageBuilder: (_, state) => fadeThroughPage(state, const SecurityScreen()),
+                    pageBuilder: (_, state) =>
+                        fadeThroughPage(state, const SecurityScreen()),
                   ),
                   GoRoute(
                     path: 'connection',
-                    pageBuilder: (_, state) =>
-                        fadeThroughPage(state, const ConnectionSettingsScreen()),
+                    pageBuilder: (_, state) => fadeThroughPage(
+                        state, const ConnectionSettingsScreen()),
                   ),
                   GoRoute(
                     path: 'devices',
-                    pageBuilder: (_, state) => fadeThroughPage(state, const DevicesScreen()),
+                    pageBuilder: (_, state) =>
+                        fadeThroughPage(state, const DevicesScreen()),
                   ),
                   GoRoute(
                     path: 'notifications',
@@ -164,11 +173,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'support',
-                    pageBuilder: (_, state) => fadeThroughPage(state, const SupportScreen()),
+                    pageBuilder: (_, state) =>
+                        fadeThroughPage(state, const SupportScreen()),
                   ),
                   GoRoute(
                     path: 'about',
-                    pageBuilder: (_, state) => fadeThroughPage(state, const AboutScreen()),
+                    pageBuilder: (_, state) =>
+                        fadeThroughPage(state, const AboutScreen()),
                   ),
                 ],
               ),
@@ -178,7 +189,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/subscription',
-        pageBuilder: (_, state) => fadeThroughPage(state, const SubscriptionScreen()),
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const SubscriptionScreen()),
+      ),
+      GoRoute(
+        path: '/speed-test',
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const SpeedTestScreen()),
       ),
     ],
   );

@@ -5,11 +5,35 @@ import 'package:dio/dio.dart';
 
 /// Result of one download+upload pass. Either side can be null if that
 /// leg failed or was cancelled — the other still reports if it finished.
+/// These are the pass's overall averages (total bytes / total time) —
+/// [SpeedTestService.run]'s `onSample` callback is the live, moment-to-
+/// moment reading the gauge animates against.
 class SpeedTestResult {
   const SpeedTestResult({this.downloadMbps, this.uploadMbps});
 
   final double? downloadMbps;
   final double? uploadMbps;
+}
+
+enum SpeedTestPhase { download, upload }
+
+/// A live throughput reading during a transfer — what's fed to the gauge
+/// while a test is in progress. [instantMbps] is the rate since the
+/// previous sample, not the running average, so the gauge visibly
+/// responds to a connection speeding up or stalling mid-test instead of
+/// slowly converging on one number.
+class SpeedTestSample {
+  const SpeedTestSample({
+    required this.phase,
+    required this.instantMbps,
+    required this.progress,
+  });
+
+  final SpeedTestPhase phase;
+  final double instantMbps;
+
+  /// 0..1 through the current phase's transfer.
+  final double progress;
 }
 
 /// Plain HTTP download/upload throughput probe — no native code, no VPN
@@ -25,6 +49,13 @@ class SpeedTestResult {
 /// WAVEBREAK-operated backend needed) — the same `speed.cloudflare.com`
 /// service the well-known browser speed test at speed.cloudflare.com
 /// itself calls.
+///
+/// Live samples come from Dio's own onReceiveProgress/onSendProgress
+/// callbacks — no extra dependency, no manual chunking needed. Those
+/// callbacks fire far more often than a gauge needs redrawing (every
+/// packet/buffer flush), so samples are throttled to
+/// [_minSampleInterval] here rather than passing every callback straight
+/// through to the UI.
 class SpeedTestService {
   SpeedTestService({Dio? client}) : _dio = client ?? Dio();
 
@@ -33,30 +64,42 @@ class SpeedTestService {
   static const _downloadUrl = 'https://speed.cloudflare.com/__down';
   static const _uploadUrl = 'https://speed.cloudflare.com/__up';
 
-  /// ~8MB download, ~4MB upload — enough for the initial TCP slow-start
-  /// ramp to settle out on a reasonably fast connection without the test
-  /// itself taking unreasonably long on a slow one (bounded below by
-  /// [timeout] either way).
-  static const _downloadBytes = 8 * 1000 * 1000;
-  static const _uploadBytes = 4 * 1000 * 1000;
+  /// ~20MB download, ~8MB upload — enough for the initial TCP slow-start
+  /// ramp to settle out on a reasonably fast connection, and enough
+  /// duration to actually show a handful of live samples rather than the
+  /// whole transfer completing between two callback ticks.
+  static const _downloadBytes = 20 * 1000 * 1000;
+  static const _uploadBytes = 8 * 1000 * 1000;
+
+  // A few times a second is plenty for a gauge animation to read as
+  // live/smooth — sampling faster than the UI can meaningfully
+  // distinguish would just be wasted work and jumpier-looking numbers
+  // from smaller, noisier deltas.
+  static const _minSampleInterval = Duration(milliseconds: 200);
 
   /// Runs download then upload, each independently best-effort — a failed
   /// or timed-out leg leaves that side of [SpeedTestResult] null rather
-  /// than aborting the whole test. [onPhase] reports which leg is running
-  /// so the UI can label the spinner accordingly.
+  /// than aborting the whole test. [onSample] fires periodically
+  /// (throttled, see class doc) during each leg with a live reading;
+  /// [onPhase] fires once when each leg starts.
   Future<SpeedTestResult> run({
     void Function(SpeedTestPhase phase)? onPhase,
-    Duration timeout = const Duration(seconds: 15),
+    void Function(SpeedTestSample sample)? onSample,
+    Duration timeout = const Duration(seconds: 20),
   }) async {
     onPhase?.call(SpeedTestPhase.download);
-    final download = await _measureDownload(timeout);
+    final download = await _measureDownload(timeout, onSample);
     onPhase?.call(SpeedTestPhase.upload);
-    final upload = await _measureUpload(timeout);
+    final upload = await _measureUpload(timeout, onSample);
     return SpeedTestResult(downloadMbps: download, uploadMbps: upload);
   }
 
-  Future<double?> _measureDownload(Duration timeout) async {
+  Future<double?> _measureDownload(
+    Duration timeout,
+    void Function(SpeedTestSample sample)? onSample,
+  ) async {
     final stopwatch = Stopwatch()..start();
+    final sampler = _ProgressSampler(SpeedTestPhase.download, onSample);
     try {
       final response = await _dio.get<List<int>>(
         _downloadUrl,
@@ -66,6 +109,7 @@ class SpeedTestService {
           sendTimeout: timeout,
           receiveTimeout: timeout,
         ),
+        onReceiveProgress: sampler.onProgress,
       );
       stopwatch.stop();
       final bytes = response.data?.length ?? 0;
@@ -75,9 +119,13 @@ class SpeedTestService {
     }
   }
 
-  Future<double?> _measureUpload(Duration timeout) async {
+  Future<double?> _measureUpload(
+    Duration timeout,
+    void Function(SpeedTestSample sample)? onSample,
+  ) async {
     final payload = _randomBytes(_uploadBytes);
     final stopwatch = Stopwatch()..start();
+    final sampler = _ProgressSampler(SpeedTestPhase.upload, onSample);
     try {
       await _dio.post<void>(
         _uploadUrl,
@@ -90,6 +138,7 @@ class SpeedTestService {
           sendTimeout: timeout,
           receiveTimeout: timeout,
         ),
+        onSendProgress: sampler.onProgress,
       );
       stopwatch.stop();
       return _mbps(payload.length, stopwatch.elapsed);
@@ -115,4 +164,40 @@ class SpeedTestService {
   }
 }
 
-enum SpeedTestPhase { download, upload }
+/// Converts Dio's cumulative (count, total) progress callback into
+/// throttled, instantaneous-rate [SpeedTestSample]s.
+class _ProgressSampler {
+  _ProgressSampler(this.phase, this.onSample);
+
+  final SpeedTestPhase phase;
+  final void Function(SpeedTestSample sample)? onSample;
+
+  final Stopwatch _stopwatch = Stopwatch()..start();
+  int _lastBytes = 0;
+  Duration _lastElapsed = Duration.zero;
+
+  void onProgress(int count, int total) {
+    if (onSample == null || total <= 0) return;
+    final elapsed = _stopwatch.elapsed;
+    final sinceLastSample = elapsed - _lastElapsed;
+    // Always let the final callback (count == total) through even if it
+    // arrives before the throttle window — otherwise a fast transfer
+    // could finish between two throttled samples and the gauge would
+    // visibly freeze short of 100% for the rest of that phase.
+    if (sinceLastSample < SpeedTestService._minSampleInterval &&
+        count < total) {
+      return;
+    }
+    final deltaBytes = count - _lastBytes;
+    final deltaSeconds = sinceLastSample.inMicroseconds / 1e6;
+    final instantMbps =
+        deltaSeconds > 0 ? (deltaBytes * 8) / deltaSeconds / 1e6 : 0.0;
+    _lastBytes = count;
+    _lastElapsed = elapsed;
+    onSample!(SpeedTestSample(
+      phase: phase,
+      instantMbps: instantMbps < 0 ? 0 : instantMbps,
+      progress: count / total,
+    ));
+  }
+}
