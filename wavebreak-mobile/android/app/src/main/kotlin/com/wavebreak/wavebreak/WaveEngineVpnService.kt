@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.widget.RemoteViews
 import android.net.ConnectivityManager
 import android.net.Network
@@ -482,6 +483,15 @@ class WaveEngineVpnService : VpnService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             builder.setMetered(false)
         }
+        for (packageName in RU_VPN_DETECTING_APPS) {
+            try {
+                builder.addDisallowedApplication(packageName)
+            } catch (t: PackageManager.NameNotFoundException) {
+                // Not installed on this device — nothing to exclude, and
+                // addDisallowedApplication would otherwise abort the whole
+                // establish() call over one absent app.
+            }
+        }
         val iface = builder.establish() ?: throw IllegalStateException("VpnService.Builder.establish() returned null")
         tunInterface = iface
         // detachFd() hands sole ownership of the raw fd to the Go engine —
@@ -821,6 +831,25 @@ class WaveEngineVpnService : VpnService() {
         private const val TUN_ADDRESS = "26.26.26.1"
         private const val TUN_MTU = 1500
         private const val NOTIFICATION_ID = 2
+
+        // Split-tunneling via VpnService.Builder.addDisallowedApplication()
+        // — Android's own per-app tunnel-exclusion mechanism, the same one
+        // NordVPN/ExpressVPN call "split tunneling." Real-device testing
+        // found Russian marketplace apps actively detect an active VPN and
+        // refuse to proceed ("отключите VPN") once connected — routing
+        // their own traffic around the tunnel entirely (rather than trying
+        // to out-fingerprint their detection, which is the fragile,
+        // whack-a-mole path) makes WAVEBREAK invisible to them by
+        // construction. A curated set rather than scattered literals so
+        // it's a one-line add per future app — no per-app-toggle UI yet,
+        // that's future work. Package names verified against their
+        // current Google Play Store listings (not guessed):
+        // - Wildberries: com.wildberries.ru
+        // - Ozon: ru.ozon.app.android
+        private val RU_VPN_DETECTING_APPS = setOf(
+            "com.wildberries.ru",
+            "ru.ozon.app.android",
+        )
         private const val XRAY_SOCKS_PORT = 1080
         // This device's fd limit is 32768. 8000/20s used to be the
         // threshold here, on the assumption the leak trends up gradually —
