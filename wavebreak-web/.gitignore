@@ -15,7 +15,9 @@
 /auth.json
 /node_modules
 /public/build
-/public/downloads
+/public/downloads/*.apk
+/public/downloads/*.exe
+/public/downloads/*.zip
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
