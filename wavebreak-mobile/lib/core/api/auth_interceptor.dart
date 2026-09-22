@@ -50,7 +50,18 @@ class AuthInterceptor extends QueuedInterceptor {
     AppLogger.debug('Access token rejected, attempting refresh');
     final refreshed = await refreshSession();
     if (!refreshed) {
-      await onAuthLost();
+      // Real-device bug this fixes: an access token expiring naturally
+      // during ordinary use (nothing wrong — Core's own ~15min lifetime)
+      // triggers this exact path on the very next request, and used to
+      // force-log-out the whole session if the refresh call itself
+      // happened to hit a network hiccup — indistinguishable here from
+      // Core genuinely rejecting the refresh token. refreshSession()
+      // (SessionController.refreshTokens) now makes that distinction
+      // itself and already ends the session when it's a real rejection
+      // — calling onAuthLost() again here unconditionally would either
+      // be a harmless duplicate (real rejection: already logged out) or
+      // the actual bug (transient failure: logs the user out anyway).
+      // Neither case needs it called from here at all anymore.
       handler.next(err);
       return;
     }

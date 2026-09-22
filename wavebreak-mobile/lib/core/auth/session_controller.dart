@@ -98,7 +98,8 @@ class SessionController extends Notifier<SessionState> {
     try {
       await bootstrapSession().timeout(const Duration(seconds: 20));
     } catch (e) {
-      AppLogger.warn('bootstrapSession did not complete in time, falling back: $e');
+      AppLogger.warn(
+          'bootstrapSession did not complete in time, falling back: $e');
       if (state.phase == SessionPhase.booting) {
         // A corrupt/undecryptable secure-storage entry is exactly the kind
         // of thing that would keep failing the same way on every future
@@ -108,7 +109,8 @@ class SessionController extends Notifier<SessionState> {
         try {
           await SecureStore.clearSession();
         } catch (_) {}
-        state = state.copyWith(phase: SessionPhase.unauthenticated, clearUser: true);
+        state = state.copyWith(
+            phase: SessionPhase.unauthenticated, clearUser: true);
       }
     }
   }
@@ -140,11 +142,13 @@ class SessionController extends Notifier<SessionState> {
       // the outer timeout for what a fast, clean path should handle
       // directly.
       AppLogger.warn('SecureStore read failed during bootstrap: $e');
-      state = state.copyWith(phase: SessionPhase.unauthenticated, clearUser: true);
+      state =
+          state.copyWith(phase: SessionPhase.unauthenticated, clearUser: true);
       return;
     }
     if (access == null || refresh == null) {
-      state = state.copyWith(phase: SessionPhase.unauthenticated, clearUser: true);
+      state =
+          state.copyWith(phase: SessionPhase.unauthenticated, clearUser: true);
       return;
     }
 
@@ -178,11 +182,27 @@ class SessionController extends Notifier<SessionState> {
         await _prefetchEssentials();
       } on AppException catch (error) {
         if (error.kind == AppErrorKind.sessionExpired) {
+          // refreshTokens() already ends the session itself (see its own
+          // doc comment) if Core genuinely rejected the refresh token —
+          // `false` here can also just mean the refresh attempt itself
+          // hit a transient network failure, which must NOT also force a
+          // logout on top of whatever refreshTokens() already decided.
+          // Falling through to `authenticated` with the existing
+          // (possibly still momentarily invalid) token lets the very
+          // next real request retry refreshing once the network is
+          // actually back, instead of ending a perfectly good session
+          // over one bad moment.
           final ok = await refreshTokens();
           if (!ok) {
-            ref.read(forcedLogoutReasonProvider.notifier).state =
-                AppErrorKind.sessionExpired;
-            await forceLogout();
+            // refreshTokens() already awaited its own forceLogout() above
+            // if this was a genuine rejection — only fall back to
+            // `authenticated` here for the OTHER case (a transient
+            // failure that left the session alone), never clobber a
+            // logout that already happened a moment ago.
+            if (state.phase != SessionPhase.unauthenticated) {
+              state = state.copyWith(
+                  phase: SessionPhase.authenticated, config: config);
+            }
             return;
           }
           final user = await ref.read(coreGatewayProvider).me();
@@ -235,7 +255,8 @@ class SessionController extends Notifier<SessionState> {
       state = state.copyWith(phase: SessionPhase.authenticated, user: user);
       await _prefetchEssentials();
     } catch (e) {
-      AppLogger.warn('Post-auth bootstrap failed, continuing signed in anyway: $e');
+      AppLogger.warn(
+          'Post-auth bootstrap failed, continuing signed in anyway: $e');
       state = state.copyWith(phase: SessionPhase.authenticated);
     }
   }
@@ -256,6 +277,24 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  /// Real-device bug this exists to fix: "occasionally logs the user out
+  /// unexpectedly" / "heavily dependent on WiFi." Root cause traced to
+  /// AuthInterceptor.onError: any 401 (including an access token simply
+  /// expiring naturally after its normal ~15-minute lifetime — nothing
+  /// wrong, just routine) calls this to get a fresh one, and on `false`
+  /// force-logs-out the whole session. This used to return `false` for
+  /// EVERY failure alike — a refresh token Core genuinely rejected
+  /// (revoked, actually expired) and a refresh call that simply couldn't
+  /// complete because the WiFi hiccuped for a second, indistinguishable.
+  /// The underlying `coreGatewayProvider.refresh()` call already throws a
+  /// properly classified [AppException] (see error_mapper.dart) — this
+  /// was just discarding that classification. Now: a genuine auth
+  /// rejection still ends the session (and does so directly, rather than
+  /// leaving that decision to a caller that has no way to tell the two
+  /// cases apart); a network/transient failure just fails this one
+  /// refresh attempt and leaves the existing session alone to retry
+  /// later, the same way a single dropped request anywhere else in the
+  /// app doesn't end the session.
   Future<bool> refreshTokens() async {
     if (_refreshing) return false;
     _refreshing = true;
@@ -267,7 +306,24 @@ class SessionController extends Notifier<SessionState> {
       await SecureStore.write(SecureStore.refreshToken, pair.refreshToken);
       AppLogger.debug('Session refreshed');
       return true;
-    } catch (_) {
+    } catch (e) {
+      final kind = e is AppException ? e.kind : AppErrorKind.unknown;
+      final isDefinitiveRejection = kind == AppErrorKind.invalidCredentials ||
+          kind == AppErrorKind.sessionExpired ||
+          kind == AppErrorKind.accessDenied;
+      if (isDefinitiveRejection) {
+        AppLogger.warn(
+            'Refresh token rejected by Core ($kind) — ending session');
+        ref.read(forcedLogoutReasonProvider.notifier).state =
+            AppErrorKind.sessionExpired;
+        // Awaited, not fire-and-forget: a caller checking `state.phase`
+        // right after this returns (see bootstrapSession's own fallback)
+        // must see the logout that already happened, not race it.
+        await forceLogout();
+      } else {
+        AppLogger.warn(
+            'Token refresh failed transiently ($kind), leaving session intact');
+      }
       return false;
     } finally {
       _refreshing = false;
@@ -285,7 +341,8 @@ class SessionController extends Notifier<SessionState> {
   /// Leaves guest mode to sign in or create a real WAVEBREAK account.
   Future<void> exitGuestMode() async {
     await PrefsStore.setBool(PrefsStore.guestMode, false);
-    state = state.copyWith(phase: SessionPhase.unauthenticated, clearUser: true);
+    state =
+        state.copyWith(phase: SessionPhase.unauthenticated, clearUser: true);
   }
 
   Future<void> logout() async {
