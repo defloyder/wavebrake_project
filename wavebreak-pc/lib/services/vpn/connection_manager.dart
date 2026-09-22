@@ -19,6 +19,7 @@ import 'connection_test_service.dart';
 import '../providers.dart';
 import 'native_vpn_adapter.dart';
 import 'platform_vpn_adapter.dart';
+import 'speed_test_service.dart';
 import 'vpn_adapter.dart';
 import 'vpn_notification_meta.dart';
 import 'windows_vpn_adapter.dart';
@@ -303,16 +304,35 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       // instead of leaving the user connected to nothing.
       final candidates = await _rankCandidates(location);
       Object lastError = AppException(AppErrorKind.locationUnavailable);
+      // Only Auto with more than one candidate to actually pick between
+      // goes on to the throughput probe below — a manual pick (or an Auto
+      // resolution that only had one online candidate) keeps the exact
+      // pre-existing behavior: one real handshake, done.
+      final probeCandidates = location.isAuto && candidates.length > 1;
+      LocationItem? bestProbedTarget;
+      double bestProbedMbps = -1;
       for (var i = 0; i < candidates.length; i++) {
         if (generation != _connectGeneration) return;
         try {
           await _attemptConnect(candidates[i], generation: generation);
-          return;
         } catch (error) {
           if (generation != _connectGeneration) return;
           lastError = error;
           final isLastCandidate = i == candidates.length - 1;
-          if (isLastCandidate) break;
+          if (isLastCandidate) {
+            // A later, higher-ranked-by-latency candidate failed outright,
+            // but an earlier one already proved out a real handshake and
+            // (if we got that far) a throughput sample — reconnect to that
+            // rather than ending on a hard failure when a working server
+            // is available.
+            if (bestProbedTarget != null) {
+              try {
+                await _attemptConnect(bestProbedTarget, generation: generation);
+                return;
+              } catch (_) {}
+            }
+            break;
+          }
           AppLogger.warn('Auto-connect candidate failed, trying next');
           // Best-effort: don't leave a half-created grant from the failed
           // candidate sitting active on Core while trying the next one.
@@ -326,7 +346,75 @@ class ConnectionManager extends Notifier<WbConnectionState> {
           }
           state = state.copyWith(
               clearGrantId: true, status: ConnectionStatus.requestingProfile);
+          continue;
         }
+
+        // A real handshake just succeeded. For a manual pick (or a
+        // single-candidate Auto resolution) that's the whole job, same as
+        // before this change.
+        if (!probeCandidates) return;
+        if (generation != _connectGeneration) return;
+
+        // Auto with real alternatives to weigh: "it connected" isn't the
+        // same question as "it's actually fast" — a REALITY/Hysteria
+        // server can complete a genuine handshake and still crawl under
+        // load (congested uplink, an overloaded box, etc.), which a bare
+        // latency ranking or a successful-connect check can never see.
+        // Sample real throughput through the tunnel that's live right
+        // now, via the same quick probe the dedicated speed-test tab
+        // uses, just far smaller/faster (see SpeedTestService.
+        // quickDownloadProbeMbps's own doc) since this runs inline in the
+        // connect flow, once per candidate, up to _maxAutoCandidates times.
+        double? probedMbps;
+        try {
+          probedMbps = await SpeedTestService().quickDownloadProbeMbps();
+        } catch (_) {
+          probedMbps = null;
+        }
+        if (generation != _connectGeneration) return;
+        final mbps = probedMbps ?? 0.0;
+        AppLogger.warn(
+            'Auto-connect candidate throughput: ${mbps.toStringAsFixed(1)} Mbps');
+
+        if (mbps >= _goodEnoughAutoMbps) {
+          // Fast enough — stop here rather than running the full sweep of
+          // every ranked candidate the coordinator explicitly wanted
+          // avoided.
+          return;
+        }
+
+        if (mbps > bestProbedMbps) {
+          bestProbedMbps = mbps;
+          bestProbedTarget = candidates[i];
+        }
+
+        final isLastCandidate = i == candidates.length - 1;
+        if (isLastCandidate) {
+          // None of the probed candidates cleared the bar. Stay connected
+          // rather than tearing down a working (if not probed-fastest)
+          // tunnel — but if an earlier candidate measured faster than
+          // this last one, reconnect to that instead of just settling for
+          // whichever happened to be tried last.
+          if (bestProbedTarget != null &&
+              bestProbedTarget.id != candidates[i].id) {
+            try {
+              await _attemptConnect(bestProbedTarget, generation: generation);
+            } catch (_) {
+              // Already connected to the current (last-tried) candidate —
+              // falling back to that is still a real, working connection,
+              // not a hard failure.
+            }
+          }
+          return;
+        }
+
+        // Below the "good enough" bar with more candidates left to try —
+        // tear this one down and move to the next-ranked candidate rather
+        // than settling this early.
+        await _teardownTunnel();
+        if (generation != _connectGeneration) return;
+        state = state.copyWith(
+            clearGrantId: true, status: ConnectionStatus.requestingProfile);
       }
       throw lastError;
     } catch (error) {
@@ -575,6 +663,18 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   /// the first is a real grant creation (for a Core-managed candidate)
   /// plus a real tunnel handshake, not a cheap probe, so this stays small.
   static const _maxAutoCandidates = 3;
+
+  /// A quick-probed candidate at or above this throughput is treated as
+  /// "fast enough" and Auto stops right there instead of burning through
+  /// the rest of [_maxAutoCandidates] — the point is picking a candidate
+  /// that's genuinely usable, not chasing the single fastest one available
+  /// at the cost of a slower connect flow every time. 8 Mbps comfortably
+  /// covers video calls and standard-definition streaming, the kind of
+  /// use this pilot is actually validating; a candidate below it is
+  /// probably fine for basic browsing too, which is why a below-threshold
+  /// result still keeps the best of what was actually measured (see the
+  /// loop in [connect]) rather than treating it as a failure.
+  static const _goodEnoughAutoMbps = 8.0;
 
   /// Auto has no server-side meaning in Core's API — it's a client
   /// convenience over whatever `/v1/locations` last returned. Ranks every

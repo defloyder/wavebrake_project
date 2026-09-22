@@ -95,14 +95,35 @@ class SpeedTestService {
     Duration timeout = const Duration(seconds: 20),
   }) async {
     onPhase?.call(SpeedTestPhase.download);
-    final download = await _measureDownload(timeout, onSample);
+    final download = await _measureDownload(timeout, _downloadBytes, onSample);
     onPhase?.call(SpeedTestPhase.upload);
     final upload = await _measureUpload(timeout, onSample);
     return SpeedTestResult(downloadMbps: download, uploadMbps: upload);
   }
 
+  /// A fast, download-only throughput reading — for
+  /// ConnectionManager.connect()'s Auto-candidate selection factoring in
+  /// "is it actually fast," not just "did it connect" (see that class's
+  /// own doc comment). Deliberately much smaller/quicker than [run]'s
+  /// full two-leg measurement: this runs once per candidate against a
+  /// LIVE tunnel connection already holding up the rest of the app, and
+  /// checking "at least 2-3 candidates" at the full ~28MB/20s-timeout
+  /// scale would make Auto-connect itself feel broken from the delay.
+  /// No live samples, no upload leg — just one number, fast.
+  Future<double?> quickDownloadProbeMbps({
+    Duration timeout = const Duration(seconds: 6),
+  }) {
+    return _measureDownload(timeout, _quickProbeBytes, null);
+  }
+
+  // ~1.5MB — enough past TCP slow-start to give a meaningful (not just
+  // "handshake completed instantly") reading without meaningfully
+  // delaying an Auto-connect attempt.
+  static const _quickProbeBytes = 1500 * 1000;
+
   Future<double?> _measureDownload(
     Duration timeout,
+    int bytes,
     void Function(SpeedTestSample sample)? onSample,
   ) async {
     for (var attempt = 0; attempt <= _maxRetries; attempt++) {
@@ -111,7 +132,7 @@ class SpeedTestService {
       try {
         final response = await _dio.get<List<int>>(
           _downloadUrl,
-          queryParameters: {'bytes': _downloadBytes},
+          queryParameters: {'bytes': bytes},
           options: Options(
             responseType: ResponseType.bytes,
             sendTimeout: timeout,
@@ -120,8 +141,8 @@ class SpeedTestService {
           onReceiveProgress: sampler.onProgress,
         );
         stopwatch.stop();
-        final bytes = response.data?.length ?? 0;
-        return _mbps(bytes, stopwatch.elapsed);
+        final actualBytes = response.data?.length ?? 0;
+        return _mbps(actualBytes, stopwatch.elapsed);
       } catch (_) {
         // A one-off dropped connection/timeout mid-test shouldn't abandon
         // the whole measurement with nothing to show — retry once before
