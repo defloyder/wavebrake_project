@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/vpn/speed_test_controller.dart';
-import '../shared/detail_scaffold.dart';
-import '../shared/nav_utils.dart';
+import '../shared/menu_button.dart';
+import '../shared/ocean_background.dart';
+import '../shared/wave_params.dart';
 import '../shared/wb_card.dart';
+import '../shell/app_shell.dart';
 import 'speedometer_gauge.dart';
 
 /// A reasonable ceiling for the gauge's sweep — most mobile/VPN
@@ -43,70 +45,112 @@ class SpeedTestScreen extends ConsumerWidget {
         ? state.liveMbps
         : (state.uploadMbps ?? state.downloadMbps ?? 0);
 
-    return DetailScaffold(
-      title: s.speedTest,
-      onBack: () => safePop(context, fallback: '/home'),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          AspectRatio(
-            aspectRatio: 1.7,
-            child: SpeedometerGauge(
-              valueMbps: gaugeValue,
-              maxMbps: _gaugeMaxMbps,
-              label: phaseLabel,
-              unit: 'Mbps',
+    final waves = ref.watch(appWaveParamsProvider);
+
+    // A real top-level tab now (its own bottom-nav destination — see
+    // app_shell.dart), not a screen pushed on top of another one, so it
+    // matches Home/Settings/Locations' own pattern (OceanBackground +
+    // ListView, no back button, MenuButton only on desktop where there's
+    // a rail to open) instead of DetailScaffold's back-button header.
+    // DetailScaffold's header sat at a different vertical position than
+    // this pattern's plain title row — that mismatch was the actual
+    // cause of the offline banner overlapping this screen's title
+    // specifically; matching the same header shape every other tab uses
+    // means the banner's existing clearance now applies here too.
+    return LayoutBuilder(
+      builder: (context, outer) {
+        final isDesktop = outer.maxWidth >= 820;
+        return OceanBackground(
+          illuminate: true,
+          tint: waves.tint,
+          waveSpeed: waves.speed,
+          waveAmplitude: waves.amplitude,
+          maxContentWidth: isDesktop ? 640 : 560,
+          child: SafeArea(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                isDesktop ? 12 : kMobileBottomBarReserve + 12,
+              ),
+              children: [
+                Row(
+                  children: [
+                    if (isDesktop) ...[
+                      const MenuButton(),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(
+                      s.speedTest,
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                AspectRatio(
+                  aspectRatio: 1.7,
+                  child: SpeedometerGauge(
+                    valueMbps: gaugeValue,
+                    maxMbps: _gaugeMaxMbps,
+                    label: phaseLabel,
+                    unit: 'Mbps',
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ResultCard(
+                        icon: Icons.arrow_downward_rounded,
+                        label: s.speedTestDownload,
+                        value: state.downloadMbps,
+                        highlighted:
+                            state.status == SpeedTestStatus.testingDownload,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ResultCard(
+                        icon: Icons.arrow_upward_rounded,
+                        label: s.speedTestUpload,
+                        value: state.uploadMbps,
+                        highlighted:
+                            state.status == SpeedTestStatus.testingUpload,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: state.isRunning ? null : notifier.run,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: WbColors.waveCyan,
+                      foregroundColor: WbColors.midnight,
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      state.isRunning
+                          ? phaseLabel
+                          : state.status == SpeedTestStatus.idle
+                              ? s.speedTestStart
+                              : s.speedTestRetest,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _ResultCard(
-                  icon: Icons.arrow_downward_rounded,
-                  label: s.speedTestDownload,
-                  value: state.downloadMbps,
-                  highlighted: state.status == SpeedTestStatus.testingDownload,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ResultCard(
-                  icon: Icons.arrow_upward_rounded,
-                  label: s.speedTestUpload,
-                  value: state.uploadMbps,
-                  highlighted: state.status == SpeedTestStatus.testingUpload,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: state.isRunning ? null : notifier.run,
-              style: FilledButton.styleFrom(
-                backgroundColor: WbColors.waveCyan,
-                foregroundColor: WbColors.midnight,
-                minimumSize: const Size.fromHeight(52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: Text(
-                state.isRunning
-                    ? phaseLabel
-                    : state.status == SpeedTestStatus.idle
-                        ? s.speedTestStart
-                        : s.speedTestRetest,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
+        );
+      },
     );
   }
 }

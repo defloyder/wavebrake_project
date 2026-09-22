@@ -15,7 +15,6 @@ import '../../services/core_api/models.dart';
 import '../../services/custom_servers/custom_server_controller.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/connection_test_service.dart';
-import '../../services/vpn/speed_test_controller.dart';
 import '../shared/add_custom_server_sheet.dart';
 import '../shared/confirm_dialogs.dart';
 import '../shared/connect_button.dart';
@@ -934,16 +933,6 @@ class _StatusCopy extends StatelessWidget {
               s: s,
             ),
           ],
-          // Unlike the ping row above, this one isn't gated on being
-          // connected or on the current location having a
-          // [ConnectionTest] recipe — a throughput probe is meaningful
-          // either through an active tunnel or on the raw connection, and
-          // doesn't need Core to have told the client anything about the
-          // current location at all.
-          if (!connection.isBusy) ...[
-            const SizedBox(height: 4),
-            const _SpeedTestRow(),
-          ],
         ],
       ),
     );
@@ -1022,57 +1011,6 @@ class _PingRow extends StatelessWidget {
 /// [_PingRow] right above it, but this is nav-only now; the actual test
 /// (with its live animated gauge) runs on its own dedicated page rather
 /// than inline here. Shows the last result once one exists so glancing
-/// at Home still tells you something even without opening the page.
-/// Works identically connected or disconnected — see
-/// speed_test_service.dart's doc comment for why a plain HTTP probe is
-/// enough for that (whatever interface this process's sockets currently
-/// go through, tunnel or not, is exactly what gets measured).
-class _SpeedTestRow extends ConsumerWidget {
-  const _SpeedTestRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(stringsProvider);
-    final state = ref.watch(speedTestControllerProvider);
-
-    String label;
-    if (state.status == SpeedTestStatus.done) {
-      final down = state.downloadMbps;
-      final up = state.uploadMbps;
-      label = '↓ ${down != null ? down.toStringAsFixed(1) : '–'} '
-          '↑ ${up != null ? up.toStringAsFixed(1) : '–'} Mbps';
-    } else {
-      label = s.speedTest;
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: () => context.push('/speed-test'),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.speed_rounded, size: 15, color: WbColors.ice60),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: WbColors.ice60,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SubscriptionStrip extends ConsumerWidget {
   const _SubscriptionStrip({
     required this.asyncSub,
