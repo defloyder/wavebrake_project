@@ -199,6 +199,7 @@ class WaveEngineVpnService : VpnService() {
         // supersedes whatever connect/reconnect attempt might already be
         // in flight (see connectGeneration's own doc comment above).
         val generation = ++connectGeneration
+        scheduleConnectWatchdog(generation)
         if (!xrayConfig.isNullOrEmpty()) {
             activeEngine = Engine.XRAY
             lastXrayConfig = xrayConfig
@@ -211,6 +212,53 @@ class WaveEngineVpnService : VpnService() {
             Thread({ connectHysteria(link!!, generation) }, "WaveEngineConnect").start()
         }
         return START_STICKY
+    }
+
+    // Real-device gap this exists to fix, reported separately from the
+    // tunnel-stale-reconnect and connect-race fixes above: turning WiFi
+    // off entirely while connected via Hysteria2 left the app stuck on
+    // "Connecting..." indefinitely — no self-recovery, the user had to
+    // manually toggle the VPN off/on. onLost(network) on the
+    // registerNetworkWatch() callback below DOES fire correctly for a
+    // full loss of connectivity (confirmed by tracing Android's
+    // ConnectivityManager contract — a tracked network disappearing
+    // fires onLost regardless of whether a replacement is available yet)
+    // and DOES call scheduleReconnect, so the reconnect attempt itself
+    // does get kicked off. The gap is what happens next: neither this
+    // Kotlin service NOR native/hysteria_bridge/bridge.go's Start()
+    // (which blocks on hyclient.NewClient's handshake with no
+    // context/deadline of its own — traced the actual Go source, no
+    // timeout exists on that path today) impose any upper bound on how
+    // long a connect attempt is allowed to hang trying to dial out with
+    // no usable network route at all. A hang there means this service
+    // just never calls broadcastState again in either direction —
+    // exactly "stuck on Connecting, nothing happens, no way out but a
+    // manual toggle."
+    //
+    // This watchdog doesn't (can't, without a deeper native change
+    // threading a cancellable context through bridge.go) forcibly abort
+    // a truly stuck native call — but it DOES guarantee the user always
+    // gets a real, actionable outcome within a bounded time: if this
+    // generation hasn't resolved (broadcastState(CONNECTED) or
+    // (FAILED)) by the deadline, it force-fails on their behalf, giving
+    // them a Retry button instead of an indefinite spinner. If the
+    // stale native call eventually DOES return afterward, the
+    // generation checks added alongside connectGeneration/connectLock
+    // above (including the success-broadcast guards in connectXray/
+    // connectHysteria) mean its late result is silently ignored rather
+    // than confusingly flipping the UI back.
+    private fun scheduleConnectWatchdog(generation: Long) {
+        reconnectHandler.postDelayed({
+            if (stopping || generation != connectGeneration) return@postDelayed
+            Log.w(TAG, "connect attempt timed out with no result — forcing a failure so the user isn't stuck")
+            // Marks this generation stale so a late-arriving success from
+            // the actual (possibly still-blocked) native call is ignored
+            // by connectXray/connectHysteria's own generation-guarded
+            // broadcasts, rather than flipping the UI back to Connected
+            // right after the user was told it failed.
+            connectGeneration++
+            broadcastState(STATE_FAILED, detail = "connect_timeout")
+        }, CONNECT_WATCHDOG_TIMEOUT_MS)
     }
 
     // Wi-Fi<->cellular handovers, a flaky Wi-Fi reconnect, or the radio
@@ -334,6 +382,7 @@ class WaveEngineVpnService : VpnService() {
         releaseTunOnly()
         reconnectHandler.postDelayed({
             if (stopping || generation != connectGeneration) return@postDelayed
+            scheduleConnectWatchdog(generation)
             when (activeEngine) {
                 Engine.XRAY -> lastXrayConfig?.let { cfg ->
                     Thread({ connectXray(cfg, generation) }, "WaveEngineReconnect").start()
@@ -567,7 +616,13 @@ class WaveEngineVpnService : VpnService() {
                 // nothing to discover since this app controls both ends
                 // of that config.
                 establishTun(XRAY_SOCKS_PORT)
-                if (!stopping) broadcastState(STATE_CONNECTED)
+                // See scheduleConnectWatchdog's own comment: the
+                // generation check here is what keeps a success arriving
+                // after the watchdog already gave up on this attempt
+                // from flipping the UI back to Connected.
+                if (!stopping && generation == connectGeneration) {
+                    broadcastState(STATE_CONNECTED)
+                }
                 connectRetryCount = 0
             } catch (t: Throwable) {
                 Log.e(TAG, "xray connect failed", t)
@@ -585,7 +640,10 @@ class WaveEngineVpnService : VpnService() {
                 setUpProtection()
                 val port = Bridge.start(link)
                 establishTun(port.toInt())
-                if (!stopping) broadcastState(STATE_CONNECTED)
+                // See scheduleConnectWatchdog's own comment.
+                if (!stopping && generation == connectGeneration) {
+                    broadcastState(STATE_CONNECTED)
+                }
                 connectRetryCount = 0
             } catch (t: Throwable) {
                 // Deliberately catches Throwable, not just Exception:
@@ -1112,6 +1170,14 @@ class WaveEngineVpnService : VpnService() {
         // real, observable transition; short enough that a user actively
         // watching a reconnect never perceives it as a separate stall.
         private const val RECONNECT_INTERFACE_DOWN_GAP_MS = 500L
+
+        // See scheduleConnectWatchdog's own comment for the full "stuck
+        // on Connecting forever with WiFi off" investigation. Generous
+        // enough that a genuinely slow-but-working handshake (a
+        // congested network, a server that's just slow to respond)
+        // isn't force-failed prematurely, but still a real, bounded
+        // upper limit instead of no limit at all.
+        private const val CONNECT_WATCHDOG_TIMEOUT_MS = 25_000L
 
         // Per-process, not a fixed name: a prior WaveEngineVpnService
         // process that died without a clean onDestroy (OOM-killed, force-
