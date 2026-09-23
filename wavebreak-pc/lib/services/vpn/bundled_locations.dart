@@ -28,17 +28,37 @@ import '../custom_servers/share_link_parsing.dart';
 /// in that failure mode is visible to a subscriber, it just doesn't work.
 /// These two links were re-verified directly against the node's own
 /// listening ports/certs as of 2026-09-17.
+// Re-verified directly against the migrated node (45.15.41.3, Istanbul) as
+// of 2026-09-21: Direct-TLS moved from port 18444 to the edge's public 443
+// (routed by SNI at the nginx stream layer), Hysteria2 moved off the old
+// server IP, and a REALITY transport (SNI-mimicry of www.cloudflare.com,
+// same idea as before but with a fresh keypair/fingerprint) was added
+// alongside the two that were already here.
+//
+// REALITY moved again as of 2026-09-22: port 8443 -> the shared public 443
+// (same nginx SNI-routing pattern Direct-TLS already used) — non-standard
+// TCP ports get filtered by some mobile carriers, confirmed against a
+// competitor VPN's own config also using REALITY straight on 443.
+const _vlessRealityLink =
+    'vless://57afe491-b30b-498f-a8f9-4422d6de1231@45.15.41.3:443'
+    '?encryption=none&flow=xtls-rprx-vision&fp=chrome&packetEncoding=xudp'
+    '&pbk=EG5qiADRmZE0Cgsg2zsSLxi6WC3Sk6HMX4ATbbcUBGk&security=reality'
+    '&sid=8f5ca48467b440ef&sni=www.cloudflare.com&spx=%2F&type=tcp'
+    '#%F0%9F%87%B9%F0%9F%87%B7%20Turkey%2C%20Istanbul%20%28VLESS%29';
+
 const _directTlsLink =
-    'vless://57afe491-b30b-498f-a8f9-4422d6de1231@direct.wavebreak.com.tr:18444'
+    'vless://57afe491-b30b-498f-a8f9-4422d6de1231@direct.wavebreak.com.tr:443'
     '?encryption=none&host=direct.wavebreak.com.tr&path=%2Fwvb-dt&security=tls'
     '&sni=direct.wavebreak.com.tr&type=ws'
-    '#%F0%9F%87%B3%F0%9F%87%B1%20Netherlands%2C%20Amsterdam%20%28Direct-TLS%29';
+    '#%F0%9F%87%B9%F0%9F%87%B7%20Turkey%2C%20Istanbul%20%28Direct-TLS%29';
 
 const _hysteria2Link =
     'hysteria2://57afe491-b30b-498f-a8f9-4422d6de1231:57afe491-b30b-498f-a8f9-4422d6de1231'
-    '@91.149.241.52:443/?alpn=h3&sni=hy2.wavebreak.com.tr'
-    '#%F0%9F%87%B3%F0%9F%87%B1%20Netherlands%2C%20Amsterdam%20%28Hysteria2%29';
+    '@45.15.41.3:443/?alpn=h3&sni=hy2.wavebreak.com.tr'
+    '#%F0%9F%87%B9%F0%9F%87%B7%20Turkey%2C%20Istanbul%20%28Hysteria2%29';
 
-final bundledLocationsProvider = FutureProvider<List<LocationItem>>((ref) async {
-  return parseSubscriptionBody('$_directTlsLink\n$_hysteria2Link');
+final bundledLocationsProvider =
+    FutureProvider<List<LocationItem>>((ref) async {
+  return parseSubscriptionBody(
+      '$_vlessRealityLink\n$_directTlsLink\n$_hysteria2Link');
 });

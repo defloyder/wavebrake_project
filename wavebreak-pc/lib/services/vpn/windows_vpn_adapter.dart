@@ -18,6 +18,7 @@ class WindowsVpnAdapter implements VpnAdapter {
   Process? _process;
   StreamSubscription<String>? _stdoutSub;
   StreamSubscription<String>? _stderrSub;
+  Timer? _rivalVpnWatch;
 
   // Bumped at the top of every connect() call and checked after each
   // `await` inside it — switching locations while a connect is still in
@@ -105,6 +106,7 @@ class WindowsVpnAdapter implements VpnAdapter {
         if (!resolved && line.contains('sing-box started')) {
           resolved = true;
           _emit(VpnNativeState.connected);
+          _startRivalVpnWatch();
           completer.complete();
         }
       }
@@ -124,7 +126,8 @@ class WindowsVpnAdapter implements VpnAdapter {
           resolved = true;
           _emit(VpnNativeState.failed);
           if (!completer.isCompleted) {
-            completer.completeError(StateError('sing-box exited early (code $code)'));
+            completer.completeError(
+                StateError('sing-box exited early (code $code)'));
           }
         } else if (code != 0) {
           _emit(VpnNativeState.failed);
@@ -155,6 +158,7 @@ class WindowsVpnAdapter implements VpnAdapter {
 
   @override
   Future<void> disconnect() async {
+    _stopRivalVpnWatch();
     await _stdoutSub?.cancel();
     await _stderrSub?.cancel();
     _stdoutSub = null;
@@ -170,6 +174,70 @@ class WindowsVpnAdapter implements VpnAdapter {
       } catch (_) {
         process.kill(ProcessSignal.sigkill);
       }
+    }
+  }
+
+  // Real gap this exists to fix: unlike Android (where establishing a new
+  // VpnService from another app automatically revokes this one —
+  // WaveEngineVpnService.onRevoke(), already handled), Windows has no OS
+  // -level exclusivity between VPN adapters at all. Two tunnels racing
+  // for the default route causes real problems (traffic split
+  // unpredictably between them, or a "connected" tunnel that's actually
+  // being starved by the other one) — WaveBreak needs to notice another
+  // VPN coming up on its own and get out of the way rather than silently
+  // staying in a stale "connected" state alongside it.
+  //
+  // No Windows API surfaced through dart:io exposes "is this adapter a
+  // VPN" directly (NetworkInterface only gives a name + addresses, not
+  // the IF_TYPE_PPP/IF_TYPE_TUNNEL flags GetAdaptersAddresses has at the
+  // Win32 level) — this is a heuristic on adapter NAME instead, checked
+  // periodically while connected. Real vendors' adapters reliably show
+  // up under recognizable names (see _rivalVpnNamePattern), and our own
+  // tunnel is always named exactly "wavebreak" (interface_name in
+  // _buildConfig above), so excluding that one name is precise, not
+  // itself a heuristic.
+  static const _rivalVpnCheckInterval = Duration(seconds: 8);
+
+  static final _rivalVpnNamePattern = RegExp(
+    r'\b(vpn|tap-windows|tap0|wintun|openvpn|wireguard|nordlynx|'
+    r'pptp|l2tp|ipsec|tunnelbear|protonvpn|expressvpn|surfshark|'
+    r'nordvpn|cisco anyconnect|globalprotect|forticlient|zerotier|tailscale)\b',
+    caseSensitive: false,
+  );
+
+  void _startRivalVpnWatch() {
+    _rivalVpnWatch?.cancel();
+    _rivalVpnWatch = Timer.periodic(
+      _rivalVpnCheckInterval,
+      (_) => unawaited(_checkForRivalVpn()),
+    );
+  }
+
+  void _stopRivalVpnWatch() {
+    _rivalVpnWatch?.cancel();
+    _rivalVpnWatch = null;
+  }
+
+  Future<void> _checkForRivalVpn() async {
+    if (_process == null) return;
+    try {
+      final interfaces = await NetworkInterface.list(includeLoopback: false);
+      final rival = interfaces.any((iface) {
+        final name = iface.name.toLowerCase();
+        if (name.contains('wavebreak')) return false;
+        return _rivalVpnNamePattern.hasMatch(name);
+      });
+      if (rival && _process != null) {
+        AppLogger.warn(
+            'Another VPN adapter detected while connected — disconnecting to avoid two tunnels racing for the default route');
+        await disconnect();
+        _emit(VpnNativeState.idle);
+      }
+    } catch (e) {
+      // Best-effort — a failed interface enumeration (a transient WMI/
+      // network-stack hiccup) isn't itself evidence of a rival VPN and
+      // shouldn't disconnect anything on its own.
+      AppLogger.debug('Rival VPN check failed: $e');
     }
   }
 
@@ -336,7 +404,8 @@ class ShareLink {
     final b64 = url.substring('vmess://'.length);
     final Map<String, dynamic> json;
     try {
-      json = jsonDecode(utf8.decode(base64.decode(base64.normalize(b64)))) as Map<String, dynamic>;
+      json = jsonDecode(utf8.decode(base64.decode(base64.normalize(b64))))
+          as Map<String, dynamic>;
     } catch (e) {
       throw FormatException('could not decode vmess:// payload: $e');
     }
@@ -346,11 +415,14 @@ class ShareLink {
       final s = v.toString();
       return s.isEmpty ? null : s;
     }
+
     final tlsOn = str('tls') == 'tls';
     return ShareLink(
       scheme: 'vmess',
-      credential: str('id') ?? (throw const FormatException('vmess link missing id')),
-      host: str('add') ?? (throw const FormatException('vmess link missing add')),
+      credential:
+          str('id') ?? (throw const FormatException('vmess link missing id')),
+      host:
+          str('add') ?? (throw const FormatException('vmess link missing add')),
       port: int.tryParse(str('port') ?? '') ?? 443,
       network: str('net') ?? 'tcp',
       sni: str('sni') ?? (tlsOn ? str('host') : null),
@@ -368,7 +440,8 @@ class ShareLink {
   static ShareLink _parseShadowsocks(String url) {
     final withoutScheme = url.substring('ss://'.length);
     final hashIndex = withoutScheme.indexOf('#');
-    final body = hashIndex >= 0 ? withoutScheme.substring(0, hashIndex) : withoutScheme;
+    final body =
+        hashIndex >= 0 ? withoutScheme.substring(0, hashIndex) : withoutScheme;
 
     final atIndex = body.lastIndexOf('@');
     if (atIndex > 0) {
@@ -381,7 +454,9 @@ class ShareLink {
         userInfo = Uri.decodeComponent(userInfoRaw);
       }
       final sep = userInfo.indexOf(':');
-      if (sep < 0) throw const FormatException('shadowsocks link missing method:password');
+      if (sep < 0) {
+        throw const FormatException('shadowsocks link missing method:password');
+      }
       final hostPortUri = Uri.parse('ss://$hostPort');
       return ShareLink(
         scheme: 'shadowsocks',
@@ -400,11 +475,15 @@ class ShareLink {
       throw FormatException('could not decode ss:// payload: $e');
     }
     final legacyAt = decoded.lastIndexOf('@');
-    if (legacyAt < 0) throw const FormatException('shadowsocks link missing host');
+    if (legacyAt < 0) {
+      throw const FormatException('shadowsocks link missing host');
+    }
     final methodPass = decoded.substring(0, legacyAt);
     final hostPort = decoded.substring(legacyAt + 1);
     final sep = methodPass.indexOf(':');
-    if (sep < 0) throw const FormatException('shadowsocks link missing method:password');
+    if (sep < 0) {
+      throw const FormatException('shadowsocks link missing method:password');
+    }
     final hostPortUri = Uri.parse('ss://$hostPort');
     return ShareLink(
       scheme: 'shadowsocks',
@@ -448,7 +527,10 @@ class ShareLink {
           'stack': 'system',
         },
       ],
-      'outbounds': [_outbound(), {'type': 'direct', 'tag': 'direct'}],
+      'outbounds': [
+        _outbound(),
+        {'type': 'direct', 'tag': 'direct'}
+      ],
       // No separate DNS outbound/rule — that pattern was removed in
       // sing-box 1.13 (a "dns" outbound type is a hard config error now).
       // DNS queries just ride the tunnel like everything else via
@@ -485,7 +567,8 @@ class ShareLink {
       'enabled': true,
       if (sni != null) 'server_name': sni,
       if (insecure) 'insecure': true,
-      if (fingerprint != null) 'utls': {'enabled': true, 'fingerprint': fingerprint},
+      if (fingerprint != null)
+        'utls': {'enabled': true, 'fingerprint': fingerprint},
       if (security == 'reality' && publicKey != null)
         'reality': {
           'enabled': true,
@@ -507,7 +590,8 @@ class ShareLink {
   Map<String, dynamic> _vlessOutbound() {
     // XTLS flow only ever applies to a raw-tcp REALITY outbound — sending
     // it alongside a websocket transport is a hard error in sing-box.
-    final effectiveFlow = network == 'tcp' && security == 'reality' ? flow : null;
+    final effectiveFlow =
+        network == 'tcp' && security == 'reality' ? flow : null;
     final transport = _transport();
     return {
       'type': 'vless',
