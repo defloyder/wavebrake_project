@@ -111,6 +111,15 @@ void main() {
     );
     expect(find.text('Testing upload'), findsWidgets);
     expect(find.text('Testing download'), findsNothing);
+    // Regression coverage for a real-device bug: the download summary
+    // tile stayed on "–" through the entire upload leg even though
+    // download's own real number had been known since the moment it
+    // finished — SpeedTestController now surfaces each leg's result via
+    // SpeedTestService.run's onLegDone the instant that leg completes,
+    // not only once the whole two-leg run() resolves. Mid-upload here
+    // (downloadMbps already set on the fixed state, matching what
+    // onLegDone would have written) must show the real number already.
+    expect(find.text('42.5 Mbps'), findsOneWidget);
   });
 
   testWidgets(

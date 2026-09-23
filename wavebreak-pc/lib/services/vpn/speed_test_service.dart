@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -88,16 +89,26 @@ class SpeedTestService {
   /// or timed-out leg leaves that side of [SpeedTestResult] null rather
   /// than aborting the whole test. [onSample] fires periodically
   /// (throttled, see class doc) during each leg with a live reading;
-  /// [onPhase] fires once when each leg starts.
+  /// [onPhase] fires once when each leg starts. [onLegDone] fires once
+  /// per leg with that leg's OWN final average the moment it finishes —
+  /// real-device bug this exists to fix: without it, a caller only finds
+  /// out download's result once the ENTIRE run (download + upload) has
+  /// finished, since [SpeedTestResult] itself isn't built until both
+  /// legs are done — so a "download: – / upload: –" summary tile stayed
+  /// blank through the whole upload leg despite download's own real
+  /// number having been known for a while already.
   Future<SpeedTestResult> run({
     void Function(SpeedTestPhase phase)? onPhase,
     void Function(SpeedTestSample sample)? onSample,
+    void Function(SpeedTestPhase phase, double? mbps)? onLegDone,
     Duration timeout = const Duration(seconds: 20),
   }) async {
     onPhase?.call(SpeedTestPhase.download);
     final download = await _measureDownload(timeout, _downloadBytes, onSample);
+    onLegDone?.call(SpeedTestPhase.download, download);
     onPhase?.call(SpeedTestPhase.upload);
     final upload = await _measureUpload(timeout, onSample);
+    onLegDone?.call(SpeedTestPhase.upload, upload);
     return SpeedTestResult(downloadMbps: download, uploadMbps: upload);
   }
 
@@ -110,8 +121,21 @@ class SpeedTestService {
   /// checking "at least 2-3 candidates" at the full ~28MB/20s-timeout
   /// scale would make Auto-connect itself feel broken from the delay.
   /// No live samples, no upload leg — just one number, fast.
+  ///
+  /// Real-device bug this default guards against: a slow candidate is
+  /// exactly the one Auto-connect most wants to reject QUICKLY, not
+  /// spend the longest time measuring — confirmed in production logs
+  /// where a genuinely slow candidate's probe took over a minute on its
+  /// own (a fixed ~1.5MB transfer at 0.2 Mbps is ~60s), during which the
+  /// user's other apps cycled through every transport switch Auto-
+  /// connect tried in turn. 3s here is deliberately short: see
+  /// [_measureDownload]'s own comment for how this is actually enforced
+  /// as real wall-clock time now, not just Dio's receiveTimeout (which
+  /// only fires on a STALL, not on a slow-but-steady trickle that never
+  /// stops sending SOME bytes — exactly what let the minute-long probe
+  /// above happen without ever timing out on its own).
   Future<double?> quickDownloadProbeMbps({
-    Duration timeout = const Duration(seconds: 6),
+    Duration timeout = const Duration(seconds: 3),
   }) {
     return _measureDownload(timeout, _quickProbeBytes, null);
   }
@@ -121,6 +145,24 @@ class SpeedTestService {
   // delaying an Auto-connect attempt.
   static const _quickProbeBytes = 1500 * 1000;
 
+  // Real-device bug this class exists to guard against (confirmed via
+  // production logs): Dio's receiveTimeout/sendTimeout only fire on a
+  // STALL — a gap between two data packets exceeding the timeout — not
+  // on the transfer simply taking a long time overall. A slow-but-
+  // steady trickle that never stops sending SOME bytes (a genuinely slow
+  // candidate, exactly the case a probe most needs to bail out of
+  // quickly) can run for a minute or more without ever tripping that
+  // timeout, because there's never a single gap long enough to count as
+  // a stall. A [CancelToken] fired from a real wall-clock [Timer] is
+  // what actually bounds total duration regardless of how the bytes are
+  // arriving — cancelling on that timer, not waiting on receiveTimeout,
+  // is what makes [timeout] mean what it says.
+  //
+  // A cancellation from a real timeout (as opposed to a genuine network
+  // failure) still has SOME bytes to show for it via onReceiveProgress —
+  // whatever throughput that partial transfer implies is itself useful
+  // signal ("this one's slow, move on" — see quickDownloadProbeMbps's
+  // own comment) rather than being thrown away as a bare failure.
   Future<double?> _measureDownload(
     Duration timeout,
     int bytes,
@@ -129,27 +171,38 @@ class SpeedTestService {
     for (var attempt = 0; attempt <= _maxRetries; attempt++) {
       final stopwatch = Stopwatch()..start();
       final sampler = _ProgressSampler(SpeedTestPhase.download, onSample);
+      final cancelToken = CancelToken();
+      var lastBytes = 0;
+      final deadline = Timer(timeout, () {
+        cancelToken.cancel(_wallClockTimeoutReason);
+      });
       try {
         final response = await _dio.get<List<int>>(
           _downloadUrl,
           queryParameters: {'bytes': bytes},
-          options: Options(
-            responseType: ResponseType.bytes,
-            sendTimeout: timeout,
-            receiveTimeout: timeout,
-          ),
-          onReceiveProgress: sampler.onProgress,
+          cancelToken: cancelToken,
+          options: Options(responseType: ResponseType.bytes),
+          onReceiveProgress: (count, total) {
+            lastBytes = count;
+            sampler.onProgress(count, total);
+          },
         );
         stopwatch.stop();
         final actualBytes = response.data?.length ?? 0;
         return _mbps(actualBytes, stopwatch.elapsed);
-      } catch (_) {
+      } catch (error) {
+        stopwatch.stop();
+        if (_isWallClockTimeout(error) && lastBytes > 0) {
+          return _mbps(lastBytes, stopwatch.elapsed);
+        }
         // A one-off dropped connection/timeout mid-test shouldn't abandon
         // the whole measurement with nothing to show — retry once before
         // giving up. Not retried indefinitely: a connection that's
         // genuinely down should still resolve to a real "failed" state
         // (see SpeedTestController.run()) rather than hang retrying.
         if (attempt == _maxRetries) return null;
+      } finally {
+        deadline.cancel();
       }
     }
     return null;
@@ -163,28 +216,48 @@ class SpeedTestService {
       final payload = _randomBytes(_uploadBytes);
       final stopwatch = Stopwatch()..start();
       final sampler = _ProgressSampler(SpeedTestPhase.upload, onSample);
+      final cancelToken = CancelToken();
+      var lastBytes = 0;
+      final deadline = Timer(timeout, () {
+        cancelToken.cancel(_wallClockTimeoutReason);
+      });
       try {
         await _dio.post<void>(
           _uploadUrl,
           data: Stream.fromIterable([payload]),
+          cancelToken: cancelToken,
           options: Options(
             headers: {
               Headers.contentLengthHeader: payload.length,
               Headers.contentTypeHeader: 'application/octet-stream',
             },
-            sendTimeout: timeout,
-            receiveTimeout: timeout,
           ),
-          onSendProgress: sampler.onProgress,
+          onSendProgress: (count, total) {
+            lastBytes = count;
+            sampler.onProgress(count, total);
+          },
         );
         stopwatch.stop();
         return _mbps(payload.length, stopwatch.elapsed);
-      } catch (_) {
+      } catch (error) {
+        stopwatch.stop();
+        if (_isWallClockTimeout(error) && lastBytes > 0) {
+          return _mbps(lastBytes, stopwatch.elapsed);
+        }
         if (attempt == _maxRetries) return null;
+      } finally {
+        deadline.cancel();
       }
     }
     return null;
   }
+
+  static const _wallClockTimeoutReason = 'speed-test-wall-clock-timeout';
+
+  bool _isWallClockTimeout(Object error) =>
+      error is DioException &&
+      error.type == DioExceptionType.cancel &&
+      error.error == _wallClockTimeoutReason;
 
   double? _mbps(int bytes, Duration elapsed) {
     final seconds = elapsed.inMicroseconds / 1e6;
