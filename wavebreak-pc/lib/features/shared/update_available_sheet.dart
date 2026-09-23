@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/update/apk_installer.dart';
 import '../../services/update/update_service.dart';
+import '../../services/update/windows_update_installer.dart';
 
 /// The expanded detail behind the update bell — replaces the old
 /// always-on bottom pill (real feedback: too small/easy to miss against
@@ -38,9 +41,28 @@ class _UpdateAvailableSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
-    final install = ref.watch(apkInstallControllerProvider);
-    final downloading = install.status == ApkInstallStatus.downloading;
-    final needsPermission = install.status == ApkInstallStatus.needsPermission;
+
+    // Android downloads an APK and hands it to the system installer
+    // (needs an "allow installs from this source" permission dance);
+    // Windows downloads the Inno Setup installer and runs it directly —
+    // no OS-mediated install-package concept to route through. Same
+    // sheet, same visual language, different controller/action
+    // underneath per platform — see windows_update_installer.dart's own
+    // doc comment for the full rationale.
+    final isWindows = Platform.isWindows;
+    final apkInstall =
+        isWindows ? null : ref.watch(apkInstallControllerProvider);
+    final windowsUpdate =
+        isWindows ? ref.watch(windowsUpdateControllerProvider) : null;
+
+    final downloading = isWindows
+        ? windowsUpdate!.status == WindowsUpdateStatus.downloading
+        : apkInstall!.status == ApkInstallStatus.downloading;
+    final needsPermission =
+        !isWindows && apkInstall!.status == ApkInstallStatus.needsPermission;
+    final readyToRunInstaller = isWindows &&
+        windowsUpdate!.status == WindowsUpdateStatus.readyToInstall;
+    final progress = isWindows ? windowsUpdate!.progress : apkInstall!.progress;
 
     return SafeArea(
       child: Padding(
@@ -90,7 +112,7 @@ class _UpdateAvailableSheet extends ConsumerWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
-                    value: install.progress,
+                    value: progress,
                     minHeight: 6,
                     backgroundColor: WbColors.ice08,
                     valueColor: const AlwaysStoppedAnimation(WbColors.waveCyan),
@@ -98,7 +120,7 @@ class _UpdateAvailableSheet extends ConsumerWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '${s.updateDownloading} ${(install.progress * 100).round()}%',
+                  '${s.updateDownloading} ${(progress * 100).round()}%',
                   style: const TextStyle(color: WbColors.ice60, fontSize: 13),
                 ),
               ] else
@@ -107,6 +129,16 @@ class _UpdateAvailableSheet extends ConsumerWidget {
                   height: 50,
                   child: FilledButton(
                     onPressed: () {
+                      if (isWindows) {
+                        final notifier =
+                            ref.read(windowsUpdateControllerProvider.notifier);
+                        if (readyToRunInstaller) {
+                          notifier.runInstallerAndExit();
+                        } else {
+                          notifier.downloadAndInstall(update);
+                        }
+                        return;
+                      }
                       final notifier =
                           ref.read(apkInstallControllerProvider.notifier);
                       if (needsPermission) {

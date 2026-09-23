@@ -11,6 +11,7 @@ import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/update/apk_installer.dart';
 import '../../services/update/update_service.dart';
+import '../../services/update/windows_update_installer.dart';
 import '../shared/detail_scaffold.dart';
 import '../shared/nav_utils.dart';
 import '../shared/wavebreak_mark.dart';
@@ -36,21 +37,34 @@ class AboutScreen extends ConsumerWidget {
       return;
     }
     messenger.showSnackBar(SnackBar(content: Text(s.updateAvailable)));
-    unawaited(ref
-        .read(apkInstallControllerProvider.notifier)
-        .downloadAndInstall(update));
+    if (Platform.isWindows) {
+      unawaited(ref
+          .read(windowsUpdateControllerProvider.notifier)
+          .downloadAndInstall(update));
+    } else {
+      unawaited(ref
+          .read(apkInstallControllerProvider.notifier)
+          .downloadAndInstall(update));
+    }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(sessionControllerProvider).config;
     final s = ref.watch(stringsProvider);
-    final installStatus = ref.watch(apkInstallControllerProvider).status;
+    // Android downloads+installs an APK; Windows downloads+runs the
+    // Inno Setup installer (see windows_update_installer.dart) — either
+    // way, "is a download currently in flight" for this row's own label.
+    final downloadingUpdate = Platform.isWindows
+        ? ref.watch(windowsUpdateControllerProvider).status ==
+            WindowsUpdateStatus.downloading
+        : ref.watch(apkInstallControllerProvider).status ==
+            ApkInstallStatus.downloading;
     // Mirrors the same pending-update state the Home toolbar's bell badge
     // reflects (see update_available_sheet.dart's comment on why that
     // bell needs a second, always-reachable place to point to) — closing
     // the bell's sheet never loses this, since it never lived only there.
-    final pendingUpdate = Platform.isAndroid
+    final pendingUpdate = (Platform.isAndroid || Platform.isWindows)
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
 
@@ -78,20 +92,18 @@ class AboutScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 28),
-          // Android only — this app ships outside the Play Store,
-          // so this is the only in-app path to a new build (see
-          // services/update/update_service.dart). iOS/Windows have
-          // no equivalent self-update flow yet.
-          if (Platform.isAndroid)
+          // Android ships outside the Play Store, so this is the only
+          // in-app path to a new build (see update_service.dart);
+          // Windows ships outside any app store too, same reasoning —
+          // both get this row. iOS has no equivalent self-update flow.
+          if (Platform.isAndroid || Platform.isWindows)
             _row(
-              installStatus == ApkInstallStatus.downloading
+              downloadingUpdate
                   ? s.updateDownloading
                   : pendingUpdate != null
                       ? s.updateAvailable
                       : s.checkForUpdates,
-              installStatus == ApkInstallStatus.downloading
-                  ? null
-                  : () => _checkForUpdates(context, ref),
+              downloadingUpdate ? null : () => _checkForUpdates(context, ref),
               badged: pendingUpdate != null,
             ),
           if (config.privacyUrl != null)

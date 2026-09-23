@@ -341,12 +341,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       },
     );
 
-    // Android only — this app ships outside the Play Store, so this is
-    // the only in-app path to a new build (see update_service.dart's own
-    // doc comment). The bell only appears at all once there's something
-    // to say — no permanent fixture taking up toolbar space the rest of
-    // the time, unlike the old always-present bottom pill this replaces.
-    final pendingUpdate = Platform.isAndroid
+    // Android and Windows both ship outside any app store, so this is
+    // the only in-app path to a new build on either (see
+    // update_service.dart's own doc comment). The bell only appears at
+    // all once there's something to say — no permanent fixture taking
+    // up toolbar space the rest of the time, unlike the old always
+    // -present bottom pill this replaces.
+    final pendingUpdate = (Platform.isAndroid || Platform.isWindows)
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
 

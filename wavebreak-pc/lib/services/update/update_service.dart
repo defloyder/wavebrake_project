@@ -1,14 +1,27 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-/// No Core endpoint for "what's the latest Android build" exists yet
-/// (checked wavebreak-core's httpapi) — rather than add one just for
-/// this, the app checks a small static JSON file the web team can update
-/// on its own each time a new APK ships, no Core/database change needed:
+/// No Core endpoint for "what's the latest build" exists yet (checked
+/// wavebreak-core's httpapi) — rather than add one just for this, the
+/// app checks a small static JSON file the web team can update on its
+/// own each time a new build ships, no Core/database change needed:
 /// `{"versionCode": 3, "versionName": "1.0.2", "url": "https://.../wavebreak-android.apk"}`
-/// served alongside the APK itself from wavebreak-web/public/downloads/.
-const _versionCheckUrl = 'https://wavebreak.com.tr/downloads/version.json';
+/// served alongside the build itself from wavebreak-web/public/downloads/.
+///
+/// A separate file per platform (not one shared version.json with two
+/// url fields) — Android's `versionCode` is a real Android build-number
+/// concept tied to the Play/APK versioning contract; Windows has no such
+/// thing, `versionCode` here is just this app's own pubspec build number
+/// (see PackageInfo.buildNumber below) compared the same way. Keeping
+/// them in separate files means an Android release and a Windows
+/// release can ship independently without one platform's version bump
+/// looking like an available update to the other.
+String get _versionCheckUrl => Platform.isWindows
+    ? 'https://wavebreak.com.tr/downloads/version-windows.json'
+    : 'https://wavebreak.com.tr/downloads/version.json';
 
 class UpdateInfo {
   const UpdateInfo({
