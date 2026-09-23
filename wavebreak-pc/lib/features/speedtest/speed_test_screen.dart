@@ -134,9 +134,6 @@ class SpeedTestScreen extends ConsumerWidget {
                     visualState: visualState,
                     valueMbps: meterValue,
                     maxMbps: _meterMaxMbps,
-                    numberText: state.status == SpeedTestStatus.idle
-                        ? '–'
-                        : _formatMbps(meterValue),
                     unit: 'Mbps',
                     label: phaseLabel,
                   ),
