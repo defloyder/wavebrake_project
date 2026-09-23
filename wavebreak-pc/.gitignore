@@ -50,6 +50,14 @@ android/app/libs/*.aar
 wavebreak-windows-build/
 wavebreak-windows-build.zip
 dist/
+# The compiled installer .exe itself — a build artifact regenerated from
+# windows/installer/wavebreak.iss + the release build, not source. Also
+# sing-box.exe/wintun.dll landing in windows/runtime_deps/ are real
+# binaries this repo needs to build at all but are provisioned manually
+# (see that folder's own notes), not something a normal `git add .` in
+# this directory should accidentally re-add if ever removed and
+# re-fetched under a different name.
+windows/installer/Output/
 
 # Session scratch/debug artifacts
 vmtest/
