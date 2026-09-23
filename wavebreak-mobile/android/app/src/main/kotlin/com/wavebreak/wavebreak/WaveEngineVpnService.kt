@@ -88,6 +88,32 @@ class WaveEngineVpnService : VpnService() {
     private var consecutiveHealthCheckFailures = 0
     private var connectRetryCount = 0
 
+    // Real-device bug this pair exists to fix: onStartCommand's own
+    // connect dispatch (a new request from Dart — e.g. Auto-connect
+    // switching to its next candidate) and reconnectNow()'s
+    // health-check/network-change-triggered reconnect each spawn their
+    // OWN background thread straight into connectXray/connectHysteria
+    // with nothing stopping two of them from running at the same time.
+    // Confirmed from a production diagnostic log: right after one such
+    // overlap, a fresh Hysteria2 dial failed with "connect protect path:
+    // connection refused" — protect() talks to [ProtectServer] over a
+    // local socket, and one thread's setUpProtection() tearing that
+    // server down and rebinding it while another thread's engine is
+    // mid-dial trying to protect a brand new UDP socket against the OLD
+    // server is exactly the shape of race that produces that error.
+    // [connectGeneration] is bumped by both entry points on the SAME
+    // thread they're already called on (onStartCommand and
+    // reconnectHandler's callbacks both run on the main looper, so this
+    // needs no atomic/lock of its own); [connectLock] then serializes
+    // the actual native work (setUpProtection/Bridge.start*/
+    // establishTun) so two attempts' background threads can never be
+    // inside that section at the same time — a superseded attempt checks
+    // its captured generation both before AND after acquiring the lock,
+    // so it bails out instead of clobbering a newer request's state
+    // either way.
+    @Volatile private var connectGeneration = 0L
+    private val connectLock = Any()
+
     // Everything the notification needs to render as a real, branded
     // WAVEBREAK surface instead of a stock two-line system notification —
     // set once per connect via updateNotificationMeta() (called from Dart
@@ -169,16 +195,20 @@ class WaveEngineVpnService : VpnService() {
         registerNetworkWatch()
         scheduleFdCheck()
         scheduleHealthCheck()
+        // A new request from Dart — even to the same server — always
+        // supersedes whatever connect/reconnect attempt might already be
+        // in flight (see connectGeneration's own doc comment above).
+        val generation = ++connectGeneration
         if (!xrayConfig.isNullOrEmpty()) {
             activeEngine = Engine.XRAY
             lastXrayConfig = xrayConfig
             lastLink = null
-            Thread({ connectXray(xrayConfig) }, "WaveEngineConnect").start()
+            Thread({ connectXray(xrayConfig, generation) }, "WaveEngineConnect").start()
         } else {
             activeEngine = Engine.HYSTERIA
             lastLink = link
             lastXrayConfig = null
-            Thread({ connectHysteria(link!!) }, "WaveEngineConnect").start()
+            Thread({ connectHysteria(link!!, generation) }, "WaveEngineConnect").start()
         }
         return START_STICKY
     }
@@ -295,15 +325,21 @@ class WaveEngineVpnService : VpnService() {
         if (stopping) return
         Log.d(TAG, "reconnecting after $reason")
         broadcastState(STATE_CONNECTING)
+        // Bumped here too, on the same main-looper thread onStartCommand
+        // runs on — see connectGeneration's own doc comment. A fresh
+        // connect request that arrived (or arrives during the gap below)
+        // supersedes this reconnect; this one's own eventual attempt
+        // checks its captured generation before touching anything.
+        val generation = ++connectGeneration
         releaseTunOnly()
         reconnectHandler.postDelayed({
-            if (stopping) return@postDelayed
+            if (stopping || generation != connectGeneration) return@postDelayed
             when (activeEngine) {
                 Engine.XRAY -> lastXrayConfig?.let { cfg ->
-                    Thread({ connectXray(cfg) }, "WaveEngineReconnect").start()
+                    Thread({ connectXray(cfg, generation) }, "WaveEngineReconnect").start()
                 }
                 Engine.HYSTERIA -> lastLink?.let { link ->
-                    Thread({ connectHysteria(link) }, "WaveEngineReconnect").start()
+                    Thread({ connectHysteria(link, generation) }, "WaveEngineReconnect").start()
                 }
                 null -> {}
             }
@@ -496,49 +532,73 @@ class WaveEngineVpnService : VpnService() {
         }
     }
 
-    private fun connectXray(configJson: String) {
-        try {
-            stopOtherEngine(Engine.XRAY)
-            setUpProtection()
-            // Only matters when the generated config actually references
-            // geosite:/geoip: rules (smart-routing's RU-direct policy — see
-            // share_link_config.dart's routing_policy handling), but it's
-            // cheap and idempotent to call unconditionally: Xray-core
-            // simply never looks at XRAY_LOCATION_ASSET when a config has
-            // no such rules.
-            Bridge.ensureGeoAssets(filesDir.absolutePath)
-            Bridge.startXray(configJson)
-            // share_link_config.dart's inbound is always a SOCKS5 listener
-            // on 127.0.0.1:1080 — Xray-core doesn't hand a port back the
-            // way Hysteria's bridge does, but there's nothing to discover
-            // since this app controls both ends of that config.
-            establishTun(XRAY_SOCKS_PORT)
-            if (!stopping) broadcastState(STATE_CONNECTED)
-            connectRetryCount = 0
-        } catch (t: Throwable) {
-            Log.e(TAG, "xray connect failed", t)
-            handleConnectFailure(t) { connectXray(configJson) }
+    // [generation] is checked before AND after acquiring [connectLock] —
+    // see that field's own doc comment for the full "connect protect
+    // path: connection refused" investigation. The before-check skips
+    // pointless work for an attempt that's already stale by the time its
+    // thread got scheduled; the after-check catches the case where this
+    // attempt was current when it started waiting for the lock but a
+    // newer request superseded it while it waited. Either way, a stale
+    // attempt returns without touching setUpProtection/Bridge/
+    // establishTun — those only ever run for whichever attempt is
+    // current at the moment it actually gets the lock, which is what
+    // makes stopOtherEngine's own `activeEngine` read reliable again:
+    // nothing else can be concurrently overwriting engine state while
+    // it's deciding what (if anything) needs stopping first.
+    private fun connectXray(configJson: String, generation: Long) {
+        if (generation != connectGeneration) return
+        synchronized(connectLock) {
+            if (generation != connectGeneration) return
+            try {
+                stopOtherEngine(Engine.XRAY)
+                setUpProtection()
+                // Only matters when the generated config actually
+                // references geosite:/geoip: rules (smart-routing's
+                // RU-direct policy — see share_link_config.dart's
+                // routing_policy handling), but it's cheap and
+                // idempotent to call unconditionally: Xray-core simply
+                // never looks at XRAY_LOCATION_ASSET when a config has
+                // no such rules.
+                Bridge.ensureGeoAssets(filesDir.absolutePath)
+                Bridge.startXray(configJson)
+                // share_link_config.dart's inbound is always a SOCKS5
+                // listener on 127.0.0.1:1080 — Xray-core doesn't hand a
+                // port back the way Hysteria's bridge does, but there's
+                // nothing to discover since this app controls both ends
+                // of that config.
+                establishTun(XRAY_SOCKS_PORT)
+                if (!stopping) broadcastState(STATE_CONNECTED)
+                connectRetryCount = 0
+            } catch (t: Throwable) {
+                Log.e(TAG, "xray connect failed", t)
+                handleConnectFailure(t) { connectXray(configJson, generation) }
+            }
         }
     }
 
-    private fun connectHysteria(link: String) {
-        try {
-            stopOtherEngine(Engine.HYSTERIA)
-            setUpProtection()
-            val port = Bridge.start(link)
-            establishTun(port.toInt())
-            if (!stopping) broadcastState(STATE_CONNECTED)
-            connectRetryCount = 0
-        } catch (t: Throwable) {
-            // Deliberately catches Throwable, not just Exception: gomobile's
-            // generated native layer can throw UnsatisfiedLinkError /
-            // NoSuchMethodError (subclasses of Error, not Exception). An
-            // uncaught Error on ANY thread is fatal to the whole process by
-            // default on Android — not just this service — so a narrower
-            // catch here previously took the entire app down on a failed
-            // connection instead of just failing that one attempt.
-            Log.e(TAG, "hysteria connect failed", t)
-            handleConnectFailure(t) { connectHysteria(link) }
+    private fun connectHysteria(link: String, generation: Long) {
+        if (generation != connectGeneration) return
+        synchronized(connectLock) {
+            if (generation != connectGeneration) return
+            try {
+                stopOtherEngine(Engine.HYSTERIA)
+                setUpProtection()
+                val port = Bridge.start(link)
+                establishTun(port.toInt())
+                if (!stopping) broadcastState(STATE_CONNECTED)
+                connectRetryCount = 0
+            } catch (t: Throwable) {
+                // Deliberately catches Throwable, not just Exception:
+                // gomobile's generated native layer can throw
+                // UnsatisfiedLinkError/NoSuchMethodError (subclasses of
+                // Error, not Exception). An uncaught Error on ANY thread
+                // is fatal to the whole process by default on Android —
+                // not just this service — so a narrower catch here
+                // previously took the entire app down on a failed
+                // connection instead of just failing that one attempt.
+                Log.e(TAG, "hysteria connect failed", t)
+                handleConnectFailure(t) { connectHysteria(link, generation) }
+            }
         }
     }
 
