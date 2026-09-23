@@ -256,24 +256,78 @@ class WaveEngineVpnService : VpnService() {
     }
 
     // Replays whichever connect the user actually asked for through the
-    // exact same connectXray/connectHysteria path a fresh connect uses —
-    // Bridge.startXray/start already self-heal ("already running" stops
-    // the old instance first, see native/hysteria_bridge) and
-    // establishTun's Builder().establish() atomically swaps the TUN fd, so
-    // there's nothing extra to tear down here first.
+    // exact same connectXray/connectHysteria path a fresh connect uses.
+    //
+    // Real-device bug this fixes, found investigating a report that the
+    // health check below "doesn't fully" recover a stale tunnel: Telegram
+    // (and everything else) stays stuck on "Connecting..." with no
+    // traffic even after a health-check-triggered reconnect succeeds —
+    // WaveBreak itself shows Connected throughout, because its own
+    // fresh health-probe socket genuinely works over the new path.
+    //
+    // Root cause was sequencing, not the health check itself.
+    // establishTun()'s Builder().establish() DOES hand back a genuinely
+    // new tun fd each time, and Bridge.startTun2Socks() DOES self-heal
+    // (stops the previous tun2socks engine — and closes ITS fd — before
+    // starting the new one; see native/hysteria_bridge/tun2socks.go).
+    // But that stop-then-start used to happen back-to-back inside one
+    // call with no real gap in between, from the same thread, in well
+    // under a millisecond. Android's connectivity stack treats that as
+    // one continuous VPN network having its interface silently swapped,
+    // not a real down-then-up transition — there's no window for the OS
+    // (or any other app watching for a network change) to ever observe
+    // the old interface as gone. An app like Telegram sitting on an
+    // already-established, currently idle TCP connection through the
+    // OLD tun path gets no signal whatsoever that anything changed; its
+    // packets just silently go nowhere on a socket it has no reason to
+    // give up on, often for a very long time (exactly "no self-heal,
+    // user has to intervene").
+    //
+    // releaseTunOnly() below explicitly closes the current interface
+    // FIRST, and RECONNECT_INTERFACE_DOWN_GAP_MS gives Android's
+    // connectivity stack an actual beat to register that before a new
+    // one gets established — turning the swap into a real (if brief)
+    // down/up cycle other apps' stale sockets can actually notice and
+    // recover from, the same way a manual disconnect+reconnect already
+    // did (that just went through a much bigger gap: a full
+    // stopSelf()/new-service cycle).
     private fun reconnectNow(reason: String) {
         if (stopping) return
         Log.d(TAG, "reconnecting after $reason")
         broadcastState(STATE_CONNECTING)
-        when (activeEngine) {
-            Engine.XRAY -> lastXrayConfig?.let { cfg ->
-                Thread({ connectXray(cfg) }, "WaveEngineReconnect").start()
+        releaseTunOnly()
+        reconnectHandler.postDelayed({
+            if (stopping) return@postDelayed
+            when (activeEngine) {
+                Engine.XRAY -> lastXrayConfig?.let { cfg ->
+                    Thread({ connectXray(cfg) }, "WaveEngineReconnect").start()
+                }
+                Engine.HYSTERIA -> lastLink?.let { link ->
+                    Thread({ connectHysteria(link) }, "WaveEngineReconnect").start()
+                }
+                null -> {}
             }
-            Engine.HYSTERIA -> lastLink?.let { link ->
-                Thread({ connectHysteria(link) }, "WaveEngineReconnect").start()
-            }
-            null -> {}
+        }, RECONNECT_INTERFACE_DOWN_GAP_MS)
+    }
+
+    // Tears down just the OS-visible side of the tunnel (tun2socks + the
+    // TUN interface itself) without touching the underlying Xray/
+    // Hysteria proxy engine — that engine's own Bridge.startXray/start
+    // already self-heals fine on its own and doesn't need (or want, if
+    // it costs session/handshake state) an extra stop-restart cycle just
+    // to fix what's really an interface-visibility problem. Shared by
+    // reconnectNow's real down/up gap above and releaseEngineResources'
+    // full teardown below.
+    private fun releaseTunOnly() {
+        try {
+            Bridge.stopTun2Socks()
+        } catch (t: Throwable) {
         }
+        try {
+            tunInterface?.close()
+        } catch (t: Throwable) {
+        }
+        tunInterface = null
     }
 
     // Confirmed on-device: ordinary browsing over an otherwise-healthy
@@ -528,10 +582,7 @@ class WaveEngineVpnService : VpnService() {
     // retry path, the one caller that needs cleanup without ending the
     // service.
     private fun releaseEngineResources() {
-        try {
-            Bridge.stopTun2Socks()
-        } catch (t: Throwable) {
-        }
+        releaseTunOnly()
         try {
             when (activeEngine) {
                 Engine.XRAY -> Bridge.stopXray()
@@ -540,11 +591,6 @@ class WaveEngineVpnService : VpnService() {
             }
         } catch (t: Throwable) {
         }
-        try {
-            tunInterface?.close()
-        } catch (t: Throwable) {
-        }
-        tunInterface = null
     }
 
     private fun establishTun(socksPort: Int) {
@@ -996,6 +1042,16 @@ class WaveEngineVpnService : VpnService() {
         private const val HEALTH_CHECK_INTERVAL_MS = 45_000L
         private const val HEALTH_CHECK_RETRY_MS = 10_000L
         private const val HEALTH_CHECK_FAILURE_THRESHOLD = 2
+
+        // See reconnectNow()'s own doc comment for the bug this exists to
+        // fix: without a real gap here, tearing down and re-establishing
+        // the tun interface back-to-back on the same thread never gives
+        // Android's connectivity stack (or any other app watching for a
+        // network change) a chance to observe the old interface as
+        // actually gone before the new one appears. Long enough to be a
+        // real, observable transition; short enough that a user actively
+        // watching a reconnect never perceives it as a separate stall.
+        private const val RECONNECT_INTERFACE_DOWN_GAP_MS = 500L
 
         // Per-process, not a fixed name: a prior WaveEngineVpnService
         // process that died without a clean onDestroy (OOM-killed, force-
