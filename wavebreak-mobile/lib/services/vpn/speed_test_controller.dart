@@ -4,6 +4,30 @@ import 'connection_manager.dart';
 import 'connection_test_service.dart';
 import 'speed_test_service.dart';
 
+// Tuned to filter single-sample noise spikes without reading as
+// sluggish: at ~200ms between samples (SpeedTestService's own
+// throttle), 0.35 settles ~90% of the way to a real step change within
+// 3-4 samples (well under a second) while still meaningfully damping a
+// single outlier sample.
+const speedTestSmoothingAlpha = 0.35;
+
+/// A single-pole exponential moving average — see
+/// [SpeedTestController]'s own doc comment on the real-device "numbers
+/// jump around chaotically" bug this exists to fix. A top-level function
+/// (not private to the controller, and not annotated
+/// @visibleForTesting — this app doesn't otherwise depend on
+/// package:meta, and one annotation isn't worth adding it) specifically
+/// so this damping behavior is directly unit-testable without needing
+/// to drive a whole SpeedTestService network probe end to end — see
+/// test/speed_test_smoothing_test.dart.
+///
+/// [previous] null means "no reading yet" — returns [raw] unchanged so
+/// the very first sample of a run shows immediately rather than being
+/// artificially dragged up from zero.
+double emaStep(double? previous, double raw,
+        {double alpha = speedTestSmoothingAlpha}) =>
+    previous == null ? raw : previous + (raw - previous) * alpha;
+
 enum SpeedTestStatus {
   idle,
   testingLatency,
@@ -104,6 +128,29 @@ class SpeedTestController extends Notifier<SpeedTestState> {
   int _generation = 0;
   String? _lastLocationId;
 
+  // Real-device feedback this exists to fix: "the wave and numbers just
+  // jump around chaotically instead of moving in an orderly way." A raw
+  // per-sample instantaneous rate genuinely IS noisy — a throttled
+  // sample can land right after a burst of buffered chunks flushed back
+  // to back, or right before a brief stall, and driving the display
+  // straight off that raw number makes ordinary transfer variance read
+  // as the UI itself being broken. An exponential moving average here —
+  // smoothing the number BEFORE it ever becomes state.liveMbps, not just
+  // in the widget that happens to render it — means every consumer of
+  // this state (the wave meter's fill AND its own number display, which
+  // used to read the raw value straight from the outer screen,
+  // bypassing whatever smoothing lived only inside the meter widget)
+  // sees the same already-smoothed number. WaveMeter's own per-frame
+  // interpolation on top of this handles animating BETWEEN these
+  // updates smoothly; this is what keeps the updates themselves from
+  // being noisy in the first place.
+  double? _smoothedMbps;
+
+  double _smooth(double raw) {
+    _smoothedMbps = emaStep(_smoothedMbps, raw);
+    return _smoothedMbps!;
+  }
+
   @override
   SpeedTestState build() {
     final locationId =
@@ -124,6 +171,7 @@ class SpeedTestController extends Notifier<SpeedTestState> {
   Future<void> run() async {
     if (state.isRunning) return;
     final generation = ++_generation;
+    _smoothedMbps = null;
     state = const SpeedTestState(status: SpeedTestStatus.testingLatency);
     // A real TCP-connect-timing probe against whatever location is
     // currently active — same mechanism the location list's own ping
@@ -133,7 +181,8 @@ class SpeedTestController extends Notifier<SpeedTestState> {
     // the whole test — download/upload below don't depend on it.
     try {
       final location = ref.read(connectionManagerProvider).location;
-      final latency = await const ConnectionTestService().testLocation(location);
+      final latency =
+          await const ConnectionTestService().testLocation(location);
       if (generation != _generation) return;
       state = state.copyWith(latencyMs: latency);
     } catch (_) {
@@ -145,6 +194,12 @@ class SpeedTestController extends Notifier<SpeedTestState> {
       final result = await _service.run(
         onPhase: (phase) {
           if (generation != _generation) return;
+          // A fresh phase starts from a real zero, not wherever the
+          // previous leg's smoothed value happened to settle — carrying
+          // download's smoothing state into upload would drag upload's
+          // first real readings toward download's old number instead of
+          // rising cleanly from zero.
+          _smoothedMbps = null;
           state = state.copyWith(
             status: phase == SpeedTestPhase.download
                 ? SpeedTestStatus.testingDownload
@@ -164,7 +219,7 @@ class SpeedTestController extends Notifier<SpeedTestState> {
               : SpeedTestStatus.testingUpload;
           if (state.status != expectedStatus) return;
           state = state.copyWith(
-            liveMbps: sample.instantMbps,
+            liveMbps: _smooth(sample.instantMbps),
             progress: sample.progress,
           );
         },
@@ -196,6 +251,7 @@ class SpeedTestController extends Notifier<SpeedTestState> {
 
   void reset() {
     _generation++;
+    _smoothedMbps = null;
     state = const SpeedTestState();
   }
 }

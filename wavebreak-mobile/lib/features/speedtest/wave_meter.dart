@@ -22,10 +22,17 @@ enum WaveMeterVisualState { idle, running, done, failed }
 /// sample arrives (samples are throttled to a few times a second — see
 /// SpeedTestService's own comment — so anything driven only by samples
 /// would look like it stutters/freezes between them):
-///  - the fill level eases toward the latest value every frame (a
-///    manual exponential catch-up, not a fixed-duration tween, so a
-///    fast run of samples doesn't fight a previous still-in-flight
-///    animation)
+///  - the fill level (AND the number displayed in the center — both
+///    read the same animated fraction, see build() below) eases toward
+///    the latest value every frame, a manual exponential catch-up
+///    rather than a fixed-duration tween, so a fast run of samples
+///    doesn't fight a previous still-in-flight animation. [valueMbps]
+///    itself is expected to already be pre-smoothed by the caller (see
+///    SpeedTestController's own EMA over raw samples) — this animation
+///    is what makes the TRANSITION between those already-smoothed
+///    values continuous, not what removes sample-to-sample noise; doing
+///    both jobs in one place used to mean a still-noisy raw target could
+///    out-pace this catch-up and read as jumpy regardless.
 ///  - the water's surface keeps moving on a real wall-clock-driven sine,
 ///    exactly like [AnimatedWaves]' own background waves, so "in
 ///    progress" always reads as alive even during a brief lull between
@@ -36,7 +43,6 @@ class WaveMeter extends StatefulWidget {
     required this.visualState,
     required this.valueMbps,
     required this.maxMbps,
-    required this.numberText,
     required this.unit,
     required this.label,
   });
@@ -44,16 +50,19 @@ class WaveMeter extends StatefulWidget {
   final WaveMeterVisualState visualState;
   final double valueMbps;
   final double maxMbps;
-
-  /// Pre-formatted so this widget doesn't need to know the "≥100 gets no
-  /// decimal" rule etc. — same reasoning as the old SpeedometerGauge.
-  final String numberText;
   final String unit;
   final String label;
 
   @override
   State<WaveMeter> createState() => _WaveMeterState();
 }
+
+/// Same "≥100 gets no decimal" rule the old SpeedometerGauge and the
+/// result cards elsewhere on this screen use — kept here too since the
+/// displayed number is now derived from the meter's own continuously
+/// animated fraction (see class doc) rather than passed in pre-formatted.
+String _formatAnimatedMbps(double value) =>
+    value.toStringAsFixed(value >= 100 ? 0 : 1);
 
 class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
@@ -80,10 +89,19 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
             widget.visualState != WaveMeterVisualState.running;
     if (justFinished) {
       _settleController.forward(from: 0);
+      // The catch-up animation is deliberately still mid-chase most of
+      // the time a real sample arrives (that's what makes it read as
+      // continuous motion) — but the FINAL result has to be exact, not
+      // wherever an asymptotic catch-up happened to be sitting the
+      // instant the test ended. Snap straight to the real value the
+      // moment a leg actually finishes rather than trusting the catch-up
+      // to have fully converged by then.
+      _animatedFraction = (widget.valueMbps / widget.maxMbps).clamp(0.0, 1.0);
     }
     if (widget.visualState == WaveMeterVisualState.idle &&
         oldWidget.visualState != WaveMeterVisualState.idle) {
       _settleController.reset();
+      _animatedFraction = 0;
     }
   }
 
@@ -114,13 +132,29 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
 
     return AnimatedBuilder(
       animation: Listenable.merge([_controller, _settleController]),
-      builder: (context, child) {
+      builder: (context, _) {
         // Exponential catch-up toward the target every frame (~60x/sec)
         // rather than a fixed-duration tween restarted on every sample —
         // a burst of quick samples just keeps nudging this smoothly
         // instead of each one cutting off the previous animation.
         _animatedFraction += (target - _animatedFraction) * 0.08;
         final nowSeconds = DateTime.now().millisecondsSinceEpoch / 1000;
+        // The displayed number reads off this SAME animated fraction,
+        // not the raw widget.valueMbps directly — that used to be the
+        // actual bug behind "the numbers jump around chaotically": the
+        // fill level was smoothed, but the number sat on this widget's
+        // `child:` (a static subtree AnimatedBuilder deliberately never
+        // rebuilds per-frame) reading the un-animated value straight
+        // through, so it hard-cut to every new sample while the wave
+        // eased. Computing it here means both move together, at the
+        // same rate, off the same number. (No `child:` optimization
+        // here as a result — the center content genuinely does need to
+        // rebuild every frame for this to work; a single dedicated
+        // full-screen meter is exactly the case where that cost is
+        // fine, unlike a widget instantiated per list row.)
+        final numberText = widget.visualState == WaveMeterVisualState.idle
+            ? '–'
+            : _formatAnimatedMbps(_animatedFraction * widget.maxMbps);
         return CustomPaint(
           painter: _WaveMeterPainter(
             fraction: _animatedFraction,
@@ -130,16 +164,15 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
             settle: _settleController.value,
             isDone: widget.visualState == WaveMeterVisualState.done,
           ),
-          child: child,
+          child: _MeterCenter(
+            visualState: widget.visualState,
+            numberText: numberText,
+            unit: widget.unit,
+            label: widget.label,
+            tint: _tint,
+          ),
         );
       },
-      child: _MeterCenter(
-        visualState: widget.visualState,
-        numberText: widget.numberText,
-        unit: widget.unit,
-        label: widget.label,
-        tint: _tint,
-      ),
     );
   }
 }
