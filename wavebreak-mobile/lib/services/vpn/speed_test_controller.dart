@@ -105,7 +105,16 @@ final speedTestControllerProvider =
         SpeedTestController.new);
 
 class SpeedTestController extends Notifier<SpeedTestState> {
-  final _service = SpeedTestService();
+  // Optional injection point for tests — NotifierProvider(
+  // SpeedTestController.new) still works with zero args since this is
+  // an optional named parameter, but a test can override the provider
+  // with `SpeedTestController(service: fakeService)` to drive a real,
+  // fast, controlled run() end to end instead of hitting the real
+  // network — see test/speed_test_screen_live_update_test.dart.
+  SpeedTestController({SpeedTestService? service})
+      : _service = service ?? SpeedTestService();
+
+  final SpeedTestService _service;
 
   // Real-device bug this exists to fix: switching to a different
   // location/connection and running the test again showed the PREVIOUS
@@ -223,6 +232,18 @@ class SpeedTestController extends Notifier<SpeedTestState> {
             progress: sample.progress,
           );
         },
+        onLegDone: (phase, mbps) {
+          if (generation != _generation) return;
+          // The summary tile for whichever leg just finished updates
+          // right here — not at the very end of run() once BOTH legs
+          // are done. Real-device bug this fixes: without this, the
+          // download tile stayed on "–" through the entire upload leg
+          // despite download's own real number having been known since
+          // the moment it finished.
+          state = phase == SpeedTestPhase.download
+              ? state.copyWith(downloadMbps: mbps)
+              : state.copyWith(uploadMbps: mbps);
+        },
       );
       // The run this result belongs to has already been superseded by a
       // newer run or a connection-change reset — whatever state exists
@@ -238,7 +259,15 @@ class SpeedTestController extends Notifier<SpeedTestState> {
         state = const SpeedTestState(status: SpeedTestStatus.failed);
         return;
       }
-      state = SpeedTestState(
+      // copyWith, not a fresh SpeedTestState(...) — the latter used to
+      // silently drop latencyMs back to null right as the test finished
+      // (a fresh object defaults every field not explicitly passed), so
+      // the latency tile would blank itself out at the exact moment the
+      // OTHER two tiles finally got their numbers. downloadMbps/
+      // uploadMbps here are already set from onLegDone above in the
+      // normal case; passed again explicitly as a defensive fallback in
+      // case a leg's onLegDone callback didn't fire for some reason.
+      state = state.copyWith(
         status: SpeedTestStatus.done,
         downloadMbps: result.downloadMbps,
         uploadMbps: result.uploadMbps,

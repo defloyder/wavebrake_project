@@ -410,9 +410,26 @@ class _WaveMeterPainter extends CustomPainter {
     // actually in flight — calm() flattens it right down for
     // idle/done/failed so a finished test visibly settles rather than
     // sloshing forever.
-    final amplitude = calm ? 1.6 : 3.5 + 9.0 * fraction;
-    final speed = calm ? 0.5 : 0.9 + fraction * 1.1;
-    final wavelength = radius * 1.35;
+    //
+    // Real-device feedback this tuning exists to fix: "screaming crazy
+    // jittery" — the EMA smoothing added earlier fixed the underlying
+    // NUMBER's noise, but this surface motion is a separate concern
+    // entirely (it runs off wall-clock time, not the measured value's
+    // own noise) and was independently too aggressive: amplitude used to
+    // reach ~12.5px in a small circle, the wave's phase could complete a
+    // full cycle in ~3 seconds at high throughput, AND a second wave
+    // layer moved in the OPPOSITE direction at a different wavelength —
+    // two counter-rotating waves crossing through each other's phase
+    // constantly produces exactly the kind of unpredictable, beating
+    // interference pattern that reads as chaotic rather than a single
+    // calm undulation. Fixed by roughly halving the amplitude/speed
+    // ranges, lengthening the wavelength (fewer, broader undulations
+    // read as calmer than several tight ones), and making the second
+    // layer drift the SAME direction as the first (a subtle depth cue,
+    // not a competing pattern) at a much lower amplitude.
+    final amplitude = calm ? 1.2 : 2.5 + 4.0 * fraction;
+    final speed = calm ? 0.35 : 0.55 + fraction * 0.45;
+    final wavelength = radius * 1.9;
 
     _fillWave(canvas, size, center, radius, levelY,
         amplitude: amplitude,
@@ -421,11 +438,11 @@ class _WaveMeterPainter extends CustomPainter {
         phaseOffset: 0,
         alpha: 0.85);
     _fillWave(canvas, size, center, radius, levelY,
-        amplitude: amplitude * 0.7,
-        wavelength: wavelength * 0.8,
-        speed: -speed * 0.8,
-        phaseOffset: math.pi / 2,
-        alpha: 0.35);
+        amplitude: amplitude * 0.4,
+        wavelength: wavelength * 1.3,
+        speed: speed * 0.7,
+        phaseOffset: math.pi / 3,
+        alpha: 0.22);
 
     canvas.restore();
   }
