@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../services/update/update_service.dart';
 import '../shared/wave_params.dart';
 import '../shared/wavebreak_mark.dart';
 
@@ -51,6 +53,15 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
     final waveParams = ref.watch(appWaveParamsProvider);
+    // Android only — see update_service.dart's own doc comment. A small
+    // badge dot on the Settings destination itself, rather than a header
+    // bell: the bell used to collide with the logo/wordmark and the
+    // offline indicator once both needed header space — this is the
+    // same "there's something pending" signal without any header at all.
+    // Settings > Updates (updates_screen.dart) is what it always points to.
+    final pendingUpdate = Platform.isAndroid
+        ? ref.watch(availableUpdateProvider).asData?.value
+        : null;
     final items = [
       _NavItemData(
           icon: Icons.home_outlined,
@@ -63,7 +74,8 @@ class AppShell extends ConsumerWidget {
       _NavItemData(
           icon: Icons.settings_outlined,
           filledIcon: Icons.settings,
-          label: s.navSettings),
+          label: s.navSettings,
+          showBadge: pendingUpdate != null),
       // Index 3 — must match router.dart's branch order (appended after
       // Settings) since _SideNav's onSelect maps position i straight to
       // navigationShell.goBranch(i).
@@ -138,11 +150,16 @@ class AppShell extends ConsumerWidget {
 }
 
 class _NavItemData {
-  const _NavItemData(
-      {required this.icon, required this.filledIcon, required this.label});
+  const _NavItemData({
+    required this.icon,
+    required this.filledIcon,
+    required this.label,
+    this.showBadge = false,
+  });
   final IconData icon;
   final IconData filledIcon;
   final String label;
+  final bool showBadge;
 }
 
 /// Mobile layout: content fills the screen, a frosted bottom bar floats
@@ -163,6 +180,12 @@ class _MobileShell extends ConsumerWidget {
     // for it (it's only ever reached via Home's own location picker).
     final activeButton =
         _kMobileBranchIndexes.indexOf(navigationShell.currentIndex);
+    // See AppShell's own copy of this same watch for the full comment —
+    // this one's needed here too since the mobile bottom bar builds its
+    // three buttons directly rather than from the desktop rail's `items`.
+    final pendingUpdate = Platform.isAndroid
+        ? ref.watch(availableUpdateProvider).asData?.value
+        : null;
 
     return Scaffold(
       // No slot-based bottomNavigationBar — that slot paints the
@@ -240,6 +263,7 @@ class _MobileShell extends ConsumerWidget {
                             label: s.navSettings,
                             selected: activeButton == 2,
                             tint: waveParams.tint,
+                            showBadge: pendingUpdate != null,
                             onTap: () => navigationShell.goBranch(
                               2,
                               initialLocation:
@@ -268,6 +292,7 @@ class _MobileNavButton extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.tint,
+    this.showBadge = false,
   });
 
   final IconData icon;
@@ -276,6 +301,7 @@ class _MobileNavButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final Color? tint;
+  final bool showBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +318,28 @@ class _MobileNavButton extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(selected ? filledIcon : icon, color: color, size: 24),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(selected ? filledIcon : icon,
+                        color: color, size: 24),
+                    if (showBadge)
+                      Positioned(
+                        top: -2,
+                        right: -3,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: WbColors.waveCyan,
+                            shape: BoxShape.circle,
+                            border:
+                                Border.all(color: WbColors.deepOcean, width: 1.5),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text(
                   label,
@@ -427,7 +474,27 @@ class _RailItem extends StatelessWidget {
       mainAxisAlignment:
           expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
       children: [
-        Icon(selected ? data.filledIcon : data.icon, color: color, size: 21),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Icon(selected ? data.filledIcon : data.icon,
+                color: color, size: 21),
+            if (data.showBadge)
+              Positioned(
+                top: -2,
+                right: -3,
+                child: Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: WbColors.waveCyan,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: WbColors.deepOcean, width: 1.2),
+                  ),
+                ),
+              ),
+          ],
+        ),
         if (expanded) ...[
           const SizedBox(width: 14),
           Expanded(

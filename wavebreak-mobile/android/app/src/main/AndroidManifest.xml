@@ -63,11 +63,25 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
-        <!-- In-app updater: exposes the downloaded APK (staged in this
-             app's own external-files dir, never public storage) to the
-             system package installer via a content:// Uri — required
-             since Android 7 forbids handing a plain file:// Uri to
-             another app (FileUriExposedException). -->
+        <!-- In-app updater: PackageInstaller.Session's commit() result
+             (see InstallStatusReceiver.kt/UpdateInstaller.kt) — static
+             rather than dynamically registered so it stays reachable even
+             if the system's own install-confirmation screen takes the
+             user away from the Flutter activity for a moment. Not
+             exported: only the system itself (via the PendingIntent this
+             app created) ever fires this. -->
+        <receiver
+            android:name=".InstallStatusReceiver"
+            android:exported="false" />
+        <!-- In-app updater fallback path only: exposes the downloaded APK
+             (staged in this app's own external-files dir, never public
+             storage) to the system package installer via a content://
+             Uri — required since Android 7 forbids handing a plain
+             file:// Uri to another app (FileUriExposedException). The
+             primary path (PackageInstaller.Session, see
+             UpdateInstaller.kt) streams the file directly and never needs
+             this, but it stays as the fallback for the rare device/OEM
+             where the Session API itself misbehaves. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

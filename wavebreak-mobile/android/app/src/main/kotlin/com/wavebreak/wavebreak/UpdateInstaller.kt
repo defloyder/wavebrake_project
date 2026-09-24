@@ -1,12 +1,16 @@
 package com.wavebreak.wavebreak
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.FileInputStream
 
 /**
  * Backs the Dart-side in-app updater (see
@@ -58,28 +62,96 @@ object UpdateInstaller {
     }
 
     /**
-     * Launches the system installer on an APK already fully downloaded to
-     * [apkPath] (must be inside [stagingDir]). Returns false (rather than
-     * throwing) if [canRequestInstall] is false or the file doesn't
-     * exist, so the Dart side can react without needing to catch a
-     * platform exception for an entirely expected, checkable condition.
+     * Installs an APK already fully downloaded to [apkPath] (must be
+     * inside [stagingDir]) via the PackageInstaller.Session API. Returns
+     * false (rather than throwing) if [canRequestInstall] is false or the
+     * file doesn't exist, so the Dart side can react without needing to
+     * catch a platform exception for an entirely expected, checkable
+     * condition.
+     *
+     * Real product feedback this replaces the old ACTION_VIEW-on-a-
+     * content-Uri path for: that approach makes Android treat every
+     * WAVEBREAK update as a brand-new, never-seen-before install — the
+     * full "unknown sources"/Play Protect verification screen, every
+     * single time, even though this exact app (same package name, same
+     * signing key) is already installed and already trusted. Streaming
+     * the new APK through an explicit install SESSION instead is what
+     * lets Android recognize this as an update to an already-installed
+     * app rather than a fresh install, which is what actually earns the
+     * lighter update-style confirmation the product owner is after — not
+     * a flag or intent extra, but Android's own package-manager logic
+     * noticing the package name + signing certificate already match. One
+     * system confirmation tap is still unavoidable: a normal app (no
+     * device-owner/MDM privilege, no INSTALL_PACKAGES system permission)
+     * can never make PackageInstaller skip user confirmation outright —
+     * setRequireUserAction(NOT_REQUIRED) exists but is silently ignored
+     * for exactly this app's privilege level, so it's deliberately not
+     * called here rather than left in as a no-op that reads like it does
+     * something. What changes is that the ONE tap becomes an update
+     * confirmation, not a fresh-install review.
      */
     fun installApk(context: Context, apkPath: String): Boolean {
         val file = File(apkPath)
         if (!file.exists() || !canRequestInstall(context)) return false
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file,
-        )
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return try {
+            installViaSession(context, file)
+            true
+        } catch (t: Throwable) {
+            Log.e(TAG, "PackageInstaller session failed, falling back to ACTION_VIEW", t)
+            installViaActionView(context, file)
         }
-        // ACTION_VIEW on an APK content Uri always resolves to the system
-        // package installer on stock Android — no need to also check
-        // resolveActivity() the way a truly ambiguous ACTION_VIEW would.
-        context.startActivity(intent)
-        return true
     }
+
+    private fun installViaSession(context: Context, file: File) {
+        val installer = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        val sessionId = installer.createSession(params)
+        val session = installer.openSession(sessionId)
+        session.use { s ->
+            FileInputStream(file).use { input ->
+                s.openWrite("wavebreak_update", 0, file.length()).use { out ->
+                    input.copyTo(out)
+                    s.fsync(out)
+                }
+            }
+            val statusIntent = Intent(context, InstallStatusReceiver::class.java)
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // Android 12+ requires every PendingIntent to declare
+                // mutability explicitly — MUTABLE because the system
+                // fills this in with EXTRA_STATUS/EXTRA_INTENT before
+                // delivering it back to InstallStatusReceiver.
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+            val pendingIntent = PendingIntent.getBroadcast(context, sessionId, statusIntent, flags)
+            s.commit(pendingIntent.intentSender)
+        }
+    }
+
+    /**
+     * The original ACTION_VIEW path — kept only as a fallback for the
+     * rare device/OEM where the Session API itself misbehaves, not as the
+     * normal route any more.
+     */
+    private fun installViaActionView(context: Context, file: File): Boolean {
+        return try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file,
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(intent)
+            true
+        } catch (t: Throwable) {
+            Log.e(TAG, "ACTION_VIEW install fallback also failed", t)
+            false
+        }
+    }
+
+    private const val TAG = "UpdateInstaller"
 }

@@ -182,6 +182,8 @@ class AppStrings {
     required this.close,
     required this.pasteFromClipboard,
     required this.blockedSubscriptionLink,
+    required this.backOnlineBanner,
+    required this.updates,
   });
 
   final String languageName;
@@ -362,6 +364,8 @@ class AppStrings {
   final String close;
   final String pasteFromClipboard;
   final String blockedSubscriptionLink;
+  final String backOnlineBanner;
+  final String updates;
 }
 
 const kEnglishStrings = AppStrings(
@@ -553,6 +557,8 @@ const kEnglishStrings = AppStrings(
   pasteFromClipboard: 'Paste',
   blockedSubscriptionLink:
       'https:// only — local/private addresses are not allowed',
+  backOnlineBanner: 'Back online',
+  updates: 'Updates',
 );
 
 const kRussianStrings = AppStrings(
@@ -745,6 +751,8 @@ const kRussianStrings = AppStrings(
   pasteFromClipboard: 'Вставить',
   blockedSubscriptionLink:
       'Только https:// — локальные/приватные адреса запрещены',
+  backOnlineBanner: 'Снова в сети',
+  updates: 'Обновления',
 );
 
 const kSpanishStrings = AppStrings(
@@ -939,6 +947,8 @@ const kSpanishStrings = AppStrings(
   pasteFromClipboard: 'Pegar',
   blockedSubscriptionLink:
       'Solo https:// — direcciones locales/privadas no están permitidas',
+  backOnlineBanner: 'De nuevo en línea',
+  updates: 'Actualizaciones',
 );
 
 const kGermanStrings = AppStrings(
@@ -1138,6 +1148,8 @@ const kGermanStrings = AppStrings(
   pasteFromClipboard: 'Einfügen',
   blockedSubscriptionLink:
       'Nur https:// — lokale/private Adressen sind nicht erlaubt',
+  backOnlineBanner: 'Wieder online',
+  updates: 'Updates',
 );
 
 const kFrenchStrings = AppStrings(
@@ -1336,6 +1348,8 @@ const kFrenchStrings = AppStrings(
   pasteFromClipboard: 'Coller',
   blockedSubscriptionLink:
       'https:// uniquement — adresses locales/privées non autorisées',
+  backOnlineBanner: 'De nouveau en ligne',
+  updates: 'Mises à jour',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -1531,6 +1545,8 @@ const kPortugueseStrings = AppStrings(
   pasteFromClipboard: 'Colar',
   blockedSubscriptionLink:
       'Apenas https:// — endereços locais/privados não são permitidos',
+  backOnlineBanner: 'De volta online',
+  updates: 'Atualizações',
 );
 
 const kTurkishStrings = AppStrings(
@@ -1725,6 +1741,8 @@ const kTurkishStrings = AppStrings(
   pasteFromClipboard: 'Yapıştır',
   blockedSubscriptionLink:
       'Sadece https:// — yerel/özel adreslere izin verilmez',
+  backOnlineBanner: 'Tekrar çevrimiçi',
+  updates: 'Güncellemeler',
 );
 
 AppStrings stringsFor(AppLanguage language) {
