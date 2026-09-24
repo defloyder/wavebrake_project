@@ -595,9 +595,9 @@ class WaveEngineVpnService : VpnService() {
     // nothing else can be concurrently overwriting engine state while
     // it's deciding what (if anything) needs stopping first.
     private fun connectXray(configJson: String, generation: Long) {
-        if (generation != connectGeneration) return
+        if (generation != connectGeneration || stopping) return
         synchronized(connectLock) {
-            if (generation != connectGeneration) return
+            if (generation != connectGeneration || stopping) return
             try {
                 stopOtherEngine(Engine.XRAY)
                 setUpProtection()
@@ -610,6 +610,29 @@ class WaveEngineVpnService : VpnService() {
                 // no such rules.
                 Bridge.ensureGeoAssets(filesDir.absolutePath)
                 Bridge.startXray(configJson)
+                // Real-device bug this check exists to fix: a stop
+                // (user-initiated disconnect, onRevoke() because the OS
+                // handed the VPN slot to a different app, onDestroy, ...)
+                // landing HERE — after entry was already past its own
+                // generation/stopping check, while Bridge.startXray was
+                // running — used to be silently ignored: nothing stopped
+                // establishTun() below from still running, which is the
+                // actual OS-level "take the VPN slot" operation
+                // (VpnService.Builder().establish()). Doing that after
+                // we've already decided to stop is exactly what silently
+                // re-grabbed the VPN slot out from under whatever the
+                // user/OS just gave it to a moment before — confirmed
+                // real-device symptom cluster: WaveBreak toggling itself
+                // off then back on with no user action, and a completely
+                // separate VPN app (Happ) getting disconnected out of
+                // nowhere right after a WaveBreak toggle. releaseEngineResources()
+                // cleans up the engine Bridge.startXray just started
+                // rather than leaving it running orphaned underneath a
+                // tun interface that's never coming.
+                if (stopping || generation != connectGeneration) {
+                    releaseEngineResources()
+                    return@synchronized
+                }
                 // share_link_config.dart's inbound is always a SOCKS5
                 // listener on 127.0.0.1:1080 — Xray-core doesn't hand a
                 // port back the way Hysteria's bridge does, but there's
@@ -632,13 +655,22 @@ class WaveEngineVpnService : VpnService() {
     }
 
     private fun connectHysteria(link: String, generation: Long) {
-        if (generation != connectGeneration) return
+        if (generation != connectGeneration || stopping) return
         synchronized(connectLock) {
-            if (generation != connectGeneration) return
+            if (generation != connectGeneration || stopping) return
             try {
                 stopOtherEngine(Engine.HYSTERIA)
                 setUpProtection()
                 val port = Bridge.start(link)
+                // See connectXray's identical check for the full
+                // rationale — a stop/revoke landing while Bridge.start
+                // was running must not be allowed to still call
+                // establishTun() below, which is the actual OS-level
+                // "take the VPN slot" operation.
+                if (stopping || generation != connectGeneration) {
+                    releaseEngineResources()
+                    return@synchronized
+                }
                 establishTun(port.toInt())
                 // See scheduleConnectWatchdog's own comment.
                 if (!stopping && generation == connectGeneration) {
