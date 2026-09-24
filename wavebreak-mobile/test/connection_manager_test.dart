@@ -12,8 +12,9 @@ import 'test_helpers.dart';
 void main() {
   setUp(setUpTestEnvironment);
 
-  test('connect without an active subscription surfaces subscriptionRequired', () async {
-    final container = ProviderContainer();
+  test('connect without an active subscription surfaces subscriptionRequired',
+      () async {
+    final container = ProviderContainer(overrides: mockCoreOverrides());
     addTearDown(container.dispose);
 
     await container
@@ -27,7 +28,7 @@ void main() {
   });
 
   test('connect with an active subscription reaches connected', () async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: mockCoreOverrides());
     addTearDown(container.dispose);
 
     // Auto has no server-side meaning — the manager resolves it against
@@ -46,7 +47,7 @@ void main() {
   });
 
   test('disconnect returns to idle', () async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: mockCoreOverrides());
     addTearDown(container.dispose);
 
     await container.read(locationsProvider.future);
@@ -61,15 +62,14 @@ void main() {
     );
   });
 
-  test('an expired subscription surfaces connectionFailed from the Core', () async {
+  test('an expired subscription surfaces connectionFailed from the Core',
+      () async {
     final mock = MockCoreBackend()
       ..subscription = SubscriptionInfo(
         status: 'expired',
         planName: 'WAVEBREAK Monthly',
       );
-    final container = ProviderContainer(
-      overrides: [mockBackendProvider.overrideWithValue(mock)],
-    );
+    final container = ProviderContainer(overrides: mockCoreOverrides(mock));
     addTearDown(container.dispose);
 
     await container
@@ -84,9 +84,7 @@ void main() {
 
   test('device revocation on the Core surfaces an access error', () async {
     final mock = MockCoreBackend()..deviceRevoked = true;
-    final container = ProviderContainer(
-      overrides: [mockBackendProvider.overrideWithValue(mock)],
-    );
+    final container = ProviderContainer(overrides: mockCoreOverrides(mock));
     addTearDown(container.dispose);
 
     await container
@@ -100,7 +98,7 @@ void main() {
   });
 
   test('selecting a location persists it for the next session', () async {
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: mockCoreOverrides());
     addTearDown(container.dispose);
 
     final locations = await container.read(coreGatewayProvider).locations();

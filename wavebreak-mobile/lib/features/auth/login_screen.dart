@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -58,9 +60,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     final s = ref.read(stringsProvider);
     try {
-      final tokens = await ref.read(coreGatewayProvider).login(
+      final tokens = await ref
+          .read(coreGatewayProvider)
+          .login(
             email: _email.text.trim(),
             password: _password.text,
+          )
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => throw AppException(AppErrorKind.noInternet),
           );
       await ref
           .read(sessionControllerProvider.notifier)
@@ -69,7 +77,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       await _offerBiometric();
     } on AppException catch (error) {
-      setState(() => _error = error.localized(s));
+      if (mounted) setState(() => _error = error.localized(s));
+    } catch (_) {
+      if (mounted) setState(() => _error = s.errUnavailable);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

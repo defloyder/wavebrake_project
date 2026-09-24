@@ -165,9 +165,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       s: s,
       wavebreakShareUrl: ref.read(sessionControllerProvider).config.websiteUrl,
     );
+    if (!mounted) return;
     final isDesktop = MediaQuery.sizeOf(context).width >= 820;
     final result = isDesktop
         ? await showLocationDropdown(
+            // ignore: use_build_context_synchronously
             context: context,
             link: _locationLink,
             sections: sections,
@@ -178,6 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ref.read(customServersProvider.notifier).refreshGroup(id),
           )
         : await showLocationSheet(
+            // ignore: use_build_context_synchronously
             context: context,
             sections: sections,
             current: current,

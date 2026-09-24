@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -236,8 +238,20 @@ class SessionController extends Notifier<SessionState> {
   }
 
   Future<void> onAuthenticated(TokenPair tokens) async {
-    await SecureStore.write(SecureStore.accessToken, tokens.accessToken);
-    await SecureStore.write(SecureStore.refreshToken, tokens.refreshToken);
+    try {
+      await (() async {
+        await SecureStore.write(SecureStore.accessToken, tokens.accessToken);
+        await SecureStore.write(SecureStore.refreshToken, tokens.refreshToken);
+      })()
+          .timeout(const Duration(seconds: 6));
+    } catch (e) {
+      AppLogger.warn('Token persistence was slow after login: $e');
+    }
+    state = state.copyWith(phase: SessionPhase.authenticated);
+    unawaited(_completePostAuth());
+  }
+
+  Future<void> _completePostAuth() async {
     // The tokens are already valid and stored at this point — login or
     // register itself succeeded. A hiccup in any of the *follow-up* calls
     // below must never surface as if signing in had failed (it would
@@ -246,18 +260,20 @@ class SessionController extends Notifier<SessionState> {
     // tell "auth failed" apart from "something after auth failed").
     // Same best-effort spirit as bootstrapSession's catch-all.
     try {
-      final user = await ref.read(coreGatewayProvider).me();
-      await DeviceService(ref.read(coreGatewayProvider)).ensureRegistered();
-      // Flip phase first — data_providers.dart's locations/subscription/
-      // devices/plans providers only query Core once phase is actually
-      // `authenticated`, so _prefetchEssentials' own reads would otherwise
-      // be gated out by the very state change they're waiting on.
-      state = state.copyWith(phase: SessionPhase.authenticated, user: user);
+      final user = await ref
+          .read(coreGatewayProvider)
+          .me()
+          .timeout(const Duration(seconds: 8));
+      state = state.copyWith(user: user);
+      await DeviceService(ref.read(coreGatewayProvider))
+          .ensureRegistered()
+          .timeout(const Duration(seconds: 8));
       await _prefetchEssentials();
     } catch (e) {
       AppLogger.warn(
           'Post-auth bootstrap failed, continuing signed in anyway: $e');
-      state = state.copyWith(phase: SessionPhase.authenticated);
+      // Authentication is already complete. Optional profile/bootstrap
+      // failures are logged and retried by their destination screens.
     }
   }
 

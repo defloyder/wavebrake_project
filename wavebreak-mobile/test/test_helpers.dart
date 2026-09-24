@@ -1,10 +1,17 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:wavebreak/core/storage/prefs_store.dart';
 import 'package:wavebreak/core/storage/secure_store.dart';
+import 'package:wavebreak/features/shared/data_providers.dart';
+import 'package:wavebreak/services/core_api/core_gateway.dart';
+import 'package:wavebreak/services/core_api/mock_backend.dart';
+import 'package:wavebreak/services/providers.dart';
+import 'package:wavebreak/services/vpn/connection_manager.dart';
+import 'package:wavebreak/services/vpn/vpn_adapter.dart';
 
 const _secureStorageChannel = MethodChannel(
   'plugins.it_nomads.com/flutter_secure_storage',
@@ -43,4 +50,22 @@ Future<void> setUpTestEnvironment() async {
   SharedPreferences.setMockInitialValues({});
   PrefsStore.init(await SharedPreferences.getInstance());
   SecureStore.init(const FlutterSecureStorage());
+}
+
+List<Override> mockCoreOverrides([MockCoreBackend? mock]) {
+  final backend = mock ?? MockCoreBackend();
+  return [
+    mockBackendProvider.overrideWithValue(backend),
+    coreGatewayProvider.overrideWith(
+      (ref) => CoreGateway(
+        live: ref.watch(coreApiProvider),
+        mock: backend,
+        useMock: true,
+      ),
+    ),
+    locationsProvider.overrideWith((ref) async => backend.locations),
+    vpnAdapterProvider.overrideWithValue(
+      SimulatedVpnAdapter(delay: Duration.zero),
+    ),
+  ];
 }

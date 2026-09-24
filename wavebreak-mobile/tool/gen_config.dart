@@ -7,5 +7,5 @@ void main() {
   final parsed = parseShareLink(link);
   final config = parsed.getFullConfiguration();
   File('config_test.json').writeAsStringSync(config);
-  print(config);
+  stdout.writeln(config);
 }

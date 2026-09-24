@@ -92,9 +92,13 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
   }
 
   Future<void> _refreshPing() async {
-    if (_usesNativeAndroidNotification) return;
+    if (_usesNativeAndroidNotification) {
+      return;
+    }
     if (ref.read(connectionManagerProvider).status !=
-        ConnectionStatus.connected) return;
+        ConnectionStatus.connected) {
+      return;
+    }
     final ms = await ref.read(vpnAdapterProvider).pingMs();
     if (!mounted ||
         ref.read(connectionManagerProvider).status !=
