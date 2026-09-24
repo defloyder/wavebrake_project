@@ -27,17 +27,17 @@
 
             <div class="download-signal" data-reveal data-reveal-delay="180" aria-label="Статус подготовки приложений">
                 <span class="download-signal-dot"></span>
-                <span>Android доступен, остальные сборки готовятся</span>
-                <b>01</b>
+                <span>Windows и Android доступны, остальные сборки готовятся</span>
+                <b>02</b>
             </div>
 
             <div class="download-platform-switch" id="platforms" data-platform-switch data-reveal data-reveal-delay="260">
                 <div class="download-platform-glass" aria-hidden="true"></div>
-                <button type="button" class="download-platform-btn" data-platform="0" aria-describedby="release-note" disabled>
+                <a class="download-platform-btn" href="{{ asset('downloads/wavebreak-windows.exe') }}" data-platform="0" download>
                     <span class="download-platform-index">01</span>
                     <span><b>Windows</b><small>Десктоп</small></span>
-                    <em>Скоро</em>
-                </button>
+                    <em>Скачать</em>
+                </a>
                 <a class="download-platform-btn" href="{{ asset('downloads/wavebreak-android.apk') }}" data-platform="1" download>
                     <span class="download-platform-index">02</span>
                     <span><b>Android</b><small>Смартфон</small></span>
@@ -119,8 +119,8 @@
     <section class="download-release" id="release-note">
         <div class="wb-container" data-reveal>
             <p class="download-kicker"><span></span> Скоро здесь</p>
-            <h2>Android уже доступен.<br>Остальные ссылки — после публикации сборок.</h2>
-            <p>Официальная сборка для Android доступна для скачивания выше. Windows и iOS появятся здесь по мере готовности.</p>
+            <h2>Windows и Android уже доступны.<br>iOS — после публикации сборки.</h2>
+            <p>Официальные сборки для Windows и Android доступны для скачивания выше. iOS появится здесь по мере готовности.</p>
         </div>
     </section>
 </main>
