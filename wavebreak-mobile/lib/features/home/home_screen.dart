@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,8 +12,10 @@ import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/flag_colors.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../core/storage/prefs_store.dart';
 import '../../services/core_api/models.dart';
 import '../../services/custom_servers/custom_server_controller.dart';
+import '../../services/system/battery_optimization.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/connection_test_service.dart';
 import '../shared/add_custom_server_sheet.dart';
@@ -151,6 +154,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _ticker?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // Real-device reliability gap this fixes: Doze/App Standby can defer
+  // this app's own background work (health-check callbacks, holding a
+  // live QUIC/UDP session through an extended deep-sleep window) even
+  // with the VpnService foreground notification's partial exemption — a
+  // real, documented contributor to the sleep/wake reconnect failures
+  // this app has been fighting. Asked once, right after the first
+  // successful connection (the moment the user has just seen the feature
+  // work and is primed to understand why it needs this) rather than
+  // during onboarding before they've connected to anything, or nagging on
+  // every connect. Declining is a real, respected answer — this never
+  // asks again once shown, regardless of the outcome; Settings > Connection
+  // still offers it for anyone who changes their mind later.
+  Future<void> _maybeOfferBatteryOptimizationExemption() async {
+    if (!Platform.isAndroid) return;
+    if (PrefsStore.getBool(PrefsStore.batteryOptimizationPromptShown)) return;
+    const battery = BatteryOptimizationService();
+    if (await battery.isExempt()) return;
+    if (!mounted) return;
+    await PrefsStore.setBool(PrefsStore.batteryOptimizationPromptShown, true);
+    if (!mounted) return;
+    final s = ref.read(stringsProvider);
+    final allow = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: WbColors.card,
+        title: Text(s.batteryOptPromptTitle),
+        content: Text(s.batteryOptPromptBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(s.notNow),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(s.enable),
+          ),
+        ],
+      ),
+    );
+    if (allow == true) {
+      await battery.requestExemption();
+    }
   }
 
   // Real-device bug this fixes: after the phone sits idle/screen-off for a
@@ -310,6 +357,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             .read(connectionManagerProvider.notifier)
             .hydrateLocations(items),
       );
+    });
+    ref.listen(connectionManagerProvider, (prev, next) {
+      if (prev?.status != ConnectionStatus.connected &&
+          next.status == ConnectionStatus.connected) {
+        unawaited(_maybeOfferBatteryOptimizationExemption());
+      }
     });
     ref.listen(customServersProvider, (prev, next) {
       final flat = next.expand((g) => g.servers).toList();

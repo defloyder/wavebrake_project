@@ -14,6 +14,17 @@
          permission only lets the app *request* that intent, not bypass
          the user's own consent. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Always-on VPN reliability: Doze/App Standby can defer this app's
+         own background work (health-check callbacks, holding a live QUIC/
+         UDP session through an extended deep-sleep window) even while the
+         VpnService's foreground notification gives it SOME exemption —
+         not a full one. Requesting exemption from battery optimization is
+         the standard, non-silent way to ask for the rest (the user still
+         explicitly approves it via the system's own dialog — this
+         permission only lets the app show that dialog, exactly like
+         REQUEST_INSTALL_PACKAGES above). See BatteryOptimization.kt /
+         battery_optimization.dart. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
         android:label="wavebreak"

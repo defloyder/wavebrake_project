@@ -262,6 +262,13 @@ class MainActivity : FlutterFragmentActivity() {
                     "isSystemVpnActive" -> {
                         result.success(isSystemVpnActive())
                     }
+                    "isIgnoringBatteryOptimizations" -> {
+                        result.success(BatteryOptimization.isIgnoringBatteryOptimizations(this))
+                    }
+                    "requestIgnoreBatteryOptimizations" -> {
+                        startActivity(BatteryOptimization.requestIgnoreBatteryOptimizationsIntent(this))
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

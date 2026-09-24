@@ -18,6 +18,8 @@ class PrefsStore {
   static const notifyConnection = 'notify_connection';
   static const notifySubscription = 'notify_subscription';
   static const biometricPromptShown = 'biometric_prompt_shown';
+  static const batteryOptimizationPromptShown =
+      'battery_optimization_prompt_shown';
   static const language = 'language';
   static const customServers = 'custom_servers';
   static const accentOverride = 'accent_override';

@@ -184,6 +184,9 @@ class AppStrings {
     required this.blockedSubscriptionLink,
     required this.backOnlineBanner,
     required this.updates,
+    required this.batteryOptPromptTitle,
+    required this.batteryOptPromptBody,
+    required this.batteryOptSettingsRow,
   });
 
   final String languageName;
@@ -366,6 +369,9 @@ class AppStrings {
   final String blockedSubscriptionLink;
   final String backOnlineBanner;
   final String updates;
+  final String batteryOptPromptTitle;
+  final String batteryOptPromptBody;
+  final String batteryOptSettingsRow;
 }
 
 const kEnglishStrings = AppStrings(
@@ -559,6 +565,10 @@ const kEnglishStrings = AppStrings(
       'https:// only — local/private addresses are not allowed',
   backOnlineBanner: 'Back online',
   updates: 'Updates',
+  batteryOptPromptTitle: 'Keep WAVEBREAK reliable in the background?',
+  batteryOptPromptBody:
+      "Android's battery saver can pause always-on VPN apps during long idle periods, causing dropped connections. Allow unrestricted battery use for more reliable always-on protection.",
+  batteryOptSettingsRow: 'Unrestricted battery use',
 );
 
 const kRussianStrings = AppStrings(
@@ -753,6 +763,10 @@ const kRussianStrings = AppStrings(
       'Только https:// — локальные/приватные адреса запрещены',
   backOnlineBanner: 'Снова в сети',
   updates: 'Обновления',
+  batteryOptPromptTitle: 'Сделать работу WAVEBREAK в фоне надёжнее?',
+  batteryOptPromptBody:
+      'Экономия заряда Android может приостанавливать работу постоянно включённых VPN-приложений при длительном простое, что приводит к обрывам соединения. Разрешите неограниченное использование батареи для более надёжной защиты.',
+  batteryOptSettingsRow: 'Неограниченное использование батареи',
 );
 
 const kSpanishStrings = AppStrings(
@@ -949,6 +963,10 @@ const kSpanishStrings = AppStrings(
       'Solo https:// — direcciones locales/privadas no están permitidas',
   backOnlineBanner: 'De nuevo en línea',
   updates: 'Actualizaciones',
+  batteryOptPromptTitle: '¿Hacer que WAVEBREAK sea más fiable en segundo plano?',
+  batteryOptPromptBody:
+      'El ahorro de batería de Android puede pausar las apps VPN siempre activas durante períodos de inactividad prolongados, causando desconexiones. Permite el uso ilimitado de batería para una protección más fiable.',
+  batteryOptSettingsRow: 'Uso de batería sin restricciones',
 );
 
 const kGermanStrings = AppStrings(
@@ -1150,6 +1168,10 @@ const kGermanStrings = AppStrings(
       'Nur https:// — lokale/private Adressen sind nicht erlaubt',
   backOnlineBanner: 'Wieder online',
   updates: 'Updates',
+  batteryOptPromptTitle: 'WAVEBREAK im Hintergrund zuverlässiger machen?',
+  batteryOptPromptBody:
+      'Der Akkusparmodus von Android kann dauerhaft aktive VPN-Apps bei längerer Inaktivität pausieren, was zu Verbindungsabbrüchen führt. Erlaube uneingeschränkten Akkuverbrauch für zuverlässigeren Dauerschutz.',
+  batteryOptSettingsRow: 'Uneingeschränkter Akkuverbrauch',
 );
 
 const kFrenchStrings = AppStrings(
@@ -1350,6 +1372,10 @@ const kFrenchStrings = AppStrings(
       'https:// uniquement — adresses locales/privées non autorisées',
   backOnlineBanner: 'De nouveau en ligne',
   updates: 'Mises à jour',
+  batteryOptPromptTitle: 'Rendre WAVEBREAK plus fiable en arrière-plan ?',
+  batteryOptPromptBody:
+      "L'économiseur de batterie d'Android peut mettre en pause les applications VPN permanentes lors de longues périodes d'inactivité, provoquant des déconnexions. Autorisez une utilisation illimitée de la batterie pour une protection permanente plus fiable.",
+  batteryOptSettingsRow: 'Utilisation de la batterie sans restriction',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -1547,6 +1573,10 @@ const kPortugueseStrings = AppStrings(
       'Apenas https:// — endereços locais/privados não são permitidos',
   backOnlineBanner: 'De volta online',
   updates: 'Atualizações',
+  batteryOptPromptTitle: 'Tornar o WAVEBREAK mais confiável em segundo plano?',
+  batteryOptPromptBody:
+      'A economia de bateria do Android pode pausar apps de VPN sempre ativos durante longos períodos de inatividade, causando desconexões. Permita o uso irrestrito de bateria para uma proteção mais confiável.',
+  batteryOptSettingsRow: 'Uso de bateria sem restrições',
 );
 
 const kTurkishStrings = AppStrings(
@@ -1743,6 +1773,10 @@ const kTurkishStrings = AppStrings(
       'Sadece https:// — yerel/özel adreslere izin verilmez',
   backOnlineBanner: 'Tekrar çevrimiçi',
   updates: 'Güncellemeler',
+  batteryOptPromptTitle: 'WAVEBREAK arka planda daha güvenilir çalışsın mı?',
+  batteryOptPromptBody:
+      "Android'in pil tasarrufu, uzun boşta kalma sürelerinde her zaman açık VPN uygulamalarını duraklatabilir ve bağlantı kopmalarına neden olabilir. Daha güvenilir kesintisiz koruma için sınırsız pil kullanımına izin verin.",
+  batteryOptSettingsRow: 'Sınırsız pil kullanımı',
 );
 
 AppStrings stringsFor(AppLanguage language) {
