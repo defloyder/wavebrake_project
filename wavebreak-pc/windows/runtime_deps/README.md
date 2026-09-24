@@ -50,3 +50,42 @@ The release zip also contains `libcronet.dll` and a `LICENSE` file —
 neither is needed (Cronet is an alternate HTTP transport sing-box
 supports but this app's config never uses) and CMakeLists.txt doesn't
 copy them, so only `sing-box.exe` itself needs to land in this folder.
+
+## Known build gotcha: `flutter build windows` reports success but ships an incomplete bundle
+
+Confirmed on this machine (CMake generator: VS2022 Build Tools): the
+generated `windows/CMakeLists.txt` sets `CMAKE_INSTALL_PREFIX` to a
+generator expression (`$<TARGET_FILE_DIR:wavebreak>`) so the INSTALL step
+copies `flutter_windows.dll`, every plugin's `.dll`, and — critically —
+`data/flutter_assets/` + `data/app.so` (the actual compiled Dart code)
+into `build\windows\x64\runner\Release`. Generator expressions don't
+resolve when MSBuild invokes that install script in `cmake -P` (script)
+mode, so it silently falls back to CMake's OS default
+(`C:\Program Files\<name>`), which requires admin — and if the machine
+isn't elevated, that whole INSTALL step just fails.
+
+**The dangerous part**: `flutter build windows` still prints
+`Building Windows application...` and, if `wavebreak.exe`/`sing-box.exe`/
+`wintun.dll` happen to already be copied by this project's own custom
+CMake command (unrelated to the failing INSTALL step), it's easy to
+mistake this for a successful, complete build — it isn't. The resulting
+`Release` folder is missing `flutter_windows.dll`, `data/`, and every
+plugin DLL, and the built exe crashes on launch
+(`... .dll not found` / `flutter_windows.dll not found`).
+
+**Workaround** (until this machine builds from an elevated shell, or the
+generator-expression prefix is replaced with a literal path):
+```bash
+cmake --install build/windows/x64 --config Release \
+  --prefix build/windows/x64/runner/Release
+```
+First run may still error on a missing, unrelated
+`build/native_assets/windows` directory (Dart native-assets support,
+unused by this project) — `mkdir -p` that empty directory and re-run the
+same command; it'll pick up where it left off and finish installing
+`flutter_assets`/`app.so`.
+
+**Always verify** `build/windows/x64/runner/Release/data/app.so` and
+`.../data/flutter_assets/` exist before packaging an installer — their
+absence is the actual signal a build is complete, not just the presence
+of `wavebreak.exe` itself.
