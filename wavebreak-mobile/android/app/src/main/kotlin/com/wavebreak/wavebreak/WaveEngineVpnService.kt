@@ -722,7 +722,34 @@ class WaveEngineVpnService : VpnService() {
             return
         }
         connectRetryCount = 0
-        stopAll(broadcastIdle = false)
+        // Real-device bug this fixes, found from a diagnostic log after the
+        // establishTun()-pre-check fix above still didn't close the
+        // self-toggle/protect-refused report: this branch used to call the
+        // full stopAll(broadcastIdle = false), exactly the same
+        // stopSelf()-races-a-fresh-connect problem the comment above
+        // already identified and avoided for the ONE-INTERNAL-RETRY path —
+        // just not for this, the terminal-failure path a human-initiated
+        // retry actually lands on. stopAll()'s stopSelf() request and
+        // Android's own asynchronous onDestroy() for it are not guaranteed
+        // to finish before a fresh startForegroundService() Intent (the
+        // user pressing Connect again a few seconds after a failed
+        // handshake — confirmed from a log: press, fail fast on a flapping
+        // network, press again ~10s later) reaches this component; when
+        // onDestroy() (which tears down protectServer, the only thing
+        // native/hysteria_bridge's protect() calls have anywhere to reach)
+        // lands mid-way through that NEXT attempt's own setUpProtection()/
+        // Bridge.start(), the new attempt's protect dial finds nothing
+        // listening — exactly "connect protect path: connection refused".
+        // A connect FAILURE is not the user asking to fully exit — only
+        // ACTION_STOP/onRevoke()/onDestroy's own callers should ever kill
+        // the service. Scoped cleanup only: release this attempt's engine,
+        // stop watching for network changes (nothing to watch without a
+        // tunnel), tell Dart it failed — but leave the service, and
+        // critically protectServer, alive and untouched so an immediate
+        // fresh attempt never races a teardown that was never asked for.
+        releaseEngineResources()
+        unregisterNetworkWatch()
+        activeEngine = null
         broadcastState(STATE_FAILED, detail = "${error.javaClass.simpleName}: ${error.message}")
     }
 

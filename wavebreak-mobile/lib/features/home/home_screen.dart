@@ -42,7 +42,8 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   Timer? _ticker;
   final _locationLink = LayerLink();
   final _scrollController = ScrollController();
@@ -96,6 +97,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (ref.read(connectionManagerProvider).status ==
           ConnectionStatus.connected) {
@@ -148,9 +150,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // Real-device bug this fixes: after the phone sits idle/screen-off for a
+  // few minutes then wakes, Android's own status bar VPN key icon can show
+  // the tunnel as active (it genuinely still is) while this screen keeps
+  // showing "not connected" — sometimes for tens of seconds. Root cause is
+  // Android freezing this app's own (Flutter/UI) process while cached in
+  // the background; WaveEngineVpnService's broadcastState() call lives in
+  // a separate, foreground-service-exempt process and fires normally, but
+  // the ordinary dynamic BroadcastReceiver MainActivity registers for it
+  // (see engineStatusChannelName's EventChannel) can sit queued, undelivered,
+  // until this process actually unfreezes — by which point the real state
+  // change it was reporting is stale news. reconcileWithSystem() already
+  // exists for the equivalent cold-start version of this same problem (a
+  // relaunch after the tunnel outlived a killed UI process) but was only
+  // ever called once, from initState — recalling it here, on every real
+  // resume, re-asks Android directly (isSystemVpnActive(), a live query,
+  // not a broadcast that can be queued) rather than waiting on whatever
+  // broadcast may or may not still be in flight.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      unawaited(
+        ref.read(connectionManagerProvider.notifier).reconcileWithSystem(),
+      );
+    }
   }
 
   Future<void> _openLocationPicker(List<LocationItem> locations) async {
