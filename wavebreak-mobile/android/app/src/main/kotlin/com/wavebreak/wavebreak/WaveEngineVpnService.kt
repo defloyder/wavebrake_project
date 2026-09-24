@@ -88,6 +88,26 @@ class WaveEngineVpnService : VpnService() {
     private var consecutiveHealthCheckFailures = 0
     private var connectRetryCount = 0
 
+    // Real-device bug this exists to fix: reported repeatedly as the phone
+    // waking from a long idle/Doze stretch, Telegram (everything) briefly
+    // not loading, and — instead of the tunnel just quietly recovering —
+    // the app landing on a terminal "connection failed" with a manual
+    // Retry button. Traced to reconnectNow()'s own reconnect attempt (the
+    // one health-check-failure/network-change triggers) hitting
+    // handleConnectFailure()'s terminal branch after exactly ONE try. The
+    // moment right after Doze/deep-sleep exits is exactly when a real
+    // network stack is least ready — radio reconnecting, DNS not
+    // resolved yet, routing tables still settling — so a single reconnect
+    // attempt failing right then is closer to "too early, not really
+    // broken" than "genuinely unreachable," and yet it was being treated
+    // identically to a real, fresh, user-initiated connect failure (which
+    // SHOULD fail fast and say so). isReconnect distinguishes the two:
+    // only a reconnect-triggered attempt gets this bounded backoff-and-
+    // retry chance before giving up and finally surfacing STATE_FAILED —
+    // a fresh user Connect (isReconnect = false) still fails on the first
+    // real error, exactly as before, since the user is watching it happen.
+    private var reconnectRetryCount = 0
+
     // Real-device bug this pair exists to fix: onStartCommand's own
     // connect dispatch (a new request from Dart — e.g. Auto-connect
     // switching to its next candidate) and reconnectNow()'s
@@ -195,21 +215,27 @@ class WaveEngineVpnService : VpnService() {
         registerNetworkWatch()
         scheduleFdCheck()
         scheduleHealthCheck()
+        // A fresh, explicit request from Dart (the user tapping Connect,
+        // or picking a new location) always gets a clean slate — any
+        // backoff state left over from a previous reconnect sequence that
+        // was still retrying (see reconnectRetryCount's own doc comment)
+        // has nothing to do with THIS attempt.
+        reconnectRetryCount = 0
         // A new request from Dart — even to the same server — always
         // supersedes whatever connect/reconnect attempt might already be
         // in flight (see connectGeneration's own doc comment above).
         val generation = ++connectGeneration
-        scheduleConnectWatchdog(generation)
+        scheduleConnectWatchdog(generation, isReconnect = false)
         if (!xrayConfig.isNullOrEmpty()) {
             activeEngine = Engine.XRAY
             lastXrayConfig = xrayConfig
             lastLink = null
-            Thread({ connectXray(xrayConfig, generation) }, "WaveEngineConnect").start()
+            Thread({ connectXray(xrayConfig, generation, isReconnect = false) }, "WaveEngineConnect").start()
         } else {
             activeEngine = Engine.HYSTERIA
             lastLink = link
             lastXrayConfig = null
-            Thread({ connectHysteria(link!!, generation) }, "WaveEngineConnect").start()
+            Thread({ connectHysteria(link!!, generation, isReconnect = false) }, "WaveEngineConnect").start()
         }
         return START_STICKY
     }
@@ -247,16 +273,56 @@ class WaveEngineVpnService : VpnService() {
     // above (including the success-broadcast guards in connectXray/
     // connectHysteria) mean its late result is silently ignored rather
     // than confusingly flipping the UI back.
-    private fun scheduleConnectWatchdog(generation: Long) {
+    private fun scheduleConnectWatchdog(generation: Long, isReconnect: Boolean) {
         reconnectHandler.postDelayed({
             if (stopping || generation != connectGeneration) return@postDelayed
-            Log.w(TAG, "connect attempt timed out with no result — forcing a failure so the user isn't stuck")
-            // Marks this generation stale so a late-arriving success from
-            // the actual (possibly still-blocked) native call is ignored
-            // by connectXray/connectHysteria's own generation-guarded
-            // broadcasts, rather than flipping the UI back to Connected
-            // right after the user was told it failed.
+            Log.w(TAG, "connect attempt timed out with no result (isReconnect=$isReconnect)")
+            // Marks this generation stale so a late-arriving success/
+            // failure from the actual (possibly still-blocked) native
+            // call is ignored by connectXray/connectHysteria's own
+            // generation-guarded checks, rather than clobbering whatever
+            // this watchdog decides below.
             connectGeneration++
+            // Real-device bug this closes: this watchdog used to ONLY
+            // bump the generation and broadcast — it never released
+            // whatever the timed-out attempt might already hold (a
+            // just-established TUN interface + tun2socks link, if the
+            // hang turns out to be inside establishTun() itself rather
+            // than the earlier network handshake). Android would then
+            // keep reporting an active VPN transport system-wide —
+            // capturing traffic into a tunnel this app had already told
+            // Dart was "failed" and stopped driving — matching a real
+            // report of the device's own internet (even the login
+            // screen's own connectivity check) staying broken after a
+            // failed reconnect, fixable only by a full app restart.
+            // Unconditionally releasing here means a watchdog timeout
+            // never leaves anything running unmanaged, regardless of
+            // which exact step the stale attempt was stuck in.
+            releaseEngineResources()
+            // Real-device bug this branch fixes: a reconnect attempt
+            // (health-check/network-change/app-foregrounded triggered,
+            // never a fresh user tap) landing right at a sleep/wake or
+            // Doze-exit boundary — exactly when the radio/DNS/routing are
+            // least ready — used to get exactly ONE attempt before this
+            // watchdog declared it a terminal failure, surfacing
+            // "connection failed" for what was often just bad timing, not
+            // a real, lasting problem. A fresh, user-initiated connect
+            // (isReconnect = false) still fails fast on its first
+            // timeout, same as always — the user is watching it happen
+            // and deserves an immediate, honest answer, not a silent
+            // 2-minute retry loop.
+            if (isReconnect && !stopping && reconnectRetryCount < RECONNECT_MAX_RETRIES) {
+                val delay = RECONNECT_BACKOFF_MS.getOrElse(reconnectRetryCount) { RECONNECT_BACKOFF_MS.last() }
+                reconnectRetryCount++
+                Log.w(TAG, "reconnect watchdog timeout, retrying in ${delay}ms ($reconnectRetryCount/$RECONNECT_MAX_RETRIES)")
+                reconnectHandler.postDelayed({
+                    if (!stopping) reconnectNow("watchdog retry")
+                }, delay)
+                return@postDelayed
+            }
+            reconnectRetryCount = 0
+            unregisterNetworkWatch()
+            activeEngine = null
             broadcastState(STATE_FAILED, detail = "connect_timeout")
         }, CONNECT_WATCHDOG_TIMEOUT_MS)
     }
@@ -382,13 +448,13 @@ class WaveEngineVpnService : VpnService() {
         releaseTunOnly()
         reconnectHandler.postDelayed({
             if (stopping || generation != connectGeneration) return@postDelayed
-            scheduleConnectWatchdog(generation)
+            scheduleConnectWatchdog(generation, isReconnect = true)
             when (activeEngine) {
                 Engine.XRAY -> lastXrayConfig?.let { cfg ->
-                    Thread({ connectXray(cfg, generation) }, "WaveEngineReconnect").start()
+                    Thread({ connectXray(cfg, generation, isReconnect = true) }, "WaveEngineReconnect").start()
                 }
                 Engine.HYSTERIA -> lastLink?.let { link ->
-                    Thread({ connectHysteria(link, generation) }, "WaveEngineReconnect").start()
+                    Thread({ connectHysteria(link, generation, isReconnect = true) }, "WaveEngineReconnect").start()
                 }
                 null -> {}
             }
@@ -594,7 +660,7 @@ class WaveEngineVpnService : VpnService() {
     // makes stopOtherEngine's own `activeEngine` read reliable again:
     // nothing else can be concurrently overwriting engine state while
     // it's deciding what (if anything) needs stopping first.
-    private fun connectXray(configJson: String, generation: Long) {
+    private fun connectXray(configJson: String, generation: Long, isReconnect: Boolean) {
         if (generation != connectGeneration || stopping) return
         synchronized(connectLock) {
             if (generation != connectGeneration || stopping) return
@@ -639,22 +705,29 @@ class WaveEngineVpnService : VpnService() {
                 // nothing to discover since this app controls both ends
                 // of that config.
                 establishTun(XRAY_SOCKS_PORT)
-                // See scheduleConnectWatchdog's own comment: the
-                // generation check here is what keeps a success arriving
-                // after the watchdog already gave up on this attempt
-                // from flipping the UI back to Connected.
-                if (!stopping && generation == connectGeneration) {
-                    broadcastState(STATE_CONNECTED)
+                // Real-device bug this closes: see connectHysteria's
+                // identical check for the full rationale — establishTun()
+                // is the actual OS-level "take the VPN slot" call, and a
+                // stop/watchdog-timeout landing while it ran must not be
+                // allowed to leave what it just established orphaned,
+                // running, and invisible to Dart.
+                if (stopping || generation != connectGeneration) {
+                    releaseEngineResources()
+                    return@synchronized
                 }
+                broadcastState(STATE_CONNECTED)
                 connectRetryCount = 0
+                reconnectRetryCount = 0
             } catch (t: Throwable) {
                 Log.e(TAG, "xray connect failed", t)
-                handleConnectFailure(t) { connectXray(configJson, generation) }
+                handleConnectFailure(t, isReconnect) {
+                    connectXray(configJson, generation, isReconnect = true)
+                }
             }
         }
     }
 
-    private fun connectHysteria(link: String, generation: Long) {
+    private fun connectHysteria(link: String, generation: Long, isReconnect: Boolean) {
         if (generation != connectGeneration || stopping) return
         synchronized(connectLock) {
             if (generation != connectGeneration || stopping) return
@@ -672,11 +745,25 @@ class WaveEngineVpnService : VpnService() {
                     return@synchronized
                 }
                 establishTun(port.toInt())
-                // See scheduleConnectWatchdog's own comment.
-                if (!stopping && generation == connectGeneration) {
-                    broadcastState(STATE_CONNECTED)
+                // Real-device bug this closes: establishTun() is the
+                // actual OS-level "take the VPN slot" call — if a stop OR
+                // a watchdog timeout (see scheduleConnectWatchdog's own
+                // comment) lands in the narrow window while THIS call was
+                // running, the old code below only skipped the CONNECTED
+                // broadcast but left the tun interface + tun2socks link
+                // it just established running, orphaned: Android kept
+                // reporting an active VPN transport system-wide with
+                // nothing on the Dart side driving or aware of it.
+                // Checking again here, not just before, means nothing this
+                // function establishes can ever survive past the moment
+                // this attempt stops being the current one.
+                if (stopping || generation != connectGeneration) {
+                    releaseEngineResources()
+                    return@synchronized
                 }
+                broadcastState(STATE_CONNECTED)
                 connectRetryCount = 0
+                reconnectRetryCount = 0
             } catch (t: Throwable) {
                 // Deliberately catches Throwable, not just Exception:
                 // gomobile's generated native layer can throw
@@ -687,7 +774,9 @@ class WaveEngineVpnService : VpnService() {
                 // previously took the entire app down on a failed
                 // connection instead of just failing that one attempt.
                 Log.e(TAG, "hysteria connect failed", t)
-                handleConnectFailure(t) { connectHysteria(link, generation) }
+                handleConnectFailure(t, isReconnect) {
+                    connectHysteria(link, generation, isReconnect = true)
+                }
             }
         }
     }
@@ -706,7 +795,7 @@ class WaveEngineVpnService : VpnService() {
     // failing immediately does not. Capped at one retry: a genuine config/
     // network failure (wrong credentials, unreachable host, ...) would just
     // fail the same way again and this isn't meant to mask that as a hang.
-    private fun handleConnectFailure(error: Throwable, retry: () -> Unit) {
+    private fun handleConnectFailure(error: Throwable, isReconnect: Boolean, retry: () -> Unit) {
         if (error is UnsatisfiedLinkError && connectRetryCount < 1 && !stopping) {
             connectRetryCount++
             Log.w(TAG, "connect failed (fd exhaustion suspected), retrying once")
@@ -722,6 +811,27 @@ class WaveEngineVpnService : VpnService() {
             return
         }
         connectRetryCount = 0
+        // See reconnectRetryCount's own doc comment — a reconnect attempt
+        // (never a fresh user tap) that fails for an ordinary reason
+        // (network unreachable, DNS failure, handshake rejected — exactly
+        // what a real network stack still settling right after a sleep/
+        // Doze-exit boundary looks like) gets a bounded, backed-off
+        // second/third/fourth chance before this is treated as a real,
+        // lasting failure. A fresh user-initiated connect (isReconnect =
+        // false) skips straight to the terminal branch below, same as
+        // always — the user is watching it happen and deserves an
+        // immediate, honest answer, not a silent multi-attempt retry loop.
+        if (isReconnect && reconnectRetryCount < RECONNECT_MAX_RETRIES && !stopping) {
+            val delay = RECONNECT_BACKOFF_MS.getOrElse(reconnectRetryCount) { RECONNECT_BACKOFF_MS.last() }
+            reconnectRetryCount++
+            Log.w(TAG, "reconnect attempt failed (${reconnectRetryCount}/$RECONNECT_MAX_RETRIES), retrying in ${delay}ms: ${error.javaClass.simpleName}: ${error.message}")
+            releaseEngineResources()
+            reconnectHandler.postDelayed({
+                if (!stopping) Thread({ retry() }, "WaveEngineReconnectRetry").start()
+            }, delay)
+            return
+        }
+        reconnectRetryCount = 0
         // Real-device bug this fixes, found from a diagnostic log after the
         // establishTun()-pre-check fix above still didn't close the
         // self-toggle/protect-refused report: this branch used to call the
@@ -1237,6 +1347,16 @@ class WaveEngineVpnService : VpnService() {
         // isn't force-failed prematurely, but still a real, bounded
         // upper limit instead of no limit at all.
         private const val CONNECT_WATCHDOG_TIMEOUT_MS = 25_000L
+
+        // See reconnectRetryCount's own doc comment for the sleep/Doze-
+        // exit-boundary investigation this backs. 4 tries at increasing
+        // spacing gives a reconnect roughly 100s+ of total margin (well
+        // past a normal Doze-exit/radio-reconnect transient) before
+        // finally giving up — versus the single 25s watchdog window a
+        // reconnect used to get, identical to a fresh user-initiated
+        // connect's, despite starting under much worse conditions.
+        private const val RECONNECT_MAX_RETRIES = 4
+        private val RECONNECT_BACKOFF_MS = longArrayOf(3_000L, 6_000L, 12_000L, 20_000L)
 
         // Per-process, not a fixed name: a prior WaveEngineVpnService
         // process that died without a clean onDestroy (OOM-killed, force-
