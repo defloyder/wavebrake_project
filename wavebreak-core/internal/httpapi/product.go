@@ -1046,6 +1046,221 @@ func (s *Server) adminUpdateSubscriptionStatus(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, subscription)
 }
 
+// adminCreateManualSubscription is the ad-hoc "issue a subscription that
+// isn't tied to a plan" path: an admin supplies an explicit traffic limit
+// (omitted/0 = unlimited) and expiry (omitted = unlimited) and gets back a
+// ready-to-use grant ID / subscription link in one call.
+func (s *Server) adminCreateManualSubscription(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID           string   `json:"user_id"`
+		NodeID           string   `json:"node_id"`
+		Protocol         string   `json:"protocol"`
+		TrafficLimitGB   *float64 `json:"traffic_limit_gb"`
+		TrafficUnlimited bool     `json:"traffic_unlimited"`
+		DeviceLimit      *int     `json:"device_limit"`
+		ExpiresAt        string   `json:"expires_at"`
+		ExpiryUnlimited  bool     `json:"expiry_unlimited"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	req.UserID = strings.TrimSpace(req.UserID)
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	if req.UserID == "" || req.NodeID == "" {
+		writeError(w, http.StatusBadRequest, "user_id and node_id are required")
+		return
+	}
+	if req.Protocol == "" {
+		req.Protocol = "vless-reality"
+	}
+
+	var trafficLimitBytes *int64
+	if !req.TrafficUnlimited && req.TrafficLimitGB != nil && *req.TrafficLimitGB > 0 {
+		bytes := int64(*req.TrafficLimitGB * 1024 * 1024 * 1024)
+		trafficLimitBytes = &bytes
+	}
+
+	var expiresAt *time.Time
+	if !req.ExpiryUnlimited && strings.TrimSpace(req.ExpiresAt) != "" {
+		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(req.ExpiresAt))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "expires_at must be RFC3339")
+			return
+		}
+		parsed = parsed.UTC()
+		expiresAt = &parsed
+	}
+
+	actor := currentUser(r.Context()).ID
+	sub, grant, err := s.app.Store.AdminCreateManualSubscription(r.Context(), req.UserID, trafficLimitBytes, req.DeviceLimit, expiresAt, req.NodeID, req.Protocol, actor)
+	if errors.Is(err, store.ErrLimitReached) {
+		writeError(w, http.StatusForbidden, "TRAFFIC_LIMIT_REACHED")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not create manual subscription")
+		return
+	}
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "subscription.created_manual", "subscription", &sub.ID, map[string]any{
+		"user_id":       req.UserID,
+		"node_id":       req.NodeID,
+		"protocol":      req.Protocol,
+		"traffic_limit": trafficLimitBytes,
+		"expires_at":    expiresAt,
+	})
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"subscription": sub,
+		"grant":        grant,
+		"grant_label":  grantLabel(grant.ID),
+		"link":         s.subscriptionLink(grant.ID),
+	})
+}
+
+// adminEditSubscription force-sets whichever of limit/expiry/status an admin
+// supplied; omitted fields are left unchanged. Resetting usage is a separate
+// endpoint (adminResetSubscriptionUsage) since it's a distinct, audited
+// action rather than a field edit.
+func (s *Server) adminEditSubscription(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		TrafficLimitGB   *float64 `json:"traffic_limit_gb"`
+		TrafficUnlimited bool     `json:"traffic_unlimited"`
+		DeviceLimit      *int     `json:"device_limit"`
+		ExpiresAt        string   `json:"expires_at"`
+		Status           string   `json:"status"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	subscriptionID := chi.URLParam(r, "subscriptionID")
+
+	var trafficLimitBytes *int64
+	if req.TrafficLimitGB != nil && *req.TrafficLimitGB > 0 {
+		bytes := int64(*req.TrafficLimitGB * 1024 * 1024 * 1024)
+		trafficLimitBytes = &bytes
+	}
+
+	var expiresAt *time.Time
+	if strings.TrimSpace(req.ExpiresAt) != "" {
+		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(req.ExpiresAt))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "expires_at must be RFC3339")
+			return
+		}
+		parsed = parsed.UTC()
+		expiresAt = &parsed
+	}
+
+	var status *string
+	if strings.TrimSpace(req.Status) != "" {
+		s := strings.TrimSpace(req.Status)
+		status = &s
+	}
+
+	sub, err := s.app.Store.AdminEditSubscription(r.Context(), subscriptionID, trafficLimitBytes, req.TrafficUnlimited, req.DeviceLimit, expiresAt, status)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "subscription not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not update subscription")
+		return
+	}
+	actor := currentUser(r.Context()).ID
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "subscription.edited", "subscription", &sub.ID, map[string]any{
+		"traffic_limit_gb": req.TrafficLimitGB,
+		"unlimited":        req.TrafficUnlimited,
+		"device_limit":     req.DeviceLimit,
+		"expires_at":       req.ExpiresAt,
+		"status":           req.Status,
+	})
+	writeJSON(w, http.StatusOK, sub)
+}
+
+func (s *Server) adminResetSubscriptionUsage(w http.ResponseWriter, r *http.Request) {
+	subscriptionID := chi.URLParam(r, "subscriptionID")
+	if err := s.app.Store.ResetSubscriptionUsage(r.Context(), subscriptionID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not reset usage")
+		return
+	}
+	actor := currentUser(r.Context()).ID
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "subscription.usage_reset", "subscription", &subscriptionID, nil)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// adminReissueSubscription revokes the subscription's current grant and
+// issues a fresh one — the old subscription link stops authenticating
+// (RevokeAccessGrant bumps the node's desired-state revision) and a new
+// link is returned in the same response.
+func (s *Server) adminReissueSubscription(w http.ResponseWriter, r *http.Request) {
+	subscriptionID := chi.URLParam(r, "subscriptionID")
+	actor := currentUser(r.Context()).ID
+	grant, err := s.app.Store.AdminReissueSubscriptionGrant(r.Context(), actor, subscriptionID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "subscription has no active grant to reissue")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not reissue subscription link")
+		return
+	}
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "subscription.link_reissued", "subscription", &subscriptionID, map[string]any{"new_grant_id": grant.ID})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"grant":       grant,
+		"grant_label": grantLabel(grant.ID),
+		"link":        s.subscriptionLink(grant.ID),
+	})
+}
+
+// adminDeleteSubscription is destructive (revokes live access), so it
+// requires an explicit confirm:true in the body rather than acting on a
+// bare POST — matching the "don't let one innocuous call trigger permanent
+// change" rule the rest of this API follows for other destructive actions.
+func (s *Server) adminDeleteSubscription(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Confirm bool `json:"confirm"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if !req.Confirm {
+		writeError(w, http.StatusBadRequest, "confirm:true is required to delete a subscription")
+		return
+	}
+	subscriptionID := chi.URLParam(r, "subscriptionID")
+	sub, err := s.app.Store.AdminDeleteSubscription(r.Context(), subscriptionID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "subscription not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not delete subscription")
+		return
+	}
+	actor := currentUser(r.Context()).ID
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "subscription.deleted", "subscription", &sub.ID, map[string]any{"hard_delete": false})
+	writeJSON(w, http.StatusOK, sub)
+}
+
+// grantLabel matches the "WVB-XXXXXXXX" convention already used by
+// refreshNodeDesiredStateTx's desired-state payload (first 8 hex chars of
+// the grant UUID, uppercased, dashes stripped).
+func grantLabel(grantID string) string {
+	id := strings.ReplaceAll(grantID, "-", "")
+	if len(id) > 8 {
+		id = id[:8]
+	}
+	return "WVB-" + strings.ToUpper(id)
+}
+
+// subscriptionLink hardcodes the production API host rather than reading it
+// from config, since no such setting exists yet (see confirmed doc: the
+// public subscription URL format is already fixed at
+// https://api.wavebreak.com.tr/v1/sub/{grantID}). If Core's public host
+// ever becomes configurable, this should read that instead.
+func (s *Server) subscriptionLink(grantID string) string {
+	return "https://api.wavebreak.com.tr/v1/sub/" + grantID
+}
+
 func (s *Server) adminDevices(w http.ResponseWriter, r *http.Request) {
 	devices, err := s.app.Store.ListAllDevices(r.Context())
 	if err != nil {

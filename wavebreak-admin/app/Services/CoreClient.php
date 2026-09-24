@@ -101,6 +101,31 @@ class CoreClient
         ])->throw()->json();
     }
 
+    public function createManualSubscription(string $token, array $data): array
+    {
+        return $this->auth($token)->post('/v1/admin/subscriptions/manual', $data)->throw()->json();
+    }
+
+    public function editSubscription(string $token, string $subscriptionId, array $data): array
+    {
+        return $this->auth($token)->patch("/v1/admin/subscriptions/{$subscriptionId}", $data)->throw()->json();
+    }
+
+    public function resetSubscriptionUsage(string $token, string $subscriptionId): array
+    {
+        return $this->auth($token)->post("/v1/admin/subscriptions/{$subscriptionId}/reset-usage")->throw()->json();
+    }
+
+    public function reissueSubscription(string $token, string $subscriptionId): array
+    {
+        return $this->auth($token)->post("/v1/admin/subscriptions/{$subscriptionId}/reissue")->throw()->json();
+    }
+
+    public function deleteSubscription(string $token, string $subscriptionId): array
+    {
+        return $this->auth($token)->post("/v1/admin/subscriptions/{$subscriptionId}/delete", ['confirm' => true])->throw()->json();
+    }
+
     public function devices(string $token): array
     {
         return $this->auth($token, true)->get('/v1/admin/devices')->throw()->json('devices') ?? [];

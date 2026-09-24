@@ -1,56 +1,83 @@
-# Testing the "whitelist bypass" (REALITY) location
+# Инструкция: точка доступа-имитатор whitelist-сети (ASUS VivoBook, Windows 11, Intel Wireless-AC 9560)
 
-Simulates a restrictive network that only allows outbound TLS to a small
-domain whitelist, so we can check whether WaveBreak's REALITY transport
-actually gets through where normal apps don't.
+## Проверка ОС/адаптера (уже выполнено)
+- ОС: Windows 11
+- Wi-Fi адаптер: Intel(R) Wireless-AC 9560 160MHz — поддерживает режим точки доступа (Mobile Hotspot / SoftAP), команда для проверки в будущем: `Get-NetAdapter -Physical` в PowerShell.
 
-## Setup (on the laptop that will act as the hotspot)
+## Почему не голый Windows Firewall
+Обычные правила брандмауэра Windows (входящие/исходящие) применяются к трафику **самого хоста** (по процессу/порту), а не к пакетам, которые Windows **пересылает** через точку доступа/ICS от телефона в интернет — это два разных уровня стека, и правило "разрешить только домен X" на файрволе просто не увидит переданный трафик клиента точки доступа. Поэтому используем **WinDivert** (низкоуровневый драйвер захвата пакетов ниже маршрутизации — он видит и умеет фильтровать именно пересылаемый/раздаваемый трафик, это его штатный сценарий использования, не только трафик самого хоста).
 
-1. Install Python 3 if not already present, then:
-   ```
-   pip install pydivert
-   ```
-2. Turn on Windows Mobile Hotspot (Settings → Network & Internet → Mobile
-   hotspot), sharing the laptop's normal internet connection.
-3. Open a terminal **as Administrator** and run:
-   ```
-   python sni_whitelist_filter.py
-   ```
-   Leave it running — it prints `ALLOW`/`BLOCK` for every new connection it
-   sees, live.
+**Как это будет доказано, а не просто заявлено**: п.5 "План теста" ниже — если после запуска фильтра запрещённый сайт с телефона перестаёт открываться, а разрешённый продолжает — правила реально применяются к раздаваемому трафику. Если НЕТ (запрещённый сайт как ни в чём не бывало открывается) — WinDivert на этом адаптере не видит трафик точки доступа, и нужно переходить к запасному варианту (Ubuntu с флешки + hostapd + nftables), который тоже описан ниже.
 
-## Test procedure
+## Шаг 1 — Включить точку доступа
+1. **Настройки → Сеть и Интернет → Мобильный хот-спот**
+2. «Совместно использовать интернет-подключение с другими устройствами» — включить
+3. «Совместно используемое подключение к интернету» — выберите то, откуда реально идёт интернет на этот ноутбук (Ethernet, если подключены проводом; если Wi-Fi — тогда точку доступа нужно поднимать на этом же Wi-Fi-модуле в режиме одновременного клиент+AP, что Intel AC 9560 умеет, но лучше раздавать с Ethernet, если он подключен, для надёжности)
+4. Запишите SSID и пароль, которые показывает Windows
 
-1. Connect the phone to the laptop's hotspot.
-2. **Before** turning on WaveBreak: try Telegram, Instagram, a random
-   website. They should all fail/hang (blocked — confirms the simulated
-   allowlist is actually restrictive).
-3. Turn on WaveBreak, pick the **VLESS-REALITY** location (the
-   "whitelist bypass" one — SNI `www.cloudflare.com`).
-4. Retry Telegram/Instagram/browsing. If REALITY is doing its job, these
-   should now work, and the filter script's console should show an
-   `ALLOW  sni=www.cloudflare.com` line for WaveBreak's own connection —
-   proving it got through specifically because it presented a whitelisted
-   SNI, not because the whitelist was too loose.
-5. If something doesn't work, use the app's **Export logs** feature
-   (Settings → About → Export logs, or wherever it's exposed) and send the
-   log file back — that's the fastest way to diagnose it further.
+**Что вы должны увидеть**: телефон видит эту Wi-Fi сеть в списке, подключается, получает интернет без каких-либо ограничений.
 
-## Editing the whitelist
+## Шаг 2 — Узнать подсеть точки доступа
+Откройте PowerShell:
+```
+ipconfig
+```
+Найдите адаптер с именем вида `Локальная сеть* N` или `Мобильный хот-спот`, с IP обычно `192.168.137.1`.
 
-Open `sni_whitelist_filter.py` and edit the `WHITELIST` set near the top to
-match whatever scenario you're simulating (a school network, a specific
-company's proxy, etc.) — a handful of real, unrelated-to-us domains is more
-realistic than a single-entry whitelist.
+**Что вы должны увидеть**: IPv4-адрес этого адаптера (обычно `192.168.137.1/24`) — телефон получит IP из этой подсети.
 
-## Known limitations of this test rig
+## Шаг 3 — Установить Python-зависимость (один раз)
+```
+pip install pydivert
+```
+**Что вы должны увидеть**: `Successfully installed pydivert-...`
 
-- This checks TLS SNI only, not full DPI/IP-reputation cross-checking (a
-  more sophisticated real-world filter might also flag "SNI says
-  cloudflare.com but the IP isn't actually Cloudflare's" — this script
-  does not do that check, so it's testing the *simpler and more common*
-  kind of allowlist, not the hardest possible one).
-- Blocked connections are dropped silently (client sees a timeout), which
-  is realistic for most such networks, but some real deployments send an
-  explicit RST or an HTTP redirect to a "blocked" page instead — behavior
-  may differ slightly from a specific real network you're trying to match.
+## Шаг 4 — Отредактировать whitelist
+Файл: `wavebreak-infrastructure/testing/whitelist.txt` (уже создан, лежит в репозитории рядом со скриптом).
+Формат — по одной записи на строку, `#` — комментарий:
+```
+www.google.com
+www.microsoft.com
+www.cloudflare.com
+```
+Добавляйте/убирайте домены, чтобы смоделировать нужную строгость whitelist. Можно указывать и IP-адреса напрямую (для не-TLS трафика или чтобы смоделировать «IP сервера тоже в белом списке»).
+
+## Шаг 5 — Запустить фильтр (обязательно от Администратора)
+Откройте PowerShell **от имени администратора**, перейдите в папку скрипта:
+```
+cd "C:\Work Folder\WaveBreak\wavebreak-infrastructure\testing"
+python sni_whitelist_filter.py
+```
+**Что вы должны увидеть**: строку `SNI whitelist filter starting.` и список загруженных доменов. Дальше в консоли будет в реальном времени печататься `ALLOW`/`BLOCK` для каждого нового TLS-соединения с телефона.
+
+## План теста
+
+**(1) Без VPN, фильтр включён:**
+- На телефоне откройте `https://www.google.com` → должен открыться (в консоли: `ALLOW sni=www.google.com`)
+- Откройте любой не входящий в whitelist сайт, например `https://www.wikipedia.org` → не должен открыться, зависнет на загрузке (в консоли: `BLOCK sni=www.wikipedia.org`)
+
+**(2) Включаете WaveBreak (REALITY-локация):**
+- Проверяете, что в консоли фильтра прошло `ALLOW sni=www.cloudflare.com` (это ваш туннель — маскируется под Cloudflare)
+- На сервере проверяете хендшейк и подключение клиента: команда боту `/clients` (должен показать `online` для вашего клиента) и `/reconnects` (не должно быть шторма реконнектов именно в момент этого теста)
+- В самом приложении откройте Telegram/сайт, не входящий в whitelist — если тоннель реально работает, страница должна загрузиться, несмотря на то, что фильтр блокирует её напрямую
+
+**(3) Если VPN включён, но не работает:**
+Значит на данном конкретном "whitelist" либо `www.cloudflare.com` как SNI недостаточно (сеть проверяет IP назначения, а не только SNI — см. честную оговорку в Задаче 4 предыдущего отчёта). Чтобы смоделировать сценарий «наш сервер сам в белом списке» (а не только замаскирован под Cloudflare), добавьте в `whitelist.txt`:
+```
+45.15.41.3
+```
+и перезапустите скрипт. Если после этого туннель заработал — значит проблема именно в проверке IP, а не SNI, и REALITY-маскировка одна не решает задачу против такого типа фильтра.
+
+## Откат
+1. В консоли фильтра — `Ctrl+C` (сразу восстанавливает нормальный трафик, WinDivert снимает перехват)
+2. Настройки → Мобильный хот-спот → выключить
+3. Ничего в системе не изменялось (ни файрвол, ни маршруты, ни реестр) — скрипт не оставляет постоянных следов, весь эффект только пока запущен
+
+## Запасной вариант, если WinDivert не видит трафик точки доступа
+Если тест в п.5 показал, что запрещённый сайт всё равно открывается (фильтр не видит трафик от телефона) — переходим на связку, которая гарантированно работает на уровне ядра Linux:
+1. Загрузочная флешка Ubuntu (Rufus + Ubuntu Desktop ISO)
+2. Загрузиться с флешки в Live-режиме (без установки)
+3. `nmcli device wifi hotspot` — поднять точку доступа через NetworkManager на встроенном Wi-Fi адаптере
+4. `nftables` с явным allowlist по IP/подсетям на исходящий трафик через hotspot-интерфейс
+5. `dnsmasq`, отвечающий только на whitelisted-домены (для остальных — NXDOMAIN)
+Это отдельная инструкция большего объёма — скажите, если понадобится именно этот вариант, подготовлю пошагово так же подробно, как этот.

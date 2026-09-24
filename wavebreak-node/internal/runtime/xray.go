@@ -447,7 +447,13 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			"outboundTag": "api",
 		}}, routingRules...)
 		outbounds = append(outbounds, map[string]any{"tag": "api", "protocol": "freedom", "settings": map[string]any{}})
-		api = map[string]any{"tag": "api", "services": []string{"StatsService"}}
+		// HandlerService is what lets the agent add/remove a single inbound's
+		// client live via gRPC (see xray_grpc.go's ApplyIncremental) instead
+		// of always rewriting this whole file and restarting the container.
+		// It shares the same "api" dokodemo-door inbound/gRPC listener as
+		// StatsService — enabling it here is a one-time config change that
+		// needs one restart to take effect, same as any other inbound change.
+		api = map[string]any{"tag": "api", "services": []string{"StatsService", "HandlerService"}}
 		stats = map[string]any{}
 	}
 	rendered := map[string]any{
@@ -486,7 +492,12 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 	return json.MarshalIndent(rendered, "", "  ")
 }
 
-func (a XrayAdapter) Apply(ctx context.Context, rendered []byte) error {
+// writeXrayConfigFile persists the rendered config to disk so a future
+// restart (planned or not) comes back up with whatever is currently live,
+// without itself triggering a restart. Used by both the full Apply() path
+// and the live gRPC incremental path (xray_grpc.go), which never restarts
+// Xray but still needs the on-disk file to stay truthful.
+func (a XrayAdapter) writeXrayConfigFile(rendered []byte) error {
 	if err := os.MkdirAll(filepath.Dir(a.cfg.ConfigPath), 0o755); err != nil {
 		return err
 	}
@@ -494,7 +505,11 @@ func (a XrayAdapter) Apply(ctx context.Context, rendered []byte) error {
 	if err := os.WriteFile(tmp, rendered, 0o644); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, a.cfg.ConfigPath); err != nil {
+	return os.Rename(tmp, a.cfg.ConfigPath)
+}
+
+func (a XrayAdapter) Apply(ctx context.Context, rendered []byte) error {
+	if err := a.writeXrayConfigFile(rendered); err != nil {
 		return err
 	}
 	if err := a.applyHysteria(ctx); err != nil {

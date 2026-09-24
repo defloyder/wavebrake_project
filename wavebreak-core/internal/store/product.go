@@ -1008,6 +1008,205 @@ func (s *Store) SoftDeletePlan(ctx context.Context, planID string) error {
 	return nil
 }
 
+// ensureCustomPlanID returns the id of a hidden, non-public plan used purely
+// as the FK anchor for admin-issued ad-hoc subscriptions (plan_id is NOT
+// NULL on subscriptions and a schema migration to relax that was judged
+// unnecessary indirection for this feature). Its own limit columns are never
+// read for these subscriptions — every admin-issued subscription writes its
+// traffic/device snapshot and current_period_end directly, so this plan
+// row's values are irrelevant placeholders.
+func (s *Store) ensureCustomPlanID(ctx context.Context) (string, error) {
+	var id string
+	err := s.db.QueryRow(ctx, `
+		insert into plans (code, name, description, price_cents, price_minor, currency, interval, duration_days, device_limit, traffic_limit_bytes, concurrent_connection_limit, active, is_active, is_public, sort_order)
+		values ('admin-custom', 'Custom (admin-issued)', 'Internal placeholder plan for admin-issued ad-hoc subscriptions; not customer-facing.', 0, 0, 'USD', 'month', 36500, 1, null, null, true, true, false, 9999)
+		on conflict (code) do update set name = excluded.name
+		returning id::text`).Scan(&id)
+	return id, err
+}
+
+// AdminCreateManualSubscription issues a subscription that isn't tied to a
+// public plan: an admin picks the traffic limit (nil = unlimited) and expiry
+// (nil = unlimited / far future) directly. It also immediately creates the
+// first access grant on the given node/protocol so the caller gets back a
+// usable grant ID / subscription link in one round trip.
+func (s *Store) AdminCreateManualSubscription(ctx context.Context, userID string, trafficLimitBytes *int64, deviceLimit *int, expiresAt *time.Time, nodeID, protocol, createdBy string) (Subscription, AccessGrant, error) {
+	planID, err := s.ensureCustomPlanID(ctx)
+	if err != nil {
+		return Subscription{}, AccessGrant{}, err
+	}
+
+	periodEnd := time.Now().UTC().AddDate(100, 0, 0) // "unlimited" sentinel: effectively never expires
+	if expiresAt != nil {
+		periodEnd = expiresAt.UTC()
+	}
+	devLimit := 1
+	if deviceLimit != nil && *deviceLimit > 0 {
+		devLimit = *deviceLimit
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return Subscription{}, AccessGrant{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var sub Subscription
+	err = tx.QueryRow(ctx, `
+		insert into subscriptions (
+			user_id, plan_id, status, source, created_by, current_period_end,
+			traffic_limit_bytes_snapshot, device_limit_snapshot, concurrent_connection_limit_snapshot,
+			traffic_limit_override_bytes, device_limit_override, started_at
+		)
+		values ($1, $2, 'active', 'admin_manual', $3, $4, $5, $6, $6, $5, $6, now())
+		returning id::text, user_id::text, plan_id::text, status, source, source_reference, created_by::text,
+		          traffic_limit_bytes_snapshot, device_limit_snapshot, concurrent_connection_limit_snapshot,
+		          traffic_limit_override_bytes, device_limit_override, current_period_end, created_at, updated_at`,
+		userID, planID, createdBy, periodEnd, trafficLimitBytes, devLimit,
+	).Scan(&sub.ID, &sub.UserID, &sub.PlanID, &sub.Status, &sub.Source, &sub.SourceReference, &sub.CreatedBy, &sub.TrafficLimitBytesSnapshot, &sub.DeviceLimitSnapshot, &sub.ConcurrentConnectionLimitSnapshot, &sub.TrafficLimitOverrideBytes, &sub.DeviceLimitOverride, &sub.CurrentPeriodEnd, &sub.CreatedAt, &sub.UpdatedAt)
+	if err != nil {
+		return Subscription{}, AccessGrant{}, err
+	}
+	payload, _ := json.Marshal(sub)
+	if err := insertOutbox(ctx, tx, "subscription.activated", sub.ID, payload); err != nil {
+		return Subscription{}, AccessGrant{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Subscription{}, AccessGrant{}, err
+	}
+
+	grant, err := s.CreateAccessGrant(ctx, userID, nodeID, protocol, "", periodEnd)
+	if err != nil {
+		return sub, AccessGrant{}, err
+	}
+	return sub, grant, nil
+}
+
+// AdminEditSubscription applies whichever of these an admin supplied: nil
+// pointers mean "leave unchanged". trafficLimitBytes uses the pointer
+// pattern the schema already relies on for "unlimited" (nil override falls
+// back to nil snapshot); pass clearTrafficLimit=true to explicitly force
+// unlimited (nil) rather than leaving the existing override in place.
+func (s *Store) AdminEditSubscription(ctx context.Context, subscriptionID string, trafficLimitBytes *int64, clearTrafficLimit bool, deviceLimit *int, currentPeriodEnd *time.Time, status *string) (Subscription, error) {
+	if status != nil {
+		switch *status {
+		case "pending", "active", "expired", "cancelled", "suspended":
+		default:
+			return Subscription{}, errors.New("invalid subscription status")
+		}
+	}
+	var sub Subscription
+	err := s.db.QueryRow(ctx, `
+		update subscriptions
+		set traffic_limit_override_bytes = case
+		        when $2 then null
+		        when $3::bigint is not null then $3::bigint
+		        else traffic_limit_override_bytes
+		    end,
+		    device_limit_override = coalesce($4::int, device_limit_override),
+		    current_period_end = coalesce($5::timestamptz, current_period_end),
+		    status = coalesce($6, status),
+		    ended_at = case when coalesce($6, status) in ('expired', 'cancelled') then now() else ended_at end,
+		    updated_at = now()
+		where id = $1
+		returning id::text, user_id::text, plan_id::text, status, source, source_reference, created_by::text,
+		          traffic_limit_bytes_snapshot, device_limit_snapshot, concurrent_connection_limit_snapshot,
+		          traffic_limit_override_bytes, device_limit_override, current_period_end, created_at, updated_at`,
+		subscriptionID, clearTrafficLimit, trafficLimitBytes, deviceLimit, currentPeriodEnd, status,
+	).Scan(&sub.ID, &sub.UserID, &sub.PlanID, &sub.Status, &sub.Source, &sub.SourceReference, &sub.CreatedBy, &sub.TrafficLimitBytesSnapshot, &sub.DeviceLimitSnapshot, &sub.ConcurrentConnectionLimitSnapshot, &sub.TrafficLimitOverrideBytes, &sub.DeviceLimitOverride, &sub.CurrentPeriodEnd, &sub.CreatedAt, &sub.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Subscription{}, ErrNotFound
+	}
+	return sub, err
+}
+
+// ResetSubscriptionUsage zeroes the running usage counter that traffic-limit
+// enforcement reads (subscription_usage). The daily history table
+// (subscription_usage_daily), which backs reporting/charts elsewhere, is
+// deliberately left untouched — this is a billing-cycle reset, not an
+// erasure of what actually happened.
+func (s *Store) ResetSubscriptionUsage(ctx context.Context, subscriptionID string) error {
+	_, err := s.db.Exec(ctx, `
+		insert into subscription_usage (subscription_id, bytes_up, bytes_down)
+		values ($1, 0, 0)
+		on conflict (subscription_id) do update set bytes_up = 0, bytes_down = 0, updated_at = now()`,
+		subscriptionID)
+	if err != nil {
+		return err
+	}
+	// Also rebase the monotonic node-report counters so the next usage
+	// report from the node doesn't immediately re-derive a huge "delta"
+	// against a counter that no longer matches the zeroed total.
+	_, err = s.db.Exec(ctx, `
+		update grant_usage_counters
+		set total_bytes_up = 0, total_bytes_down = 0, updated_at = now()
+		where subscription_id = $1`, subscriptionID)
+	return err
+}
+
+// AdminReissueSubscriptionGrant revokes the subscription's current active
+// grant (immediately invalidating its subscription link/config) and issues a
+// fresh one on the same node/protocol/device. RevokeAccessGrant already
+// bumps the node's desired-state revision, which is what makes the old
+// grant ID actually stop authenticating once the node (or, once part 1 of
+// this feature ships, the live gRPC path) applies the new desired state.
+func (s *Store) AdminReissueSubscriptionGrant(ctx context.Context, actorUserID, subscriptionID string) (AccessGrant, error) {
+	var old AccessGrant
+	err := s.db.QueryRow(ctx, `
+		select id::text, user_id::text, subscription_id::text, device_id::text, node_id::text, protocol, status, expires_at, revoked_at, revoked_reason, desired_revision, created_at
+		from access_grants
+		where subscription_id = $1 and status = 'active'
+		order by created_at desc
+		limit 1`, subscriptionID,
+	).Scan(&old.ID, &old.UserID, &old.SubscriptionID, &old.DeviceID, &old.NodeID, &old.Protocol, &old.Status, &old.ExpiresAt, &old.RevokedAt, &old.RevokedReason, &old.DesiredRevision, &old.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AccessGrant{}, ErrNotFound
+	}
+	if err != nil {
+		return AccessGrant{}, err
+	}
+	if _, err := s.RevokeAccessGrant(ctx, "", old.ID, "reissued"); err != nil {
+		return AccessGrant{}, err
+	}
+	deviceID := ""
+	if old.DeviceID != nil {
+		deviceID = *old.DeviceID
+	}
+	return s.CreateAccessGrant(ctx, old.UserID, old.NodeID, old.Protocol, deviceID, old.ExpiresAt)
+}
+
+// AdminDeleteSubscription revokes every grant the subscription still has
+// active and marks the subscription itself 'cancelled' with ended_at set —
+// the same convention UpdateSubscriptionStatus already uses for a
+// subscription that's gone, since this schema has no separate soft-delete
+// column for subscriptions the way users have disabled_at.
+func (s *Store) AdminDeleteSubscription(ctx context.Context, subscriptionID string) (Subscription, error) {
+	rows, err := s.db.Query(ctx, `select id::text from access_grants where subscription_id = $1 and status = 'active'`, subscriptionID)
+	if err != nil {
+		return Subscription{}, err
+	}
+	var grantIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return Subscription{}, err
+		}
+		grantIDs = append(grantIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return Subscription{}, err
+	}
+	rows.Close()
+	for _, id := range grantIDs {
+		if _, err := s.RevokeAccessGrant(ctx, "", id, "subscription_deleted"); err != nil {
+			return Subscription{}, err
+		}
+	}
+	return s.UpdateSubscriptionStatus(ctx, subscriptionID, "cancelled")
+}
+
 func (s *Store) ListAllSubscriptions(ctx context.Context) ([]Subscription, error) {
 	rows, err := s.db.Query(ctx, `
 		select id::text, user_id::text, plan_id::text, status, source, source_reference, created_by::text,

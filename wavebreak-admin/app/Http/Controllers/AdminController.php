@@ -368,6 +368,129 @@ class AdminController extends Controller
         return $this->coreAction($request, '/subscriptions', 'Статус подписки обновлён.', fn ($token) => $this->core->updateSubscriptionStatus($token, $subscriptionId, $data['status']));
     }
 
+    // Ad-hoc "issue a subscription not tied to a plan" form: a GB number or
+    // the unlimited checkbox for traffic, a date or the unlimited checkbox
+    // for expiry. On success the new grant/link is flashed back so the view
+    // can show it plus a QR code, same session, no second page.
+    public function createManualSubscription(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'user_id' => ['required', 'string'],
+            'node_id' => ['required', 'string'],
+            'protocol' => ['nullable', 'string', 'max:40'],
+            'traffic_unlimited' => ['nullable', 'boolean'],
+            'traffic_limit_gb' => ['nullable', 'numeric', 'min:0.01'],
+            'expiry_unlimited' => ['nullable', 'boolean'],
+            'expires_at' => ['nullable', 'date'],
+        ]);
+
+        $trafficUnlimited = $request->boolean('traffic_unlimited');
+        $expiryUnlimited = $request->boolean('expiry_unlimited');
+        if (! $trafficUnlimited && empty($data['traffic_limit_gb'])) {
+            return redirect('/subscriptions')->with('error', 'Укажите лимит трафика в ГБ или отметьте «безлимит».');
+        }
+        if (! $expiryUnlimited && empty($data['expires_at'])) {
+            return redirect('/subscriptions')->with('error', 'Укажите дату окончания или отметьте «бессрочно».');
+        }
+
+        $payload = [
+            'user_id' => $data['user_id'],
+            'node_id' => $data['node_id'],
+            'protocol' => $data['protocol'] ?? 'vless-reality',
+            'traffic_unlimited' => $trafficUnlimited,
+            'traffic_limit_gb' => $trafficUnlimited ? null : (float) $data['traffic_limit_gb'],
+            'expiry_unlimited' => $expiryUnlimited,
+            'expires_at' => $expiryUnlimited ? null : \Illuminate\Support\Carbon::parse($data['expires_at'])->toRfc3339String(),
+        ];
+
+        $token = $this->token($request);
+        if ($token === null) {
+            return redirect('/login');
+        }
+        try {
+            $result = $this->core->createManualSubscription($token, $payload);
+        } catch (RequestException $e) {
+            if ($e->response->status() === 401) {
+                $request->session()->forget('wavebreak_admin_tokens');
+
+                return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
+            }
+            $message = $e->response->json('error') ?? 'Не удалось создать подписку.';
+
+            return redirect('/subscriptions')->with('error', is_string($message) ? $message : 'Не удалось создать подписку.');
+        }
+
+        return redirect('/subscriptions')->with('success', 'Подписка создана.')->with('new_subscription_link', [
+            'label' => $result['grant_label'] ?? null,
+            'link' => $result['link'] ?? null,
+        ]);
+    }
+
+    public function editSubscription(Request $request, string $subscriptionId): RedirectResponse
+    {
+        $data = $request->validate([
+            'traffic_unlimited' => ['nullable', 'boolean'],
+            'traffic_limit_gb' => ['nullable', 'numeric', 'min:0.01'],
+            'device_limit' => ['nullable', 'integer', 'min:1'],
+            'expires_at' => ['nullable', 'date'],
+            'status' => ['nullable', 'string', 'in:pending,active,expired,cancelled,suspended'],
+        ]);
+
+        $payload = [
+            'traffic_unlimited' => $request->boolean('traffic_unlimited'),
+            'traffic_limit_gb' => ! empty($data['traffic_limit_gb']) ? (float) $data['traffic_limit_gb'] : null,
+            'device_limit' => $data['device_limit'] ?? null,
+            'expires_at' => ! empty($data['expires_at']) ? \Illuminate\Support\Carbon::parse($data['expires_at'])->toRfc3339String() : null,
+            'status' => $data['status'] ?? null,
+        ];
+
+        return $this->coreAction($request, '/subscriptions', 'Подписка обновлена.', fn ($token) => $this->core->editSubscription($token, $subscriptionId, $payload));
+    }
+
+    public function resetSubscriptionUsage(Request $request, string $subscriptionId): RedirectResponse
+    {
+        return $this->coreAction($request, '/subscriptions', 'Счётчик использования сброшен.', fn ($token) => $this->core->resetSubscriptionUsage($token, $subscriptionId));
+    }
+
+    // Revokes the current grant and issues a fresh one — the old
+    // subscription link stops working immediately. The confirmation prompt
+    // for this lives in the subscriptions view (JS confirm()), since this
+    // invalidates a link that may already be in a customer's hands.
+    public function reissueSubscription(Request $request, string $subscriptionId): RedirectResponse
+    {
+        $token = $this->token($request);
+        if ($token === null) {
+            return redirect('/login');
+        }
+        try {
+            $result = $this->core->reissueSubscription($token, $subscriptionId);
+        } catch (RequestException $e) {
+            if ($e->response->status() === 401) {
+                $request->session()->forget('wavebreak_admin_tokens');
+
+                return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
+            }
+            $message = $e->response->json('error') ?? 'Не удалось перевыпустить ссылку.';
+
+            return redirect('/subscriptions')->with('error', is_string($message) ? $message : 'Не удалось перевыпустить ссылку.');
+        }
+
+        return redirect('/subscriptions')->with('success', 'Ссылка перевыпущена. Старая ссылка больше не работает.')->with('new_subscription_link', [
+            'label' => $result['grant_label'] ?? null,
+            'link' => $result['link'] ?? null,
+        ]);
+    }
+
+    // Destructive — the Core endpoint itself requires confirm:true (see
+    // CoreClient::deleteSubscription), and this form's own submit button
+    // requires a JS confirm() in the view on top of that, matching how
+    // other destructive actions (deleteUser) already gate on a second
+    // explicit step rather than a bare POST.
+    public function deleteSubscription(Request $request, string $subscriptionId): RedirectResponse
+    {
+        return $this->coreAction($request, '/subscriptions', 'Подписка удалена, доступ отозван.', fn ($token) => $this->core->deleteSubscription($token, $subscriptionId));
+    }
+
     // Every mutating admin action funnels through here: runs $action with
     // the current token, flashes a success message on the way back to
     // $redirectTo, and turns whatever Core says on failure into something

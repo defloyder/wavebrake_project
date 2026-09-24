@@ -1,0 +1,22 @@
+# Whitelist for sni_whitelist_filter.py — one entry per line, '#' = comment.
+#
+# Two kinds of entries:
+#   - a hostname  -> matched against the TLS ClientHello's SNI (exact match)
+#   - an IPv4     -> matched against destination IP (allows non-TLS traffic
+#                    too, e.g. plain HTTP, or to simulate "server IP itself
+#                    is whitelisted" instead of just its SNI)
+#
+# To model a stricter/looser allowlist for your test, just add/remove lines
+# here and restart sni_whitelist_filter.py — no code changes needed.
+
+www.google.com
+www.microsoft.com
+www.cloudflare.com
+
+# WaveBreak's REALITY masquerade SNI is www.cloudflare.com (already listed
+# above) — this is the whole point of the test: it should get through even
+# though the server's real IP (45.15.41.3) is NOT in this list at all.
+#
+# To simulate "our server's IP got explicitly whitelisted" (Task 4 fallback
+# scenario if the SNI-only bypass doesn't work on the real network), add:
+# 45.15.41.3

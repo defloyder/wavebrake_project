@@ -426,13 +426,44 @@
     @endif
 
     @if($section === 'subscriptions')
+        @php
+            $wvbLabel = fn ($grantId) => 'WVB-' . strtoupper(substr(str_replace('-', '', $grantId), 0, 8));
+            $grantsBySub = collect($grants ?? [])->where('status', 'active')->keyBy('subscription_id');
+            $trafficBySub = collect($traffic ?? [])->keyBy('subscription_id');
+            $onlineNodeOptions = collect($nodes ?? [])->map(fn ($n) => ['id' => $n['id'], 'label' => $n['code'] ?? $n['id']]);
+        @endphp
         <section class="adm-card">
-            <div class="adm-card-head">
+            <div class="adm-card-head adm-card-head--row">
                 <div>
                     <h6>Subscriptions</h6>
                     <p>Activation source, period and frozen limits are stored in Core.</p>
                 </div>
+                <button type="button" class="adm-btn adm-btn-primary" onclick="admOpenSubModal()">+ Создать подписку</button>
             </div>
+
+            @if(session('new_subscription_link') && (session('new_subscription_link')['link'] ?? null))
+                @php $newLink = session('new_subscription_link'); @endphp
+                <div class="adm-alert" style="display:flex;flex-direction:column;gap:8px;">
+                    <strong>{{ $newLink['label'] ?? 'Новая ссылка' }}</strong>
+                    <code id="adm-new-link" style="word-break:break-all;">{{ $newLink['link'] }}</code>
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <button type="button" class="adm-btn" onclick="admCopyLink('{{ $newLink['link'] }}', this)">Copy link</button>
+                        <div id="adm-new-link-qr"></div>
+                    </div>
+                </div>
+                <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+                <script>
+                    // qrcode.js is CDN-loaded here specifically because this
+                    // is the only screen that ever needs a QR code — no such
+                    // dependency exists in package.json yet (see report).
+                    if (window.QRCode) {
+                        QRCode.toCanvas(document.createElement('canvas'), @json($newLink['link']), { width: 180 }, function (err, canvas) {
+                            if (!err) document.getElementById('adm-new-link-qr').appendChild(canvas);
+                        });
+                    }
+                </script>
+            @endif
+
             <div class="adm-table-toolbar">
                 <div class="adm-table-search">
                     <input type="search" data-table-search placeholder="Поиск по user/plan/status...">
@@ -441,34 +472,188 @@
             </div>
             <div class="adm-table-wrap" data-enhance>
                 <table class="adm-table">
-                    <thead><tr><th>User</th><th>Plan</th><th>Status</th><th>Source</th><th>Devices</th><th>Ends</th><th></th></tr></thead>
+                    <thead><tr><th>ID</th><th>User</th><th>Plan</th><th>Status</th><th>Limit</th><th>Used (↑/↓/total)</th><th>Ends</th><th>Online</th><th></th></tr></thead>
                     <tbody>
                     @forelse($subscriptions ?? [] as $subscription)
+                        @php
+                            $grant = $grantsBySub->get($subscription['id']);
+                            $usage = $trafficBySub->get($subscription['id']);
+                            $limitBytes = $subscription['traffic_limit_override_bytes'] ?? $subscription['traffic_limit_bytes_snapshot'] ?? null;
+                        @endphp
                         <tr data-row data-search="{{ $userLabel($subscription['user_id']) }} {{ $subscription['plan_id'] }} {{ $subscription['status'] }}">
+                            <td>{{ $grant ? $wvbLabel($grant['id']) : '—' }}</td>
                             <td>{{ $userLabel($subscription['user_id']) }}</td>
-                            <td>{{ $subscription['plan_id'] }}</td>
+                            <td>{{ $subscription['plan_id'] === 'admin-custom' || ($subscription['source'] ?? '') === 'admin_manual' ? 'Custom' : $subscription['plan_id'] }}</td>
                             <td><span class="node-chip {{ $subscription['status'] === 'active' ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ $subscription['status'] }}</span></td>
-                            <td>{{ $subscription['source'] ?? '-' }}</td>
-                            <td class="num-cell">{{ $subscription['device_limit_override'] ?? $subscription['device_limit_snapshot'] ?? '-' }}</td>
-                            <td class="date-cell" data-sort="{{ $subscription['current_period_end'] }}">{{ $subscription['current_period_end'] }}</td>
+                            <td>{{ $limitBytes ? number_format($limitBytes / 1073741824, 1) . ' GB' : 'unlimited' }}</td>
+                            <td class="num-cell">
+                                @if($usage)
+                                    {{ number_format(($usage['bytes_up'] ?? 0) / 1073741824, 2) }} / {{ number_format(($usage['bytes_down'] ?? 0) / 1073741824, 2) }} / {{ number_format(($usage['bytes_total'] ?? 0) / 1073741824, 2) }} GB
+                                @else
+                                    —
+                                @endif
+                            </td>
+                            <td class="date-cell" data-sort="{{ $subscription['current_period_end'] }}">
+                                {{ \Illuminate\Support\Carbon::parse($subscription['current_period_end'])->year >= 2100 ? 'unlimited' : $subscription['current_period_end'] }}
+                            </td>
                             <td>
-                                <form method="post" action="/subscriptions/{{ $subscription['id'] }}/status" class="adm-inline-form">
-                                    @csrf
-                                    <select name="status" class="adm-compact-select" onchange="this.form.submit()">
-                                        @foreach(['active','suspended','cancelled','expired'] as $status)
-                                            <option value="{{ $status }}" @selected($subscription['status'] === $status)>{{ $status }}</option>
-                                        @endforeach
-                                    </select>
-                                </form>
+                                {{-- No server-authoritative "online now" signal exists yet on this
+                                     screen (see report) — Xray/Hysteria2 stats are per-grant traffic
+                                     totals, not a live connected/idle flag, so this is honestly a
+                                     placeholder rather than a fabricated status. --}}
+                                <span class="node-chip dead" title="No real-time signal available yet"><span class="node-chip__dot"></span>n/a</span>
+                            </td>
+                            <td>
+                                <div class="adm-row-actions">
+                                    <form method="post" action="/subscriptions/{{ $subscription['id'] }}/status" class="adm-inline-form">
+                                        @csrf
+                                        <select name="status" class="adm-compact-select" onchange="this.form.submit()">
+                                            @foreach(['active','suspended','cancelled','expired'] as $status)
+                                                <option value="{{ $status }}" @selected($subscription['status'] === $status)>{{ $status }}</option>
+                                            @endforeach
+                                        </select>
+                                    </form>
+                                    <button type="button" class="adm-icon-btn" title="Редактировать" onclick='admOpenSubEditModal(@json($subscription))'>
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </button>
+                                    <form method="post" action="/subscriptions/{{ $subscription['id'] }}/reset-usage" class="adm-inline-form" onsubmit="return confirm('Сбросить счётчик использования для этой подписки?')">
+                                        @csrf
+                                        <button type="submit" class="adm-icon-btn" title="Сбросить использование">⟲</button>
+                                    </form>
+                                    @if($grant)
+                                        <form method="post" action="/subscriptions/{{ $subscription['id'] }}/reissue" class="adm-inline-form" onsubmit="return confirm('Перевыпустить ссылку? Старая ссылка сразу перестанет работать.')">
+                                            @csrf
+                                            <button type="submit" class="adm-icon-btn" title="Перевыпустить ссылку">↻</button>
+                                        </form>
+                                    @endif
+                                    <form method="post" action="/subscriptions/{{ $subscription['id'] }}/delete" class="adm-inline-form" onsubmit="return confirm('Удалить подписку {{ $subscription['id'] }}? Доступ будет отозван немедленно.')">
+                                        @csrf
+                                        <button type="submit" class="adm-icon-btn" title="Удалить" style="color: var(--danger);">
+                                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7">No subscriptions returned by Core.</td></tr>
+                        <tr><td colspan="9">No subscriptions returned by Core.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
             </div>
         </section>
+
+        <div class="adm-modal-backdrop" id="adm-sub-modal">
+            <div class="adm-modal">
+                <div class="adm-modal-head">
+                    <h6>Новая подписка</h6>
+                    <button type="button" class="adm-modal-close" onclick="admCloseSubModal()">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <form method="post" class="adm-form" action="/subscriptions/manual">
+                    @csrf
+                    <label>User ID
+                        <input name="user_id" class="adm-input" required list="adm-user-list">
+                    </label>
+                    <datalist id="adm-user-list">
+                        @foreach($users ?? [] as $user)
+                            <option value="{{ $user['id'] }}">{{ $user['email'] ?? $user['id'] }}</option>
+                        @endforeach
+                    </datalist>
+                    <label>Node
+                        <select name="node_id" class="adm-input" required>
+                            @foreach($onlineNodeOptions as $opt)
+                                <option value="{{ $opt['id'] }}">{{ $opt['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <div class="adm-form-row">
+                        <label>Traffic limit, GB
+                            <input name="traffic_limit_gb" type="number" step="0.1" min="0.1" class="adm-input">
+                        </label>
+                        <label class="adm-form-check"><input type="checkbox" name="traffic_unlimited" value="1" onchange="this.form.traffic_limit_gb.disabled=this.checked"> Unlimited</label>
+                    </div>
+                    <div class="adm-form-row">
+                        <label>Expires at
+                            <input name="expires_at" type="date" class="adm-input">
+                        </label>
+                        <label class="adm-form-check"><input type="checkbox" name="expiry_unlimited" value="1" onchange="this.form.expires_at.disabled=this.checked"> Unlimited</label>
+                    </div>
+                    <div class="adm-form-actions">
+                        <button type="submit" class="adm-btn adm-btn-primary">Создать</button>
+                        <button type="button" class="adm-btn" onclick="admCloseSubModal()">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="adm-modal-backdrop" id="adm-sub-edit-modal">
+            <div class="adm-modal">
+                <div class="adm-modal-head">
+                    <h6>Редактировать подписку</h6>
+                    <button type="button" class="adm-modal-close" onclick="admCloseSubEditModal()">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <form method="post" id="adm-sub-edit-form" class="adm-form" action="/subscriptions">
+                    @csrf
+                    <div class="adm-form-row">
+                        <label>Traffic limit, GB
+                            <input name="traffic_limit_gb" id="se-traffic" type="number" step="0.1" min="0.1" class="adm-input">
+                        </label>
+                        <label class="adm-form-check"><input type="checkbox" name="traffic_unlimited" id="se-unlimited" value="1" onchange="document.getElementById('se-traffic').disabled=this.checked"> Unlimited</label>
+                    </div>
+                    <label>Device limit
+                        <input name="device_limit" id="se-devices" type="number" min="1" class="adm-input">
+                    </label>
+                    <label>Expires at
+                        <input name="expires_at" id="se-expires" type="date" class="adm-input">
+                    </label>
+                    <label>Status
+                        <select name="status" id="se-status" class="adm-input">
+                            <option value="">— не менять —</option>
+                            @foreach(['active','suspended','cancelled','expired','pending'] as $status)
+                                <option value="{{ $status }}">{{ $status }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <div class="adm-form-actions">
+                        <button type="submit" class="adm-btn adm-btn-primary">Сохранить</button>
+                        <button type="button" class="adm-btn" onclick="admCloseSubEditModal()">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        @push('scripts')
+        <script>
+        function admOpenSubModal() { document.getElementById('adm-sub-modal').classList.add('open'); }
+        function admCloseSubModal() { document.getElementById('adm-sub-modal').classList.remove('open'); }
+        document.getElementById('adm-sub-modal')?.addEventListener('click', (e) => { if (e.target.id === 'adm-sub-modal') admCloseSubModal(); });
+
+        function admOpenSubEditModal(subscription) {
+            const form = document.getElementById('adm-sub-edit-form');
+            form.action = '/subscriptions/' + subscription.id + '/edit';
+            document.getElementById('se-traffic').value = '';
+            document.getElementById('se-unlimited').checked = false;
+            document.getElementById('se-devices').value = subscription.device_limit_override || subscription.device_limit_snapshot || '';
+            document.getElementById('se-expires').value = '';
+            document.getElementById('se-status').value = '';
+            document.getElementById('adm-sub-edit-modal').classList.add('open');
+        }
+        function admCloseSubEditModal() { document.getElementById('adm-sub-edit-modal').classList.remove('open'); }
+        document.getElementById('adm-sub-edit-modal')?.addEventListener('click', (e) => { if (e.target.id === 'adm-sub-edit-modal') admCloseSubEditModal(); });
+
+        function admCopyLink(link, btn) {
+            navigator.clipboard.writeText(link).then(() => {
+                const original = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = original; }, 1500);
+            });
+        }
+        </script>
+        @endpush
     @endif
 
     @if($section === 'grants')

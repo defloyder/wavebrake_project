@@ -18,14 +18,22 @@ import (
 )
 
 type Agent struct {
-	cfg             config.Config
-	log             *slog.Logger
-	client          *http.Client
-	adapter         wbruntime.RuntimeAdapter
-	usageReporter   wbruntime.UsageReporter
-	nodeID          string
-	nodeToken       string
-	appliedRevision int
+	cfg              config.Config
+	log              *slog.Logger
+	client           *http.Client
+	adapter          wbruntime.RuntimeAdapter
+	usageReporter    wbruntime.UsageReporter
+	incrementalApply wbruntime.IncrementalApplier
+	nodeID           string
+	nodeToken        string
+	appliedRevision  int
+	// appliedState is the raw desired-state payload last successfully
+	// applied, kept only in memory. A restart of this process loses it,
+	// which is fine and deliberately safe: with no known previous state,
+	// ApplyIncremental always declines and Sync falls back to the full
+	// Render+Apply(+restart) path for that one sync, then resumes
+	// incremental applies from there.
+	appliedState json.RawMessage
 }
 
 type nodeResponse struct {
@@ -61,6 +69,9 @@ func New(cfg config.Config, log *slog.Logger) *Agent {
 	}
 	if reporter, ok := runtimeAdapter.(wbruntime.UsageReporter); ok {
 		agent.usageReporter = reporter
+	}
+	if incremental, ok := runtimeAdapter.(wbruntime.IncrementalApplier); ok {
+		agent.incrementalApply = incremental
 	}
 	return agent
 }
@@ -202,6 +213,37 @@ func (a *Agent) Sync(ctx context.Context) error {
 		_ = a.reportFailure(ctx, desired.Revision, err)
 		return err
 	}
+
+	// Try the live, non-disruptive path first: a plain grant add/remove can
+	// be applied without touching anything else already connected. Only
+	// available once we actually know the previously-applied state (not
+	// the very first sync since this process started) and only trusted
+	// when the adapter itself is confident it fully understood the change
+	// (ok=true) — anything else falls back to the full path below, which
+	// is always correct even if occasionally more disruptive.
+	if a.incrementalApply != nil && a.appliedState != nil {
+		ok, err := a.incrementalApply.ApplyIncremental(ctx, a.appliedState, desired.State)
+		if err != nil {
+			_ = a.reportFailure(ctx, desired.Revision, err)
+			return err
+		}
+		if ok {
+			if err := a.adapter.Health(ctx); err != nil {
+				_ = a.adapter.Rollback(ctx)
+				_ = a.reportFailure(ctx, desired.Revision, err)
+				return err
+			}
+			if err := a.postWithToken(ctx, "/v1/node/state/ack", a.nodeToken, map[string]int{"revision": desired.Revision}, &map[string]string{}); err != nil {
+				return err
+			}
+			a.appliedRevision = desired.Revision
+			a.appliedState = desired.State
+			a.log.InfoContext(ctx, "desired state applied live (no restart)", "revision", desired.Revision)
+			return nil
+		}
+		a.log.InfoContext(ctx, "live apply declined change, falling back to full apply", "revision", desired.Revision)
+	}
+
 	rendered, err := a.adapter.Render(ctx, desired.State)
 	if err != nil {
 		_ = a.reportFailure(ctx, desired.Revision, err)
@@ -221,6 +263,7 @@ func (a *Agent) Sync(ctx context.Context) error {
 		return err
 	}
 	a.appliedRevision = desired.Revision
+	a.appliedState = desired.State
 	a.log.InfoContext(ctx, "desired state applied", "revision", desired.Revision)
 	return nil
 }

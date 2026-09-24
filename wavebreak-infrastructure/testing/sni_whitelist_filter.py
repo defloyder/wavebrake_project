@@ -38,6 +38,7 @@ corporate network might allow only specific SaaS tools. Edit the list below
 to match whatever you're trying to simulate.
 """
 
+import os
 import re
 import socket
 import struct
@@ -51,28 +52,40 @@ except ImportError:
 
 # --- Configuration ------------------------------------------------------
 
-# SNI hostnames allowed through untouched. Exact match on the ClientHello's
-# server_name extension. Add whatever the simulated network is supposed to
-# permit (a handful of common/trusted sites is realistic for most
-# allowlist-style networks; keep this deliberately narrow to make the test
-# meaningful).
-WHITELIST = {
-    "www.google.com",
-    "www.microsoft.com",
-    "www.cloudflare.com",  # WaveBreak's REALITY SNI — should get through
-                              # via legitimate-looking TLS regardless of what
-                              # else is blocked; this line documents that
-                              # intent, not a special-case in the code below.
-}
+# Whitelist is loaded from a plain-text file next to this script, one entry
+# per line, '#' for comments. This is the file you edit to add/remove
+# allowed domains/IPs — no need to touch this .py file.
+WHITELIST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "whitelist.txt")
 
-# Destination IPs always allowed regardless of SNI (or for non-TLS traffic
-# like DNS) — the local gateway/DNS resolver, and anything else the test
-# network itself needs to function. 8.8.8.8/1.1.1.1 are included so DNS
-# resolution keeps working for the client (blocking DNS entirely would make
-# it impossible to even attempt a connection to a blocked site, which is a
-# less realistic simulation than "DNS resolves, but the TLS connection to
-# the resulting IP gets dropped").
-ALWAYS_ALLOW_IPS = {"8.8.8.8", "1.1.1.1", "8.8.4.4"}
+
+def load_whitelist(path):
+    """Reads whitelist.txt: SNI hostnames go in WHITELIST (matched exactly
+    against the TLS ClientHello's server_name extension), bare IPv4
+    addresses go in ALWAYS_ALLOW_IPS (matched against destination IP,
+    for non-TLS traffic like DNS, or to allow-by-IP instead of by-SNI)."""
+    sni_set, ip_set = set(), set()
+    if not os.path.exists(path):
+        print(f"WARNING: {path} not found, starting with an empty whitelist.")
+        return sni_set, ip_set
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            is_ip = re.match(r"^\d{1,3}(\.\d{1,3}){3}$", line)
+            (ip_set if is_ip else sni_set).add(line)
+    return sni_set, ip_set
+
+
+WHITELIST, ALWAYS_ALLOW_IPS = load_whitelist(WHITELIST_FILE)
+# 8.8.8.8/1.1.1.1/8.8.4.4 are needed so DNS resolution keeps working for the
+# client (blocking DNS entirely would make it impossible to even attempt a
+# connection to a blocked site — less realistic than "DNS resolves, but the
+# TLS connection to the resulting IP gets dropped"). Add these to
+# whitelist.txt directly if you prefer to keep everything in one file; kept
+# here as a safety net so the test rig doesn't silently break if someone
+# empties whitelist.txt.
+ALWAYS_ALLOW_IPS |= {"8.8.8.8", "1.1.1.1", "8.8.4.4"}
 
 # Also always allow WaveBreak's own server IP by destination IP, in
 # addition to it being allowed via the www.cloudflare.com SNI match above —
