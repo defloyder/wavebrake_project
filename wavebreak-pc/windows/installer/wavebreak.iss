@@ -87,7 +87,14 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 ; Standard "launch after install" checkbox, matching the wizard's own
 ; finish-page convention.
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+; runascurrentuser: the installer is already elevated (PrivilegesRequired
+; above) and wavebreak.exe's own manifest also requires admin (see
+; windows/runner/CMakeLists.txt's /MANIFESTUAC:level='requireAdministrator')
+; — without this flag, Inno's launch tries to negotiate a SECOND elevation
+; from an already-elevated process and Windows returns error 740
+; (ERROR_ELEVATION_REQUIRED) instead of just starting it. This reuses the
+; installer's own elevated token directly.
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser
 
 [UninstallDelete]
 ; sing-box writes its generated config to the system temp dir at connect

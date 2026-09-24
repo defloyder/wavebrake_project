@@ -791,6 +791,15 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   }
 
   void _onNative(VpnNativeState native) {
+    // Windows automatic recovery (see WindowsVpnAdapter) is in flight —
+    // deliberately a no-op. Leave `state.status` exactly as it is (almost
+    // always `connected`) so the UI doesn't flash disconnected while a
+    // network-change/health-check-triggered reload or sing-box relaunch is
+    // still trying; a real `failed` arrives separately if recovery is
+    // exhausted, handled by the branch just below.
+    if (native == VpnNativeState.reconnecting) {
+      return;
+    }
     if (native == VpnNativeState.failed &&
         state.status != ConnectionStatus.error) {
       state = state.copyWith(

@@ -4,7 +4,22 @@ import 'dart:math';
 import '../../core/logging/app_logger.dart';
 import '../core_api/models.dart';
 
-enum VpnNativeState { idle, connecting, connected, disconnecting, failed }
+enum VpnNativeState {
+  idle,
+  connecting,
+  connected,
+  disconnecting,
+  // Windows-only so far (see WindowsVpnAdapter): an automatic recovery
+  // attempt (Clash API reload or a full sing-box relaunch) is in flight
+  // after a network change or a failed health probe, without the user
+  // having asked to disconnect. Kept distinct from `failed` so
+  // ConnectionManager can leave the UI on its current "connected" read
+  // instead of flashing a disconnected/error state while recovery is
+  // still trying — a real `failed` still follows if recovery is
+  // eventually exhausted.
+  reconnecting,
+  failed,
+}
 
 abstract class VpnAdapter {
   Stream<VpnNativeState> get states;

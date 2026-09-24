@@ -2,9 +2,22 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
+
 import '../../core/logging/app_logger.dart';
 import '../core_api/models.dart';
 import 'vpn_adapter.dart';
+
+/// Loopback-only port for sing-box's Clash-API-compatible control server
+/// (`experimental.clash_api` below) — enables a live `PUT /configs` reload
+/// (re-dials outbounds without tearing down the TUN interface/routes) as
+/// the preferred automatic-recovery path, before falling back to a full
+/// process restart. Bound to 127.0.0.1 only, never 0.0.0.0 — this must
+/// never need a firewall exception or be reachable from the network.
+/// Fixed rather than ephemeral: nothing hands the assigned port back once
+/// sing-box picks one, so the adapter has to agree on it up front with the
+/// generated config.
+const _kClashApiPort = 47983;
 
 /// Real system-level VPN tunnel for Windows, via a bundled sing-box.exe
 /// (see windows/runtime_deps and windows/runner/CMakeLists.txt for how it
@@ -19,6 +32,84 @@ class WindowsVpnAdapter implements VpnAdapter {
   StreamSubscription<String>? _stdoutSub;
   StreamSubscription<String>? _stderrSub;
   Timer? _rivalVpnWatch;
+
+  // Set right before we ourselves kill `_process` (a user disconnect(), or
+  // the kill-then-relaunch step of an automatic restart) and checked in the
+  // exitCode handler below — an exit we asked for is routine cleanup, not
+  // evidence sing-box crashed and needs automatic recovery.
+  bool _expectedExit = false;
+
+  // The link an automatic restart relaunches with — connect()'s caller only
+  // ever hands the adapter a profile at the start of a manual connect, so a
+  // later crash/network-change recovery has nothing to rebuild sing-box's
+  // args from unless it's cached here. The config file itself is always
+  // freshly rewritten from this before a restart (see
+  // _restartSingBoxProcess) rather than reusing the path from last time.
+  ShareLink? _lastLink;
+
+  // --- Automatic recovery (network-change + health-check driven) ---
+  //
+  // Windows has no equivalent of Android's separate TUN/engine layers (see
+  // this file's class doc) — sing-box owns both together, so "restart just
+  // the engine" isn't possible here. Two recovery paths instead, tried in
+  // priority order per attempt (see _attemptOneRecovery):
+  //   1. sing-box's Clash API `PUT /configs` reload (_kClashApiPort) —
+  //      genuinely non-disruptive when it works: same process, same TUN
+  //      interface/routes, just re-dials outbounds. Skipped outright when
+  //      sing-box itself has exited (nothing to reload).
+  //   2. A full kill + relaunch of sing-box.exe with the same config —
+  //      identical to what disconnect()+connect() already do today, just
+  //      triggered automatically instead of requiring the user to notice.
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  Timer? _networkDebounceTimer;
+  Timer? _healthCheckTimer;
+  int _consecutiveHealthFailures = 0;
+
+  // Bumped on every new recovery trigger and on disconnect() — lets a
+  // superseded recovery loop (a newer trigger fired, or the user/system
+  // disconnected while one was running) recognize itself as stale and stop,
+  // the same pattern _generation already uses for connect()/disconnect().
+  int _recoveryGeneration = 0;
+  bool _recoveryInProgress = false;
+
+  // Per-attempt "did this resolve in time" timer. Explicitly cancelled by
+  // every exit path of _attemptOneRecovery — success AND this attempt's own
+  // failure — never left to just get superseded by the generation check.
+  // This mirrors a real bug already fixed on the mobile side: a
+  // connect-watchdog Timer there was only ever cancelled implicitly via a
+  // staleness check, and a deferred-under-load firing after a successful
+  // connection tore down an otherwise healthy tunnel. Guarding on
+  // generation alone only protects against a NEWER attempt superseding an
+  // OLDER one — it does nothing to stop THIS SAME attempt's own timer from
+  // firing after THIS SAME attempt already succeeded, which is exactly what
+  // happened there.
+  Timer? _recoveryWatchdog;
+
+  static const _networkChangeDebounce = Duration(milliseconds: 1200);
+  static const _healthCheckInterval = Duration(seconds: 20);
+  static const _maxConsecutiveHealthFailures = 2;
+  static const _reloadSettleDelay = Duration(seconds: 3);
+  // Bounds a single recovery attempt (reload-then-probe, or a full
+  // relaunch). Set above connect()'s own 25s ready-timeout so a
+  // legitimately slow-but-succeeding relaunch (a lossy path's Hysteria2/
+  // QUIC handshake — see that timeout's own comment) isn't mistaken for a
+  // failed attempt and retried on top of itself.
+  static const _recoveryAttemptTimeout = Duration(seconds: 30);
+  // Same schedule as the mobile resilience layer's connect-watchdog
+  // backoff, reused here for consistency rather than re-derived — the
+  // failure modes it's smoothing over (a flaky path needing a moment
+  // before a retry actually has a chance of working) are the same shape on
+  // both platforms.
+  static const _recoveryBackoff = [
+    Duration(seconds: 3),
+    Duration(seconds: 6),
+    Duration(seconds: 12),
+    Duration(seconds: 20),
+  ];
+
+  static const _recoveryReasonNetworkChange = 'network change';
+  static const _recoveryReasonHealthCheckFailed = 'health check failed';
+  static const _recoveryReasonProcessExited = 'sing-box exited unexpectedly';
 
   // Bumped at the top of every connect() call and checked after each
   // `await` inside it — switching locations while a connect is still in
@@ -71,6 +162,24 @@ class WindowsVpnAdapter implements VpnAdapter {
 
     final configPath = await _writeConfig(link);
     if (generation != _generation) return;
+    _lastLink = link;
+
+    try {
+      await _launchAndAwaitReady(exePath, configPath, generation);
+    } catch (e) {
+      throw StateError('$e');
+    }
+  }
+
+  /// Starts sing-box.exe with [configPath] and waits for it to report the
+  /// TUN interface + routes are up, emitting states along the way. Shared
+  /// by [connect] (a fresh, user-initiated attempt) and
+  /// [_restartSingBoxProcess] (an automatic-recovery relaunch) — both need
+  /// the exact same "start it, watch its logs for readiness, bound the
+  /// wait, wire up the exit handler" sequence, just from different
+  /// callers with different [generation] provenance.
+  Future<void> _launchAndAwaitReady(
+      String exePath, String configPath, int generation) async {
     final completer = Completer<void>();
     var resolved = false;
 
@@ -82,15 +191,16 @@ class WindowsVpnAdapter implements VpnAdapter {
         runInShell: false,
       );
       if (generation != _generation) {
-        // A newer connect() (or a disconnect()) already moved on while
-        // sing-box was launching — this attempt is stale. Kill it now
-        // rather than leaving it running alongside whatever superseded
-        // it; there is nothing left here that should touch `_process` or
-        // emit a state for this generation.
+        // A newer connect()/restart (or a disconnect()) already moved on
+        // while sing-box was launching — this attempt is stale. Kill it
+        // now rather than leaving it running alongside whatever
+        // superseded it; there is nothing left here that should touch
+        // `_process` or emit a state for this generation.
         process.kill(ProcessSignal.sigterm);
         return;
       }
       _process = process;
+      _expectedExit = false;
 
       void onLine(String line, void Function(String) log) {
         log('[sing-box] $line');
@@ -107,6 +217,7 @@ class WindowsVpnAdapter implements VpnAdapter {
           resolved = true;
           _emit(VpnNativeState.connected);
           _startRivalVpnWatch();
+          _startResilience();
           completer.complete();
         }
       }
@@ -129,11 +240,25 @@ class WindowsVpnAdapter implements VpnAdapter {
             completer.completeError(
                 StateError('sing-box exited early (code $code)'));
           }
-        } else if (code != 0) {
-          _emit(VpnNativeState.failed);
-        } else {
-          _emit(VpnNativeState.idle);
+          return;
         }
+        if (_expectedExit) {
+          // A kill we ourselves asked for (disconnect(), or the
+          // kill-then-relaunch step of an automatic restart) — routine
+          // cleanup, not evidence sing-box crashed.
+          _emit(code == 0 ? VpnNativeState.idle : VpnNativeState.failed);
+          return;
+        }
+        // sing-box was connected and up and exited entirely on its own —
+        // a real crash. Not recoverable via the Clash API (there's no
+        // process left to send a reload to); go straight to the
+        // full-restart fallback for this failure mode.
+        AppLogger.warn(
+            'sing-box exited unexpectedly while connected (code $code)');
+        _stopRivalVpnWatch();
+        _stopResilience();
+        _process = null;
+        _beginRecovery(_recoveryReasonProcessExited);
       }));
     } catch (e) {
       if (generation == _generation) _emit(VpnNativeState.failed);
@@ -149,7 +274,12 @@ class WindowsVpnAdapter implements VpnAdapter {
       await completer.future.timeout(const Duration(seconds: 25));
     } on TimeoutException {
       if (generation == _generation) {
-        await disconnect();
+        // A plain kill, not the full disconnect() — disconnect() also
+        // aborts any in-flight automatic-recovery loop (_abortRecovery()),
+        // which would wrongly cancel *this* recovery attempt's own retry
+        // schedule when this helper is called from
+        // [_restartSingBoxProcess] rather than [connect].
+        await _killProcessOnly();
         _emit(VpnNativeState.failed);
       }
       throw StateError('sing-box did not report ready in time');
@@ -159,6 +289,20 @@ class WindowsVpnAdapter implements VpnAdapter {
   @override
   Future<void> disconnect() async {
     _stopRivalVpnWatch();
+    _stopResilience();
+    _abortRecovery();
+    await _killProcessOnly();
+  }
+
+  /// Kills the current sing-box process (if any) and tears down its pipe
+  /// subscriptions, without touching recovery/resilience state — the part
+  /// of the old `disconnect()` body that both the real, public
+  /// `disconnect()` and an automatic restart's "kill the old one before
+  /// relaunching" step need, but only the former should also abort a
+  /// recovery loop or stop the resilience timers (an automatic restart is
+  /// running *from inside* that loop and those timers get re-armed the
+  /// moment the relaunch succeeds anyway).
+  Future<void> _killProcessOnly() async {
     await _stdoutSub?.cancel();
     await _stderrSub?.cancel();
     _stdoutSub = null;
@@ -166,6 +310,7 @@ class WindowsVpnAdapter implements VpnAdapter {
     final process = _process;
     _process = null;
     if (process != null) {
+      _expectedExit = true;
       process.kill(ProcessSignal.sigterm);
       // sing-box tears the TUN adapter + routes down on a clean exit —
       // give it a moment before a caller might turn around and relaunch.
@@ -175,6 +320,280 @@ class WindowsVpnAdapter implements VpnAdapter {
         process.kill(ProcessSignal.sigkill);
       }
     }
+  }
+
+  // --- Network-change detection ---
+
+  void _startResilience() {
+    _stopResilience();
+    _consecutiveHealthFailures = 0;
+    _connectivitySub =
+        Connectivity().onConnectivityChanged.listen(_onConnectivityChanged);
+    _healthCheckTimer = Timer.periodic(
+      _healthCheckInterval,
+      (_) => unawaited(_runHealthCheck()),
+    );
+  }
+
+  void _stopResilience() {
+    _connectivitySub?.cancel();
+    _connectivitySub = null;
+    _networkDebounceTimer?.cancel();
+    _networkDebounceTimer = null;
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = null;
+  }
+
+  void _onConnectivityChanged(List<ConnectivityResult> results) {
+    if (_process == null) return;
+    // Debounced so a rapid down/up flap (an adapter briefly re-negotiating
+    // DHCP, a laptop's Wi-Fi/Ethernet handoff) doesn't fire two separate
+    // recovery attempts back to back — 1200ms matches the mobile
+    // resilience layer's own debounce for the same reason: comfortably
+    // longer than a routine flap, still short enough that a genuine
+    // network change gets noticed quickly.
+    _networkDebounceTimer?.cancel();
+    _networkDebounceTimer = Timer(_networkChangeDebounce, () {
+      if (_process == null) return;
+      if (results.every((r) => r == ConnectivityResult.none)) {
+        // Fully offline right now — nothing to nudge until connectivity
+        // actually returns; that return is itself a future
+        // onConnectivityChanged event, which re-enters this same path.
+        AppLogger.debug(
+            'Network reported fully offline — waiting for it to return before attempting recovery');
+        return;
+      }
+      AppLogger.warn('Network change detected ($results)');
+      _beginRecovery(_recoveryReasonNetworkChange);
+    });
+  }
+
+  // --- Health check ---
+
+  /// Verifies the tunnel is actually passing traffic, not just that
+  /// sing-box.exe is still a live PID — a raw TCP connect through the
+  /// tunnel to a reliable external host, mirroring the mobile resilience
+  /// layer's protected-socket probe. Windows has no VpnService-style
+  /// self-routing loop to protect against here (there's no "protect()" to
+  /// call): the app's own traffic already rides the system TUN like
+  /// everything else, which is exactly what needs verifying. 1.1.1.1:443
+  /// is already a trusted, always-up dependency of this same adapter (see
+  /// the DNS server in [ShareLink.toSingBoxConfig]), so a failure here
+  /// that succeeds outside the tunnel is unambiguous evidence the tunnel
+  /// itself — not the wider internet — is the problem.
+  Future<bool> _probeTunnel() async {
+    Socket? socket;
+    try {
+      socket = await Socket.connect('1.1.1.1', 443,
+          timeout: const Duration(seconds: 5));
+      return true;
+    } catch (e) {
+      AppLogger.debug('Tunnel health probe failed: $e');
+      return false;
+    } finally {
+      socket?.destroy();
+    }
+  }
+
+  Future<void> _runHealthCheck() async {
+    if (_process == null) return;
+    if (await _probeTunnel()) {
+      _consecutiveHealthFailures = 0;
+      return;
+    }
+    _consecutiveHealthFailures++;
+    AppLogger.warn(
+        'Tunnel health probe failed ($_consecutiveHealthFailures/$_maxConsecutiveHealthFailures)');
+    // Requires back-to-back failures, not just one: a single dropped probe
+    // is well within normal noise for a real network (one lossy TCP
+    // handshake) and shouldn't itself trigger a recovery cycle.
+    if (_consecutiveHealthFailures >= _maxConsecutiveHealthFailures) {
+      _consecutiveHealthFailures = 0;
+      _beginRecovery(_recoveryReasonHealthCheckFailed);
+    }
+  }
+
+  // --- Recovery orchestration ---
+
+  void _beginRecovery(String reason) {
+    if (_lastLink == null) return; // never actually connected
+    if (_recoveryInProgress) {
+      AppLogger.debug('Recovery already in progress, ignoring: $reason');
+      return;
+    }
+    unawaited(_runRecoveryLoop(reason));
+  }
+
+  void _abortRecovery() {
+    _recoveryGeneration++;
+    _recoveryInProgress = false;
+    _recoveryWatchdog?.cancel();
+    _recoveryWatchdog = null;
+  }
+
+  Future<void> _runRecoveryLoop(String reason) async {
+    final generation = ++_recoveryGeneration;
+    _recoveryInProgress = true;
+    AppLogger.warn('Automatic recovery starting ($reason)');
+    _emit(VpnNativeState.reconnecting);
+
+    for (var attempt = 0; attempt <= _recoveryBackoff.length; attempt++) {
+      if (generation != _recoveryGeneration) return;
+      final success = await _attemptOneRecovery(
+          reason: reason, attempt: attempt, generation: generation);
+      if (generation != _recoveryGeneration) return;
+      if (success) {
+        AppLogger.info(
+            'Automatic recovery succeeded on attempt ${attempt + 1} ($reason)');
+        _recoveryInProgress = false;
+        return;
+      }
+      if (attempt == _recoveryBackoff.length) break;
+      final delay = _recoveryBackoff[attempt];
+      AppLogger.warn(
+          'Recovery attempt ${attempt + 1} failed ($reason), retrying in ${delay.inSeconds}s');
+      await Future<void>.delayed(delay);
+    }
+    if (generation == _recoveryGeneration) {
+      _recoveryInProgress = false;
+      AppLogger.error(
+          'Automatic recovery exhausted retries ($reason) — surfacing failure');
+      _emit(VpnNativeState.failed);
+    }
+  }
+
+  /// One recovery attempt: prefer the Clash API reload (non-disruptive —
+  /// same process, TUN interface and routes stay up) unless sing-box
+  /// itself has already exited, in which case there's nothing to reload
+  /// and this goes straight to a full restart. Bounded by
+  /// [_recoveryAttemptTimeout] via [_recoveryWatchdog], which is
+  /// unconditionally cancelled on every exit from this method — see that
+  /// field's own doc for why that has to be unconditional rather than
+  /// relying on the generation check alone.
+  Future<bool> _attemptOneRecovery({
+    required String reason,
+    required int attempt,
+    required int generation,
+  }) async {
+    AppLogger.info(
+        'Recovery attempt ${attempt + 1}/${_recoveryBackoff.length + 1} ($reason)');
+
+    final completer = Completer<bool>();
+    _recoveryWatchdog?.cancel();
+    _recoveryWatchdog = Timer(_recoveryAttemptTimeout, () {
+      if (!completer.isCompleted) completer.complete(false);
+    });
+
+    void finish(bool result) {
+      // Unconditional: cancels this attempt's watchdog whether it just
+      // succeeded or just failed on its own terms, not only when a newer
+      // generation supersedes it.
+      _recoveryWatchdog?.cancel();
+      _recoveryWatchdog = null;
+      if (!completer.isCompleted) completer.complete(result);
+    }
+
+    unawaited(() async {
+      try {
+        final processCrashed =
+            reason == _recoveryReasonProcessExited || _process == null;
+        if (!processCrashed) {
+          final reloaded = await _tryClashApiReload();
+          if (reloaded && generation == _recoveryGeneration) {
+            await Future<void>.delayed(_reloadSettleDelay);
+            if (generation == _recoveryGeneration && await _probeTunnel()) {
+              AppLogger.info('Recovery via Clash API reload succeeded');
+              if (generation == _recoveryGeneration) {
+                _emit(VpnNativeState.connected);
+              }
+              finish(true);
+              return;
+            }
+          }
+        }
+        if (generation != _recoveryGeneration) {
+          finish(false);
+          return;
+        }
+        AppLogger.warn(
+            'Clash API reload unavailable or insufficient — falling back to a full sing-box restart');
+        final restarted = await _restartSingBoxProcess(generation: generation);
+        finish(generation == _recoveryGeneration && restarted);
+      } catch (e) {
+        AppLogger.warn('Recovery attempt threw: $e');
+        finish(false);
+      }
+    }());
+
+    return completer.future;
+  }
+
+  /// Sends sing-box's Clash-API-compatible `PUT /configs` with an empty
+  /// body — its documented "reload from the same config sing-box was
+  /// started with" call (equivalent to sending it SIGHUP). Since this
+  /// adapter's config file at [_lastConfigPath] doesn't change between
+  /// attempts, this is used purely as a non-disruptive nudge to make
+  /// sing-box re-dial its outbounds, not to hand it new config content.
+  Future<bool> _tryClashApiReload() async {
+    HttpClient? client;
+    try {
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+      final request = await client
+          .putUrl(Uri.parse('http://127.0.0.1:$_kClashApiPort/configs'))
+          .timeout(const Duration(seconds: 3));
+      request.headers.contentType = ContentType.json;
+      request.write('{}');
+      final response = await request.close().timeout(const Duration(seconds: 5));
+      await response.drain<void>();
+      final ok = response.statusCode == 204 || response.statusCode == 200;
+      AppLogger.debug(
+          'Clash API reload ${ok ? 'accepted' : 'rejected'} (status ${response.statusCode})');
+      return ok;
+    } catch (e) {
+      AppLogger.debug('Clash API reload unreachable: $e');
+      return false;
+    } finally {
+      client?.close(force: true);
+    }
+  }
+
+  /// Kills the current sing-box process (if any — it may already be dead,
+  /// e.g. after a crash) and relaunches it with the same link/config this
+  /// adapter last connected with. The full-restart fallback for when the
+  /// Clash API reload can't help (sing-box itself has exited) or didn't
+  /// actually fix the tunnel.
+  Future<bool> _restartSingBoxProcess({required int generation}) async {
+    final link = _lastLink;
+    if (link == null) return false;
+
+    await _killProcessOnly();
+    if (generation != _recoveryGeneration) return false;
+
+    final exePath = await _singBoxPath();
+    if (exePath == null) {
+      AppLogger.error(
+          'sing-box.exe not found next to the app during automatic recovery');
+      return false;
+    }
+
+    String configPath;
+    try {
+      configPath = await _writeConfig(link);
+    } catch (e) {
+      AppLogger.error('Failed to rewrite sing-box config during recovery: $e');
+      return false;
+    }
+
+    if (generation != _recoveryGeneration) return false;
+    final launchGeneration = ++_generation;
+
+    try {
+      await _launchAndAwaitReady(exePath, configPath, launchGeneration);
+    } catch (e) {
+      AppLogger.warn('Recovery restart failed to relaunch sing-box: $e');
+      return false;
+    }
+    return launchGeneration == _generation && generation == _recoveryGeneration;
   }
 
   // Real gap this exists to fix: unlike Android (where establishing a new
@@ -538,6 +957,17 @@ class ShareLink {
       'route': {
         'auto_detect_interface': true,
         'final': 'proxy',
+      },
+      // Enables sing-box's Clash-API-compatible control server so
+      // WindowsVpnAdapter's automatic-recovery loop can try a live
+      // `PUT /configs` reload (re-dials outbounds without tearing down
+      // the TUN interface/routes) before falling back to a full process
+      // restart. 127.0.0.1 only — see _kClashApiPort's doc for why this
+      // must never bind 0.0.0.0 or need a firewall exception.
+      'experimental': {
+        'clash_api': {
+          'external_controller': '127.0.0.1:$_kClashApiPort',
+        },
       },
     };
   }
