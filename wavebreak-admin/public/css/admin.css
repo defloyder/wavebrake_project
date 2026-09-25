@@ -311,6 +311,8 @@ h1, h2, h3, h4, h5, h6, p { margin: 0; }
 .adm-card-head--row { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .adm-card-head h6 { font-size: 16px; font-weight: 600; color: #fff; }
 .adm-card-head p { font-size: 13px; color: var(--ice-55); margin-top: 4px; }
+.adm-muted { color: var(--ice-55); font-size: 12px; }
+.adm-form-error { color: var(--danger); font-size: 13px; white-space: pre-line; }
 
 /* ---- Forms ------------------------------------------------------------------------------ */
 

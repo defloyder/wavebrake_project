@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"strconv"
 	"strings"
@@ -807,6 +808,116 @@ func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"users": users})
 }
 
+type adminUserRequest struct {
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Role     string `json:"role"`
+	Status   string `json:"status"`
+}
+
+func validateAdminUserRequest(req *adminUserRequest, passwordRequired bool) string {
+	req.Email = store.NormalizeEmail(req.Email)
+	req.Username = strings.TrimSpace(req.Username)
+	if req.Email == "" {
+		return "email is required"
+	}
+	address, err := mail.ParseAddress(req.Email)
+	if err != nil || address.Address != req.Email {
+		return "invalid email"
+	}
+	if passwordRequired && len(req.Password) < 10 {
+		return "password must contain at least 10 characters"
+	}
+	if req.Password != "" && len(req.Password) < 10 {
+		return "password must contain at least 10 characters"
+	}
+	switch req.Role {
+	case "user", "support", "admin", "superadmin":
+	default:
+		return "invalid role"
+	}
+	switch req.Status {
+	case "active", "disabled":
+	default:
+		return "invalid status"
+	}
+	return ""
+}
+
+func (s *Server) adminCreateUser(w http.ResponseWriter, r *http.Request) {
+	var req adminUserRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if message := validateAdminUserRequest(&req, true); message != "" {
+		writeError(w, http.StatusBadRequest, message)
+		return
+	}
+	if req.Role == "superadmin" && currentUser(r.Context()).Role != "superadmin" {
+		writeError(w, http.StatusForbidden, "only a superadmin can grant the superadmin role")
+		return
+	}
+	hash, err := security.HashPassword(req.Password)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "password hashing failed")
+		return
+	}
+	user, err := s.app.Store.AdminCreateUser(r.Context(), req.Email, req.Username, string(hash), req.Role, req.Status)
+	if errors.Is(err, store.ErrConflict) {
+		writeError(w, http.StatusConflict, "email or username already exists")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not create user")
+		return
+	}
+	actor := currentUser(r.Context()).ID
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "user.created", "user", &user.ID, map[string]any{"email": user.Email, "role": user.Role})
+	writeJSON(w, http.StatusCreated, user)
+}
+
+func (s *Server) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
+	var req adminUserRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if message := validateAdminUserRequest(&req, false); message != "" {
+		writeError(w, http.StatusBadRequest, message)
+		return
+	}
+	if req.Role == "superadmin" && currentUser(r.Context()).Role != "superadmin" {
+		writeError(w, http.StatusForbidden, "only a superadmin can grant the superadmin role")
+		return
+	}
+	passwordHash := ""
+	if req.Password != "" {
+		hash, err := security.HashPassword(req.Password)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "password hashing failed")
+			return
+		}
+		passwordHash = string(hash)
+	}
+	userID := chi.URLParam(r, "userID")
+	user, err := s.app.Store.AdminUpdateUser(r.Context(), userID, req.Email, req.Username, req.Role, req.Status, passwordHash)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if errors.Is(err, store.ErrConflict) {
+		writeError(w, http.StatusConflict, "email or username already exists")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not update user")
+		return
+	}
+	actor := currentUser(r.Context()).ID
+	_ = s.app.Store.WriteAuditEvent(r.Context(), &actor, "user.updated", "user", &userID, map[string]any{"email": user.Email, "role": user.Role, "status": user.Status})
+	writeJSON(w, http.StatusOK, user)
+}
+
 func (s *Server) adminUpdateUserRole(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Role string `json:"role"`
@@ -818,6 +929,10 @@ func (s *Server) adminUpdateUserRole(w http.ResponseWriter, r *http.Request) {
 	case "user", "support", "admin", "superadmin":
 	default:
 		writeError(w, http.StatusBadRequest, "invalid role")
+		return
+	}
+	if req.Role == "superadmin" && currentUser(r.Context()).Role != "superadmin" {
+		writeError(w, http.StatusForbidden, "only a superadmin can grant the superadmin role")
 		return
 	}
 	userID := chi.URLParam(r, "userID")
@@ -998,15 +1113,35 @@ func (s *Server) adminSubscriptions(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) adminCreateSubscription(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		UserID string `json:"user_id"`
-		PlanID string `json:"plan_id"`
+		UserID    string `json:"user_id"`
+		PlanID    string `json:"plan_id"`
+		Status    string `json:"status"`
+		ExpiresAt string `json:"expires_at"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.UserID) == "" || strings.TrimSpace(req.PlanID) == "" {
 		writeError(w, http.StatusBadRequest, "user_id and plan_id are required")
 		return
 	}
 	actor := currentUser(r.Context()).ID
-	subscription, err := s.app.Store.CreateSubscriptionFor(r.Context(), req.UserID, req.PlanID, "admin", actor)
+	if req.Status == "" {
+		req.Status = "active"
+	}
+	switch req.Status {
+	case "pending", "active", "expired", "cancelled", "suspended":
+	default:
+		writeError(w, http.StatusBadRequest, "invalid subscription status")
+		return
+	}
+	var currentPeriodEnd *time.Time
+	if strings.TrimSpace(req.ExpiresAt) != "" {
+		parsed, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(req.ExpiresAt))
+		if parseErr != nil {
+			writeError(w, http.StatusBadRequest, "expires_at must be RFC3339")
+			return
+		}
+		currentPeriodEnd = &parsed
+	}
+	subscription, err := s.app.Store.CreateSubscriptionForOptions(r.Context(), req.UserID, req.PlanID, "admin", actor, req.Status, currentPeriodEnd)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "could not create subscription")
 		return
@@ -1127,6 +1262,7 @@ func (s *Server) adminEditSubscription(w http.ResponseWriter, r *http.Request) {
 		DeviceLimit      *int     `json:"device_limit"`
 		ExpiresAt        string   `json:"expires_at"`
 		Status           string   `json:"status"`
+		PlanID           string   `json:"plan_id"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
@@ -1155,8 +1291,13 @@ func (s *Server) adminEditSubscription(w http.ResponseWriter, r *http.Request) {
 		s := strings.TrimSpace(req.Status)
 		status = &s
 	}
+	var planID *string
+	if strings.TrimSpace(req.PlanID) != "" {
+		value := strings.TrimSpace(req.PlanID)
+		planID = &value
+	}
 
-	sub, err := s.app.Store.AdminEditSubscription(r.Context(), subscriptionID, trafficLimitBytes, req.TrafficUnlimited, req.DeviceLimit, expiresAt, status)
+	sub, err := s.app.Store.AdminEditSubscription(r.Context(), subscriptionID, trafficLimitBytes, req.TrafficUnlimited, req.DeviceLimit, expiresAt, status, planID)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "subscription not found")
 		return
@@ -1172,6 +1313,7 @@ func (s *Server) adminEditSubscription(w http.ResponseWriter, r *http.Request) {
 		"device_limit":     req.DeviceLimit,
 		"expires_at":       req.ExpiresAt,
 		"status":           req.Status,
+		"plan_id":          req.PlanID,
 	})
 	writeJSON(w, http.StatusOK, sub)
 }

@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\CoreClient;
 use App\Services\AdminAssistant;
+use App\Services\CoreClient;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class AdminController extends Controller
@@ -14,9 +17,7 @@ class AdminController extends Controller
     public function __construct(
         private readonly CoreClient $core,
         private readonly AdminAssistant $assistant,
-    )
-    {
-    }
+    ) {}
 
     public function index(Request $request): View|RedirectResponse
     {
@@ -83,7 +84,7 @@ class AdminController extends Controller
     // doesn't get heavier than the thing it's watching. The widget itself
     // computes the delta between polls; this just reports the current
     // cumulative total across every subscription right now.
-    public function trafficLive(Request $request): \Illuminate\Http\JsonResponse
+    public function trafficLive(Request $request): JsonResponse
     {
         $token = $this->token($request);
         if ($token === null) {
@@ -103,7 +104,7 @@ class AdminController extends Controller
     // (see layout.blade.php) — a dead node agent produces no error anywhere
     // else in the system, just a growing gap since its last usage report,
     // so this is the only way anyone would notice without reading raw logs.
-    public function trafficHealth(Request $request): \Illuminate\Http\JsonResponse
+    public function trafficHealth(Request $request): JsonResponse
     {
         $token = $this->token($request);
         if ($token === null) {
@@ -121,7 +122,7 @@ class AdminController extends Controller
         return $this->renderAdminPage($request, 'audit');
     }
 
-    public function assistantMessage(Request $request): \Illuminate\Http\JsonResponse
+    public function assistantMessage(Request $request): JsonResponse
     {
         $token = $this->assistantToken($request);
         if ($token === null) {
@@ -141,7 +142,7 @@ class AdminController extends Controller
                 unset($reply['context']);
             }
             if (isset($reply['confirmation']['action'])) {
-                $confirmationToken = (string) \Illuminate\Support\Str::uuid();
+                $confirmationToken = (string) Str::uuid();
                 $request->session()->put("admin_assistant_actions.{$confirmationToken}", [
                     'action' => $reply['confirmation']['action'],
                     'expires_at' => now()->addMinutes(5)->timestamp,
@@ -149,13 +150,14 @@ class AdminController extends Controller
                 unset($reply['confirmation']['action']);
                 $reply['confirmation']['token'] = $confirmationToken;
             }
+
             return response()->json($reply);
         } catch (RequestException $e) {
             return response()->json(['error' => 'Не удалось получить данные системы.'], $e->response->status() === 401 ? 401 : 502);
         }
     }
 
-    public function assistantConfirm(Request $request): \Illuminate\Http\JsonResponse
+    public function assistantConfirm(Request $request): JsonResponse
     {
         $token = $this->assistantToken($request);
         if ($token === null) {
@@ -184,6 +186,7 @@ class AdminController extends Controller
         }
         try {
             $me = $this->core->me($token);
+
             return in_array($me['role'] ?? 'user', ['admin', 'superadmin'], true) ? $token : null;
         } catch (RequestException) {
             return null;
@@ -206,6 +209,7 @@ class AdminController extends Controller
             $me = $this->core->me($token);
             if (! in_array(($me['role'] ?? 'user'), ['admin', 'superadmin'], true)) {
                 $request->session()->forget('wavebreak_admin_tokens');
+
                 return redirect('/')->withErrors(['email' => 'Admin role is required.']);
             }
 
@@ -229,13 +233,44 @@ class AdminController extends Controller
         } catch (RequestException $e) {
             if ($e->response->status() === 401) {
                 $request->session()->forget('wavebreak_admin_tokens');
+
                 return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
             }
             throw $e;
         }
     }
 
-    public function updateUserRole(Request $request, string $userId): RedirectResponse
+    public function createUser(Request $request): RedirectResponse|JsonResponse
+    {
+        $data = $this->validatedUser($request, true);
+
+        return $this->coreAction($request, '/users', 'Пользователь создан.', fn ($token) => $this->core->createUser($token, $data));
+    }
+
+    public function updateUser(Request $request, string $userId): RedirectResponse|JsonResponse
+    {
+        $data = $this->validatedUser($request, false);
+
+        return $this->coreAction($request, '/users', 'Пользователь обновлён.', fn ($token) => $this->core->updateUser($token, $userId, $data));
+    }
+
+    private function validatedUser(Request $request, bool $passwordRequired): array
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email:rfc', 'max:254'],
+            'username' => ['nullable', 'string', 'max:80'],
+            'password' => [$passwordRequired ? 'required' : 'nullable', 'string', 'min:10', 'max:200'],
+            'role' => ['required', 'string', 'in:user,support,admin,superadmin'],
+            'status' => ['required', 'string', 'in:active,disabled'],
+        ]);
+        $data['email'] = mb_strtolower(trim($data['email']));
+        $data['username'] = trim($data['username'] ?? '');
+        $data['password'] = $data['password'] ?? '';
+
+        return $data;
+    }
+
+    public function updateUserRole(Request $request, string $userId): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'role' => ['required', 'string', 'in:user,support,admin,superadmin'],
@@ -244,17 +279,17 @@ class AdminController extends Controller
         return $this->coreAction($request, '/users', 'Роль обновлена.', fn ($token) => $this->core->updateUserRole($token, $userId, $data['role']));
     }
 
-    public function disableUser(Request $request, string $userId): RedirectResponse
+    public function disableUser(Request $request, string $userId): RedirectResponse|JsonResponse
     {
         return $this->coreAction($request, '/users', 'Пользователь заблокирован.', fn ($token) => $this->core->disableUser($token, $userId));
     }
 
-    public function enableUser(Request $request, string $userId): RedirectResponse
+    public function enableUser(Request $request, string $userId): RedirectResponse|JsonResponse
     {
         return $this->coreAction($request, '/users', 'Пользователь разблокирован.', fn ($token) => $this->core->enableUser($token, $userId));
     }
 
-    public function deleteUser(Request $request, string $userId): RedirectResponse
+    public function deleteUser(Request $request, string $userId): RedirectResponse|JsonResponse
     {
         $token = $this->token($request);
         if ($token === null) {
@@ -359,13 +394,32 @@ class AdminController extends Controller
         return $this->coreAction($request, '/grants', 'Подключение отозвано.', fn ($token) => $this->core->revokeGrant($token, $grantId, $data['reason'] ?? 'admin'));
     }
 
-    public function updateSubscriptionStatus(Request $request, string $subscriptionId): RedirectResponse
+    public function updateSubscriptionStatus(Request $request, string $subscriptionId): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'status' => ['required', 'string', 'in:pending,active,expired,cancelled,suspended'],
         ]);
 
         return $this->coreAction($request, '/subscriptions', 'Статус подписки обновлён.', fn ($token) => $this->core->updateSubscriptionStatus($token, $subscriptionId, $data['status']));
+    }
+
+    public function createSubscription(Request $request): RedirectResponse|JsonResponse
+    {
+        $data = $request->validate([
+            'user_id' => ['required', 'uuid'],
+            'plan_id' => ['required', 'uuid'],
+            'expires_at' => ['nullable', 'date'],
+            'status' => ['required', 'string', 'in:pending,active,expired,cancelled,suspended'],
+        ]);
+
+        $payload = [
+            'user_id' => $data['user_id'],
+            'plan_id' => $data['plan_id'],
+            'status' => $data['status'],
+            'expires_at' => ! empty($data['expires_at']) ? Carbon::parse($data['expires_at'])->toRfc3339String() : null,
+        ];
+
+        return $this->coreAction($request, '/subscriptions', 'Подписка создана.', fn ($token) => $this->core->createSubscription($token, $payload));
     }
 
     // Ad-hoc "issue a subscription not tied to a plan" form: a GB number or
@@ -400,7 +454,7 @@ class AdminController extends Controller
             'traffic_unlimited' => $trafficUnlimited,
             'traffic_limit_gb' => $trafficUnlimited ? null : (float) $data['traffic_limit_gb'],
             'expiry_unlimited' => $expiryUnlimited,
-            'expires_at' => $expiryUnlimited ? null : \Illuminate\Support\Carbon::parse($data['expires_at'])->toRfc3339String(),
+            'expires_at' => $expiryUnlimited ? null : Carbon::parse($data['expires_at'])->toRfc3339String(),
         ];
 
         $token = $this->token($request);
@@ -426,7 +480,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function editSubscription(Request $request, string $subscriptionId): RedirectResponse
+    public function editSubscription(Request $request, string $subscriptionId): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'traffic_unlimited' => ['nullable', 'boolean'],
@@ -434,20 +488,22 @@ class AdminController extends Controller
             'device_limit' => ['nullable', 'integer', 'min:1'],
             'expires_at' => ['nullable', 'date'],
             'status' => ['nullable', 'string', 'in:pending,active,expired,cancelled,suspended'],
+            'plan_id' => ['nullable', 'uuid'],
         ]);
 
         $payload = [
             'traffic_unlimited' => $request->boolean('traffic_unlimited'),
             'traffic_limit_gb' => ! empty($data['traffic_limit_gb']) ? (float) $data['traffic_limit_gb'] : null,
             'device_limit' => $data['device_limit'] ?? null,
-            'expires_at' => ! empty($data['expires_at']) ? \Illuminate\Support\Carbon::parse($data['expires_at'])->toRfc3339String() : null,
+            'expires_at' => ! empty($data['expires_at']) ? Carbon::parse($data['expires_at'])->toRfc3339String() : null,
             'status' => $data['status'] ?? null,
+            'plan_id' => $data['plan_id'] ?? null,
         ];
 
         return $this->coreAction($request, '/subscriptions', 'Подписка обновлена.', fn ($token) => $this->core->editSubscription($token, $subscriptionId, $payload));
     }
 
-    public function resetSubscriptionUsage(Request $request, string $subscriptionId): RedirectResponse
+    public function resetSubscriptionUsage(Request $request, string $subscriptionId): RedirectResponse|JsonResponse
     {
         return $this->coreAction($request, '/subscriptions', 'Счётчик использования сброшен.', fn ($token) => $this->core->resetSubscriptionUsage($token, $subscriptionId));
     }
@@ -486,7 +542,7 @@ class AdminController extends Controller
     // requires a JS confirm() in the view on top of that, matching how
     // other destructive actions (deleteUser) already gate on a second
     // explicit step rather than a bare POST.
-    public function deleteSubscription(Request $request, string $subscriptionId): RedirectResponse
+    public function deleteSubscription(Request $request, string $subscriptionId): RedirectResponse|JsonResponse
     {
         return $this->coreAction($request, '/subscriptions', 'Подписка удалена, доступ отозван.', fn ($token) => $this->core->deleteSubscription($token, $subscriptionId));
     }
@@ -498,14 +554,18 @@ class AdminController extends Controller
     // means the session expired mid-click (same handling as
     // renderAdminPage), anything else surfaces Core's own error message
     // when it sent one.
-    private function coreAction(Request $request, string $redirectTo, string $successMessage, \Closure $action): RedirectResponse
+    private function coreAction(Request $request, string $redirectTo, string $successMessage, \Closure $action): RedirectResponse|JsonResponse
     {
         $token = $this->token($request);
         if ($token === null) {
             return redirect('/login');
         }
         try {
-            $action($token);
+            $result = $action($token);
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $successMessage, 'data' => $result]);
+            }
 
             return redirect($redirectTo)->with('success', $successMessage);
         } catch (RequestException $e) {
@@ -515,6 +575,10 @@ class AdminController extends Controller
                 return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
             }
             $message = $e->response->json('error') ?? $e->response->json('code') ?? 'Не удалось выполнить действие.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => is_string($message) ? $message : 'Не удалось выполнить действие.'], $e->response->status());
+            }
 
             return redirect($redirectTo)->with('error', is_string($message) ? $message : 'Не удалось выполнить действие.');
         }

@@ -361,12 +361,13 @@
     @endif
 
     @if($section === 'users')
-        <section class="adm-card">
-            <div class="adm-card-head">
+        <section class="adm-card" id="users-admin">
+            <div class="adm-card-head adm-card-head--row">
                 <div>
                     <h6>Users</h6>
-                    <p>Core remains the source of truth for account status, role and login activity.</p>
+                    <p>Учётные записи и их текущие подписки.</p>
                 </div>
+                <button type="button" class="adm-btn adm-btn-primary" onclick="admOpenUserModal()">+ Создать пользователя</button>
             </div>
             <div class="adm-table-toolbar">
                 <div class="adm-table-search">
@@ -376,7 +377,7 @@
             </div>
             <div class="adm-table-wrap" data-enhance>
                 <table class="adm-table">
-                    <thead><tr><th>Email</th><th>Username</th><th>Role</th><th>Status</th><th>Last login</th><th data-sortable="false"></th></tr></thead>
+                    <thead><tr><th>Email</th><th>Username</th><th>Role</th><th>Status</th><th>Подписка</th><th>Last login</th><th data-sortable="false"></th></tr></thead>
                     <tbody>
                     @forelse($users ?? [] as $user)
                         <tr data-row data-search="{{ $user['email'] ?? '' }} {{ $user['username'] ?? '' }}">
@@ -395,8 +396,20 @@
                             <td>
                                 <span class="node-chip {{ empty($user['disabled_at']) ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ empty($user['disabled_at']) ? 'active' : 'disabled' }}</span>
                             </td>
+                            <td>
+                                @if(!empty($user['subscription']))
+                                    <strong>{{ $user['subscription']['plan_name'] ?? $user['subscription']['plan_id'] }}</strong><br>
+                                    <span class="node-chip {{ ($user['subscription']['status'] ?? '') === 'active' ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ $user['subscription']['status'] }}</span>
+                                    <small class="adm-muted">до {{ $user['subscription']['current_period_end'] ?? '-' }}</small>
+                                @else
+                                    <span class="adm-muted">Нет подписки</span>
+                                @endif
+                            </td>
                             <td class="date-cell" data-sort="{{ $user['last_login_at'] ?? '' }}">{{ $user['last_login_at'] ?? '-' }}</td>
                             <td>
+                                <button type="button" class="adm-icon-btn" title="Редактировать" onclick='admOpenUserModal(@json($user))'>
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                </button>
                                 @if(empty($user['disabled_at']))
                                     <form method="post" action="/users/{{ $user['id'] }}/disable" class="adm-inline-form" onsubmit="return confirm('Заблокировать {{ $user['email'] ?? 'пользователя' }}?')">
                                         @csrf
@@ -417,12 +430,64 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6">No users returned by Core.</td></tr>
+                        <tr><td colspan="7">Пользователи не найдены.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
             </div>
         </section>
+
+        <div class="adm-modal-backdrop" id="adm-user-modal">
+            <div class="adm-modal">
+                <div class="adm-modal-head">
+                    <h6 id="adm-user-modal-title">Новый пользователь</h6>
+                    <button type="button" class="adm-modal-close" onclick="admCloseUserModal()" aria-label="Закрыть">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <form method="post" id="adm-user-form" class="adm-form" action="/users">
+                    @csrf
+                    <label>Email<input name="email" id="au-email" type="email" class="adm-input" required autocomplete="off"></label>
+                    <label>Username<input name="username" id="au-username" class="adm-input" autocomplete="off"></label>
+                    <label>Пароль<input name="password" id="au-password" type="password" class="adm-input" minlength="10" autocomplete="new-password"></label>
+                    <div class="adm-form-row">
+                        <label>Роль
+                            <select name="role" id="au-role" class="adm-input">
+                                @foreach(['user','support','admin','superadmin'] as $role)<option value="{{ $role }}">{{ $role }}</option>@endforeach
+                            </select>
+                        </label>
+                        <label>Статус
+                            <select name="status" id="au-status" class="adm-input"><option value="active">active</option><option value="disabled">disabled</option></select>
+                        </label>
+                    </div>
+                    <p class="adm-form-error" id="adm-user-error" hidden></p>
+                    <div class="adm-form-actions">
+                        <button type="submit" class="adm-btn adm-btn-primary">Сохранить</button>
+                        <button type="button" class="adm-btn" onclick="admCloseUserModal()">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        @push('scripts')
+        <script>
+        function admOpenUserModal(user = null) {
+            const form = document.getElementById('adm-user-form');
+            form.action = user ? '/users/' + user.id : '/users';
+            document.getElementById('adm-user-modal-title').textContent = user ? 'Редактировать пользователя' : 'Новый пользователь';
+            document.getElementById('au-email').value = user?.email || '';
+            document.getElementById('au-username').value = user?.username || '';
+            document.getElementById('au-password').value = '';
+            document.getElementById('au-password').required = !user;
+            document.getElementById('au-role').value = user?.role || 'user';
+            document.getElementById('au-status').value = user?.status || (user?.disabled_at ? 'disabled' : 'active');
+            document.getElementById('adm-user-error').hidden = true;
+            document.getElementById('adm-user-modal').classList.add('open');
+        }
+        function admCloseUserModal() { document.getElementById('adm-user-modal').classList.remove('open'); }
+        document.getElementById('adm-user-modal')?.addEventListener('click', (event) => { if (event.target.id === 'adm-user-modal') admCloseUserModal(); });
+        </script>
+        @endpush
     @endif
 
     @if($section === 'subscriptions')
@@ -432,7 +497,7 @@
             $trafficBySub = collect($traffic ?? [])->keyBy('subscription_id');
             $onlineNodeOptions = collect($nodes ?? [])->map(fn ($n) => ['id' => $n['id'], 'label' => $n['code'] ?? $n['id']]);
         @endphp
-        <section class="adm-card">
+        <section class="adm-card" id="subscriptions-admin">
             <div class="adm-card-head adm-card-head--row">
                 <div>
                     <h6>Subscriptions</h6>
@@ -551,7 +616,7 @@
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                     </button>
                 </div>
-                <form method="post" class="adm-form" action="/subscriptions/manual">
+                <form method="post" class="adm-form" action="/subscriptions">
                     @csrf
                     <label>User ID
                         <input name="user_id" class="adm-input" required list="adm-user-list">
@@ -561,24 +626,22 @@
                             <option value="{{ $user['id'] }}">{{ $user['email'] ?? $user['id'] }}</option>
                         @endforeach
                     </datalist>
-                    <label>Node
-                        <select name="node_id" class="adm-input" required>
-                            @foreach($onlineNodeOptions as $opt)
-                                <option value="{{ $opt['id'] }}">{{ $opt['label'] }}</option>
+                    <label>Тариф
+                        <select name="plan_id" class="adm-input" required>
+                            @foreach($plans ?? [] as $plan)
+                                <option value="{{ $plan['id'] }}">{{ $plan['name'] }} ({{ $plan['code'] }})</option>
                             @endforeach
                         </select>
                     </label>
                     <div class="adm-form-row">
-                        <label>Traffic limit, GB
-                            <input name="traffic_limit_gb" type="number" step="0.1" min="0.1" class="adm-input">
-                        </label>
-                        <label class="adm-form-check"><input type="checkbox" name="traffic_unlimited" value="1" onchange="this.form.traffic_limit_gb.disabled=this.checked"> Unlimited</label>
-                    </div>
-                    <div class="adm-form-row">
-                        <label>Expires at
+                        <label>Действует до
                             <input name="expires_at" type="date" class="adm-input">
                         </label>
-                        <label class="adm-form-check"><input type="checkbox" name="expiry_unlimited" value="1" onchange="this.form.expires_at.disabled=this.checked"> Unlimited</label>
+                        <label>Статус
+                            <select name="status" class="adm-input">
+                                @foreach(['active','pending','suspended','cancelled'] as $status)<option value="{{ $status }}">{{ $status }}</option>@endforeach
+                            </select>
+                        </label>
                     </div>
                     <div class="adm-form-actions">
                         <button type="submit" class="adm-btn adm-btn-primary">Создать</button>
@@ -606,6 +669,12 @@
                     </div>
                     <label>Device limit
                         <input name="device_limit" id="se-devices" type="number" min="1" class="adm-input">
+                    </label>
+                    <label>Тариф
+                        <select name="plan_id" id="se-plan" class="adm-input">
+                            <option value="">— не менять —</option>
+                            @foreach($plans ?? [] as $plan)<option value="{{ $plan['id'] }}">{{ $plan['name'] }} ({{ $plan['code'] }})</option>@endforeach
+                        </select>
                     </label>
                     <label>Expires at
                         <input name="expires_at" id="se-expires" type="date" class="adm-input">
@@ -638,6 +707,7 @@
             document.getElementById('se-traffic').value = '';
             document.getElementById('se-unlimited').checked = false;
             document.getElementById('se-devices').value = subscription.device_limit_override || subscription.device_limit_snapshot || '';
+            document.getElementById('se-plan').value = subscription.plan_id || '';
             document.getElementById('se-expires').value = '';
             document.getElementById('se-status').value = '';
             document.getElementById('adm-sub-edit-modal').classList.add('open');

@@ -48,7 +48,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.Email = store.NormalizeEmail(req.Email)
 	if req.Email == "" || len(req.Password) < 10 {
 		writeError(w, http.StatusBadRequest, "email and password with at least 10 characters are required")
 		return
@@ -79,7 +79,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	user, err := s.app.Store.GetUserByEmail(r.Context(), strings.ToLower(strings.TrimSpace(req.Email)))
+	user, err := s.app.Store.GetUserByEmail(r.Context(), req.Email)
 	if err != nil || user.DisabledAt != nil || user.Status != "active" || user.PasswordHash == "" {
 		observability.AuthLoginFailed.Inc()
 		writeError(w, http.StatusUnauthorized, "invalid credentials")

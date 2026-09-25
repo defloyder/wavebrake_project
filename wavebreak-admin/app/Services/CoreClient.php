@@ -63,6 +63,16 @@ class CoreClient
         return $this->auth($token, true)->get('/v1/admin/users')->throw()->json('users') ?? [];
     }
 
+    public function createUser(string $token, array $data): array
+    {
+        return $this->auth($token)->post('/v1/admin/users', $data)->throw()->json();
+    }
+
+    public function updateUser(string $token, string $userId, array $data): array
+    {
+        return $this->auth($token)->patch("/v1/admin/users/{$userId}", $data)->throw()->json();
+    }
+
     public function updateUserRole(string $token, string $userId, string $role): array
     {
         return $this->auth($token)->patch("/v1/admin/users/{$userId}/role", compact('role'))->throw()->json();
@@ -99,6 +109,11 @@ class CoreClient
             'user_id' => $userId,
             'plan_id' => $planId,
         ])->throw()->json();
+    }
+
+    public function createSubscription(string $token, array $data): array
+    {
+        return $this->auth($token)->post('/v1/admin/subscriptions', $data)->throw()->json();
     }
 
     public function createManualSubscription(string $token, array $data): array

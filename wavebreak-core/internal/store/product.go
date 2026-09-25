@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -80,14 +81,23 @@ type AdminDashboard struct {
 }
 
 type AdminUser struct {
-	ID          string     `json:"id"`
-	Email       string     `json:"email"`
-	Username    string     `json:"username,omitempty"`
-	Status      string     `json:"status"`
-	Role        string     `json:"role"`
-	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
-	DisabledAt  *time.Time `json:"disabled_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID           string                 `json:"id"`
+	Email        string                 `json:"email"`
+	Username     string                 `json:"username,omitempty"`
+	Status       string                 `json:"status"`
+	Role         string                 `json:"role"`
+	LastLoginAt  *time.Time             `json:"last_login_at,omitempty"`
+	DisabledAt   *time.Time             `json:"disabled_at,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
+	Subscription *AdminUserSubscription `json:"subscription,omitempty"`
+}
+
+type AdminUserSubscription struct {
+	ID               string    `json:"id"`
+	PlanID           string    `json:"plan_id"`
+	PlanName         string    `json:"plan_name"`
+	Status           string    `json:"status"`
+	CurrentPeriodEnd time.Time `json:"current_period_end"`
 }
 
 type AuditEvent struct {
@@ -786,10 +796,20 @@ func (s *Store) AdminDashboard(ctx context.Context) (AdminDashboard, error) {
 
 func (s *Store) ListUsers(ctx context.Context) ([]AdminUser, error) {
 	rows, err := s.db.Query(ctx, `
-		select id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at
-		from users
-		where deleted_at is null
-		order by created_at desc
+		select u.id::text, coalesce(u.email, ''), coalesce(u.username, ''), u.status, u.role,
+		       u.last_login_at, u.disabled_at, u.created_at,
+		       sub.id::text, sub.plan_id::text, sub.plan_name, sub.status, sub.current_period_end
+		from users u
+		left join lateral (
+		    select s.id, s.plan_id, p.name as plan_name, s.status, s.current_period_end
+		    from subscriptions s
+		    join plans p on p.id = s.plan_id
+		    where s.user_id = u.id
+		    order by (s.status = 'active') desc, s.current_period_end desc, s.created_at desc
+		    limit 1
+		) sub on true
+		where u.deleted_at is null
+		order by u.created_at desc
 		limit 200`)
 	if err != nil {
 		return nil, err
@@ -798,12 +818,55 @@ func (s *Store) ListUsers(ctx context.Context) ([]AdminUser, error) {
 	var users []AdminUser
 	for rows.Next() {
 		var u AdminUser
-		if err := rows.Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt); err != nil {
+		var subscriptionID, planID, planName, subscriptionStatus *string
+		var currentPeriodEnd *time.Time
+		if err := rows.Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt,
+			&subscriptionID, &planID, &planName, &subscriptionStatus, &currentPeriodEnd); err != nil {
 			return nil, err
+		}
+		if subscriptionID != nil && planID != nil && planName != nil && subscriptionStatus != nil && currentPeriodEnd != nil {
+			u.Subscription = &AdminUserSubscription{ID: *subscriptionID, PlanID: *planID, PlanName: *planName, Status: *subscriptionStatus, CurrentPeriodEnd: *currentPeriodEnd}
 		}
 		users = append(users, u)
 	}
 	return users, rows.Err()
+}
+
+func (s *Store) AdminCreateUser(ctx context.Context, email, username, passwordHash, role, status string) (AdminUser, error) {
+	email = NormalizeEmail(email)
+	username = strings.TrimSpace(username)
+	var u AdminUser
+	err := s.db.QueryRow(ctx, `
+		insert into users (email, username, password_hash, password_algo, role, status, disabled_at)
+		values ($1, nullif($2, ''), $3, 'argon2id', $4, $5, case when $5 = 'disabled' then now() else null end)
+		returning id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at`,
+		email, username, passwordHash, role, status,
+	).Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	return u, normalizeDatabaseError(err)
+}
+
+func (s *Store) AdminUpdateUser(ctx context.Context, userID, email, username, role, status, passwordHash string) (AdminUser, error) {
+	email = NormalizeEmail(email)
+	username = strings.TrimSpace(username)
+	var u AdminUser
+	err := s.db.QueryRow(ctx, `
+		update users
+		set email = $2,
+		    username = nullif($3, ''),
+		    role = $4,
+		    status = $5,
+		    disabled_at = case when $5 = 'disabled' then coalesce(disabled_at, now()) else null end,
+		    password_hash = coalesce(nullif($6, ''), password_hash),
+		    password_algo = case when $6 <> '' then 'argon2id' else password_algo end,
+		    updated_at = now()
+		where id = $1 and deleted_at is null
+		returning id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at`,
+		userID, email, username, role, status, passwordHash,
+	).Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AdminUser{}, ErrNotFound
+	}
+	return u, normalizeDatabaseError(err)
 }
 
 func (s *Store) AdminUpdateUserRole(ctx context.Context, userID, role string) (AdminUser, error) {
@@ -825,7 +888,9 @@ func (s *Store) AdminSetUserDisabled(ctx context.Context, userID string, disable
 	var u AdminUser
 	err := s.db.QueryRow(ctx, `
 		update users
-		set disabled_at = case when $2 then now() else null end, updated_at = now()
+		set disabled_at = case when $2 then coalesce(disabled_at, now()) else null end,
+		    status = case when $2 then 'disabled' else 'active' end,
+		    updated_at = now()
 		where id = $1 and deleted_at is null
 		returning id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at`,
 		userID, disabled,
@@ -1087,7 +1152,7 @@ func (s *Store) AdminCreateManualSubscription(ctx context.Context, userID string
 // pattern the schema already relies on for "unlimited" (nil override falls
 // back to nil snapshot); pass clearTrafficLimit=true to explicitly force
 // unlimited (nil) rather than leaving the existing override in place.
-func (s *Store) AdminEditSubscription(ctx context.Context, subscriptionID string, trafficLimitBytes *int64, clearTrafficLimit bool, deviceLimit *int, currentPeriodEnd *time.Time, status *string) (Subscription, error) {
+func (s *Store) AdminEditSubscription(ctx context.Context, subscriptionID string, trafficLimitBytes *int64, clearTrafficLimit bool, deviceLimit *int, currentPeriodEnd *time.Time, status, planID *string) (Subscription, error) {
 	if status != nil {
 		switch *status {
 		case "pending", "active", "expired", "cancelled", "suspended":
@@ -1098,7 +1163,11 @@ func (s *Store) AdminEditSubscription(ctx context.Context, subscriptionID string
 	var sub Subscription
 	err := s.db.QueryRow(ctx, `
 		update subscriptions
-		set traffic_limit_override_bytes = case
+		set plan_id = coalesce(nullif($7::text, '')::uuid, plan_id),
+		    traffic_limit_bytes_snapshot = case when nullif($7::text, '') is not null then (select traffic_limit_bytes from plans where id = $7::uuid and deleted_at is null) else traffic_limit_bytes_snapshot end,
+		    device_limit_snapshot = case when nullif($7::text, '') is not null then (select device_limit from plans where id = $7::uuid and deleted_at is null) else device_limit_snapshot end,
+		    concurrent_connection_limit_snapshot = case when nullif($7::text, '') is not null then (select concurrent_connection_limit from plans where id = $7::uuid and deleted_at is null) else concurrent_connection_limit_snapshot end,
+		    traffic_limit_override_bytes = case
 		        when $2 then null
 		        when $3::bigint is not null then $3::bigint
 		        else traffic_limit_override_bytes
@@ -1112,7 +1181,7 @@ func (s *Store) AdminEditSubscription(ctx context.Context, subscriptionID string
 		returning id::text, user_id::text, plan_id::text, status, source, source_reference, created_by::text,
 		          traffic_limit_bytes_snapshot, device_limit_snapshot, concurrent_connection_limit_snapshot,
 		          traffic_limit_override_bytes, device_limit_override, current_period_end, created_at, updated_at`,
-		subscriptionID, clearTrafficLimit, trafficLimitBytes, deviceLimit, currentPeriodEnd, status,
+		subscriptionID, clearTrafficLimit, trafficLimitBytes, deviceLimit, currentPeriodEnd, status, planID,
 	).Scan(&sub.ID, &sub.UserID, &sub.PlanID, &sub.Status, &sub.Source, &sub.SourceReference, &sub.CreatedBy, &sub.TrafficLimitBytesSnapshot, &sub.DeviceLimitSnapshot, &sub.ConcurrentConnectionLimitSnapshot, &sub.TrafficLimitOverrideBytes, &sub.DeviceLimitOverride, &sub.CurrentPeriodEnd, &sub.CreatedAt, &sub.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Subscription{}, ErrNotFound

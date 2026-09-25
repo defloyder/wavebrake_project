@@ -87,6 +87,8 @@ func New(app *app.App) http.Handler {
 			r.Post("/nodes/{nodeID}/desired-state", s.createNodeDesiredState)
 			r.Get("/admin/dashboard", s.adminDashboard)
 			r.Get("/admin/users", s.adminUsers)
+			r.Post("/admin/users", s.adminCreateUser)
+			r.Patch("/admin/users/{userID}", s.adminUpdateUser)
 			r.Patch("/admin/users/{userID}/role", s.adminUpdateUserRole)
 			r.Post("/admin/users/{userID}/disable", s.adminDisableUser)
 			r.Post("/admin/users/{userID}/enable", s.adminEnableUser)

@@ -353,6 +353,46 @@ paths:
       responses:
         "200":
           description: User list
+    post:
+      security:
+        - bearerAuth: []
+      summary: Create a user with normalized unique email
+      responses:
+        "201":
+          description: User created
+        "409":
+          description: Email or username already exists
+  /v1/admin/users/{userID}:
+    patch:
+      security:
+        - bearerAuth: []
+      summary: Update user identity, role, status, or password
+      parameters:
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User updated
+        "409":
+          description: Email or username already exists
+    delete:
+      security:
+        - bearerAuth: []
+      summary: Delete a user and cascade owned subscriptions
+      parameters:
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User deleted
   /v1/admin/plans:
     get:
       security:
@@ -405,6 +445,28 @@ paths:
       responses:
         "200":
           description: Subscription list
+    post:
+      security:
+        - bearerAuth: []
+      summary: Create a subscription for a user with plan, status, and expiry
+      responses:
+        "201":
+          description: Subscription created
+  /v1/admin/subscriptions/{subscriptionID}:
+    patch:
+      security:
+        - bearerAuth: []
+      summary: Change plan, expiry, limits, or lifecycle status
+      parameters:
+        - name: subscriptionID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Subscription updated
   /v1/admin/subscriptions/{subscriptionID}/status:
     patch:
       security:
