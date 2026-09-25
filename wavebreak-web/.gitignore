@@ -15,6 +15,14 @@
 /auth.json
 /node_modules
 /public/build
+# The build artifacts themselves ship out-of-band (too large for GitHub's
+# push limit — see the .gitignore rules in wavebreak-mobile and
+# wavebreak-pc for the same reasoning) — excluded by extension, not the
+# whole directory, since version.json in this same folder is a small,
+# git-tracked file the web team edits directly each time a build ships
+# (see wavebreak-mobile/lib/services/update/update_service.dart) and a
+# directory-level ignore would silently exclude that too (git can't
+# un-ignore a file whose parent directory is itself ignored).
 /public/downloads/*.apk
 /public/downloads/*.exe
 /public/downloads/*.zip

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A thin decorative sine-wave stroke, echoing the animated wave lines
+     wb_colors.dart / animated_waves.dart use throughout the app — the one
+     bit of "waves in the notification" a static vector can actually do. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="10dp"
+    android:viewportWidth="360"
+    android:viewportHeight="10">
+    <path
+        android:pathData="M0,5 C15,0 30,10 45,5 C60,0 75,10 90,5 C105,0 120,10 135,5 C150,0 165,10 180,5 C195,0 210,10 225,5 C240,0 255,10 270,5 C285,0 300,10 315,5 C330,0 345,10 360,5"
+        android:strokeColor="@color/wb_wave_cyan"
+        android:strokeWidth="1.4"
+        android:strokeAlpha="0.55"
+        android:fillColor="#00000000" />
+</vector>

@@ -1,0 +1,72 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / env
+.env
+.env.*
+*.jks
+key.properties
+**/google-services.json
+
+# Generated
+*.g.dart
+*.freezed.dart
+
+# Android machine-specific
+android/local.properties
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+
+# Native bridge build output (regenerate via native/hysteria_bridge/build_aar.sh)
+# android/app/libs/hysteria_bridge.aar is >100MB — over GitHub's hard push
+# limit, so it can never be a normal blob here; ship it out-of-band or move
+# it to Git LFS if it needs to be versioned.
+native/hysteria_bridge/*.aar
+native/hysteria_bridge/*.jar
+android/app/libs/*.aar
+
+# Claude Code session lock (ephemeral, per-machine)
+.claude/scheduled_tasks.lock
+
+# Windows packaged/distributable output
+wavebreak-windows-build/
+wavebreak-windows-build.zip
+dist/
+# The compiled installer .exe itself — a build artifact regenerated from
+# windows/installer/wavebreak.iss + the release build, not source. Also
+# sing-box.exe/wintun.dll landing in windows/runtime_deps/ are real
+# binaries this repo needs to build at all but are provisioned manually
+# (see that folder's own notes), not something a normal `git add .` in
+# this directory should accidentally re-add if ever removed and
+# re-fetched under a different name.
+windows/installer/Output/
+
+# Session scratch/debug artifacts
+vmtest/
+scratchpad/
+scratch_*.png
+scratch_*.txt
+scratch_*.xml
+run_log.txt
+switch_start.txt
+
+# Misc
+*.log
