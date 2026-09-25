@@ -791,6 +791,14 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   }
 
   void _onNative(VpnNativeState native) {
+    // VpnNativeState.reconnecting (WaveEngineVpnService.kt's engine-only,
+    // TUN-preserving reconnect — see its own class doc) is deliberately
+    // NOT handled here: falling through with no status change is exactly
+    // the point. The whole fix it belongs to exists so the native tunnel
+    // recovers from a network flap/health-check failure without the TUN
+    // interface, foreground notification, OR this app's own `connected`
+    // status ever flickering — reacting to it here (even just logging a
+    // visible transition) would reintroduce that flicker one layer up.
     if (native == VpnNativeState.failed &&
         state.status != ConnectionStatus.error) {
       state = state.copyWith(

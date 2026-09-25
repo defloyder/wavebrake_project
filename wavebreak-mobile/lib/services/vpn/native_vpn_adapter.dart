@@ -296,10 +296,24 @@ class NativeVpnAdapter implements VpnAdapter {
       'CONNECTED' => VpnNativeState.connected,
       'IDLE' => VpnNativeState.idle,
       'FAILED' => VpnNativeState.failed,
+      // See WaveEngineVpnService.STATE_RECONNECTING's own comment — an
+      // automatic, TUN-preserving engine-only reconnect. Must NOT fall
+      // into the `_ => failed` default below: that would turn every
+      // routine network-flap recovery into a spurious "Connection
+      // failed" in the UI, exactly the flicker this whole fix exists to
+      // remove, just moved one layer up into Dart instead of Kotlin.
+      'RECONNECTING' => VpnNativeState.reconnecting,
       _ => VpnNativeState.failed,
     };
     if (state == VpnNativeState.failed && detail != null) {
       AppLogger.error('native engine failure: $detail');
+    } else if (state == VpnNativeState.reconnecting && detail != null) {
+      // Not an error — see the pipeline note on logStateTransition() in
+      // WaveEngineVpnService.kt: this is the SAME diagnostic-log export
+      // ("Export logs" in Settings) other native state details already
+      // reach, just at info level so a routine, successful auto-recovery
+      // doesn't read as a problem in an exported log.
+      AppLogger.info('native engine reconnecting: $detail');
     }
     _emit(state);
     final completer = _connectCompleter;

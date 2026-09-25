@@ -4,7 +4,23 @@ import 'dart:math';
 import '../../core/logging/app_logger.dart';
 import '../core_api/models.dart';
 
-enum VpnNativeState { idle, connecting, connected, disconnecting, failed }
+enum VpnNativeState {
+  idle,
+  connecting,
+  connected,
+  disconnecting,
+  failed,
+  // The native Android tunnel (WaveEngineVpnService.kt) restarting just
+  // its own Xray/Hysteria engine after a network flap/health-check
+  // failure/fd-count-high event — see that class's own doc comment for
+  // the fix this backs. Deliberately NOT treated as a disruption
+  // anywhere this is consumed: the TUN interface, tun2socks bridge, and
+  // foreground notification/icon all stay up the entire time this is
+  // active, so the UI has nothing to show beyond what it already shows
+  // for `connected` (see connection_manager.dart's _onNative(), which
+  // leaves this state as a no-op on purpose).
+  reconnecting,
+}
 
 abstract class VpnAdapter {
   Stream<VpnNativeState> get states;

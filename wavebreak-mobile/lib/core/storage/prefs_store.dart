@@ -36,6 +36,11 @@ class PrefsStore {
   static const cachedDevices = 'cache_devices_v1';
   static const cachedPlans = 'cache_plans_v1';
   static const cachedUsage = 'cache_usage_v1';
+  // Last-known-good `me()` profile — lets a cold start with valid tokens
+  // go straight to SessionPhase.authenticated instead of blocking on a
+  // network round-trip before showing anything. See
+  // SessionController.bootstrapSession.
+  static const cachedUser = 'cache_user_v1';
 
   static void init(SharedPreferences prefs) {
     _prefs = prefs;

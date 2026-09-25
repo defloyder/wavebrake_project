@@ -21,6 +21,17 @@ class UserProfile {
       status: (nested['status'] ?? 'active').toString(),
     );
   }
+
+  /// Round-trips with [fromJson] above (flat shape, not the `me()` response
+  /// verbatim) — used to persist the last-known profile locally so a cold
+  /// start can show it immediately instead of waiting on `me()`. See
+  /// SessionController.bootstrapSession.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'email': email,
+        'role': role,
+        'status': status,
+      };
 }
 
 class TokenPair {

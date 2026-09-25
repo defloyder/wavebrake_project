@@ -64,6 +64,41 @@ import java.net.Socket
  * builds one explicitly — so establishing the TUN interface and bridging
  * it into that SOCKS5 proxy via Bridge.startTun2Socks is identical either
  * way.
+ *
+ *  4. The tunnel/foreground notification icon periodically flickering off
+ *     and on for a few seconds at a time with the phone idle, screen off,
+ *     doing nothing — reported as happening spontaneously, no user action.
+ *     Traced to EVERY automatic-recovery trigger (network flap, health-
+ *     check failure, fd-count-high, app foregrounded after a background
+ *     stretch) going through the same path: releaseTunOnly() (closes the
+ *     TUN ParcelFileDescriptor — the OS-level action Android's VPN icon
+ *     reacts to) then, after a gap, establishTun() again. None of those
+ *     triggers actually require the TUN interface itself to go down —
+ *     only the engine's own outbound session underneath needs restarting.
+ *     Fixed with an explicit CONNECTING/CONNECTED/RECONNECTING/(IDLE=
+ *     disconnected) state machine: every automatic trigger now goes
+ *     through reconnectEngineOnly(), which restarts just Bridge.startXray/
+ *     Bridge.start — via connectXray/connectHysteria's `preserveTun` flag
+ *     — while the TUN interface, tun2socks bridge, and foreground
+ *     notification all stay completely untouched. This is a REAL,
+ *     verified TUN-fd-preserving reconnect for both engines, not a
+ *     "make the teardown faster" approximation: it only works because
+ *     both engines' local SOCKS5 listener sits at a fixed address
+ *     (Xray-core's always did — 127.0.0.1:1080; Hysteria's bridge.go
+ *     Start() was changed, as part of this fix, from an ephemeral ":0"
+ *     port to a fixed one — see localSocksPort — specifically so this
+ *     holds for Hysteria2 too), confirmed by reading xjasonlyu/tun2socks'
+ *     own engine.go: it dials that address fresh per flow, so a restarted
+ *     engine coming back up on the SAME address is invisible to it. The
+ *     TUN interface only still goes down in one honest last-resort case:
+ *     every automatic retry (with exponential backoff) has genuinely
+ *     failed — see handleConnectFailure()'s terminal branch — at which
+ *     point the foreground service/notification STILL stay up (only
+ *     stopAll() — user disconnect, onRevoke, or a real process crash —
+ *     ever tears those down) and STATE_FAILED is surfaced honestly with a
+ *     Retry button, rather than lying about (or literally lying about,
+ *     as a phantom "Connected" over a dead TUN interface would) a
+ *     recovery that didn't happen.
  */
 class WaveEngineVpnService : VpnService() {
     private var tunInterface: ParcelFileDescriptor? = null
@@ -71,12 +106,18 @@ class WaveEngineVpnService : VpnService() {
     private var activeEngine: Engine? = null
     @Volatile private var stopping = false
 
-    // Replayed by reconnectNow() on a detected network change — the exact
-    // same string that started the current connection, since Kotlin has no
-    // other way to rebuild it (the real request came from Dart, and by the
-    // time a reconnect is needed that call is long over).
+    // Replayed by reconnectEngineOnly() on a detected network change — the
+    // exact same string that started the current connection, since Kotlin
+    // has no other way to rebuild it (the real request came from Dart, and
+    // by the time a reconnect is needed that call is long over).
     private var lastLink: String? = null
     private var lastXrayConfig: String? = null
+
+    // Set right after a successful Hysteria connectHysteria() (fresh or
+    // engine-only reconnect) — see that function's own comment on why an
+    // unexpected mismatch here means TUN must be rebuilt after all rather
+    // than silently trusting the fixed-port assumption.
+    private var lastHysteriaSocksPort: Int? = null
 
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
@@ -85,6 +126,7 @@ class WaveEngineVpnService : VpnService() {
     private var pendingReconnect: Runnable? = null
     private var pendingFdCheck: Runnable? = null
     private var pendingHealthCheck: Runnable? = null
+    private var pendingConnectWatchdog: Runnable? = null
     private var consecutiveHealthCheckFailures = 0
     private var connectRetryCount = 0
 
@@ -92,7 +134,7 @@ class WaveEngineVpnService : VpnService() {
     // waking from a long idle/Doze stretch, Telegram (everything) briefly
     // not loading, and — instead of the tunnel just quietly recovering —
     // the app landing on a terminal "connection failed" with a manual
-    // Retry button. Traced to reconnectNow()'s own reconnect attempt (the
+    // Retry button. Traced to the reconnect path's own reconnect attempt (the
     // one health-check-failure/network-change triggers) hitting
     // handleConnectFailure()'s terminal branch after exactly ONE try. The
     // moment right after Doze/deep-sleep exits is exactly when a real
@@ -110,7 +152,7 @@ class WaveEngineVpnService : VpnService() {
 
     // Real-device bug this pair exists to fix: onStartCommand's own
     // connect dispatch (a new request from Dart — e.g. Auto-connect
-    // switching to its next candidate) and reconnectNow()'s
+    // switching to its next candidate) and reconnectEngineOnly()'s
     // health-check/network-change-triggered reconnect each spawn their
     // OWN background thread straight into connectXray/connectHysteria
     // with nothing stopping two of them from running at the same time.
@@ -185,7 +227,7 @@ class WaveEngineVpnService : VpnService() {
         }
 
         if (intent?.action == ACTION_STOP) {
-            stopAll(broadcastIdle = true)
+            stopAll(reason = STOP_REASON_USER, broadcastIdle = true)
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_CHECK_PING) {
@@ -207,7 +249,7 @@ class WaveEngineVpnService : VpnService() {
         val link = intent?.getStringExtra(EXTRA_LINK)
         val xrayConfig = intent?.getStringExtra(EXTRA_XRAY_CONFIG)
         if (link.isNullOrEmpty() && xrayConfig.isNullOrEmpty()) {
-            stopAll(broadcastIdle = false)
+            stopAll(reason = STOP_REASON_SYSTEM, broadcastIdle = false)
             return START_NOT_STICKY
         }
         stopping = false
@@ -225,17 +267,17 @@ class WaveEngineVpnService : VpnService() {
         // supersedes whatever connect/reconnect attempt might already be
         // in flight (see connectGeneration's own doc comment above).
         val generation = ++connectGeneration
-        scheduleConnectWatchdog(generation, isReconnect = false)
+        scheduleConnectWatchdog(generation, isReconnect = false, preserveTun = false)
         if (!xrayConfig.isNullOrEmpty()) {
             activeEngine = Engine.XRAY
             lastXrayConfig = xrayConfig
             lastLink = null
-            Thread({ connectXray(xrayConfig, generation, isReconnect = false) }, "WaveEngineConnect").start()
+            Thread({ connectXray(xrayConfig, generation, isReconnect = false, preserveTun = false) }, "WaveEngineConnect").start()
         } else {
             activeEngine = Engine.HYSTERIA
             lastLink = link
             lastXrayConfig = null
-            Thread({ connectHysteria(link!!, generation, isReconnect = false) }, "WaveEngineConnect").start()
+            Thread({ connectHysteria(link!!, generation, isReconnect = false, preserveTun = false) }, "WaveEngineConnect").start()
         }
         return START_STICKY
     }
@@ -273,10 +315,24 @@ class WaveEngineVpnService : VpnService() {
     // above (including the success-broadcast guards in connectXray/
     // connectHysteria) mean its late result is silently ignored rather
     // than confusingly flipping the UI back.
-    private fun scheduleConnectWatchdog(generation: Long, isReconnect: Boolean) {
-        reconnectHandler.postDelayed({
-            if (stopping || generation != connectGeneration) return@postDelayed
-            Log.w(TAG, "connect attempt timed out with no result (isReconnect=$isReconnect)")
+    private fun scheduleConnectWatchdog(generation: Long, isReconnect: Boolean, preserveTun: Boolean) {
+        // A brand-new watchdog is always superseding whatever attempt was
+        // previously in flight (a fresh onStartCommand connect, or a new
+        // reconnectEngineOnly() generation) — cancel any watchdog still
+        // pending for that superseded attempt first, same pattern as
+        // scheduleReconnect/scheduleFdCheck/scheduleHealthCheck above. The
+        // generation check inside the callback below remains as a second,
+        // independent layer of defense, but a successful connect never
+        // bumps connectGeneration at all (see connectXray/connectHysteria's
+        // own cancellation right after broadcastState(STATE_CONNECTED)), so
+        // that check alone can't be relied on to stop a stale watchdog from
+        // firing on an already-succeeded, currently-connected tunnel —
+        // explicit cancellation is the real fix.
+        pendingConnectWatchdog?.let { reconnectHandler.removeCallbacks(it) }
+        val watchdog = Runnable {
+            pendingConnectWatchdog = null
+            if (stopping || generation != connectGeneration) return@Runnable
+            Log.w(TAG, "connect attempt timed out with no result (isReconnect=$isReconnect, preserveTun=$preserveTun)")
             // Marks this generation stale so a late-arriving success/
             // failure from the actual (possibly still-blocked) native
             // call is ignored by connectXray/connectHysteria's own
@@ -298,7 +354,15 @@ class WaveEngineVpnService : VpnService() {
             // Unconditionally releasing here means a watchdog timeout
             // never leaves anything running unmanaged, regardless of
             // which exact step the stale attempt was stuck in.
-            releaseEngineResources()
+            //
+            // preserveTun (true for every automatic engine-only reconnect
+            // — see reconnectEngineOnly()) means the stuck attempt never
+            // touched establishTun()/tun2socks in the first place, so
+            // there is nothing TUN-side to release here: releaseEngineOnly()
+            // stops just the stale Xray/Hysteria call, leaving the TUN
+            // interface and foreground notification completely untouched
+            // even when a reconnect attempt itself hangs.
+            if (preserveTun) releaseEngineOnly() else releaseEngineResources()
             // Real-device bug this branch fixes: a reconnect attempt
             // (health-check/network-change/app-foregrounded triggered,
             // never a fresh user tap) landing right at a sleep/wake or
@@ -315,16 +379,32 @@ class WaveEngineVpnService : VpnService() {
                 val delay = RECONNECT_BACKOFF_MS.getOrElse(reconnectRetryCount) { RECONNECT_BACKOFF_MS.last() }
                 reconnectRetryCount++
                 Log.w(TAG, "reconnect watchdog timeout, retrying in ${delay}ms ($reconnectRetryCount/$RECONNECT_MAX_RETRIES)")
+                // Every automatic reconnect trigger goes through
+                // reconnectEngineOnly() now (see its own doc comment) —
+                // isReconnect is only ever true for those, so retrying via
+                // that same TUN-preserving path here (never the old
+                // TUN-recreating reconnectNow()) keeps the tunnel/icon up
+                // through repeated watchdog timeouts too, not just the
+                // first attempt.
                 reconnectHandler.postDelayed({
-                    if (!stopping) reconnectNow("watchdog retry")
+                    if (!stopping) reconnectEngineOnly("watchdog retry")
                 }, delay)
-                return@postDelayed
+                return@Runnable
             }
             reconnectRetryCount = 0
             unregisterNetworkWatch()
             activeEngine = null
-            broadcastState(STATE_FAILED, detail = "connect_timeout")
-        }, CONNECT_WATCHDOG_TIMEOUT_MS)
+            // NOT a service stop (stopForeground/stopSelf are never called
+            // here — see the class doc's 3-cases rule) — only the tunnel
+            // itself gives up after every retry timed out. The foreground
+            // notification/icon stays up showing "Connection failed" with
+            // a Retry button; `preserveTun` reflects whether the TUN
+            // interface itself is still alive underneath (true unless this
+            // was a fresh, non-reconnect connect attempt that timed out).
+            broadcastState(STATE_FAILED, detail = "watchdog_exhausted connect_timeout tun_preserved=$preserveTun")
+        }
+        pendingConnectWatchdog = watchdog
+        reconnectHandler.postDelayed(watchdog, CONNECT_WATCHDOG_TIMEOUT_MS)
     }
 
     // Wi-Fi<->cellular handovers, a flaky Wi-Fi reconnect, or the radio
@@ -385,80 +465,82 @@ class WaveEngineVpnService : VpnService() {
         pendingFdCheck = null
         pendingHealthCheck?.let { reconnectHandler.removeCallbacks(it) }
         pendingHealthCheck = null
+        pendingConnectWatchdog?.let { reconnectHandler.removeCallbacks(it) }
+        pendingConnectWatchdog = null
     }
 
     // Debounced: a handover fires onLost then onAvailable in quick
     // succession — reacting to each separately would tear the tunnel down
     // and rebuild it twice for one real transition. Waiting for the dust to
     // settle also skips reacting at all to a blip shorter than this window.
+    // Unchanged 1200ms debounce (point 3 of the tunnel-stability rewrite
+    // this belongs to) — only what runs after the debounce changed, from
+    // the old TUN-tearing reconnectNow() to the TUN-preserving
+    // reconnectEngineOnly() below.
     private fun scheduleReconnect(reason: String) {
         if (stopping || activeEngine == null) return
         pendingReconnect?.let { reconnectHandler.removeCallbacks(it) }
-        val runnable = Runnable { reconnectNow(reason) }
+        val runnable = Runnable { reconnectEngineOnly(reason) }
         pendingReconnect = runnable
         reconnectHandler.postDelayed(runnable, 1200)
     }
 
-    // Replays whichever connect the user actually asked for through the
-    // exact same connectXray/connectHysteria path a fresh connect uses.
+    // TUN-preserving reconnect — the fix for the real-device bug this
+    // whole rewrite exists for: the VPN foreground notification/icon
+    // periodically disappearing and reappearing for seconds at a time
+    // while the phone sat idle, screen off, Telegram open, with the user
+    // doing nothing. Traced to every single automatic-recovery trigger
+    // (network flap, health-check failure, fd-count-high, app
+    // foregrounded after a background stretch) going through the OLD
+    // reconnectNow(), which called releaseTunOnly() (closes the TUN
+    // ParcelFileDescriptor — the OS-level action that makes Android drop
+    // the VPN icon) then, after a deliberate down-time gap, establishTun()
+    // again (a brand new TUN fd, i.e. the icon reappearing). That teardown
+    // was never actually necessary for any of these triggers: none of them
+    // mean the OS-level VPN interface itself is broken, only that the
+    // engine's own outbound session underneath needs to be redialed.
     //
-    // Real-device bug this fixes, found investigating a report that the
-    // health check below "doesn't fully" recover a stale tunnel: Telegram
-    // (and everything else) stays stuck on "Connecting..." with no
-    // traffic even after a health-check-triggered reconnect succeeds —
-    // WaveBreak itself shows Connected throughout, because its own
-    // fresh health-probe socket genuinely works over the new path.
+    // This works ONLY because both engines' local SOCKS5 proxy — the one
+    // tun2socks (untouched here, never restarted) is bridging the TUN
+    // interface into — sits at a fixed, unchanging local address:
+    // Xray-core's config always listens on 127.0.0.1:1080
+    // (XRAY_SOCKS_PORT; share_link_config.dart), and Hysteria's
+    // native/hysteria_bridge/bridge.go Start() was changed (as part of
+    // this same fix) from an ephemeral ":0" port to a fixed
+    // 127.0.0.1:17835 (localSocksPort) specifically so this holds for
+    // Hysteria2 too. Verified by reading xjasonlyu/tun2socks' own
+    // engine.go: tun2socks dials that proxy address fresh per flow rather
+    // than holding one persistent connection to it, and the ONLY way to
+    // ever change what address it points at is engine.Stop()+Start()
+    // again — which unconditionally closes the device (the TUN fd). As
+    // long as we never call StartTun2Socks/StopTun2Socks here, a brief
+    // "connection refused" window while the engine restarts is all any
+    // in-flight flow sees, then it just works again once the new
+    // Xray/Hysteria instance is listening on the same address — no TUN
+    // interface transition for Android (or any other app's socket) to
+    // ever observe, and no gap for the foreground notification to vanish.
     //
-    // Root cause was sequencing, not the health check itself.
-    // establishTun()'s Builder().establish() DOES hand back a genuinely
-    // new tun fd each time, and Bridge.startTun2Socks() DOES self-heal
-    // (stops the previous tun2socks engine — and closes ITS fd — before
-    // starting the new one; see native/hysteria_bridge/tun2socks.go).
-    // But that stop-then-start used to happen back-to-back inside one
-    // call with no real gap in between, from the same thread, in well
-    // under a millisecond. Android's connectivity stack treats that as
-    // one continuous VPN network having its interface silently swapped,
-    // not a real down-then-up transition — there's no window for the OS
-    // (or any other app watching for a network change) to ever observe
-    // the old interface as gone. An app like Telegram sitting on an
-    // already-established, currently idle TCP connection through the
-    // OLD tun path gets no signal whatsoever that anything changed; its
-    // packets just silently go nowhere on a socket it has no reason to
-    // give up on, often for a very long time (exactly "no self-heal,
-    // user has to intervene").
-    //
-    // releaseTunOnly() below explicitly closes the current interface
-    // FIRST, and RECONNECT_INTERFACE_DOWN_GAP_MS gives Android's
-    // connectivity stack an actual beat to register that before a new
-    // one gets established — turning the swap into a real (if brief)
-    // down/up cycle other apps' stale sockets can actually notice and
-    // recover from, the same way a manual disconnect+reconnect already
-    // did (that just went through a much bigger gap: a full
-    // stopSelf()/new-service cycle).
-    private fun reconnectNow(reason: String) {
-        if (stopping) return
-        Log.d(TAG, "reconnecting after $reason")
-        broadcastState(STATE_CONNECTING)
-        // Bumped here too, on the same main-looper thread onStartCommand
-        // runs on — see connectGeneration's own doc comment. A fresh
-        // connect request that arrived (or arrives during the gap below)
-        // supersedes this reconnect; this one's own eventual attempt
-        // checks its captured generation before touching anything.
+    // Ground truth on what could and couldn't be achieved (see the class
+    // doc's own summary too): this IS a genuine, real TUN-fd-preserving
+    // reconnect for both engines, not a "make the teardown faster/rarer"
+    // approximation — verified against the actual vendored Go sources
+    // (tun2socks' engine.go, this module's bridge.go/xray.go), not
+    // assumed.
+    private fun reconnectEngineOnly(reason: String) {
+        if (stopping || activeEngine == null) return
+        Log.d(TAG, "engine-only reconnect after $reason (TUN + tun2socks untouched)")
+        logStateTransition(STATE_RECONNECTING, reason)
         val generation = ++connectGeneration
-        releaseTunOnly()
-        reconnectHandler.postDelayed({
-            if (stopping || generation != connectGeneration) return@postDelayed
-            scheduleConnectWatchdog(generation, isReconnect = true)
-            when (activeEngine) {
-                Engine.XRAY -> lastXrayConfig?.let { cfg ->
-                    Thread({ connectXray(cfg, generation, isReconnect = true) }, "WaveEngineReconnect").start()
-                }
-                Engine.HYSTERIA -> lastLink?.let { link ->
-                    Thread({ connectHysteria(link, generation, isReconnect = true) }, "WaveEngineReconnect").start()
-                }
-                null -> {}
+        scheduleConnectWatchdog(generation, isReconnect = true, preserveTun = true)
+        when (activeEngine) {
+            Engine.XRAY -> lastXrayConfig?.let { cfg ->
+                Thread({ connectXray(cfg, generation, isReconnect = true, preserveTun = true) }, "WaveEngineReconnect").start()
             }
-        }, RECONNECT_INTERFACE_DOWN_GAP_MS)
+            Engine.HYSTERIA -> lastLink?.let { link ->
+                Thread({ connectHysteria(link, generation, isReconnect = true, preserveTun = true) }, "WaveEngineReconnect").start()
+            }
+            null -> {}
+        }
     }
 
     // Tears down just the OS-visible side of the tunnel (tun2socks + the
@@ -466,9 +548,13 @@ class WaveEngineVpnService : VpnService() {
     // Hysteria proxy engine — that engine's own Bridge.startXray/start
     // already self-heals fine on its own and doesn't need (or want, if
     // it costs session/handshake state) an extra stop-restart cycle just
-    // to fix what's really an interface-visibility problem. Shared by
-    // reconnectNow's real down/up gap above and releaseEngineResources'
-    // full teardown below.
+    // to fix what's really an interface-visibility problem. Now only used
+    // by releaseEngineResources()'s full teardown (fd-exhaustion recovery,
+    // a fresh/non-reconnect connect attempt failing outright, or a
+    // reconnect that has exhausted every retry — see handleConnectFailure)
+    // and by stopAll(); every automatic-recovery trigger goes through
+    // reconnectEngineOnly()/releaseEngineOnly() below instead, which never
+    // call this.
     private fun releaseTunOnly() {
         try {
             Bridge.stopTun2Socks()
@@ -479,6 +565,25 @@ class WaveEngineVpnService : VpnService() {
         } catch (t: Throwable) {
         }
         tunInterface = null
+    }
+
+    // The engine-only counterpart to releaseTunOnly(): stops just the
+    // active Xray/Hysteria instance, leaving tun2socks and the TUN
+    // interface completely untouched. This is what makes
+    // reconnectEngineOnly()'s reconnect (and its own watchdog-timeout/
+    // retry cleanup) never take the VPN icon down — see that function's
+    // own comment for why restarting the engine alone is safe as long as
+    // it comes back on the same fixed local SOCKS5 address tun2socks is
+    // already bridging into.
+    private fun releaseEngineOnly() {
+        try {
+            when (activeEngine) {
+                Engine.XRAY -> Bridge.stopXray()
+                Engine.HYSTERIA -> Bridge.stop()
+                null -> {}
+            }
+        } catch (t: Throwable) {
+        }
     }
 
     // Confirmed on-device: ordinary browsing over an otherwise-healthy
@@ -660,12 +765,25 @@ class WaveEngineVpnService : VpnService() {
     // makes stopOtherEngine's own `activeEngine` read reliable again:
     // nothing else can be concurrently overwriting engine state while
     // it's deciding what (if anything) needs stopping first.
-    private fun connectXray(configJson: String, generation: Long, isReconnect: Boolean) {
+    // [preserveTun] is what makes this the TUN-preserving reconnect path
+    // when true (every automatic-recovery trigger, via
+    // reconnectEngineOnly()): stopOtherEngine()/establishTun() are both
+    // skipped entirely, so the existing TUN interface and tun2socks bridge
+    // — already dialing 127.0.0.1:$XRAY_SOCKS_PORT — are never touched.
+    // Bridge.startXray() below rebinds that exact same address on its own
+    // (share_link_config.dart's config always listens there), so tun2socks
+    // just starts succeeding again on its next dial once the new instance
+    // is up — see reconnectEngineOnly()'s own comment for the full
+    // investigation. false (a fresh, user-initiated connect) runs the
+    // original full flow unchanged.
+    private fun connectXray(configJson: String, generation: Long, isReconnect: Boolean, preserveTun: Boolean) {
         if (generation != connectGeneration || stopping) return
         synchronized(connectLock) {
             if (generation != connectGeneration || stopping) return
             try {
-                stopOtherEngine(Engine.XRAY)
+                if (!preserveTun) {
+                    stopOtherEngine(Engine.XRAY)
+                }
                 setUpProtection()
                 // Only matters when the generated config actually
                 // references geosite:/geoip: rules (smart-routing's
@@ -691,48 +809,77 @@ class WaveEngineVpnService : VpnService() {
                 // real-device symptom cluster: WaveBreak toggling itself
                 // off then back on with no user action, and a completely
                 // separate VPN app (Happ) getting disconnected out of
-                // nowhere right after a WaveBreak toggle. releaseEngineResources()
+                // nowhere right after a WaveBreak toggle. Releasing here
                 // cleans up the engine Bridge.startXray just started
-                // rather than leaving it running orphaned underneath a
-                // tun interface that's never coming.
+                // rather than leaving it running orphaned; preserveTun
+                // keeps that cleanup scoped to just the engine (the TUN
+                // interface this attempt never touched stays exactly as
+                // it was).
                 if (stopping || generation != connectGeneration) {
-                    releaseEngineResources()
+                    if (preserveTun) releaseEngineOnly() else releaseEngineResources()
                     return@synchronized
                 }
-                // share_link_config.dart's inbound is always a SOCKS5
-                // listener on 127.0.0.1:1080 — Xray-core doesn't hand a
-                // port back the way Hysteria's bridge does, but there's
-                // nothing to discover since this app controls both ends
-                // of that config.
-                establishTun(XRAY_SOCKS_PORT)
-                // Real-device bug this closes: see connectHysteria's
-                // identical check for the full rationale — establishTun()
-                // is the actual OS-level "take the VPN slot" call, and a
-                // stop/watchdog-timeout landing while it ran must not be
-                // allowed to leave what it just established orphaned,
-                // running, and invisible to Dart.
-                if (stopping || generation != connectGeneration) {
-                    releaseEngineResources()
-                    return@synchronized
+                if (!preserveTun) {
+                    // share_link_config.dart's inbound is always a SOCKS5
+                    // listener on 127.0.0.1:1080 — Xray-core doesn't hand a
+                    // port back the way Hysteria's bridge does, but there's
+                    // nothing to discover since this app controls both
+                    // ends of that config.
+                    establishTun(XRAY_SOCKS_PORT)
+                    // Real-device bug this closes: see connectHysteria's
+                    // identical check for the full rationale —
+                    // establishTun() is the actual OS-level "take the VPN
+                    // slot" call, and a stop/watchdog-timeout landing while
+                    // it ran must not be allowed to leave what it just
+                    // established orphaned, running, and invisible to
+                    // Dart.
+                    if (stopping || generation != connectGeneration) {
+                        releaseEngineResources()
+                        return@synchronized
+                    }
                 }
                 broadcastState(STATE_CONNECTED)
+                // This attempt has reached a terminal, successful outcome —
+                // the watchdog scheduled for it (scheduleConnectWatchdog)
+                // must never be allowed to fire later and tear down a
+                // tunnel that's already up and working. A successful
+                // connect never bumps connectGeneration on its own, so the
+                // watchdog's own generation check can't catch this case by
+                // itself; explicit cancellation here is the real fix (see
+                // the real-device Doze-deferred-watchdog bug this closes).
+                pendingConnectWatchdog?.let { reconnectHandler.removeCallbacks(it) }
+                pendingConnectWatchdog = null
                 connectRetryCount = 0
                 reconnectRetryCount = 0
             } catch (t: Throwable) {
                 Log.e(TAG, "xray connect failed", t)
-                handleConnectFailure(t, isReconnect) {
-                    connectXray(configJson, generation, isReconnect = true)
+                handleConnectFailure(t, isReconnect, preserveTun) { keepTun ->
+                    connectXray(configJson, generation, isReconnect = true, preserveTun = keepTun)
                 }
             }
         }
     }
 
-    private fun connectHysteria(link: String, generation: Long, isReconnect: Boolean) {
+    // preserveTun mirrors connectXray's — see that function's own comment.
+    // The one Hysteria-specific wrinkle: Bridge.start() used to return a
+    // fresh ephemeral port every call, which would have made preserving
+    // TUN unsafe (tun2socks would keep dialing the OLD, now-dead port
+    // forever). native/hysteria_bridge/bridge.go's Start() was changed
+    // (this same fix) to always bind localSocksPort (a fixed local
+    // address) instead, so the returned port is expected to be identical
+    // every time. [lastHysteriaSocksPort]/the mismatch check below is a
+    // defensive fallback, not the primary mechanism: if some future change
+    // (or a stale, not-yet-rebuilt .aar) ever makes that port move again,
+    // this notices and falls back to a full TUN rebuild rather than
+    // silently leaving tun2socks bridging into a dead address forever.
+    private fun connectHysteria(link: String, generation: Long, isReconnect: Boolean, preserveTun: Boolean) {
         if (generation != connectGeneration || stopping) return
         synchronized(connectLock) {
             if (generation != connectGeneration || stopping) return
             try {
-                stopOtherEngine(Engine.HYSTERIA)
+                if (!preserveTun) {
+                    stopOtherEngine(Engine.HYSTERIA)
+                }
                 setUpProtection()
                 val port = Bridge.start(link)
                 // See connectXray's identical check for the full
@@ -741,27 +888,54 @@ class WaveEngineVpnService : VpnService() {
                 // establishTun() below, which is the actual OS-level
                 // "take the VPN slot" operation.
                 if (stopping || generation != connectGeneration) {
-                    releaseEngineResources()
+                    if (preserveTun) releaseEngineOnly() else releaseEngineResources()
                     return@synchronized
                 }
-                establishTun(port.toInt())
-                // Real-device bug this closes: establishTun() is the
-                // actual OS-level "take the VPN slot" call — if a stop OR
-                // a watchdog timeout (see scheduleConnectWatchdog's own
-                // comment) lands in the narrow window while THIS call was
-                // running, the old code below only skipped the CONNECTED
-                // broadcast but left the tun interface + tun2socks link
-                // it just established running, orphaned: Android kept
-                // reporting an active VPN transport system-wide with
-                // nothing on the Dart side driving or aware of it.
-                // Checking again here, not just before, means nothing this
-                // function establishes can ever survive past the moment
-                // this attempt stops being the current one.
-                if (stopping || generation != connectGeneration) {
-                    releaseEngineResources()
-                    return@synchronized
+                var mustRebuildTun = !preserveTun
+                if (preserveTun) {
+                    val expected = lastHysteriaSocksPort
+                    if (expected != null && expected != port.toInt()) {
+                        Log.w(
+                            TAG,
+                            "hysteria engine-only reconnect got a different SOCKS port " +
+                                "($port, expected $expected) — falling back to a full TUN " +
+                                "rebuild rather than leave tun2socks pointed at a dead port",
+                        )
+                        mustRebuildTun = true
+                    }
                 }
+                if (mustRebuildTun) {
+                    establishTun(port.toInt())
+                    // Real-device bug this closes: establishTun() is the
+                    // actual OS-level "take the VPN slot" call — if a stop
+                    // OR a watchdog timeout (see scheduleConnectWatchdog's
+                    // own comment) lands in the narrow window while THIS
+                    // call was running, the old code below only skipped
+                    // the CONNECTED broadcast but left the tun interface +
+                    // tun2socks link it just established running, orphaned:
+                    // Android kept reporting an active VPN transport
+                    // system-wide with nothing on the Dart side driving or
+                    // aware of it. Checking again here, not just before,
+                    // means nothing this function establishes can ever
+                    // survive past the moment this attempt stops being the
+                    // current one.
+                    if (stopping || generation != connectGeneration) {
+                        releaseEngineResources()
+                        return@synchronized
+                    }
+                }
+                lastHysteriaSocksPort = port.toInt()
                 broadcastState(STATE_CONNECTED)
+                // This attempt has reached a terminal, successful outcome —
+                // the watchdog scheduled for it (scheduleConnectWatchdog)
+                // must never be allowed to fire later and tear down a
+                // tunnel that's already up and working. A successful
+                // connect never bumps connectGeneration on its own, so the
+                // watchdog's own generation check can't catch this case by
+                // itself; explicit cancellation here is the real fix (see
+                // the real-device Doze-deferred-watchdog bug this closes).
+                pendingConnectWatchdog?.let { reconnectHandler.removeCallbacks(it) }
+                pendingConnectWatchdog = null
                 connectRetryCount = 0
                 reconnectRetryCount = 0
             } catch (t: Throwable) {
@@ -774,8 +948,8 @@ class WaveEngineVpnService : VpnService() {
                 // previously took the entire app down on a failed
                 // connection instead of just failing that one attempt.
                 Log.e(TAG, "hysteria connect failed", t)
-                handleConnectFailure(t, isReconnect) {
-                    connectHysteria(link, generation, isReconnect = true)
+                handleConnectFailure(t, isReconnect, preserveTun) { keepTun ->
+                    connectHysteria(link, generation, isReconnect = true, preserveTun = keepTun)
                 }
             }
         }
@@ -795,18 +969,35 @@ class WaveEngineVpnService : VpnService() {
     // failing immediately does not. Capped at one retry: a genuine config/
     // network failure (wrong credentials, unreachable host, ...) would just
     // fail the same way again and this isn't meant to mask that as a hang.
-    private fun handleConnectFailure(error: Throwable, isReconnect: Boolean, retry: () -> Unit) {
+    // [preserveTun]/[connect] let every branch below decide, independently,
+    // whether ITS retry should stay TUN-preserving (an ordinary engine-only
+    // reconnect failure — [connect] gets called with `true`) or must force
+    // a full TUN rebuild (fd exhaustion specifically needs to reclaim the
+    // TUN fd too — [connect] gets called with `false` regardless of what
+    // preserveTun was on entry).
+    private fun handleConnectFailure(
+        error: Throwable,
+        isReconnect: Boolean,
+        preserveTun: Boolean,
+        connect: (preserveTun: Boolean) -> Unit,
+    ) {
         if (error is UnsatisfiedLinkError && connectRetryCount < 1 && !stopping) {
             connectRetryCount++
-            Log.w(TAG, "connect failed (fd exhaustion suspected), retrying once")
+            Log.w(TAG, "connect failed (fd exhaustion suspected), retrying once (forces a full TUN rebuild to reclaim its fd too)")
             // releaseEngineResources(), not stopAll(): stopAll() sets
             // `stopping = true` and calls stopSelf(), which would race the
             // retry against this same service instance being torn down by
             // Android — a genuinely retry-safe cleanup can only release
             // what the failed attempt was holding, not end the service.
+            // Always the FULL release here, even if this failure happened
+            // during an otherwise TUN-preserving reconnect: fd exhaustion
+            // means literally no fd is available for anything, and the
+            // TUN interface's own fd is one more fd this process can
+            // reclaim by closing it — keeping it "preserved" would work
+            // against the one thing this retry is trying to fix.
             releaseEngineResources()
             reconnectHandler.postDelayed({
-                if (!stopping) Thread({ retry() }, "WaveEngineConnectRetry").start()
+                if (!stopping) Thread({ connect(false) }, "WaveEngineConnectRetry").start()
             }, 1500)
             return
         }
@@ -824,10 +1015,10 @@ class WaveEngineVpnService : VpnService() {
         if (isReconnect && reconnectRetryCount < RECONNECT_MAX_RETRIES && !stopping) {
             val delay = RECONNECT_BACKOFF_MS.getOrElse(reconnectRetryCount) { RECONNECT_BACKOFF_MS.last() }
             reconnectRetryCount++
-            Log.w(TAG, "reconnect attempt failed (${reconnectRetryCount}/$RECONNECT_MAX_RETRIES), retrying in ${delay}ms: ${error.javaClass.simpleName}: ${error.message}")
-            releaseEngineResources()
+            Log.w(TAG, "reconnect attempt failed (${reconnectRetryCount}/$RECONNECT_MAX_RETRIES, preserveTun=$preserveTun), retrying in ${delay}ms: ${error.javaClass.simpleName}: ${error.message}")
+            if (preserveTun) releaseEngineOnly() else releaseEngineResources()
             reconnectHandler.postDelayed({
-                if (!stopping) Thread({ retry() }, "WaveEngineReconnectRetry").start()
+                if (!stopping) Thread({ connect(preserveTun) }, "WaveEngineReconnectRetry").start()
             }, delay)
             return
         }
@@ -857,10 +1048,26 @@ class WaveEngineVpnService : VpnService() {
         // tunnel), tell Dart it failed — but leave the service, and
         // critically protectServer, alive and untouched so an immediate
         // fresh attempt never races a teardown that was never asked for.
+        //
+        // This IS the one honest exception to "the tunnel/icon never goes
+        // down for anything but user/revoke/crash" (see the class doc):
+        // once every automatic retry above has genuinely failed, there is
+        // no engine left to keep the TUN interface meaningfully connected
+        // to anything, and this codebase already fixed (see the comment
+        // above) the real-device bug of leaving a dead TUN interface up
+        // reporting "connected" system-wide with nothing behind it. The
+        // foreground service and notification stay alive regardless
+        // (stopForeground/stopSelf are never called here) — only the TUN
+        // interface itself goes down, with STATE_FAILED surfaced so the
+        // user sees an honest "Connection failed" with a Retry button
+        // instead of a silently dead "Connected".
         releaseEngineResources()
         unregisterNetworkWatch()
         activeEngine = null
-        broadcastState(STATE_FAILED, detail = "${error.javaClass.simpleName}: ${error.message}")
+        broadcastState(
+            STATE_FAILED,
+            detail = "reconnect_exhausted ${error.javaClass.simpleName}: ${error.message}",
+        )
     }
 
     // The resource-release half of stopAll(), without any of its
@@ -916,7 +1123,26 @@ class WaveEngineVpnService : VpnService() {
         tunInterface = null
     }
 
-    private fun stopAll(broadcastIdle: Boolean) {
+    // [reason] is the one required piece of structured-logging vocabulary
+    // for every service stop — see logStop()'s own comment for what each
+    // value means. This is the ONLY function that ever calls
+    // stopForeground()/stopSelf() — the three cases the product owner
+    // specified (user disconnect, onRevoke, process force-stop/crash) are
+    // the only callers that ever reach here; every other recovery path in
+    // this class (network change, health-check failure, fd-count-high,
+    // connect-watchdog timeout, exhausted reconnect retries) goes through
+    // reconnectEngineOnly()/handleConnectFailure() instead, neither of
+    // which ever calls this.
+    private fun stopAll(reason: String, broadcastIdle: Boolean) {
+        // onDestroy() is Android's normal, guaranteed follow-up to THIS
+        // function's own stopSelf() call below — reaching it after
+        // `stopping` is already true means a user/revoke/system stop
+        // already ran and already logged its own real reason. Only a
+        // *fresh* stopAll() call (stopping was still false) represents a
+        // real, distinct stop worth logging — this guards against
+        // double-logging (and mislabeling as STOP_REASON_CRASH) the exact
+        // same stop twice.
+        val alreadyStopping = stopping
         stopping = true
         unregisterNetworkWatch()
         try {
@@ -941,17 +1167,31 @@ class WaveEngineVpnService : VpnService() {
         } catch (t: Throwable) {
         }
         tunInterface = null
-        if (broadcastIdle) broadcastState(STATE_IDLE)
+        if (!alreadyStopping) logStop(reason)
+        if (broadcastIdle) broadcastState(STATE_IDLE, detail = "reason=$reason")
         stopForeground(true)
         stopSelf()
     }
 
     override fun onRevoke() {
-        stopAll(broadcastIdle = true)
+        // System handed the VPN slot to a different app, or the user
+        // disabled WAVEBREAK's VPN permission in system Settings — one of
+        // the three cases the tunnel is REQUIRED to fully stop for.
+        stopAll(reason = STOP_REASON_REVOKE, broadcastIdle = true)
     }
 
     override fun onDestroy() {
-        stopAll(broadcastIdle = false)
+        // If a user/revoke/system stopAll() already ran, `stopping` is
+        // already true and this onDestroy() is just Android's ordinary
+        // teardown following that stopSelf() — not a new, unexplained
+        // stop. Only call stopAll() here (and only then does it log
+        // STOP_REASON_CRASH) for the genuine "nothing asked for this"
+        // case: the process dying out from under the service — force-
+        // stopped from Settings, OOM-killed, or any other kill with no
+        // chance for ACTION_STOP/onRevoke to ever run first.
+        if (!stopping) {
+            stopAll(reason = STOP_REASON_CRASH, broadcastIdle = false)
+        }
         protectServer?.stop()
         protectServer = null
         super.onDestroy()
@@ -999,11 +1239,48 @@ class WaveEngineVpnService : VpnService() {
         }
     }
 
+    // logStateTransition is just broadcastState(state, detail = reason) —
+    // see that function's own comment for how `reason` reaches the SAME
+    // diagnostic-log pipeline the app already has (AppLogger.exportToFile()
+    // / "Export logs" in Settings), not a parallel logging system. A
+    // distinct name at call sites just makes "this is the structured
+    // reason for a state change" explicit versus an ad hoc error string.
+    private fun logStateTransition(state: String, reason: String) {
+        broadcastState(state, detail = reason)
+    }
+
+    // The one required piece of vocabulary for every service stop, per the
+    // 3-cases rule in this class's own doc comment:
+    //   user   — ACTION_STOP (the user pressed Disconnect)
+    //   revoke — onRevoke() (system handed the VPN slot to another app, or
+    //            the user disabled WAVEBREAK's VPN permission in Settings)
+    //   crash  — onDestroy() firing WITHOUT a preceding user/revoke stop
+    //            (process death: force-stopped, OOM-killed, ...)
+    //   system — an internal/defensive stop this service makes on its own
+    //            (a malformed start Intent, startForeground() itself
+    //            throwing) — not one of the three product-required cases,
+    //            but still a real stop that needs a reason in the log
+    //            rather than silence.
+    private fun logStop(reason: String, detail: String? = null) {
+        Log.i(TAG, "service_stop reason=$reason${if (detail != null) " detail=$detail" else ""}")
+    }
+
     private fun broadcastState(state: String, detail: String? = null) {
+        // Every transition, not just failures — the machine-parseable
+        // "reason" trail requirement (see logStateTransition/logStop's own
+        // comments) needs a line here regardless of which state this is.
+        Log.i(TAG, "state=$state${if (detail != null) " reason=$detail" else ""}")
         notifStatusText = when (state) {
             STATE_CONNECTING -> notifLabelConnecting
             STATE_CONNECTED -> notifLabelConnected
             STATE_FAILED -> notifLabelFailed
+            // STATE_RECONNECTING deliberately falls to the `else` branch:
+            // reusing whatever label is already showing (almost always
+            // notifLabelConnected) means the notification's visible text
+            // doesn't change at all during an automatic engine-only
+            // reconnect — no new user-facing string needed, and nothing
+            // for the user to notice short of the internal state broadcast
+            // Dart also receives. See reconnectEngineOnly()'s doc comment.
             else -> notifStatusText
         }
         // A ping from the PREVIOUS server reads as this server's ping the
@@ -1330,16 +1607,6 @@ class WaveEngineVpnService : VpnService() {
         private const val HEALTH_CHECK_RETRY_MS = 10_000L
         private const val HEALTH_CHECK_FAILURE_THRESHOLD = 2
 
-        // See reconnectNow()'s own doc comment for the bug this exists to
-        // fix: without a real gap here, tearing down and re-establishing
-        // the tun interface back-to-back on the same thread never gives
-        // Android's connectivity stack (or any other app watching for a
-        // network change) a chance to observe the old interface as
-        // actually gone before the new one appears. Long enough to be a
-        // real, observable transition; short enough that a user actively
-        // watching a reconnect never perceives it as a separate stall.
-        private const val RECONNECT_INTERFACE_DOWN_GAP_MS = 500L
-
         // See scheduleConnectWatchdog's own comment for the full "stuck
         // on Connecting forever with WiFi off" investigation. Generous
         // enough that a genuinely slow-but-working handshake (a
@@ -1383,6 +1650,22 @@ class WaveEngineVpnService : VpnService() {
         const val STATE_CONNECTED = "CONNECTED"
         const val STATE_FAILED = "FAILED"
         const val STATE_IDLE = "IDLE"
+        // Broadcast during every TUN-preserving engine-only reconnect (see
+        // reconnectEngineOnly()) — the TUN interface, tun2socks, and the
+        // foreground notification/icon all stay up the whole time this is
+        // active. native_vpn_adapter.dart maps this to its own
+        // VpnNativeState.reconnecting, which connection_manager.dart's
+        // _onNative() deliberately leaves as a no-op (ConnectionStatus
+        // stays `connected`) — this state exists for diagnostics/future UI
+        // use, not to flip anything to an error/disconnected appearance.
+        const val STATE_RECONNECTING = "RECONNECTING"
+
+        // Structured stop-reason vocabulary — see logStop()'s own comment
+        // for exactly what each one means and which caller uses it.
+        const val STOP_REASON_USER = "user"
+        const val STOP_REASON_REVOKE = "revoke"
+        const val STOP_REASON_CRASH = "crash"
+        const val STOP_REASON_SYSTEM = "system"
 
         const val ACTION_PING_HOST = "app.wavebreak.engine.PING_HOST"
         const val ACTION_UPDATE_NOTIFICATION_META = "app.wavebreak.engine.UPDATE_NOTIFICATION_META"

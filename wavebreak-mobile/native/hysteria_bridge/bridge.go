@@ -39,6 +39,13 @@ var (
 	running  bool
 )
 
+// See the fixed-port comment inside Start() for why this can no longer be
+// an ephemeral ":0" pick. Arbitrary, high, and distinct from
+// XRAY_SOCKS_PORT (1080, WaveEngineVpnService.kt) even though the two
+// engines are never active at once (stopOtherEngine) — no reason to make
+// a future third caller reason about a shared port.
+const localSocksPort = 17835
+
 // Start parses a hysteria2:// or hy2:// share link, connects to the
 // server (blocking until the handshake succeeds or fails — callers get a
 // real yes/no, not just "the process started"), and opens a local SOCKS5
@@ -69,7 +76,27 @@ func Start(link string) (int, error) {
 		return 0, fmt.Errorf("connect: %w", err)
 	}
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	// Fixed local port, not an ephemeral ":0" pick — this is the one
+	// change that makes a TUN-preserving reconnect possible for Hysteria2.
+	// WaveEngineVpnService.kt's reconnectEngineOnly() restarts this client
+	// (Bridge.stop() + Bridge.start()) on a network flap/health-check
+	// failure/fd-count-high event WITHOUT ever touching the Android TUN
+	// interface or the in-process tun2socks bridge (tun2socks.go). That
+	// only works if tun2socks — which is pointed at whichever port the
+	// FIRST Start() call returned, via engine.Key.Proxy, and is never told
+	// about a new one afterward (confirmed by reading xjasonlyu/tun2socks'
+	// own engine.go: the only way to change the proxy target is
+	// engine.Stop()+Start() again, and Stop() unconditionally closes the
+	// device — i.e. the TUN fd — so re-pointing tun2socks is exactly as
+	// destructive as recreating TUN from scratch) — keeps dialing a port
+	// this client is still actually listening on after the restart. An
+	// ephemeral, different-every-time port would silently break that on
+	// literally every automatic reconnect, leaving tun2socks dialing a
+	// dead port forever with no TUN-preserving way to fix it. Both engines
+	// need a stable local address for this to work: Xray-core's already is
+	// (share_link_config.dart's config always listens on 127.0.0.1:1080),
+	// this makes Hysteria2's match.
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", localSocksPort))
 	if err != nil {
 		_ = client.Close()
 		return 0, fmt.Errorf("listen: %w", err)

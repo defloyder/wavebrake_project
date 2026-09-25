@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -77,10 +78,14 @@ class SessionController extends Notifier<SessionState> {
 
   // The splash screen (see router.dart's redirect) shows for exactly as
   // long as `state.phase` stays `booting` — there is no other way off it.
-  // bootstrapSession() below has its own try/catch around the Core calls
-  // it expects might fail, but reading the stored tokens happened OUTSIDE
-  // any of that, and nothing here previously bounded the whole method's
-  // total running time at all. Confirmed as a real trap, not just a
+  // bootstrapSession() below now flips out of `booting` as soon as it has
+  // read the stored tokens (going straight to `authenticated` on cached
+  // data for a returning user — see its own doc comment); the Core calls
+  // that used to sit in between run afterward, in the background, via
+  // _validateSessionInBackground, and are no longer on the path this
+  // timeout needs to bound. What's left in bootstrapSession() before it
+  // returns is just the SecureStore reads, but nothing bounded even THAT
+  // much before this existed. Confirmed as a real trap, not just a
   // theoretical one: a device migration/APK-sharing report described the
   // exact symptom — permanently stuck on "Preparing your connection…" on
   // one specific phone while working fine on another with the identical
@@ -154,8 +159,41 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
 
+    // A returning user with tokens that at least look valid gets in
+    // immediately on whatever we last knew about their account — no
+    // waiting on Core. clientConfig()/me()/ensureRegistered() (maintenance,
+    // force-update, session-revoked, and the fresh profile/prefetch) all
+    // still run, just as a background reconciliation after the fact
+    // (_validateSessionInBackground) instead of gating entry — the same
+    // "trust first, reconcile after" shape _completePostAuth already uses
+    // for a just-completed login. If there's no cached profile yet (e.g.
+    // this is the very first cold start after that login, before a cache
+    // write ever landed), `user` is simply null until the background pass
+    // fills it in — screens that read it already null-check (see
+    // AccountScreen).
+    state = state.copyWith(
+      phase: SessionPhase.authenticated,
+      user: _readCachedUser(),
+    );
+    unawaited(_validateSessionInBackground());
+  }
+
+  /// Reconciles a cold-start entry that was granted on cached data (see
+  /// bootstrapSession) against what Core actually says right now. Runs
+  /// after the user is already in the app — never blocks entry. A genuine
+  /// maintenance window, force-update gate, or session revocation still
+  /// takes effect, just a moment later: the router (app/router.dart)
+  /// redirects off whatever's currently showing the instant `state.phase`
+  /// changes, same as it always has. A transient failure (offline, Core
+  /// unreachable, timeout) leaves the cached snapshot in place untouched —
+  /// individual screens already retry via data_providers.dart's own
+  /// cached-fallback providers once connectivity returns.
+  Future<void> _validateSessionInBackground() async {
     try {
-      final config = await ref.read(coreGatewayProvider).clientConfig();
+      final config = await ref
+          .read(coreGatewayProvider)
+          .clientConfig()
+          .timeout(const Duration(seconds: 8));
       if (config.maintenance) {
         state = state.copyWith(phase: SessionPhase.maintenance, config: config);
         return;
@@ -169,18 +207,19 @@ class SessionController extends Notifier<SessionState> {
       }
 
       try {
-        final user = await ref.read(coreGatewayProvider).me();
-        await DeviceService(ref.read(coreGatewayProvider)).ensureRegistered();
-        // Core/locations/devices/plans providers only ever query Core once
-        // phase is actually `authenticated` (see data_providers.dart) —
-        // flip it first, so _prefetchEssentials' own reads aren't gated
-        // out by the very state change they're meant to warm the cache
-        // for.
+        final user = await ref
+            .read(coreGatewayProvider)
+            .me()
+            .timeout(const Duration(seconds: 8));
+        await DeviceService(ref.read(coreGatewayProvider))
+            .ensureRegistered()
+            .timeout(const Duration(seconds: 8));
         state = state.copyWith(
           phase: SessionPhase.authenticated,
           user: user,
           config: config,
         );
+        await _cacheUser(user);
         await _prefetchEssentials();
       } on AppException catch (error) {
         if (error.kind == AppErrorKind.sessionExpired) {
@@ -207,12 +246,16 @@ class SessionController extends Notifier<SessionState> {
             }
             return;
           }
-          final user = await ref.read(coreGatewayProvider).me();
+          final user = await ref
+              .read(coreGatewayProvider)
+              .me()
+              .timeout(const Duration(seconds: 8));
           state = state.copyWith(
             phase: SessionPhase.authenticated,
             user: user,
             config: config,
           );
+          await _cacheUser(user);
           await _prefetchEssentials();
           return;
         }
@@ -222,20 +265,34 @@ class SessionController extends Notifier<SessionState> {
           await forceLogout();
           return;
         }
+        // Some other, non-definitive AppException from `me()` — leave the
+        // cached snapshot the user is already looking at alone.
         state = state.copyWith(
           phase: SessionPhase.authenticated,
           config: config,
         );
       }
-    } catch (_) {
-      final access = await SecureStore.read(SecureStore.accessToken);
-      state = state.copyWith(
-        phase: access == null
-            ? SessionPhase.unauthenticated
-            : SessionPhase.authenticated,
-      );
+    } catch (e) {
+      // clientConfig()/me()/ensureRegistered() unreachable, timed out, or
+      // failed some other way — the user is already in on cached data, so
+      // there's nothing to correct. Logged for visibility only.
+      AppLogger.warn('Background session validation failed: $e');
     }
   }
+
+  UserProfile? _readCachedUser() {
+    final raw = PrefsStore.getString(PrefsStore.cachedUser);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return UserProfile.fromJson(
+          (jsonDecode(raw) as Map).cast<String, dynamic>());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _cacheUser(UserProfile user) =>
+      PrefsStore.setString(PrefsStore.cachedUser, jsonEncode(user.toJson()));
 
   Future<void> onAuthenticated(TokenPair tokens) async {
     try {
@@ -265,6 +322,7 @@ class SessionController extends Notifier<SessionState> {
           .me()
           .timeout(const Duration(seconds: 8));
       state = state.copyWith(user: user);
+      await _cacheUser(user);
       await DeviceService(ref.read(coreGatewayProvider))
           .ensureRegistered()
           .timeout(const Duration(seconds: 8));
@@ -385,6 +443,11 @@ class SessionController extends Notifier<SessionState> {
     await SecureStore.clearSession();
     await PrefsStore.setBool(PrefsStore.biometricEnabled, false);
     await PrefsStore.setBool(PrefsStore.guestMode, false);
+    // Otherwise a different account signing in on the same device would
+    // flash the previous account's cached name/email for a moment on its
+    // very next cold start, before _validateSessionInBackground replaces
+    // it — see bootstrapSession's fast path.
+    await PrefsStore.setString(PrefsStore.cachedUser, null);
     state = state.copyWith(
       phase: SessionPhase.unauthenticated,
       clearUser: true,
