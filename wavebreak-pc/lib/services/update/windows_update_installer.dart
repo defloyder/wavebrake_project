@@ -92,16 +92,30 @@ class WindowsUpdateController extends Notifier<WindowsUpdateState> {
   /// Windows. `detached` so the installer survives this process exiting
   /// (a normal child process would be at risk of being torn down along
   /// with its parent depending on how the OS/job-object hierarchy is set
-  /// up); deliberately NOT passing /VERYSILENT — showing the installer's
-  /// normal wizard UI means the user sees SOMETHING happened rather than
-  /// the app just vanishing with no visible progress, matching the same
-  /// "don't surprise the user" instinct as Android's own
-  /// install-confirmation dialog.
+  /// up).
+  ///
+  /// /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-: this is an update the
+  /// user already asked for from inside a running WAVEBREAK (the update
+  /// screen's own progress bar was the "something happened" signal, not
+  /// the installer's wizard) — re-clicking through the same directory
+  /// picker, "create desktop shortcut" checkbox and finish page it was
+  /// installed with the first time read as a full reinstall rather than
+  /// an update, which is exactly the complaint this fixes. wavebreak.iss's
+  /// own [Run] entry (deliberately without `skipifsilent`) still relaunches
+  /// the app once this finishes, so the whole flow is: download, install,
+  /// relaunch, no clicks — the same shape Chrome/Discord/Telegram's own
+  /// updaters use. A genuine first-time install downloaded straight from
+  /// the website still runs the installer directly (never through this
+  /// class) and keeps its normal wizard.
   Future<void> runInstallerAndExit() async {
     final path = state.installerPath;
     if (path == null) return;
     try {
-      await Process.start(path, [], mode: ProcessStartMode.detached);
+      await Process.start(
+        path,
+        ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-'],
+        mode: ProcessStartMode.detached,
+      );
     } catch (_) {
       state = state.copyWith(status: WindowsUpdateStatus.failed);
       return;

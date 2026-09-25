@@ -432,6 +432,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final statusCopy = _StatusCopy(
       connection: connection,
       canConnect: effectiveCanConnect,
+      subscriptionLoading: subscription.isLoading && !subscription.hasValue,
       isGuest: isGuest,
       onAddCustom: () => showAddCustomServerSheet(context, ref),
       s: s,
@@ -851,6 +852,7 @@ class _StatusCopy extends StatelessWidget {
   const _StatusCopy({
     required this.connection,
     required this.canConnect,
+    this.subscriptionLoading = false,
     required this.s,
     required this.onRetry,
     required this.onChoosePlan,
@@ -865,6 +867,7 @@ class _StatusCopy extends StatelessWidget {
 
   final WbConnectionState connection;
   final bool canConnect;
+  final bool subscriptionLoading;
   final AppStrings s;
   final VoidCallback onRetry;
   final VoidCallback onChoosePlan;
@@ -881,6 +884,14 @@ class _StatusCopy extends StatelessWidget {
     if (!canConnect &&
         connection.status != ConnectionStatus.connected &&
         connection.status != ConnectionStatus.configPending) {
+      // We genuinely don't know yet whether this account has an active
+      // plan (first-ever login, nothing cached) — showing the "Subscribe"
+      // wall here would be asserting a fact we haven't actually checked.
+      // A neutral skeleton until the real answer lands is what the wall
+      // itself should never have been standing in for.
+      if (subscriptionLoading) {
+        return const _ConnectWallSkeleton();
+      }
       // A guest has no subscription to sell — the equivalent "nothing to
       // connect to yet" prompt is adding their own server, not a plan
       // wall they have no way (and no reason) to get past.
@@ -1018,6 +1029,66 @@ class _StatusCopy extends StatelessWidget {
     final minutes = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$hours:$minutes:$seconds';
+  }
+}
+
+/// Placeholder for the connect wall while [subscriptionProvider] hasn't
+/// resolved even a cached snapshot yet — a real first-ever login, not the
+/// common "reopening the app" case (which now renders instantly off the
+/// cache, see that provider's own doc comment in data_providers.dart).
+/// Same title/subtitle/button silhouette as the actual wall it stands in
+/// for, so nothing visibly reflows the instant real data replaces it —
+/// just shimmering placeholder blocks instead of committing to an answer
+/// ("you have no plan") the app hasn't actually gotten from Core yet.
+class _ConnectWallSkeleton extends StatefulWidget {
+  const _ConnectWallSkeleton();
+
+  @override
+  State<_ConnectWallSkeleton> createState() => _ConnectWallSkeletonState();
+}
+
+class _ConnectWallSkeletonState extends State<_ConnectWallSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _block({required double width, required double height}) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final alpha = 0.05 + _controller.value * 0.06;
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: WbColors.ice.withValues(alpha: alpha),
+            borderRadius: BorderRadius.circular(height / 2),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _block(width: 220, height: 26),
+        const SizedBox(height: 10),
+        _block(width: 150, height: 15),
+        const SizedBox(height: 18),
+        _block(width: 168, height: 44),
+      ],
+    );
   }
 }
 

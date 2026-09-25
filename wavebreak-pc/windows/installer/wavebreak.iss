@@ -85,8 +85,16 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-; Standard "launch after install" checkbox, matching the wizard's own
-; finish-page convention.
+; Standard "launch after install" checkbox on a normal (manual,
+; downloaded-from-the-website) run, matching the wizard's own finish-page
+; convention. Deliberately WITHOUT `skipifsilent`: the in-app self-update
+; flow (windows_update_installer.dart) runs this same installer with
+; /VERYSILENT, and that path needs this same entry to still fire so the
+; app relaunches itself automatically once the silent install finishes —
+; `skipifsilent` would suppress it there, leaving the user's WAVEBREAK
+; just gone until they went and found the exe themselves. The Description
+; text is simply never shown/asked in silent mode, so this doesn't change
+; the manual-install experience at all.
 ; runascurrentuser: the installer is already elevated (PrivilegesRequired
 ; above) and wavebreak.exe's own manifest also requires admin (see
 ; windows/runner/CMakeLists.txt's /MANIFESTUAC:level='requireAdministrator')
@@ -94,7 +102,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; from an already-elevated process and Windows returns error 740
 ; (ERROR_ELEVATION_REQUIRED) instead of just starting it. This reuses the
 ; installer's own elevated token directly.
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall runascurrentuser
 
 [UninstallDelete]
 ; sing-box writes its generated config to the system temp dir at connect

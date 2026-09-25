@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart' show CancelToken;
+
 import '../../core/api/api_client.dart';
 import '../../core/errors/app_exception.dart';
 import 'models.dart';
@@ -18,22 +20,28 @@ class CoreApi {
   Future<TokenPair> register({
     required String email,
     required String password,
+    CancelToken? cancelToken,
   }) {
     return _client.post(
       '/auth/register',
       body: {'email': email, 'password': password},
       parse: _tokens,
+      cancelToken: cancelToken,
+      retryOnConnectionError: true,
     );
   }
 
   Future<TokenPair> login({
     required String email,
     required String password,
+    CancelToken? cancelToken,
   }) {
     return _client.post(
       '/auth/login',
       body: {'email': email, 'password': password},
       parse: _tokens,
+      cancelToken: cancelToken,
+      retryOnConnectionError: true,
     );
   }
 

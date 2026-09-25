@@ -1,8 +1,31 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Real-world bug this fixes: release builds were signed with each
+// machine's own auto-generated `~/.android/debug.keystore` (a different,
+// random certificate per machine/user) — anyone who'd installed a build
+// from a DIFFERENT machine than whichever one produced the next release
+// hit Android's own signature-mismatch install rejection: the system
+// installer dialog just closes with no clear error and nothing gets
+// installed, which is exactly what surfaced as "update downloads, tap
+// Update, dialog vanishes, nothing happens" on a colleague's device. One
+// fixed keystore, reused for every future release regardless of which
+// machine builds it, is what makes in-app updates actually apply instead
+// of silently no-op'ing for anyone not on the exact machine that built
+// the previous release. `key.properties` (gitignored, like the .jks
+// itself) holds the passwords — loaded here rather than hardcoded so the
+// actual secret never has to be a committed file.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -33,11 +56,31 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            // Falls back to the debug key (old behavior) only when
+            // key.properties genuinely doesn't exist yet — e.g. a fresh
+            // clone that hasn't run the one-time keystore setup — so
+            // `flutter run --release` still works out of the box rather
+            // than hard-failing the build. Every real release build must
+            // have key.properties present; see this file's own doc
+            // comment above on why a consistent key matters.
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             // Minification disabled for now: the AGP 9.1.0 default of
             // isMinifyEnabled = true for release builds requires a
             // proguard-rules.pro that doesn't exist yet, and R8 stripping

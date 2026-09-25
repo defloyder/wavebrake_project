@@ -419,7 +419,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       throw lastError;
     } catch (error) {
       if (generation != _connectGeneration) return;
-      AppLogger.warn('Connection failed');
+      AppLogger.warn('Connection failed: $error');
       _analytics.event('connection_error');
       final mapped = error is AppException
           ? error
@@ -593,7 +593,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       _analytics.event('connection_success');
     } catch (error) {
       if (generation != null && generation != _connectGeneration) return;
-      AppLogger.warn('Connection failed');
+      AppLogger.warn('Connection failed: $error');
       _analytics.event('connection_error');
       final mapped = error is AppException
           ? error

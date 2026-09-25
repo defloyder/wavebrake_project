@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,6 +33,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _pin = const PinService();
   bool _busy = false;
   String? _error;
+  CancelToken? _cancelToken;
 
   @override
   void initState() {
@@ -59,16 +61,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     final s = ref.read(stringsProvider);
+    // Real-device bug this fixes: "loads for a long time and doesn't log
+    // in — pressing sign in a second time works." Root cause was that
+    // ApiClient's Dio instance runs auth through a QueuedInterceptor
+    // (auth_interceptor.dart), which processes every request's
+    // interceptor lifecycle strictly in order across the WHOLE client —
+    // and the previous code's `.timeout(15s)` only abandoned the AWAIT on
+    // the client side; it never cancelled the underlying Dio request,
+    // which kept running (and kept its place in that queue) in the
+    // background. A first attempt slow past 15s (cold TLS handshake, a
+    // congested network) left an orphaned request still occupying the
+    // queue; the user's second tap then queued BEHIND it and couldn't
+    // even start until the first one finally finished — at which point
+    // the connection was warm and the second attempt resolved almost
+    // instantly, LOOKING like the second click was what worked, while
+    // the first attempt's own (possibly successful) result had already
+    // been discarded by the timeout that gave up on it. A real
+    // [CancelToken], cancelled the moment this attempt gives up, frees
+    // the queue immediately instead of leaving a zombie request behind
+    // it — so a retry is actually independent, not queued behind a ghost
+    // of the last one. login() now also retries internally on a real
+    // connection-level failure (ApiClient's own `retryOnConnectionError`
+    // — see core_api.dart), up to ~23s worst case on its own (3 attempts
+    // × its 7s per-attempt budget + backoff); 30s here sits comfortably
+    // above that instead of cutting an internal retry off early.
+    final cancelToken = CancelToken();
+    _cancelToken = cancelToken;
     try {
       final tokens = await ref
           .read(coreGatewayProvider)
           .login(
             email: _email.text.trim(),
             password: _password.text,
+            cancelToken: cancelToken,
           )
           .timeout(
-            const Duration(seconds: 15),
-            onTimeout: () => throw AppException(AppErrorKind.noInternet),
+            const Duration(seconds: 30),
+            onTimeout: () {
+              cancelToken.cancel('login UI timeout');
+              throw AppException(AppErrorKind.noInternet);
+            },
           );
       await ref
           .read(sessionControllerProvider.notifier)
@@ -133,6 +165,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    _cancelToken?.cancel('screen disposed');
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -203,6 +236,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               _error!,
                               style: const TextStyle(color: WbColors.error),
                               textAlign: TextAlign.center,
+                            ),
+                            // A failed sign-in already has an escape hatch
+                            // at the bottom of this screen (guest mode /
+                            // "continue with your own link"), but it's a
+                            // small, muted, always-there link with no
+                            // connection to whatever just went wrong —
+                            // someone stuck on a real login/connectivity
+                            // problem has no reason to notice it's exactly
+                            // the way around this. Surfacing it right next
+                            // to the error itself, only when there IS an
+                            // error, makes it an actual answer to "I can't
+                            // sign in" instead of an unrelated nav item.
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: () async {
+                                await ref
+                                    .read(sessionControllerProvider.notifier)
+                                    .continueAsGuest();
+                              },
+                              child: Text(
+                                s.continueWithOwnLink,
+                                style: const TextStyle(
+                                  color: WbColors.waveCyan,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ),
                           ],
                           const SizedBox(height: 20),

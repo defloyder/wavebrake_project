@@ -21,6 +21,13 @@ class UserProfile {
       status: (nested['status'] ?? 'active').toString(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'email': email,
+        'role': role,
+        'status': status,
+      };
 }
 
 class TokenPair {

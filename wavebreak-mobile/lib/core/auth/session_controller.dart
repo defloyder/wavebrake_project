@@ -190,10 +190,22 @@ class SessionController extends Notifier<SessionState> {
   /// cached-fallback providers once connectivity returns.
   Future<void> _validateSessionInBackground() async {
     try {
+      // 8s used to cut every one of these off well before ApiClient's own
+      // GET-request retry (api_client.dart's `get()` always retries a
+      // connection-level failure now — up to ~23s worst case across 3
+      // attempts) ever got a chance to land a second try — real-device
+      // logcat showed exactly this: "Background session validation
+      // failed: TimeoutException after 0:00:08.000000" firing before a
+      // retry could even complete its first attempt. These all run in
+      // the background, after the user is already past the splash
+      // screen/already signed in (see this method's own class doc and
+      // _completePostAuth's) — nothing here blocks a spinner the user is
+      // staring at, so there's no UX cost to matching
+      // data_providers.dart's own 26s ceiling instead of racing under it.
       final config = await ref
           .read(coreGatewayProvider)
           .clientConfig()
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 26));
       if (config.maintenance) {
         state = state.copyWith(phase: SessionPhase.maintenance, config: config);
         return;
@@ -210,10 +222,10 @@ class SessionController extends Notifier<SessionState> {
         final user = await ref
             .read(coreGatewayProvider)
             .me()
-            .timeout(const Duration(seconds: 8));
+            .timeout(const Duration(seconds: 26));
         await DeviceService(ref.read(coreGatewayProvider))
             .ensureRegistered()
-            .timeout(const Duration(seconds: 8));
+            .timeout(const Duration(seconds: 26));
         state = state.copyWith(
           phase: SessionPhase.authenticated,
           user: user,
@@ -249,7 +261,7 @@ class SessionController extends Notifier<SessionState> {
           final user = await ref
               .read(coreGatewayProvider)
               .me()
-              .timeout(const Duration(seconds: 8));
+              .timeout(const Duration(seconds: 26));
           state = state.copyWith(
             phase: SessionPhase.authenticated,
             user: user,
@@ -320,12 +332,12 @@ class SessionController extends Notifier<SessionState> {
       final user = await ref
           .read(coreGatewayProvider)
           .me()
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 26));
       state = state.copyWith(user: user);
       await _cacheUser(user);
       await DeviceService(ref.read(coreGatewayProvider))
           .ensureRegistered()
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 26));
       await _prefetchEssentials();
     } catch (e) {
       AppLogger.warn(

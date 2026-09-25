@@ -34,6 +34,9 @@ class PrefsStore {
   static const cachedDevices = 'cache_devices_v1';
   static const cachedPlans = 'cache_plans_v1';
   static const cachedUsage = 'cache_usage_v1';
+  // Last-known-good `me()` profile — see userProfileProvider in
+  // features/shared/data_providers.dart.
+  static const cachedUser = 'cache_user_v1';
 
   static void init(SharedPreferences prefs) {
     _prefs = prefs;

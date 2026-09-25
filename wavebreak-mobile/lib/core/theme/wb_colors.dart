@@ -12,13 +12,17 @@ import 'package:flutter/material.dart';
 class WbColors {
   const WbColors._();
 
-  static const midnight = Color(0xFF030708);
-  static const deepOcean = Color(0xFF0A1214);
-  static const waveCyan = Color(0xFF80EDF0);
-  static const oceanTeal = Color(0xFF4FC7CC);
-  static const ice = Color(0xFFF0F5F6);
-  static const background = Color(0xFF020507);
-  static const card = Color(0xFF0B1315);
+  // Reverted from wavebreak-web's near-black/soft-cyan retune back to the
+  // app's own original palette (dark navy, saturated cyan) — the site and
+  // the app are allowed to look like different surfaces of the same
+  // brand; explicit product decision, not an oversight.
+  static const midnight = Color(0xFF0B1020);
+  static const deepOcean = Color(0xFF0F1E2E);
+  static const waveCyan = Color(0xFF00D6FF);
+  static const oceanTeal = Color(0xFF00B4C8);
+  static const ice = Color(0xFFE6F2F7);
+  static const background = Color(0xFF0B1020);
+  static const card = Color(0xFF122036);
   static const oceanBlue = Color(0xFF0876C9);
 
   /// Site's `--muted` (#93a4aa) — secondary/dimmed text. New token; the

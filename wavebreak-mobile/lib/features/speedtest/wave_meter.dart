@@ -12,11 +12,13 @@ import '../../core/theme/wb_colors.dart';
 /// being measured right now," not which leg.
 enum WaveMeterVisualState { idle, running, done, failed }
 
-/// A circular "porthole" whose water level rises with throughput and
-/// whose surface never sits still while a measurement is in flight — the
-/// wave motif carried into the one screen most likely to be watched
-/// closely while it runs, replacing a generic speedometer arc with
-/// something that actually reads as WAVEBREAK's own visual language.
+/// A wave breaking against the meter's own glass — the surface curls,
+/// throws spray, and never sits still while a measurement is in flight —
+/// the brand's own name acted out, rather than a generic gauge (a plain
+/// circular "porthole" was tried first and read as just another
+/// speedometer; this replaced it). The panel is a rounded square, not a
+/// circle, specifically so the crest reads as a horizon line breaking
+/// across the whole width rather than curving to fit a dome.
 ///
 /// Two things move independently every frame, not just when a new
 /// sample arrives (samples are throttled to a few times a second — see
@@ -71,6 +73,15 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
   )..repeat();
 
   double _animatedFraction = 0;
+  double? _lastFrameSeconds;
+  double _spawnAccumulator = 0;
+  final math.Random _rng = math.Random(1337);
+
+  // Reused pool, never recreated per frame — advanced in build()'s
+  // AnimatedBuilder alongside the fraction catch-up, same "spawn while
+  // running, let existing drops finish their arc" pattern the panel used
+  // before this widget carried it.
+  final List<_FoamDrop> _foam = List.generate(10, (_) => _FoamDrop());
 
   // A short, one-shot "just finished" pulse — separate from the
   // continuous wave motion above, this is what makes `done` read as a
@@ -139,6 +150,24 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
         // instead of each one cutting off the previous animation.
         _animatedFraction += (target - _animatedFraction) * 0.08;
         final nowSeconds = DateTime.now().millisecondsSinceEpoch / 1000;
+        final dt = (_lastFrameSeconds == null ? 1 / 60 : nowSeconds - _lastFrameSeconds!)
+            .clamp(0.0, 0.25);
+        _lastFrameSeconds = nowSeconds;
+        if (widget.visualState == WaveMeterVisualState.running) {
+          _spawnAccumulator += dt * (1.0 + _animatedFraction * 7);
+          while (_spawnAccumulator >= 1) {
+            _spawnAccumulator -= 1;
+            for (final drop in _foam) {
+              if (drop.t >= 1) {
+                drop.respawn(_rng);
+                break;
+              }
+            }
+          }
+        }
+        for (final drop in _foam) {
+          drop.advance(dt);
+        }
         // The displayed number reads off this SAME animated fraction,
         // not the raw widget.valueMbps directly — that used to be the
         // actual bug behind "the numbers jump around chaotically": the
@@ -163,6 +192,7 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
             calm: _calm,
             settle: _settleController.value,
             isDone: widget.visualState == WaveMeterVisualState.done,
+            foam: _foam,
           ),
           child: _MeterCenter(
             visualState: widget.visualState,
@@ -349,6 +379,35 @@ class _PhaseLabelState extends State<_PhaseLabel>
   }
 }
 
+/// One droplet of spray thrown up where the crest breaks — reused rather
+/// than recreated (see [_WaveMeterState._foam]): `t` runs 0..1 over its
+/// short life, `t >= 1` marks it dead/available, so the pool never
+/// allocates once built. Position is normalized to the panel (0..1 on
+/// both axes) so the physics doesn't care about actual pixel size.
+class _FoamDrop {
+  double t = 1;
+  double x = 0.5, y = 0.55, vx = 0, vy = 0, size = 2;
+
+  void respawn(math.Random rng) {
+    t = 0;
+    x = 0.5 + (rng.nextDouble() - 0.5) * 0.5;
+    y = 0.5;
+    final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.5;
+    final speed = 0.45 + rng.nextDouble() * 0.55;
+    vx = math.cos(angle) * speed;
+    vy = math.sin(angle) * speed;
+    size = 1.3 + rng.nextDouble() * 2.0;
+  }
+
+  void advance(double dt) {
+    if (t >= 1) return;
+    t += dt / 0.85;
+    x += vx * dt;
+    y += vy * dt;
+    vy += 1.7 * dt; // gravity, same 0..1-of-panel units as y
+  }
+}
+
 class _WaveMeterPainter extends CustomPainter {
   _WaveMeterPainter({
     required this.fraction,
@@ -357,6 +416,7 @@ class _WaveMeterPainter extends CustomPainter {
     required this.calm,
     required this.settle,
     required this.isDone,
+    required this.foam,
   });
 
   final double fraction;
@@ -367,116 +427,171 @@ class _WaveMeterPainter extends CustomPainter {
   /// 0..1 one-shot progress through the "just finished" pulse.
   final double settle;
   final bool isDone;
+  final List<_FoamDrop> foam;
+
+  static const _radius = 26.0;
+
+  /// The crest line shared by the fill, the shimmer band and where foam
+  /// spawns, so every layer agrees on where "the water" is. A second
+  /// harmonic riding the first is what makes this read as a breaking
+  /// wave's peaked, slightly asymmetric crest instead of a mechanically
+  /// perfect sine — same shape language as the panel this replaced a
+  /// circle with, just driven by [fraction] instead of a separately
+  /// smoothed level.
+  ///
+  /// Motion always advances at a fixed rate (`time` only); [calm] and
+  /// [fraction] only ever scale amplitude, never the phase multiplier —
+  /// see wave_meter.dart's class doc / the jitter post-mortem this same
+  /// principle already fixed once for this exact widget.
+  double _crestY(Size size, double t) {
+    final baseline = size.height * (1 - fraction.clamp(0.0, 1.0));
+    final breathe = 0.82 + 0.18 * math.sin(time * 0.1);
+    final amp = calm ? 1.0 : 1.0 + fraction * 1.4;
+    final swell = (math.sin(t * math.pi * 2 + time * 0.4) * (9 + 6 * amp) +
+            math.sin(t * math.pi * 4 - time * 0.65 + 1.3) * (4 + 7 * amp)) *
+        breathe *
+        (calm ? 0.35 : 1.0);
+    return (baseline + swell).clamp(4.0, size.height - 4.0);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) / 2 - 6;
-
-    // A soft glow behind the porthole — brighter right after finishing
-    // (the settle pulse), otherwise a steady low-key wash tied to the
-    // current tint so the meter doesn't read as a flat cutout against
-    // the ocean background behind it.
-    final glowAlpha = 0.10 + (isDone ? (1 - settle) * 0.18 : 0.0);
-    canvas.drawCircle(
-      center,
-      radius + 14 + (isDone ? (1 - settle) * 10 : 0),
-      Paint()
-        ..color = color.withValues(alpha: glowAlpha.clamp(0.0, 0.4))
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(_radius),
     );
 
-    // Outer ring / track.
-    canvas.drawCircle(
-      center,
-      radius,
+    // A soft glow behind the panel — brighter right after finishing (the
+    // settle pulse), otherwise a steady low-key wash tied to the current
+    // tint so the meter doesn't read as a flat cutout against the ocean
+    // background behind it.
+    final glowAlpha = 0.10 + (isDone ? (1 - settle) * 0.18 : 0.0);
+    canvas.drawRRect(
+      rrect.inflate(isDone ? (1 - settle) * 8 : 4),
+      Paint()
+        ..color = color.withValues(alpha: glowAlpha.clamp(0.0, 0.4))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 26),
+    );
+
+    canvas.save();
+    canvas.clipRRect(rrect);
+
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            WbColors.midnight,
+            Color.lerp(WbColors.midnight, color, 0.14)!,
+            Color.lerp(WbColors.midnight, WbColors.card, 0.65)!,
+          ],
+          stops: const [0, 0.6, 1],
+        ).createShader(Offset.zero & size),
+    );
+
+    const steps = 48;
+    final body = Path()..moveTo(0, size.height);
+    for (var i = 0; i <= steps; i++) {
+      final t = i / steps;
+      body.lineTo(size.width * t, _crestY(size, t));
+    }
+    body
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(
+      body,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            color.withValues(alpha: 0.55 + fraction * 0.15),
+            Color.lerp(color, WbColors.midnight, 0.8)!.withValues(alpha: 0.92),
+          ],
+        ).createShader(Offset.zero & size),
+    );
+
+    final crest = Path();
+    for (var i = 0; i <= steps; i++) {
+      final t = i / steps;
+      final p = Offset(size.width * t, _crestY(size, t));
+      if (i == 0) {
+        crest.moveTo(p.dx, p.dy);
+      } else {
+        crest.lineTo(p.dx, p.dy);
+      }
+    }
+    canvas.drawPath(
+      crest,
+      Paint()
+        ..color = Color.lerp(color, Colors.white, 0.55)!.withValues(alpha: 0.88)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6 + fraction * 1.6
+        ..strokeCap = StrokeCap.round,
+    );
+
+    _shimmer(canvas, size);
+    _foamSpray(canvas, size);
+
+    canvas.restore();
+
+    canvas.drawRRect(
+      rrect,
       Paint()
         ..color = WbColors.ice08
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3,
+        ..strokeWidth = 1.4,
     );
-
-    // The fill itself, clipped to the circle.
-    canvas.save();
-    canvas.clipPath(
-        Path()..addOval(Rect.fromCircle(center: center, radius: radius - 2)));
-
-    final top = center.dy - radius;
-    final bottom = center.dy + radius;
-    final levelY = bottom - fraction * (bottom - top);
-
-    // Turbulence scales with both throughput (a faster result looks
-    // livelier, not just "more full") and whether a measurement is
-    // actually in flight — calm() flattens it right down for
-    // idle/done/failed so a finished test visibly settles rather than
-    // sloshing forever.
-    //
-    // Real-device feedback this tuning exists to fix: "screaming crazy
-    // jittery" — the EMA smoothing added earlier fixed the underlying
-    // NUMBER's noise, but this surface motion is a separate concern
-    // entirely (it runs off wall-clock time, not the measured value's
-    // own noise) and was independently too aggressive: amplitude used to
-    // reach ~12.5px in a small circle, the wave's phase could complete a
-    // full cycle in ~3 seconds at high throughput, AND a second wave
-    // layer moved in the OPPOSITE direction at a different wavelength —
-    // two counter-rotating waves crossing through each other's phase
-    // constantly produces exactly the kind of unpredictable, beating
-    // interference pattern that reads as chaotic rather than a single
-    // calm undulation. Fixed by roughly halving the amplitude/speed
-    // ranges, lengthening the wavelength (fewer, broader undulations
-    // read as calmer than several tight ones), and making the second
-    // layer drift the SAME direction as the first (a subtle depth cue,
-    // not a competing pattern) at a much lower amplitude.
-    final amplitude = calm ? 1.2 : 2.5 + 4.0 * fraction;
-    final speed = calm ? 0.35 : 0.55 + fraction * 0.45;
-    final wavelength = radius * 1.9;
-
-    _fillWave(canvas, size, center, radius, levelY,
-        amplitude: amplitude,
-        wavelength: wavelength,
-        speed: speed,
-        phaseOffset: 0,
-        alpha: 0.85);
-    _fillWave(canvas, size, center, radius, levelY,
-        amplitude: amplitude * 0.4,
-        wavelength: wavelength * 1.3,
-        speed: speed * 0.7,
-        phaseOffset: math.pi / 3,
-        alpha: 0.22);
-
-    canvas.restore();
   }
 
-  void _fillWave(
-    Canvas canvas,
-    Size size,
-    Offset center,
-    double radius,
-    double levelY, {
-    required double amplitude,
-    required double wavelength,
-    required double speed,
-    required double phaseOffset,
-    required double alpha,
-  }) {
-    final path = Path();
-    final left = center.dx - radius - 4;
-    final right = center.dx + radius + 4;
-    final bottom = center.dy + radius + 4;
-    path.moveTo(left, bottom);
-    const steps = 40;
-    for (var i = 0; i <= steps; i++) {
-      final t = i / steps;
-      final x = left + (right - left) * t;
-      final y = levelY +
-          math.sin(
-                  (x / wavelength) * 2 * math.pi + time * speed + phaseOffset) *
-              amplitude;
-      path.lineTo(x, y);
+  static final List<({double x, double y, double phase})> _shimmerSeeds =
+      List.generate(11, (i) {
+    final rng = math.Random(i * 733 + 11);
+    return (
+      x: rng.nextDouble(),
+      y: rng.nextDouble(),
+      phase: rng.nextDouble() * math.pi * 2
+    );
+  });
+
+  /// Sunlight-on-water glints scattered across the filled body — purely
+  /// phase-driven (sin(time + seed), never `fraction`), so the twinkle
+  /// itself never jitters regardless of how noisy the underlying
+  /// measurement is; only how many cross the visibility threshold reacts
+  /// to how full the meter currently is.
+  void _shimmer(Canvas canvas, Size size) {
+    final threshold = 1 - (0.3 + fraction * 0.4);
+    for (final seed in _shimmerSeeds) {
+      final crestYAtX = _crestY(size, seed.x);
+      final floor = size.height - 6;
+      if (crestYAtX >= floor) continue;
+      final y = crestYAtX + 6 + seed.y * (floor - crestYAtX);
+      final twinkle = math.sin(time * 2.4 + seed.phase) * 0.5 + 0.5;
+      if (twinkle <= threshold) continue;
+      final strength = ((twinkle - threshold) / (1 - threshold)).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        Offset(size.width * seed.x, y),
+        0.7 + strength * 1.5,
+        Paint()..color = Colors.white.withValues(alpha: (strength * 0.85).clamp(0.0, 0.85)),
+      );
     }
-    path.lineTo(right, bottom);
-    path.close();
-    canvas.drawPath(path, Paint()..color = color.withValues(alpha: alpha));
+  }
+
+  /// Spray thrown where the crest breaks — only visible while [foam]'s
+  /// pool actually has live drops in it (see [_WaveMeterState.build]),
+  /// which itself only spawns while a measurement is running.
+  void _foamSpray(Canvas canvas, Size size) {
+    for (final drop in foam) {
+      if (drop.t >= 1) continue;
+      final fade = (1 - drop.t).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        Offset(size.width * drop.x, size.height * drop.y),
+        drop.size * (0.4 + fade * 0.6),
+        Paint()..color = Colors.white.withValues(alpha: (fade * 0.9).clamp(0.0, 0.9)),
+      );
+    }
   }
 
   @override

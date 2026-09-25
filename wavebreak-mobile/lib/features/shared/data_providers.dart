@@ -104,21 +104,93 @@ List<T> _readCachedList<T>(
 Future<void> _writeCache(String key, Object? jsonValue) =>
     PrefsStore.setString(key, jsonEncode(jsonValue));
 
-final subscriptionProvider = FutureProvider<SubscriptionInfo>((ref) async {
-  if (!_canQueryCore(ref)) return _noSubscription;
+/// Real-device bug this fixes: the connect wall's skeleton (see
+/// [subscriptionProvider]) stayed up for over 30 seconds straight with no
+/// cache to fall back on — the live `subscription()` call was stuck
+/// somewhere Dio's own connectTimeout/receiveTimeout never bounds, most
+/// likely ApiClient's AuthInterceptor (a `QueuedInterceptor` — see its own
+/// doc comment) waiting on a slow `readAccessToken()` SecureStore read, or
+/// simply queued behind another still-in-flight request. Dio's per-call
+/// timeouts only cover the HTTP transfer itself, not time spent earlier in
+/// the interceptor pipeline. Wrapping the WHOLE call in a plain
+/// [Future.timeout] bounds it regardless of where it's actually stuck,
+/// same fix as login_screen.dart's own CancelToken treatment but for
+/// providers that can't cancel a shared Dio client's queue mid-flight —
+/// this just guarantees the wait is finite so a real error (or the cache
+/// fallback) is reached instead of an indefinite spinner/skeleton.
+// 26s, not 20s: ApiClient's own GET retry logic (api_client.dart) can now
+// take up to ~23s worst case on its own (3 attempts × its 7s per-attempt
+// budget + backoff) before this wrapper would even see a result — this
+// just needs to sit comfortably above that so it isn't the thing that
+// cuts a legitimately-still-retrying request off early.
+Future<T> _withTimeout<T>(Future<T> future) =>
+    future.timeout(const Duration(seconds: 26));
+
+/// The account profile (email, id, ...) as its own reactively-retried
+/// provider — NOT the one-shot `me()` call SessionController makes during
+/// login/bootstrap (SessionState.user), which has no retry if that single
+/// attempt times out or fails. Real-device bug this fixes: turning on a
+/// third-party VPN made login/subscription/locations all succeed (Core's
+/// other endpoints came back fine) but the email row kept showing "—"
+/// forever — `me()` specifically had timed out during that one login
+/// attempt, and nothing ever asked again. Same shape as every other
+/// provider in this file: cached fallback, and `_canQueryCore`'s
+/// [isOfflineProvider] watch means it automatically retries the moment
+/// connectivity changes, instead of being stuck with whatever the one
+/// login-time attempt happened to get. Shares SessionController's own
+/// [PrefsStore.cachedUser] key deliberately — same snapshot, one source of
+/// truth for "the last profile we actually saw."
+final userProfileProvider = FutureProvider<UserProfile?>((ref) async {
+  if (!_canQueryCore(ref)) return null;
   try {
-    final result = await ref.watch(coreGatewayProvider).subscription();
-    await _writeCache(PrefsStore.cachedSubscription, result.toJson());
+    final result = await _withTimeout(ref.watch(coreGatewayProvider).me());
+    await _writeCache(PrefsStore.cachedUser, result.toJson());
     _markCacheState(ref, stale: false);
     return result;
   } catch (_) {
-    final cached = _readCachedOne(
-        PrefsStore.cachedSubscription, SubscriptionInfo.fromJson);
+    final cached = _readCachedOne(PrefsStore.cachedUser, UserProfile.fromJson);
     if (cached != null) {
       _markCacheState(ref, stale: true);
       return cached;
     }
     rethrow;
+  }
+});
+
+/// StreamProvider, not FutureProvider — deliberately, so a returning
+/// user with a cached subscription can be shown it on the very first
+/// frame instead of an `AsyncLoading` with no data. Real-device bug this
+/// fixes: every login/reopen briefly rendered the "Требуется подписка /
+/// Выбрать тариф" wall (home_screen.dart's `_StatusCopy`, gated on
+/// `canConnectProvider` reading `.asData?.value`, which is null while
+/// AsyncLoading) even for an already-paying subscriber — not because
+/// there was no cache (there was, see the old catch-block fallback
+/// below), but because that cache was only ever consulted AFTER a live
+/// call had already failed, never as an immediate starting value while
+/// one was still in flight. Now: yield the cached snapshot first (if any)
+/// so dependents see real data on frame one, then yield the live result
+/// once it lands — `canConnectProvider`/`_StatusCopy` need no changes,
+/// they just now observe real data sooner. A genuine first-ever login
+/// (no cache yet) still has nothing to yield until the live call
+/// resolves — that gap is what home_screen.dart's own skeleton state is
+/// for, not this provider's job to paper over.
+final subscriptionProvider = StreamProvider<SubscriptionInfo>((ref) async* {
+  if (!_canQueryCore(ref)) {
+    yield _noSubscription;
+    return;
+  }
+  final cached =
+      _readCachedOne(PrefsStore.cachedSubscription, SubscriptionInfo.fromJson);
+  if (cached != null) yield cached;
+  try {
+    final result =
+        await _withTimeout(ref.watch(coreGatewayProvider).subscription());
+    await _writeCache(PrefsStore.cachedSubscription, result.toJson());
+    _markCacheState(ref, stale: false);
+    yield result;
+  } catch (_) {
+    if (cached == null) rethrow;
+    _markCacheState(ref, stale: true);
   }
 });
 
@@ -136,7 +208,8 @@ final locationsProvider = FutureProvider<List<LocationItem>>((ref) async {
   if (!_canQueryCore(ref)) return const [];
   List<LocationItem> coreLocations;
   try {
-    final rawCoreLocations = await ref.watch(coreGatewayProvider).locations();
+    final rawCoreLocations =
+        await _withTimeout(ref.watch(coreGatewayProvider).locations());
     // Core's pilot node currently only publishes a VLESS+REALITY transport,
     // which was never confirmed working end-to-end from the unified
     // Xray-core engine this session (unlike Direct-TLS/WS and Hysteria2,
@@ -171,7 +244,7 @@ final locationsProvider = FutureProvider<List<LocationItem>>((ref) async {
 final devicesProvider = FutureProvider<List<DeviceItem>>((ref) async {
   if (!_canQueryCore(ref)) return const [];
   try {
-    final result = await ref.watch(coreGatewayProvider).devices();
+    final result = await _withTimeout(ref.watch(coreGatewayProvider).devices());
     await _writeCache(
         PrefsStore.cachedDevices, result.map((d) => d.toJson()).toList());
     _markCacheState(ref, stale: false);
@@ -190,7 +263,7 @@ final devicesProvider = FutureProvider<List<DeviceItem>>((ref) async {
 final plansProvider = FutureProvider<List<Plan>>((ref) async {
   if (!_canQueryCore(ref)) return const [];
   try {
-    final result = await ref.watch(coreGatewayProvider).plans();
+    final result = await _withTimeout(ref.watch(coreGatewayProvider).plans());
     await _writeCache(
         PrefsStore.cachedPlans, result.map((p) => p.toJson()).toList());
     _markCacheState(ref, stale: false);
@@ -214,7 +287,7 @@ final plansProvider = FutureProvider<List<Plan>>((ref) async {
 final trafficUsageProvider = FutureProvider<UsageSummary?>((ref) async {
   if (!_canQueryCore(ref)) return null;
   try {
-    final result = await ref.watch(coreGatewayProvider).usage();
+    final result = await _withTimeout(ref.watch(coreGatewayProvider).usage());
     if (result != null) {
       await _writeCache(PrefsStore.cachedUsage, result.toJson());
     }

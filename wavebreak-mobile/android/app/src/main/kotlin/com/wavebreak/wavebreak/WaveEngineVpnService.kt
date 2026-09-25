@@ -268,16 +268,37 @@ class WaveEngineVpnService : VpnService() {
         // in flight (see connectGeneration's own doc comment above).
         val generation = ++connectGeneration
         scheduleConnectWatchdog(generation, isReconnect = false, preserveTun = false)
+        // Real-device bug this fixes: switching servers — INCLUDING two
+        // locations on the same engine (Direct-TLS -> VLESS, both Xray),
+        // not just a cross-engine switch — could show "Connected" while
+        // no traffic actually routed, needing a manual reconnect to
+        // recover; reported as "8-10s stalls" / the app just hanging on
+        // a switch. Root cause: `activeEngine` was overwritten to the
+        // NEW engine below BEFORE connectXray()/connectHysteria() (on
+        // their own background thread) ever got to call
+        // stopOtherEngine() — so stopOtherEngine()'s own `previous ==
+        // target` read always saw the value THIS call had just written,
+        // never whatever was actually running a moment ago. Its careful
+        // "stop the previous engine first" logic (see stopOtherEngine's
+        // own doc comment — written for exactly this switching bug) was
+        // consequently never able to fire, for either a same- or
+        // cross-engine switch: the old engine (and its tun2socks bridge)
+        // kept running underneath the new one, contending for the same
+        // protect socket / TUN fd. Capturing the previous engine HERE,
+        // before it's overwritten, and threading that captured value
+        // through instead of letting stopOtherEngine() re-read
+        // (by-then-stale) `activeEngine` itself is the actual fix.
+        val previousEngine = activeEngine
         if (!xrayConfig.isNullOrEmpty()) {
             activeEngine = Engine.XRAY
             lastXrayConfig = xrayConfig
             lastLink = null
-            Thread({ connectXray(xrayConfig, generation, isReconnect = false, preserveTun = false) }, "WaveEngineConnect").start()
+            Thread({ connectXray(xrayConfig, generation, isReconnect = false, preserveTun = false, previousEngine = previousEngine) }, "WaveEngineConnect").start()
         } else {
             activeEngine = Engine.HYSTERIA
             lastLink = link
             lastXrayConfig = null
-            Thread({ connectHysteria(link!!, generation, isReconnect = false, preserveTun = false) }, "WaveEngineConnect").start()
+            Thread({ connectHysteria(link!!, generation, isReconnect = false, preserveTun = false, previousEngine = previousEngine) }, "WaveEngineConnect").start()
         }
         return START_STICKY
     }
@@ -733,11 +754,22 @@ class WaveEngineVpnService : VpnService() {
     // unaffected by an engine switch, since protectServer != null skips
     // recreating it). Two engines both driving tun2socks/the TUN fd at
     // once is wrong regardless of whether that's the exact failure mode
-    // every time, which is also the likely source of the 8-10s stalls
-    // reported on same-engine switches under the same contention.
-    private fun stopOtherEngine(target: Engine) {
-        val previous = activeEngine
-        if (previous == null || previous == target) return
+    // every time.
+    //
+    // [previous] is the engine that was actually active a moment ago,
+    // captured by the CALLER (onStartCommand) before it overwrote
+    // `activeEngine` with the new target — NOT re-read from
+    // `activeEngine` here, which by the time this runs (on its own
+    // background thread) already holds the NEW value. That re-read was
+    // the actual bug this fixes: `previous == target` was always true
+    // (comparing the new value to itself), so this never fired for
+    // EITHER a same-engine switch (Direct-TLS -> VLESS, both Xray — the
+    // reported "8-10s stalls" / "shows connected but doesn't load until
+    // a manual reconnect") or a cross-engine one, despite the logic
+    // below being correct once it actually receives the real previous
+    // engine.
+    private fun stopOtherEngine(previous: Engine?, target: Engine) {
+        if (previous == null) return
         Log.d(TAG, "stopping $previous before starting $target")
         try {
             Bridge.stopTun2Socks()
@@ -776,13 +808,13 @@ class WaveEngineVpnService : VpnService() {
     // is up — see reconnectEngineOnly()'s own comment for the full
     // investigation. false (a fresh, user-initiated connect) runs the
     // original full flow unchanged.
-    private fun connectXray(configJson: String, generation: Long, isReconnect: Boolean, preserveTun: Boolean) {
+    private fun connectXray(configJson: String, generation: Long, isReconnect: Boolean, preserveTun: Boolean, previousEngine: Engine? = null) {
         if (generation != connectGeneration || stopping) return
         synchronized(connectLock) {
             if (generation != connectGeneration || stopping) return
             try {
                 if (!preserveTun) {
-                    stopOtherEngine(Engine.XRAY)
+                    stopOtherEngine(previousEngine, Engine.XRAY)
                 }
                 setUpProtection()
                 // Only matters when the generated config actually
@@ -872,13 +904,13 @@ class WaveEngineVpnService : VpnService() {
     // (or a stale, not-yet-rebuilt .aar) ever makes that port move again,
     // this notices and falls back to a full TUN rebuild rather than
     // silently leaving tun2socks bridging into a dead address forever.
-    private fun connectHysteria(link: String, generation: Long, isReconnect: Boolean, preserveTun: Boolean) {
+    private fun connectHysteria(link: String, generation: Long, isReconnect: Boolean, preserveTun: Boolean, previousEngine: Engine? = null) {
         if (generation != connectGeneration || stopping) return
         synchronized(connectLock) {
             if (generation != connectGeneration || stopping) return
             try {
                 if (!preserveTun) {
-                    stopOtherEngine(Engine.HYSTERIA)
+                    stopOtherEngine(previousEngine, Engine.HYSTERIA)
                 }
                 setUpProtection()
                 val port = Bridge.start(link)

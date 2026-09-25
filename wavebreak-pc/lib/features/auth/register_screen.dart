@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,6 +24,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _password = TextEditingController();
   bool _busy = false;
   String? _error;
+  CancelToken? _cancelToken;
 
   Future<void> _submit() async {
     setState(() {
@@ -30,14 +32,34 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _error = null;
     });
     final s = ref.read(stringsProvider);
+    // Same CancelToken treatment as login_screen.dart's own fix — a
+    // register call that outlives this screen (timed out, or the user
+    // backed out mid-request) must not linger in ApiClient's
+    // QueuedInterceptor queue and block a subsequent attempt from even
+    // starting. See login_screen.dart's _submit() doc comment for the
+    // full mechanism.
+    final cancelToken = CancelToken();
+    _cancelToken = cancelToken;
     try {
-      final tokens = await ref.read(coreGatewayProvider).register(
+      final tokens = await ref
+          .read(coreGatewayProvider)
+          .register(
             email: _email.text.trim(),
             password: _password.text,
+            cancelToken: cancelToken,
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              cancelToken.cancel('register UI timeout');
+              throw AppException(AppErrorKind.noInternet);
+            },
           );
       await ref.read(sessionControllerProvider.notifier).onAuthenticated(tokens);
     } on AppException catch (error) {
-      setState(() => _error = error.localized(s));
+      if (mounted) setState(() => _error = error.localized(s));
+    } catch (_) {
+      if (mounted) setState(() => _error = s.errUnavailable);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -45,6 +67,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   void dispose() {
+    _cancelToken?.cancel('screen disposed');
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -97,6 +120,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Text(_error!, style: const TextStyle(color: WbColors.error)),
+                  // Same reasoning as login_screen.dart's own fix — a
+                  // failed sign-up gets an immediate, contextual way
+                  // around it (guest mode / own subscription link)
+                  // instead of leaving someone stuck with no path forward
+                  // other than retrying the same failing request.
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () async {
+                      await ref
+                          .read(sessionControllerProvider.notifier)
+                          .continueAsGuest();
+                    },
+                    child: Text(
+                      s.continueWithOwnLink,
+                      style: const TextStyle(
+                        color: WbColors.waveCyan,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(

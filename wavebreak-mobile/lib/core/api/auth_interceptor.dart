@@ -26,7 +26,30 @@ class AuthInterceptor extends QueuedInterceptor {
       handler.next(options);
       return;
     }
-    final token = await readAccessToken();
+    // Real-device bug this fixes: the whole app going permanently
+    // unresponsive — every screen stuck loading forever, nothing ever
+    // resolves, not even a fresh retry. Root cause: this is a
+    // QueuedInterceptor, which processes every request's onRequest/onError
+    // strictly in order across the ENTIRE Dio client — if `readAccessToken`
+    // (a flutter_secure_storage platform-channel read) never completes on
+    // some device (see session_controller.dart's own doc comment on
+    // Android Keystore reads that can hang rather than cleanly returning
+    // null/throwing), this handler never calls `handler.next()`, which
+    // wedges the queue itself, not just this one request — every OTHER
+    // request already queued or queued after it is then stuck forever too,
+    // and no per-call `.timeout()` on the caller's side can ever unstick
+    // it, since the caller's Future abandoning its wait doesn't tell this
+    // interceptor to stop waiting. Bounding the read here, at the one
+    // place that can actually wedge the shared queue, is what makes a
+    // stuck platform channel degrade into "this one request proceeds
+    // unauthenticated (then 401s and goes through the normal refresh/
+    // auth-lost path)" instead of "the entire app is dead until restart."
+    String? token;
+    try {
+      token = await readAccessToken().timeout(const Duration(seconds: 8));
+    } catch (e) {
+      AppLogger.warn('readAccessToken stalled/failed, proceeding without it: $e');
+    }
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
     }

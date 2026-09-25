@@ -17,6 +17,7 @@ class AccountScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionControllerProvider);
     final subscription = ref.watch(subscriptionProvider);
+    final profile = ref.watch(userProfileProvider);
     final s = ref.watch(stringsProvider);
     final isGuest = session.phase == SessionPhase.guest;
 
@@ -73,7 +74,9 @@ class AccountScreen extends ConsumerWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          session.user?.email ?? '—',
+                          profile.asData?.value?.email ??
+                              session.user?.email ??
+                              '—',
                           style: const TextStyle(fontSize: 16),
                         ),
                       ),

@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart' show CancelToken;
+
 import '../../core/api/api_client.dart';
 import '../../core/env/app_env.dart';
 import '../../core/errors/app_exception.dart';
@@ -22,17 +24,21 @@ class CoreGateway {
   Future<TokenPair> login({
     required String email,
     required String password,
+    CancelToken? cancelToken,
   }) {
     if (useMock) return mock.login(email, password);
-    return live.login(email: email, password: password);
+    return live.login(
+        email: email, password: password, cancelToken: cancelToken);
   }
 
   Future<TokenPair> register({
     required String email,
     required String password,
+    CancelToken? cancelToken,
   }) {
     if (useMock) return mock.register(email, password);
-    return live.register(email: email, password: password);
+    return live.register(
+        email: email, password: password, cancelToken: cancelToken);
   }
 
   Future<TokenPair> refresh(String refreshToken) {

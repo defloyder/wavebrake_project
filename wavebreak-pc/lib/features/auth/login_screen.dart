@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,6 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _pin = const PinService();
   bool _busy = false;
   String? _error;
+  CancelToken? _cancelToken;
 
   @override
   void initState() {
@@ -57,10 +59,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     final s = ref.read(stringsProvider);
+    // Same CancelToken fix as wavebreak-mobile's login_screen.dart: a
+    // slow login must not leave an orphaned request occupying
+    // ApiClient's QueuedInterceptor queue and blocking a retry from even
+    // starting — see that file's own doc comment for the full mechanism.
+    final cancelToken = CancelToken();
+    _cancelToken = cancelToken;
     try {
-      final tokens = await ref.read(coreGatewayProvider).login(
+      final tokens = await ref
+          .read(coreGatewayProvider)
+          .login(
             email: _email.text.trim(),
             password: _password.text,
+            cancelToken: cancelToken,
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              cancelToken.cancel('login UI timeout');
+              throw AppException(AppErrorKind.noInternet);
+            },
           );
       await ref
           .read(sessionControllerProvider.notifier)
@@ -69,7 +87,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       await _offerBiometric();
     } on AppException catch (error) {
-      setState(() => _error = error.localized(s));
+      if (mounted) setState(() => _error = error.localized(s));
+    } catch (_) {
+      if (mounted) setState(() => _error = s.errUnavailable);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -123,6 +143,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    _cancelToken?.cancel('screen disposed');
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -193,6 +214,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               _error!,
                               style: const TextStyle(color: WbColors.error),
                               textAlign: TextAlign.center,
+                            ),
+                            // Same reasoning as wavebreak-mobile's own
+                            // fix — a contextual way around a failed
+                            // sign-in (guest mode / own subscription
+                            // link) right next to the error itself,
+                            // rather than an unrelated small link at the
+                            // bottom of the screen with no connection to
+                            // whatever just went wrong.
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: () async {
+                                await ref
+                                    .read(sessionControllerProvider.notifier)
+                                    .continueAsGuest();
+                              },
+                              child: Text(
+                                s.continueWithOwnLink,
+                                style: const TextStyle(
+                                  color: WbColors.waveCyan,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ),
                           ],
                           const SizedBox(height: 20),
