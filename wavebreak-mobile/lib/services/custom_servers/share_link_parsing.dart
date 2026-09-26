@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:wavebreak_links/wavebreak_links.dart';
 
 import '../core_api/models.dart';
 
@@ -9,25 +10,15 @@ import '../core_api/models.dart';
 /// user's own pasted link/subscription) and WAVEBREAK's own bundled pilot
 /// locations (see bundled_locations.dart), so both read flag/country/city
 /// out of a link's fragment the exact same way instead of drifting apart.
-const knownShareSchemes = ['vless', 'trojan', 'vmess', 'ss', 'hysteria2', 'hy2', 'ssr', 'socks'];
+// Single source of truth: wavebreak_links (shared with the other client).
+// ssr was listed before but never connectable; tuic/wireguard/socks5 added.
+const knownShareSchemes = subscriptionSchemes;
 
 List<LocationItem> parseSubscriptionBody(String body) {
-  var text = body.trim();
-  if (!text.contains('://')) {
-    try {
-      final decoded = utf8.decode(base64.decode(base64.normalize(text)));
-      if (decoded.contains('://')) text = decoded;
-    } catch (_) {
-      // Not base64 — fall through and try the raw body as-is.
-    }
-  }
-
   final servers = <LocationItem>[];
-  for (final rawLine in text.split(RegExp(r'[\r\n]+'))) {
-    final line = rawLine.trim();
-    if (line.isEmpty) continue;
+  for (final line in extractShareLinks(body)) {
     final uri = Uri.tryParse(line);
-    if (uri == null || !knownShareSchemes.contains(uri.scheme)) continue;
+    if (uri == null) continue;
     servers.add(locationFromUri(uri, line));
   }
   return servers;
