@@ -360,10 +360,21 @@ class MainActivity : FlutterFragmentActivity() {
     // the tunnel) and process-agnostic — unlike anything that would need
     // to reach into WaveEngineVpnService's own ":RunWaveEngine" process,
     // this asks the system itself, which is visible from any process.
+    // Bug 12: this used to read cm.activeNetwork — but since 1.1.7 the app
+    // excludes itself from its own tunnel (addDisallowedApplication), so its
+    // active network is never the VPN and this always answered false:
+    // in-app tunnel latency and pingHost always got "no_service" (Hysteria2
+    // showed no ping), and reconcileWithSystem never saw a live tunnel.
+    // Look for a VPN network among all networks instead, and on Q+ require
+    // that it is ours (ownerUid) so another VPN app doesn't count.
+    @Suppress("DEPRECATION")
     private fun isSystemVpnActive(): Boolean {
         val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
-        return caps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ?: false
+        return cm.allNetworks.any { network ->
+            val caps = cm.getNetworkCapabilities(network) ?: return@any false
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || caps.ownerUid == android.os.Process.myUid())
+        }
     }
 
     companion object {
