@@ -96,10 +96,12 @@ const _updaterChannel = MethodChannel('app.wavebreak/updater');
 /// (permission revoked, channel blocked by the user, ...) must never be
 /// treated as the update check itself having failed — the in-app badge
 /// (app_shell.dart) already covers that case regardless.
-Future<void> showUpdateAvailableNotification(String versionName) async {
+Future<void> showUpdateAvailableNotification(String versionName,
+    {int? versionCode}) async {
   try {
     await _updaterChannel.invokeMethod('showUpdateAvailableNotification', {
       'versionName': versionName,
+      if (versionCode != null) 'versionCode': versionCode,
     });
   } catch (_) {}
 }

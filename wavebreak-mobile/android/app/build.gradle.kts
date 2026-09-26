@@ -125,6 +125,9 @@ flutter {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+    // Bug 2: background update check (UpdateCheckWorker) — approved by the
+    // project owner 2026-09-27.
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
     // Built from native/hysteria_bridge via `gomobile bind` — one gomobile
     // binding covering both Xray-core (VLESS/VMess/Trojan/Shadowsocks/
     // REALITY — MPL-2.0) and the MIT-licensed apernet/hysteria client

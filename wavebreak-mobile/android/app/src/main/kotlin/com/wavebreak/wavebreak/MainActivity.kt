@@ -33,6 +33,12 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Bug 2: background update check (6h) + one check per app start.
+        try {
+            UpdateCheckWorker.schedule(applicationContext)
+        } catch (t: Throwable) {
+            android.util.Log.w("MainActivity", "could not schedule update checks", t)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
@@ -128,7 +134,12 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "showUpdateAvailableNotification" -> {
                         val versionName = call.argument<String>("versionName") ?: ""
-                        UpdateAvailableNotifier.show(this, versionName)
+                        val versionCode = call.argument<Number>("versionCode")?.toLong()
+                        if (versionCode != null) {
+                            UpdateAvailableNotifier.showOnce(this, versionCode, versionName)
+                        } else {
+                            UpdateAvailableNotifier.show(this, versionName)
+                        }
                         result.success(null)
                     }
                     else -> result.notImplemented()

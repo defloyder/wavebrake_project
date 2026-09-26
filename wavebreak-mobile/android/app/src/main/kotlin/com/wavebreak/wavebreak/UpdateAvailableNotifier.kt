@@ -29,6 +29,22 @@ import androidx.core.content.ContextCompat
 object UpdateAvailableNotifier {
     private const val CHANNEL_ID = "wavebreak_updates"
     private const val NOTIFICATION_ID = 4301
+    private const val PREFS = "wavebreak_update_notifier"
+    private const val KEY_LAST_CODE = "last_notified_version_code"
+
+    /**
+     * Posts at most once per versionCode, whoever calls it — the Dart UI
+     * path (MainActivity channel) and UpdateCheckWorker (bug 2) share this
+     * native record, so the same release never alerts twice.
+     */
+    @Synchronized
+    fun showOnce(context: Context, versionCode: Long, versionName: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (versionCode <= prefs.getLong(KEY_LAST_CODE, 0L)) return
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        prefs.edit().putLong(KEY_LAST_CODE, versionCode).apply()
+        show(context, versionName)
+    }
 
     fun show(context: Context, versionName: String) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return

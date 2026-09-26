@@ -73,7 +73,8 @@ class AppShell extends ConsumerWidget {
         if (info.versionCode <= lastNotified) return;
         unawaited(PrefsStore.setInt(
             PrefsStore.lastNotifiedUpdateVersionCode, info.versionCode));
-        unawaited(showUpdateAvailableNotification(info.versionName));
+        unawaited(showUpdateAvailableNotification(info.versionName,
+            versionCode: info.versionCode));
       });
     }
     final items = [
