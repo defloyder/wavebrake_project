@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"wavebreak-core/internal/security"
@@ -16,6 +18,7 @@ import (
 var ErrNotFound = errors.New("not found")
 var ErrRefreshTokenReused = errors.New("refresh token was already revoked")
 var ErrLimitReached = errors.New("limit reached")
+var ErrConflict = errors.New("conflict")
 
 type Store struct {
 	db *pgxpool.Pool
@@ -124,17 +127,19 @@ func (s *Store) CreateUser(ctx context.Context, email, passwordHash string) (Use
 
 func (s *Store) CreateUserWithRole(ctx context.Context, email, passwordHash, role string) (User, error) {
 	var u User
+	email = NormalizeEmail(email)
 	err := s.db.QueryRow(ctx, `
 		insert into users (email, password_hash, password_algo, role)
 		values ($1, $2, 'argon2id', $3)
 		returning id::text, coalesce(email, ''), coalesce(username, ''), coalesce(password_hash, ''), password_algo, status, role, last_login_at, disabled_at, created_at`,
 		email, passwordHash, role,
 	).Scan(&u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.PasswordAlgo, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
-	return u, err
+	return u, normalizeDatabaseError(err)
 }
 
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	var u User
+	email = NormalizeEmail(email)
 	err := s.db.QueryRow(ctx, `
 		select id::text, coalesce(email, ''), coalesce(username, ''), coalesce(password_hash, ''), password_algo, status, role, last_login_at, disabled_at, created_at
 		from users where email = $1`, email,
@@ -255,6 +260,10 @@ func (s *Store) CreateSubscription(ctx context.Context, userID, planID string) (
 }
 
 func (s *Store) CreateSubscriptionFor(ctx context.Context, userID, planID, source, createdBy string) (Subscription, error) {
+	return s.CreateSubscriptionForOptions(ctx, userID, planID, source, createdBy, "active", nil)
+}
+
+func (s *Store) CreateSubscriptionForOptions(ctx context.Context, userID, planID, source, createdBy, status string, currentPeriodEnd *time.Time) (Subscription, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return Subscription{}, err
@@ -267,14 +276,14 @@ func (s *Store) CreateSubscriptionFor(ctx context.Context, userID, planID, sourc
 			user_id, plan_id, status, source, created_by, current_period_end,
 			traffic_limit_bytes_snapshot, device_limit_snapshot, concurrent_connection_limit_snapshot, started_at
 		)
-		select $1, p.id, 'active', $3, $4, now() + make_interval(days => coalesce(p.duration_days, 30)),
-		       p.traffic_limit_bytes, p.device_limit, p.concurrent_connection_limit, now()
+		select $1, p.id, $5, $3, $4, coalesce($6::timestamptz, now() + make_interval(days => coalesce(p.duration_days, 30))),
+		       p.traffic_limit_bytes, p.device_limit, p.concurrent_connection_limit, case when $5 = 'active' then now() else null end
 		from plans p
 		where p.id = $2 and p.is_active = true and p.deleted_at is null
 		returning id::text, user_id::text, plan_id::text, status, source, source_reference, created_by::text,
 		          traffic_limit_bytes_snapshot, device_limit_snapshot, concurrent_connection_limit_snapshot,
 		          traffic_limit_override_bytes, device_limit_override, current_period_end, created_at, updated_at`,
-		userID, planID, source, createdBy,
+		userID, planID, source, createdBy, status, currentPeriodEnd,
 	).Scan(&sub.ID, &sub.UserID, &sub.PlanID, &sub.Status, &sub.Source, &sub.SourceReference, &sub.CreatedBy, &sub.TrafficLimitBytesSnapshot, &sub.DeviceLimitSnapshot, &sub.ConcurrentConnectionLimitSnapshot, &sub.TrafficLimitOverrideBytes, &sub.DeviceLimitOverride, &sub.CurrentPeriodEnd, &sub.CreatedAt, &sub.UpdatedAt)
 	if err != nil {
 		return Subscription{}, err
@@ -655,10 +664,28 @@ func (s *Store) WriteAuditEvent(ctx context.Context, actorUserID *string, action
 }
 
 func (s *Store) SetUserPassword(ctx context.Context, email, passwordHash string) error {
-	_, err := s.db.Exec(ctx, `
+	tag, err := s.db.Exec(ctx, `
 		update users
 		set password_hash = $2, password_algo = 'argon2id', updated_at = now()
-		where email = $1`, email, passwordHash)
+		where email = $1 and deleted_at is null`, NormalizeEmail(email), passwordHash)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return normalizeDatabaseError(err)
+}
+
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+func normalizeDatabaseError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return fmt.Errorf("%w: %s", ErrConflict, pgErr.ConstraintName)
+	}
 	return err
 }
 

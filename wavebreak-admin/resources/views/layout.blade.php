@@ -174,6 +174,39 @@ function admCloseSidebar() {
 document.querySelectorAll('.adm-link').forEach(function (link) {
     link.addEventListener('click', admCloseSidebar);
 });
+
+document.querySelectorAll('#users-admin, #adm-user-modal, #subscriptions-admin, #adm-sub-modal, #adm-sub-edit-modal').forEach(function (root) {
+    root.addEventListener('submit', async function (event) {
+        if (event.defaultPrevented) return;
+        const form = event.target.closest('form');
+        if (!form || form.hasAttribute('data-sync')) return;
+        event.preventDefault();
+        const button = form.querySelector('[type="submit"]');
+        if (button) button.disabled = true;
+        try {
+            const response = await fetch(form.action, {
+                method: (form.method || 'post').toUpperCase(),
+                body: new FormData(form),
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const validation = result.errors ? Object.values(result.errors).flat().join('\n') : '';
+                throw new Error(validation || result.message || 'Не удалось выполнить действие.');
+            }
+            window.location.reload();
+        } catch (error) {
+            const target = form.querySelector('.adm-form-error');
+            if (target) {
+                target.textContent = error.message;
+                target.hidden = false;
+            } else {
+                window.alert(error.message);
+            }
+            if (button) button.disabled = false;
+        }
+    });
+});
 </script>
 @endif
 </body>
