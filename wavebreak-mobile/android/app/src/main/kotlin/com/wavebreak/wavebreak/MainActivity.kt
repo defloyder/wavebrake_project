@@ -223,6 +223,25 @@ class MainActivity : FlutterFragmentActivity() {
                             ContextCompat.startForegroundService(this, intent)
                         }
                     }
+                    // Bug 12: latency through the active tunnel (HTTP 204
+                    // via the engine) — same method for every protocol.
+                    "tunnelLatency" -> {
+                        if (!isSystemVpnActive()) {
+                            result.error("no_service", "vpn not running", null)
+                        } else {
+                            val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
+                                override fun onReceiveResult(resultCode: Int, resultData: Bundle) {
+                                    val ms = resultData.getInt(WaveEngineVpnService.EXTRA_PING_MS, -1)
+                                    result.success(if (ms >= 0) ms else null)
+                                }
+                            }
+                            val intent = Intent(this, WaveEngineVpnService::class.java).apply {
+                                action = WaveEngineVpnService.ACTION_TUNNEL_LATENCY
+                                putExtra(WaveEngineVpnService.EXTRA_RESULT_RECEIVER, receiver)
+                            }
+                            ContextCompat.startForegroundService(this, intent)
+                        }
+                    }
                     "updateNotificationMeta" -> {
                         // One-way, unlike pingHost: nothing here needs a
                         // reply, so a plain Intent (the same cross-process-
@@ -266,6 +285,9 @@ class MainActivity : FlutterFragmentActivity() {
                 when (call.method) {
                     "isSystemVpnActive" -> {
                         result.success(isSystemVpnActive())
+                    }
+                    "vpnSessionStartedAtMs" -> {
+                        result.success(WaveEngineVpnService.sessionStartedAtMs(this))
                     }
                     "isIgnoringBatteryOptimizations" -> {
                         result.success(BatteryOptimization.isIgnoringBatteryOptimizations(this))

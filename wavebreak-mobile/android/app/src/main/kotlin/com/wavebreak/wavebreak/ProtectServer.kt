@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit
  * Android's abstract namespace, so the path Bridge.setProtectPath() is
  * given must be NUL-prefixed to match (see WaveEngineVpnService).
  */
-class ProtectServer(private val vpnService: VpnService, private val name: String) {
+class ProtectServer(@Volatile var vpnService: VpnService?, private val name: String) {
     @Volatile private var running = false
     private var serverSocket: LocalServerSocket? = null
     private var thread: Thread? = null
@@ -48,8 +48,13 @@ class ProtectServer(private val vpnService: VpnService, private val name: String
     // attempt after switching servers routinely lost the race and failed
     // with "connect protect path: connection refused", while a retry a
     // moment later succeeded once the server had caught up.
-    fun start() {
-        if (running) return
+    // Returns whether the socket is actually bound. Bug 1: a failed bind was
+    // logged and then ignored, so the connection "succeeded" with nobody
+    // left to answer protect(), and every later engine restart failed with
+    // "connect protect path: connection refused" (logcat 00:42:36 ->
+    // 00:55:57, reconnect_exhausted).
+    fun start(): Boolean {
+        if (running) return serverSocket != null
         running = true
         val ready = CountDownLatch(1)
         thread = Thread({
@@ -72,6 +77,7 @@ class ProtectServer(private val vpnService: VpnService, private val name: String
             }
         }, "WaveEngineProtectServer").apply { start() }
         ready.await(2, TimeUnit.SECONDS)
+        return serverSocket != null
     }
 
     // Switching locations tears the whole service down (stopAll() calls
@@ -126,7 +132,7 @@ class ProtectServer(private val vpnService: VpnService, private val name: String
                         // leaking fds in this process.
                         val pfd = ParcelFileDescriptor.dup(fd)
                         try {
-                            ok = vpnService.protect(pfd.fd) || ok
+                            ok = vpnService?.protect(pfd.fd) == true || ok
                         } finally {
                             pfd.close()
                             try {
@@ -149,15 +155,11 @@ class ProtectServer(private val vpnService: VpnService, private val name: String
         }, "WaveEngineProtectClient").start()
     }
 
-    fun stop() {
-        running = false
-        try {
-            serverSocket?.close()
-        } catch (e: Exception) {
-        }
-        serverSocket = null
-        thread = null
-    }
+    // No stop(): one instance lives for the whole ":RunWaveEngine" process
+    // (see WaveEngineVpnService.setUpProtection). Closing a LocalServerSocket
+    // does not unblock a thread parked in accept(), so the abstract name
+    // stayed bound and the next service instance in the same process (same
+    // pid, same name) could never bind it again.
 
     companion object {
         private const val TAG = "ProtectServer"

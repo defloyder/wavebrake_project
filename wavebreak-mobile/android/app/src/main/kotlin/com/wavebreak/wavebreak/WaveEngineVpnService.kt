@@ -4,13 +4,14 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.widget.RemoteViews
 import android.net.ConnectivityManager
 import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -19,6 +20,7 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
 import android.util.Log
+import androidx.core.content.ContextCompat
 import app.wavebreak.bridge.bridge.Bridge
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -102,7 +104,6 @@ import java.net.Socket
  */
 class WaveEngineVpnService : VpnService() {
     private var tunInterface: ParcelFileDescriptor? = null
-    private var protectServer: ProtectServer? = null
     private var activeEngine: Engine? = null
     @Volatile private var stopping = false
 
@@ -122,6 +123,7 @@ class WaveEngineVpnService : VpnService() {
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var trackedNetwork: Network? = null
+    private var userPresentReceiver: BroadcastReceiver? = null
     private val reconnectHandler = Handler(Looper.getMainLooper())
     private var pendingReconnect: Runnable? = null
     private var pendingFdCheck: Runnable? = null
@@ -238,6 +240,10 @@ class WaveEngineVpnService : VpnService() {
             handlePingHostAction(intent)
             return START_NOT_STICKY
         }
+        if (intent?.action == ACTION_TUNNEL_LATENCY) {
+            handleTunnelLatencyAction(intent)
+            return START_NOT_STICKY
+        }
         if (intent?.action == ACTION_UPDATE_NOTIFICATION_META) {
             handleUpdateNotificationMetaAction(intent)
             return START_NOT_STICKY
@@ -253,6 +259,7 @@ class WaveEngineVpnService : VpnService() {
             return START_NOT_STICKY
         }
         stopping = false
+        keepSessionStartOnNextConnect = (flags and START_FLAG_REDELIVERY) != 0
         broadcastState(STATE_CONNECTING)
         registerNetworkWatch()
         scheduleFdCheck()
@@ -300,7 +307,14 @@ class WaveEngineVpnService : VpnService() {
             lastXrayConfig = null
             Thread({ connectHysteria(link!!, generation, isReconnect = false, preserveTun = false, previousEngine = previousEngine) }, "WaveEngineConnect").start()
         }
-        return START_STICKY
+        // Bug 1: START_STICKY restarts with a null intent, which the branch
+        // above treats as "nothing to connect" and stops — and every later
+        // helper action (ping, notification meta, foreground) returned
+        // NOT_STICKY anyway, so dumpsys showed stopIfKilled=true. REDELIVER
+        // keeps this connect intent pending until stopSelf(): if the
+        // system kills the process, the service comes back and reconnects
+        // with the same config. A user stop (stopAll -> stopSelf) clears it.
+        return START_REDELIVER_INTENT
     }
 
     // Real-device gap this exists to fix, reported separately from the
@@ -439,15 +453,24 @@ class WaveEngineVpnService : VpnService() {
     private fun registerNetworkWatch() {
         if (networkCallback != null) return
         val cm = getSystemService(ConnectivityManager::class.java) ?: return
-        val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
-            .build()
+        // Bugs 1/4: registerNetworkCallback(request) reports EVERY matching
+        // network (Wi-Fi and cellular both), so a second network appearing
+        // right after connect fired "network changed" (field log: ~1s after
+        // every connection_success), and a secondary network going away
+        // fired "network lost". Only the default network matters. This app
+        // is excluded from its own tunnel (addDisallowedApplication), so its
+        // default network is the physical one, never our VPN.
+        // A lost network no longer triggers a reconnect by itself: with no
+        // network every attempt just fails and burns the retry budget
+        // (logcat 00:55:57: reconnect_exhausted). We reconnect when a
+        // default network (re)appears.
+        var lostSinceLastAvailable = false
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 val previous = trackedNetwork
                 trackedNetwork = network
-                if (previous != null && previous != network) {
+                if ((previous != null && previous != network) || lostSinceLastAvailable) {
+                    lostSinceLastAvailable = false
                     scheduleReconnect("network changed")
                 }
             }
@@ -455,16 +478,37 @@ class WaveEngineVpnService : VpnService() {
             override fun onLost(network: Network) {
                 if (network == trackedNetwork) {
                     trackedNetwork = null
-                    scheduleReconnect("network lost")
+                    lostSinceLastAvailable = true
+                    Log.d(TAG, "default network lost, waiting for a new one")
                 }
             }
         }
         try {
-            cm.registerNetworkCallback(request, callback)
+            cm.registerDefaultNetworkCallback(callback)
             connectivityManager = cm
             networkCallback = callback
         } catch (t: Throwable) {
             Log.e(TAG, "registerNetworkCallback failed", t)
+        }
+        // Unlock is when the user is about to need the tunnel: verify it
+        // right away (by probe) instead of only when our own UI is opened.
+        if (userPresentReceiver == null) {
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    verifyTunnelThenMaybeReconnect("screen unlocked")
+                }
+            }
+            try {
+                ContextCompat.registerReceiver(
+                    this,
+                    receiver,
+                    IntentFilter(Intent.ACTION_USER_PRESENT),
+                    ContextCompat.RECEIVER_NOT_EXPORTED,
+                )
+                userPresentReceiver = receiver
+            } catch (t: Throwable) {
+                Log.e(TAG, "registerReceiver(USER_PRESENT) failed", t)
+            }
         }
     }
 
@@ -480,6 +524,13 @@ class WaveEngineVpnService : VpnService() {
         connectivityManager = null
         networkCallback = null
         trackedNetwork = null
+        userPresentReceiver?.let {
+            try {
+                unregisterReceiver(it)
+            } catch (t: Throwable) {
+            }
+        }
+        userPresentReceiver = null
         pendingReconnect?.let { reconnectHandler.removeCallbacks(it) }
         pendingReconnect = null
         pendingFdCheck?.let { reconnectHandler.removeCallbacks(it) }
@@ -702,18 +753,74 @@ class WaveEngineVpnService : VpnService() {
 
     // Runs on a background thread (see scheduleHealthCheck) — blocking
     // socket I/O, never call this on the main thread.
-    private fun probeTunnelAlive(): Boolean {
+    private fun probeTunnelAlive(): Boolean = measureTunnelLatencyMs() != null
+
+    // Bugs 1/12: the old probe (plain TCP connect to 1.1.1.1:443) could not
+    // detect a dead tunnel — tun2socks completes the TCP handshake locally
+    // (core/tcp.go CreateEndpoint) before it ever dials the engine, and
+    // since this app is excluded from its own VPN the probe didn't even go
+    // through the TUN. This makes a real HTTP request through the engine's
+    // own local SOCKS5 inbound, with the hostname resolved on the far side,
+    // so success means engine -> server -> internet actually works. The
+    // same round trip is the latency figure shown for every protocol,
+    // Hysteria2 included, so numbers are comparable.
+    // Blocking I/O — background threads only.
+    fun measureTunnelLatencyMs(): Int? {
+        val socksPort = when (activeEngine) {
+            Engine.XRAY -> XRAY_SOCKS_PORT
+            Engine.HYSTERIA -> lastHysteriaSocksPort ?: return null
+            null -> return null
+        }
+        val proxy = java.net.Proxy(java.net.Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", socksPort))
         return try {
-            Socket().use { socket ->
+            Socket(proxy).use { socket ->
+                socket.soTimeout = HEALTH_CHECK_TIMEOUT_MS
+                val start = System.nanoTime()
                 socket.connect(
-                    InetSocketAddress(HEALTH_CHECK_HOST, HEALTH_CHECK_PORT),
+                    InetSocketAddress.createUnresolved(HEALTH_CHECK_HOST, 80),
                     HEALTH_CHECK_TIMEOUT_MS,
                 )
+                val request = "HEAD $HEALTH_CHECK_PATH HTTP/1.1\r\nHost: $HEALTH_CHECK_HOST\r\nConnection: close\r\n\r\n"
+                socket.getOutputStream().apply {
+                    write(request.toByteArray(Charsets.US_ASCII))
+                    flush()
+                }
+                val statusLine = socket.getInputStream().bufferedReader(Charsets.US_ASCII).readLine()
+                val elapsed = ((System.nanoTime() - start) / 1_000_000L).toInt()
+                if (statusLine != null && statusLine.startsWith("HTTP/") && statusLine.contains(" 204")) {
+                    elapsed
+                } else {
+                    Log.w(TAG, "tunnel probe: unexpected status line: $statusLine")
+                    null
+                }
             }
-            true
         } catch (t: Throwable) {
-            false
+            Log.w(TAG, "tunnel probe failed: ${t.javaClass.simpleName}: ${t.message}")
+            null
         }
+    }
+
+    // Probe now, and only reconnect after two consecutive failures. Replaces
+    // the unconditional engine restart on app-foreground/unlock (bugs 1/4:
+    // logcat 00:55:33 — that restart is what took down a tunnel that had
+    // survived 13 minutes of sleep fine).
+    private fun verifyTunnelThenMaybeReconnect(reason: String) {
+        if (stopping || activeEngine == null || pendingConnectWatchdog != null) return
+        Thread({
+            var alive = probeTunnelAlive()
+            if (!alive && !stopping) {
+                Thread.sleep(HEALTH_CHECK_RETRY_AFTER_FAILURE_MS)
+                alive = probeTunnelAlive()
+            }
+            reconnectHandler.post {
+                if (stopping || activeEngine == null) return@post
+                if (alive) {
+                    Log.d(TAG, "tunnel verified alive after $reason")
+                } else {
+                    scheduleReconnect("$reason, tunnel probe failed")
+                }
+            }
+        }, "WaveEngineVerify").start()
     }
 
     // Starts the local protect socket server and points the Go side at it
@@ -723,10 +830,14 @@ class WaveEngineVpnService : VpnService() {
     // sync.Once both no-op past the first call).
     private fun setUpProtection() {
         System.loadLibrary("hysteriabridge")
-        if (protectServer == null) {
-            val server = ProtectServer(this, PROTECT_SOCKET_NAME)
-            server.start()
-            protectServer = server
+        // One ProtectServer per process, retargeted at whichever service
+        // instance is current (bug 1: a per-instance server could never be
+        // rebound after stop->start in the same process).
+        val server = processProtectServer
+            ?: ProtectServer(this, PROTECT_SOCKET_NAME).also { processProtectServer = it }
+        server.vpnService = this
+        if (!server.start()) {
+            throw IllegalStateException("protect server is not bound")
         }
         // LocalServerSocket binds in Android's abstract namespace, which
         // on the wire is a NUL-prefixed name — control.ProtectPath (Go
@@ -871,6 +982,7 @@ class WaveEngineVpnService : VpnService() {
                     }
                 }
                 broadcastState(STATE_CONNECTED)
+                markSessionConnected(isReconnect)
                 // This attempt has reached a terminal, successful outcome —
                 // the watchdog scheduled for it (scheduleConnectWatchdog)
                 // must never be allowed to fire later and tear down a
@@ -958,6 +1070,7 @@ class WaveEngineVpnService : VpnService() {
                 }
                 lastHysteriaSocksPort = port.toInt()
                 broadcastState(STATE_CONNECTED)
+                markSessionConnected(isReconnect)
                 // This attempt has reached a terminal, successful outcome —
                 // the watchdog scheduled for it (scheduleConnectWatchdog)
                 // must never be allowed to fire later and tear down a
@@ -1233,6 +1346,7 @@ class WaveEngineVpnService : VpnService() {
         }
         tunInterface = null
         if (!alreadyStopping) logStop(reason)
+        clearSessionStart()
         if (broadcastIdle) broadcastState(STATE_IDLE, detail = "reason=$reason")
         stopForeground(true)
         stopSelf()
@@ -1257,8 +1371,11 @@ class WaveEngineVpnService : VpnService() {
         if (!stopping) {
             stopAll(reason = STOP_REASON_CRASH, broadcastIdle = false)
         }
-        protectServer?.stop()
-        protectServer = null
+        // Detach, don't stop: the process-wide server outlives this instance
+        // and must not protect() through a destroyed service.
+        if (processProtectServer?.vpnService === this) {
+            processProtectServer?.vpnService = null
+        }
         super.onDestroy()
     }
 
@@ -1301,6 +1418,35 @@ class WaveEngineVpnService : VpnService() {
                 socket?.close()
             } catch (e: Exception) {
             }
+        }
+    }
+
+    // Bug 1 (timer restarting from zero): the session start time is owned
+    // here, in the engine process, and survives the UI process being killed
+    // and relaunched. Engine-only reconnects and a system redelivery after a
+    // process kill keep it; only a fresh user connect resets it, and a stop
+    // clears it. A file, not SharedPreferences: the UI process reads it and
+    // SharedPreferences caches per process.
+    private var keepSessionStartOnNextConnect = false
+
+    private fun markSessionConnected(isReconnect: Boolean) {
+        if (isReconnect) return
+        if (keepSessionStartOnNextConnect && sessionStartFile(this).exists()) {
+            keepSessionStartOnNextConnect = false
+            return
+        }
+        keepSessionStartOnNextConnect = false
+        try {
+            sessionStartFile(this).writeText(System.currentTimeMillis().toString())
+        } catch (t: Throwable) {
+            Log.w(TAG, "could not persist session start", t)
+        }
+    }
+
+    private fun clearSessionStart() {
+        try {
+            sessionStartFile(this).delete()
+        } catch (t: Throwable) {
         }
     }
 
@@ -1497,13 +1643,12 @@ class WaveEngineVpnService : VpnService() {
     }
 
     // Called from MainActivity.onResume() after a long-enough background
-    // stretch — see its doc comment for why a UDP-based tunnel needs this
-    // even when Android never reports a network change at all. Routes
-    // through the exact same debounced scheduleReconnect() path a real
-    // network-change event uses, so it gets the same stopOtherEngine()-safe
-    // handling — no separate reconnect implementation to keep in sync.
+    // stretch, and on screen unlock (see userPresentReceiver). A UDP tunnel
+    // can silently die while asleep without any network change, so we
+    // check — but by a real probe, restarting only a tunnel that is
+    // actually dead (bugs 1/4).
     fun notifyAppForegrounded() {
-        scheduleReconnect("app foregrounded after background stretch")
+        verifyTunnelThenMaybeReconnect("app foregrounded after background stretch")
     }
 
     // The notification's own "check ping" button (expanded view only —
@@ -1513,21 +1658,25 @@ class WaveEngineVpnService : VpnService() {
     // notification can actually invoke. host/port were resolved by Dart
     // (ConnectionTestService's own logic — Kotlin doesn't parse share
     // links) and handed over by updateNotificationMeta().
+    // Bug 12: measured through the tunnel (measureTunnelLatencyMs), so it
+    // works for every protocol including Hysteria2, and matches what the
+    // app shows for the connected location.
     private fun handleCheckPingAction() {
-        val host = notifPingHost
-        val port = notifPingPort
-        if (host == null || port == null) {
-            notifPingText = notifLabelPingUnavailable
-            refreshNotification()
-            return
-        }
         notifPingText = notifLabelMeasuring
         refreshNotification()
         Thread({
-            val ms = pingHost(host, port, 4000)
+            val ms = measureTunnelLatencyMs()
             notifPingText = if (ms != null) "$ms ms" else notifLabelPingUnavailable
             refreshNotification()
         }, "WaveEngineNotifPing").start()
+    }
+
+    private fun handleTunnelLatencyAction(intent: Intent) {
+        val receiver = extractResultReceiver(intent) ?: return
+        Thread({
+            val ms = measureTunnelLatencyMs()
+            receiver.send(0, Bundle().apply { if (ms != null) putInt(EXTRA_PING_MS, ms) })
+        }, "WaveEngineTunnelLatency").start()
     }
 
     private fun refreshNotification() {
@@ -1661,15 +1810,15 @@ class WaveEngineVpnService : VpnService() {
         private const val FD_CHECK_INTERVAL_MS = 8_000L
 
         // See scheduleHealthCheck()'s doc comment for the bug this exists
-        // for. 1.1.1.1:443 — same stable, fast, TLS-capable public target
-        // already used elsewhere in this app for reachability probes
-        // (ConnectionTestService's own pattern on the Dart side); no
-        // WAVEBREAK-operated endpoint needed.
-        private const val HEALTH_CHECK_HOST = "1.1.1.1"
-        private const val HEALTH_CHECK_PORT = 443
+        // for. Target is Google's captive-portal check: tiny, always 204,
+        // plain HTTP (no TLS handshake in the measured round trip), fetched
+        // through the engine's SOCKS inbound (see measureTunnelLatencyMs).
+        private const val HEALTH_CHECK_HOST = "connectivitycheck.gstatic.com"
+        private const val HEALTH_CHECK_PATH = "/generate_204"
         private const val HEALTH_CHECK_TIMEOUT_MS = 6_000
         private const val HEALTH_CHECK_INTERVAL_MS = 45_000L
         private const val HEALTH_CHECK_RETRY_MS = 10_000L
+        private const val HEALTH_CHECK_RETRY_AFTER_FAILURE_MS = 3_000L
         private const val HEALTH_CHECK_FAILURE_THRESHOLD = 2
 
         // See scheduleConnectWatchdog's own comment for the full "stuck
@@ -1703,6 +1852,17 @@ class WaveEngineVpnService : VpnService() {
         // this process's own pid into the name means a new process can
         // never collide with whatever an old one left behind.
         private val PROTECT_SOCKET_NAME = "wavebreak_protect_${android.os.Process.myPid()}"
+        @Volatile private var processProtectServer: ProtectServer? = null
+
+        private fun sessionStartFile(context: android.content.Context) =
+            java.io.File(context.filesDir, "vpn_session_started_at")
+
+        /** Epoch ms when the current VPN session started, or null. Readable from any process. */
+        fun sessionStartedAtMs(context: android.content.Context): Long? = try {
+            sessionStartFile(context).takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()
+        } catch (t: Throwable) {
+            null
+        }
 
         const val ACTION_STOP = "app.wavebreak.engine.STOP"
         const val ACTION_CHECK_PING = "app.wavebreak.engine.CHECK_PING"
@@ -1733,6 +1893,7 @@ class WaveEngineVpnService : VpnService() {
         const val STOP_REASON_SYSTEM = "system"
 
         const val ACTION_PING_HOST = "app.wavebreak.engine.PING_HOST"
+        const val ACTION_TUNNEL_LATENCY = "app.wavebreak.engine.TUNNEL_LATENCY"
         const val ACTION_UPDATE_NOTIFICATION_META = "app.wavebreak.engine.UPDATE_NOTIFICATION_META"
         const val ACTION_APP_FOREGROUNDED = "app.wavebreak.engine.APP_FOREGROUNDED"
         const val EXTRA_PING_HOST = "ping_host"

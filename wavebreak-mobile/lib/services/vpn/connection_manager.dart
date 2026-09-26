@@ -798,9 +798,19 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     } catch (_) {
       return;
     }
+    // Bug 1: the session start comes from the engine process (it survives
+    // this UI process being killed), so the timer continues instead of
+    // restarting from zero on every relaunch.
+    DateTime? startedAt;
+    try {
+      final ms =
+          await _systemVpnChannel.invokeMethod<int>('vpnSessionStartedAtMs');
+      if (ms != null) startedAt = DateTime.fromMillisecondsSinceEpoch(ms);
+    } catch (_) {}
     if (state.status != ConnectionStatus.idle) return;
     state = state.copyWith(
-        status: ConnectionStatus.connected, connectedAt: DateTime.now());
+        status: ConnectionStatus.connected,
+        connectedAt: startedAt ?? DateTime.now());
   }
 
   void _onNative(VpnNativeState native) {

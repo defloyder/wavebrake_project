@@ -189,9 +189,10 @@ class SpeedTestController extends Notifier<SpeedTestState> {
     // honest-null, a timeout) leaves latencyMs null rather than aborting
     // the whole test — download/upload below don't depend on it.
     try {
-      final location = ref.read(connectionManagerProvider).location;
-      final latency =
-          await const ConnectionTestService().testLocation(location);
+      final connection = ref.read(connectionManagerProvider);
+      final latency = await const ConnectionTestService().measure(
+          connection.location,
+          connected: connection.status == ConnectionStatus.connected);
       if (generation != _generation) return;
       state = state.copyWith(latencyMs: latency);
     } catch (_) {

@@ -68,8 +68,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // it through tun2socks like ordinary traffic. Testing the real node's
     // own host:port instead has no such special case and — as a bonus —
     // now reads the same number the location list shows for consistency.
-    final result =
-        await const ConnectionTestService().testLocation(connection.location);
+    // Bug 12: while connected this is measured through the tunnel (works
+    // for Hysteria2 too); the TCP probe described above is the fallback.
+    final result = await const ConnectionTestService().measure(
+        connection.location,
+        connected: connection.status == ConnectionStatus.connected);
     if (!mounted) return;
     setState(() {
       _pingTesting = false;
@@ -162,20 +165,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // live QUIC/UDP session through an extended deep-sleep window) even
   // with the VpnService foreground notification's partial exemption — a
   // real, documented contributor to the sleep/wake reconnect failures
-  // this app has been fighting. Asked once, right after the first
-  // successful connection (the moment the user has just seen the feature
-  // work and is primed to understand why it needs this) rather than
-  // during onboarding before they've connected to anything, or nagging on
-  // every connect. Declining is a real, respected answer — this never
-  // asks again once shown, regardless of the outcome; Settings > Connection
-  // still offers it for anyone who changes their mind later.
+  // this app has been fighting. Asked right after a successful connection
+  // (the moment the user has just seen the feature work) rather than
+  // during onboarding, and at most once a week while the app is still not
+  // exempt; Settings > Connection offers it at any time.
   Future<void> _maybeOfferBatteryOptimizationExemption() async {
     if (!Platform.isAndroid) return;
-    if (PrefsStore.getBool(PrefsStore.batteryOptimizationPromptShown)) return;
+    // Re-offered weekly while still not exempt (bug 1: the tunnel's
+    // watchdog is only reliable in the background with the exemption).
+    const reofferAfter = Duration(days: 7);
+    final lastMs =
+        PrefsStore.getInt(PrefsStore.batteryOptimizationPromptLastMs) ?? 0;
+    if (DateTime.now().millisecondsSinceEpoch - lastMs <
+        reofferAfter.inMilliseconds) {
+      return;
+    }
     const battery = BatteryOptimizationService();
     if (await battery.isExempt()) return;
     if (!mounted) return;
-    await PrefsStore.setBool(PrefsStore.batteryOptimizationPromptShown, true);
+    await PrefsStore.setInt(PrefsStore.batteryOptimizationPromptLastMs,
+        DateTime.now().millisecondsSinceEpoch);
     if (!mounted) return;
     final s = ref.read(stringsProvider);
     final allow = await showDialog<bool>(

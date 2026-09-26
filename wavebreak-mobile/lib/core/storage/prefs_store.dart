@@ -18,8 +18,11 @@ class PrefsStore {
   static const notifyConnection = 'notify_connection';
   static const notifySubscription = 'notify_subscription';
   static const biometricPromptShown = 'biometric_prompt_shown';
-  static const batteryOptimizationPromptShown =
-      'battery_optimization_prompt_shown';
+  // Epoch ms of the last battery-optimization prompt (bug 1: asked once
+  // ever, so a declined/ignored prompt left the tunnel exposed to Doze
+  // for good). Re-offered at most weekly while still not exempt.
+  static const batteryOptimizationPromptLastMs =
+      'battery_optimization_prompt_last_ms';
   static const language = 'language';
   static const customServers = 'custom_servers';
   static const accentOverride = 'accent_override';

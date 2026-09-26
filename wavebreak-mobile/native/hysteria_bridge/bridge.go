@@ -66,12 +66,24 @@ func Start(link string) (int, error) {
 		stopLocked()
 	}
 
-	cfg, err := parseLink(link)
-	if err != nil {
+	if _, err := parseLink(link); err != nil {
 		return 0, fmt.Errorf("parse link: %w", err)
 	}
 
-	client, _, err := hyclient.NewClient(cfg)
+	// Reconnectable, not a single NewClient connection (bugs 1/8): once
+	// the one QUIC connection died (idle timeout or NAT rebinding while the
+	// phone slept, a network switch) every new stream failed until the
+	// Kotlin side restarted the whole engine — and nothing could tell it
+	// to, because the old health check never saw the tunnel as dead. This
+	// wrapper redials on the next TCP()/UDP() after the connection closes.
+	// The config is rebuilt per dial so the server address is re-resolved
+	// on the current network. Not lazy: Start still reports a failed first
+	// handshake to the caller.
+	client, err := hyclient.NewReconnectableClient(
+		func() (*hyclient.Config, error) { return parseLink(link) },
+		nil,
+		false,
+	)
 	if err != nil {
 		return 0, fmt.Errorf("connect: %w", err)
 	}
