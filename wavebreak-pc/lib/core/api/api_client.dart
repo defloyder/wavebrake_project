@@ -152,11 +152,16 @@ class ApiClient {
   /// With that 20s applying per attempt, 2 retries could take up to ~60s
   /// end to end (3 attempts × 20s + backoff), blowing well past every
   /// caller's own outer timeout (login_screen's 25s, data_providers.dart's
-  /// 20s `_withTimeout`) before a retry ever gets a chance to land —
+  /// 26s `_withTimeout`) before a retry ever gets a chance to land —
   /// making the retry logic itself the reason nothing ever completed in
-  /// time. Bounding each attempt to 7s means 3 attempts + backoff fits
-  /// comfortably inside those outer budgets instead of racing past them.
-  static const _retryAttemptTimeout = Duration(seconds: 7);
+  /// time. 5s (was 7s — real-device logcat showed Home's own parallel
+  /// subscription/locations/devices/plans fetches, hit by the same
+  /// carrier interference at once, all taking the full 3-attempt budget
+  /// before falling back to cache — 21s felt like "stuck", not
+  /// "loading"): a genuinely blocked path doesn't get through by waiting
+  /// longer per attempt, so this trims worst-case latency to ~15s without
+  /// meaningfully reducing how often a retry actually succeeds.
+  static const _retryAttemptTimeout = Duration(seconds: 5);
 
   Future<T> _run<T>(
     Future<Response<dynamic>> Function() request,

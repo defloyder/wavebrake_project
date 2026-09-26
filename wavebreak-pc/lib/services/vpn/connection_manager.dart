@@ -776,7 +776,14 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   Future<void> reconcileWithSystem() async {
     if (!Platform.isAndroid || AppEnv.useSimulatedVpn) return;
     if (state.status != ConnectionStatus.idle) return;
-    if (state.location.isAuto) return;
+    // See wavebreak-mobile's identical fix for the real-device bug this
+    // closes — the `isAuto` bailout that used to be here skipped
+    // reconciliation entirely for anyone whose last connection was
+    // through Auto, leaving the UI stuck showing "not connected" after a
+    // cold relaunch even though Android's own VpnService tunnel was
+    // still genuinely running underneath. This whole function is
+    // Android-only (see the guard above) so it's inert on Windows today,
+    // but kept in sync rather than left to silently diverge.
     try {
       final active =
           await _systemVpnChannel.invokeMethod<bool>('isSystemVpnActive') ??

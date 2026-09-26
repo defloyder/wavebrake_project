@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -23,6 +24,10 @@ String get _versionCheckUrl => Platform.isWindows
     ? 'https://wavebreak.com.tr/downloads/version-windows.json'
     : 'https://wavebreak.com.tr/downloads/version.json';
 
+/// Same "re-check periodically instead of once per cold start" fix as
+/// wavebreak-mobile's own update_service.dart — see its doc comment.
+const _pollInterval = Duration(minutes: 20);
+
 class UpdateInfo {
   const UpdateInfo({
     required this.versionCode,
@@ -41,11 +46,7 @@ class UpdateInfo {
       );
 }
 
-/// Null when no update is available (either the check failed, or the
-/// server's versionCode isn't newer than this install's own) — the UI
-/// treats "checked, nothing to show" and "haven't checked yet" the same
-/// way (no banner), so there's no separate loading/error state to render.
-final availableUpdateProvider = FutureProvider<UpdateInfo?>((ref) async {
+Future<UpdateInfo?> _checkOnce() async {
   final current = await PackageInfo.fromPlatform();
   final currentCode = int.tryParse(current.buildNumber) ?? 0;
 
@@ -71,4 +72,21 @@ final availableUpdateProvider = FutureProvider<UpdateInfo?>((ref) async {
   final info = UpdateInfo.fromJson(data);
   if (info.versionCode <= currentCode || info.url.isEmpty) return null;
   return info;
+}
+
+/// Null when no update is available (either the check failed, or the
+/// server's versionCode isn't newer than this install's own) — the UI
+/// treats "checked, nothing to show" and "haven't checked yet" the same
+/// way (no banner), so there's no separate loading/error state to render.
+///
+/// StreamProvider, not FutureProvider — re-checks on [_pollInterval] for
+/// as long as something is watching it (the Settings badge watches it
+/// continuously) instead of running exactly once per cold start. See
+/// wavebreak-mobile's identical fix for the real-device complaint this
+/// closes. `ref.invalidate(availableUpdateProvider)` (the manual "Check
+/// now" button) still works the same way — it restarts the whole async*
+/// body, which re-yields immediately.
+final availableUpdateProvider = StreamProvider<UpdateInfo?>((ref) async* {
+  yield await _checkOnce();
+  yield* Stream.periodic(_pollInterval).asyncMap((_) => _checkOnce());
 });
