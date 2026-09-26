@@ -79,3 +79,41 @@ final isOfflineProvider = StreamProvider<bool>((ref) {
 
   return controller.stream;
 });
+
+/// Which radio is actually carrying traffic right now — WiFi vs mobile —
+/// so a "you're back online" indicator can show the connection the
+/// device is really using instead of a generic signal glyph regardless
+/// of which one it is. No debounce here (unlike [isOfflineProvider]):
+/// this is cosmetic (which icon to draw), not a "should we trust this
+/// long enough to show a banner" decision, so a brief flicker during a
+/// genuine WiFi<->mobile handover just means the icon updates a beat
+/// sooner, not a false alarm.
+final connectivityTypeProvider = StreamProvider<ConnectivityResult>((ref) {
+  ConnectivityResult pick(List<ConnectivityResult> results) {
+    if (results.contains(ConnectivityResult.wifi)) {
+      return ConnectivityResult.wifi;
+    }
+    if (results.contains(ConnectivityResult.ethernet)) {
+      return ConnectivityResult.ethernet;
+    }
+    if (results.contains(ConnectivityResult.mobile)) {
+      return ConnectivityResult.mobile;
+    }
+    return results.isNotEmpty ? results.first : ConnectivityResult.none;
+  }
+
+  final controller = StreamController<ConnectivityResult>();
+  Connectivity()
+      .checkConnectivity()
+      .then((r) => controller.add(pick(r)))
+      .catchError((_) {});
+  final sub = Connectivity()
+      .onConnectivityChanged
+      .map(pick)
+      .listen(controller.add, onError: (_) {});
+  ref.onDispose(() {
+    sub.cancel();
+    controller.close();
+  });
+  return controller.stream;
+});

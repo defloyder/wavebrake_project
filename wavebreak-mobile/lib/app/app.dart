@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:connectivity_plus/connectivity_plus.dart' show ConnectivityResult;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -187,7 +188,21 @@ class _OfflineBanner extends ConsumerStatefulWidget {
 class _OfflineBannerState extends ConsumerState<_OfflineBanner> {
   bool? _wasOffline;
 
-  void _showToast(bool offline, bool deviceOffline) {
+  /// The real radio carrying traffic right now, not a generic signal
+  /// glyph — WiFi and mobile data fail/recover independently and for
+  /// different reasons, so telling them apart in the icon is what
+  /// actually tells the user something ("your WiFi's back" vs "your data
+  /// connection's back") rather than a one-size icon that's technically
+  /// truthful either way.
+  IconData _connectedIcon(ConnectivityResult type) => switch (type) {
+        ConnectivityResult.wifi => Icons.wifi_rounded,
+        ConnectivityResult.ethernet => Icons.lan_rounded,
+        ConnectivityResult.mobile => Icons.signal_cellular_alt_rounded,
+        _ => Icons.wifi_rounded,
+      };
+
+  void _showToast(
+      bool offline, bool deviceOffline, ConnectivityResult connType) {
     final messenger = _scaffoldMessengerKey.currentState;
     if (messenger == null) return;
     final s = ref.read(stringsProvider);
@@ -205,7 +220,7 @@ class _OfflineBannerState extends ConsumerState<_OfflineBanner> {
                   ? (deviceOffline
                       ? Icons.wifi_off_rounded
                       : Icons.cloud_off_rounded)
-                  : Icons.wifi_rounded,
+                  : _connectedIcon(connType),
               color: WbColors.ice,
               size: 18,
             ),
@@ -233,11 +248,13 @@ class _OfflineBannerState extends ConsumerState<_OfflineBanner> {
     // indicator; the toast text just says which happened.
     final usingCache = ref.watch(usingCachedDataProvider);
     final offline = deviceOffline || usingCache;
+    final connType = ref.watch(connectivityTypeProvider).asData?.value ??
+        ConnectivityResult.none;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_wasOffline != null && _wasOffline != offline) {
-        _showToast(offline, deviceOffline);
+        _showToast(offline, deviceOffline, connType);
       }
       _wasOffline = offline;
     });

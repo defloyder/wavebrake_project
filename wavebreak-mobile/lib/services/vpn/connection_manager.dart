@@ -776,7 +776,20 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   Future<void> reconcileWithSystem() async {
     if (!Platform.isAndroid || AppEnv.useSimulatedVpn) return;
     if (state.status != ConnectionStatus.idle) return;
-    if (state.location.isAuto) return;
+    // Real-device bug this fixes: "system says connected, screen says
+    // Bağlı değil / not connected" — every time, for anyone whose last
+    // connection was through Auto rather than a manually picked server.
+    // The `isAuto` bailout that used to be here was presumably meant to
+    // avoid claiming `connected` without knowing which specific server
+    // Auto had resolved to on the run that's still active underneath —
+    // but skipping reconciliation entirely means the UI just lies
+    // instead: Android's own VpnService tunnel survives this app's UI
+    // process being swiped away (see this method's own class doc above),
+    // so a cold relaunch after that always found a live system tunnel it
+    // was told to ignore. Showing `connected` under whatever
+    // `state.location` already resolved to (Auto's own label if nothing
+    // more specific is known) is correct far more often than showing
+    // "not connected" while a real tunnel is up.
     try {
       final active =
           await _systemVpnChannel.invokeMethod<bool>('isSystemVpnActive') ??

@@ -1134,6 +1134,39 @@ class WaveEngineVpnService : VpnService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             builder.setMetered(false)
         }
+        // WAVEBREAK's OWN traffic was never excluded from its own tunnel —
+        // by default VpnService.Builder captures every app on the device,
+        // including the app establishing the tunnel. Bridge/Hysteria's
+        // outbound to the remote server is separately protect()ed (see
+        // setUpProtection() — that's a different, narrower mechanism for
+        // one specific socket), but the Dart side's own Core API calls
+        // (login, subscription, locations, ...) go through plain
+        // dart:io/Dio HTTP, which protect() never touches. Left excluded,
+        // every one of those requests got captured into this same TUN and
+        // had to round-trip through tun2socks -> the active engine -> the
+        // remote pilot server -> back out to the real internet just to
+        // reach api.wavebreak.com.tr — an extra hop with its own failure
+        // modes, on top of (not instead of) whatever the underlying
+        // network is doing. Reported symptom this fixes: the "showing
+        // saved data" banner (data_providers.dart's usingCachedDataProvider)
+        // staying up just as much WITH the VPN connected as without it —
+        // Core requests were never actually going direct while connected.
+        //
+        // NOTE (real-device report, not yet confirmed against this exact
+        // fix): a slow update-APK download without the VPN connected,
+        // fast with it — reported on a device that had NOT yet installed
+        // the build containing this exclusion, so it's not yet known
+        // whether this specific change is what that's describing. If a
+        // build WITH this exclusion is confirmed slow-without-VPN too,
+        // that confirms direct carrier interference (matching
+        // api_client.dart's own retry logic elsewhere) rather than this
+        // exclusion being the cause — re-evaluate then, not before.
+        try {
+            builder.addDisallowedApplication(packageName)
+        } catch (t: PackageManager.NameNotFoundException) {
+            // Can't happen for this app's own package, but matches the
+            // same defensive shape as the loop below rather than assuming.
+        }
         for (packageName in RU_VPN_DETECTING_APPS) {
             try {
                 builder.addDisallowedApplication(packageName)
