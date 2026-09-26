@@ -13,3 +13,6 @@ storage/framework/sessions/*
 storage/framework/views/*
 wavebreak-infrastructure/runtime/
 .artifacts/
+
+# Local device-testing screenshots/UI dumps (not source)
+vmtest/
