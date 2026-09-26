@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui';
 
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/i18n/language_controller.dart';
+import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/update/update_service.dart';
 import '../shared/wave_params.dart';
@@ -62,6 +64,18 @@ class AppShell extends ConsumerWidget {
     final pendingUpdate = Platform.isAndroid
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
+    if (Platform.isAndroid) {
+      ref.listen(availableUpdateProvider, (previous, next) {
+        final info = next.asData?.value;
+        if (info == null) return;
+        final lastNotified =
+            PrefsStore.getInt(PrefsStore.lastNotifiedUpdateVersionCode) ?? 0;
+        if (info.versionCode <= lastNotified) return;
+        unawaited(PrefsStore.setInt(
+            PrefsStore.lastNotifiedUpdateVersionCode, info.versionCode));
+        unawaited(showUpdateAvailableNotification(info.versionName));
+      });
+    }
     final items = [
       _NavItemData(
           icon: Icons.home_outlined,

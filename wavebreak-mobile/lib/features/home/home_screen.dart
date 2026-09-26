@@ -16,6 +16,7 @@ import '../../core/storage/prefs_store.dart';
 import '../../services/core_api/models.dart';
 import '../../services/custom_servers/custom_server_controller.dart';
 import '../../services/system/battery_optimization.dart';
+import '../../services/update/apk_installer.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/connection_test_service.dart';
 import '../shared/add_custom_server_sheet.dart';
@@ -224,6 +225,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       unawaited(
         ref.read(connectionManagerProvider.notifier).reconcileWithSystem(),
       );
+      if (Platform.isAndroid) {
+        // Check whether an update completed while the installer had focus.
+        unawaited(ref
+            .read(apkInstallControllerProvider.notifier)
+            .checkPendingInstallCompleted());
+      }
     }
   }
 

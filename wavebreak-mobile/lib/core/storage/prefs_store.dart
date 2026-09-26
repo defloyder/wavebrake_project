@@ -41,6 +41,19 @@ class PrefsStore {
   // network round-trip before showing anything. See
   // SessionController.bootstrapSession.
   static const cachedUser = 'cache_user_v1';
+  // The highest update versionCode a local notification has already been
+  // fired for — see update_service.dart's own doc comment. Without this,
+  // periodic polling would re-notify for the SAME available update every
+  // interval for as long as it stays uninstalled, instead of once.
+  static const lastNotifiedUpdateVersionCode = 'last_notified_update_code';
+  // The versionCode an in-flight self-update install was targeting —
+  // written right before handing off to Android's own install dialog,
+  // read back on the next app start to detect that the install actually
+  // completed. See ApkInstallController.checkPendingInstallCompleted's
+  // own doc comment for why this can't just be in-memory state: the
+  // process that wrote it is gone by the time there's anything to read
+  // it back for.
+  static const pendingInstallVersionCode = 'pending_install_version_code';
 
   static void init(SharedPreferences prefs) {
     _prefs = prefs;

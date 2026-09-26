@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar small icon for the "update available" notification
+     (UpdateAvailableNotifier.kt) — same 20dp/24dp-viewport convention as
+     notif_ic_power.xml. A plain white download-arrow silhouette: Android
+     re-colors small icons for the status bar itself regardless of this
+     fill, but the white/transparent shape is still what the notification
+     shade and any pre-5.0 fallback actually render. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M19,9h-4V3H9v6H5l7,7l7,-7zM5,18v2h14v-2H5z"/>
+</vector>

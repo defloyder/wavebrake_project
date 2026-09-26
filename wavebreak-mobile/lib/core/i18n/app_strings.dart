@@ -65,6 +65,9 @@ class AppStrings {
     required this.updateAllowInstalls,
     required this.checkForUpdates,
     required this.upToDate,
+    required this.updateInstalling,
+    required this.updateInstalledTitle,
+    required this.updateOpenApp,
     required this.pingUnavailable,
     required this.measuringPing,
     required this.notifDisconnectAction,
@@ -250,6 +253,9 @@ class AppStrings {
   final String updateAllowInstalls;
   final String checkForUpdates;
   final String upToDate;
+  final String updateInstalling;
+  final String updateInstalledTitle;
+  final String updateOpenApp;
   final String pingUnavailable;
   final String measuringPing;
   final String notifDisconnectAction;
@@ -439,6 +445,9 @@ const kEnglishStrings = AppStrings(
   updateAllowInstalls: 'Allow installs',
   checkForUpdates: 'Check for updates',
   upToDate: 'You’re up to date',
+  updateInstalling: 'Installing update…',
+  updateInstalledTitle: 'Update installed',
+  updateOpenApp: 'Open',
   pingUnavailable: 'Ping isn\'t available for this connection yet',
   measuringPing: 'Measuring…',
   notifDisconnectAction: 'Disconnect',
@@ -635,6 +644,9 @@ const kRussianStrings = AppStrings(
   updateAllowInstalls: 'Разрешить установку',
   checkForUpdates: 'Проверить обновления',
   upToDate: 'У вас последняя версия',
+  updateInstalling: 'Устанавливается обновление…',
+  updateInstalledTitle: 'Обновление установлено',
+  updateOpenApp: 'Открыть',
   pingUnavailable: 'Пинг пока недоступен для этого типа подключения',
   measuringPing: 'Измеряем…',
   notifDisconnectAction: 'Отключиться',
@@ -836,6 +848,9 @@ const kSpanishStrings = AppStrings(
   updateAllowInstalls: 'Permitir instalación',
   checkForUpdates: 'Buscar actualizaciones',
   upToDate: 'Estás al día',
+  updateInstalling: 'Instalando actualización…',
+  updateInstalledTitle: 'Actualización instalada',
+  updateOpenApp: 'Abrir',
   pingUnavailable: 'El ping aún no está disponible para esta conexión',
   measuringPing: 'Midiendo…',
   notifDisconnectAction: 'Desconectar',
@@ -1037,6 +1052,9 @@ const kGermanStrings = AppStrings(
   updateAllowInstalls: 'Installationen erlauben',
   checkForUpdates: 'Nach Updates suchen',
   upToDate: 'Du bist auf dem neuesten Stand',
+  updateInstalling: 'Update wird installiert…',
+  updateInstalledTitle: 'Update installiert',
+  updateOpenApp: 'Öffnen',
   pingUnavailable: 'Ping ist für diese Verbindung noch nicht verfügbar',
   measuringPing: 'Wird gemessen…',
   notifDisconnectAction: 'Trennen',
@@ -1241,6 +1259,9 @@ const kFrenchStrings = AppStrings(
   updateAllowInstalls: 'Autoriser les installations',
   checkForUpdates: 'Rechercher des mises à jour',
   upToDate: 'Vous êtes à jour',
+  updateInstalling: 'Installation de la mise à jour…',
+  updateInstalledTitle: 'Mise à jour installée',
+  updateOpenApp: 'Ouvrir',
   pingUnavailable: "Le ping n'est pas encore disponible pour cette connexion",
   measuringPing: 'Mesure en cours…',
   notifDisconnectAction: 'Déconnecter',
@@ -1445,6 +1466,9 @@ const kPortugueseStrings = AppStrings(
   updateAllowInstalls: 'Permitir instalação',
   checkForUpdates: 'Verificar atualizações',
   upToDate: 'Você está atualizado',
+  updateInstalling: 'Instalando atualização…',
+  updateInstalledTitle: 'Atualização instalada',
+  updateOpenApp: 'Abrir',
   pingUnavailable: 'O ping ainda não está disponível para esta conexão',
   measuringPing: 'Medindo…',
   notifDisconnectAction: 'Desconectar',
@@ -1645,6 +1669,9 @@ const kTurkishStrings = AppStrings(
   updateAllowInstalls: 'Yüklemelere izin ver',
   checkForUpdates: 'Güncellemeleri denetle',
   upToDate: 'Güncelsiniz',
+  updateInstalling: 'Güncelleme yükleniyor…',
+  updateInstalledTitle: 'Güncelleme yüklendi',
+  updateOpenApp: 'Aç',
   pingUnavailable: 'Bu bağlantı için ping henüz kullanılamıyor',
   measuringPing: 'Ölçülüyor…',
   notifDisconnectAction: 'Bağlantıyı kes',

@@ -126,6 +126,11 @@ class MainActivity : FlutterFragmentActivity() {
                             result.success(UpdateInstaller.installApk(this, path))
                         }
                     }
+                    "showUpdateAvailableNotification" -> {
+                        val versionName = call.argument<String>("versionName") ?: ""
+                        UpdateAvailableNotifier.show(this, versionName)
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }
