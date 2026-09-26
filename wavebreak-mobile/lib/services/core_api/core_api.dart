@@ -46,7 +46,7 @@ class CoreApi {
   }
 
   Future<TokenPair> refresh(String refreshToken) {
-    return _client.post(
+    return _client.postWithoutAuth(
       '/auth/refresh',
       body: {'refresh_token': refreshToken},
       parse: _tokens,

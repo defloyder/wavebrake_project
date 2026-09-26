@@ -60,7 +60,10 @@ final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
 
 class SessionController extends Notifier<SessionState> {
-  bool _refreshing = false;
+  // Single-flight refresh (bug 1): every concurrent caller awaits the same
+  // attempt instead of getting an instant `false` (old boolean guard) or
+  // firing a second refresh that Core treats as token reuse.
+  Future<bool>? _refreshInFlight;
   bool _loggingOut = false;
 
   @override
@@ -381,9 +384,12 @@ class SessionController extends Notifier<SessionState> {
   /// refresh attempt and leaves the existing session alone to retry
   /// later, the same way a single dropped request anywhere else in the
   /// app doesn't end the session.
-  Future<bool> refreshTokens() async {
-    if (_refreshing) return false;
-    _refreshing = true;
+  Future<bool> refreshTokens() {
+    return _refreshInFlight ??=
+        _refreshTokensOnce().whenComplete(() => _refreshInFlight = null);
+  }
+
+  Future<bool> _refreshTokensOnce() async {
     try {
       final refresh = await SecureStore.read(SecureStore.refreshToken);
       if (refresh == null) return false;
@@ -411,8 +417,6 @@ class SessionController extends Notifier<SessionState> {
             'Token refresh failed transiently ($kind), leaving session intact');
       }
       return false;
-    } finally {
-      _refreshing = false;
     }
   }
 
