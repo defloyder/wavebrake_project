@@ -467,6 +467,14 @@ class WaveEngineVpnService : VpnService() {
         var lostSinceLastAvailable = false
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
+                // Right after establish() the default network reported for
+                // this UID can briefly be our own VPN (device logcat: a
+                // "network changed" reconnect 1.2s after every connect).
+                // Only physical networks count.
+                val caps = cm.getNetworkCapabilities(network)
+                val isVpn = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+                Log.d(TAG, "default network available: $network vpn=$isVpn tracked=$trackedNetwork")
+                if (isVpn) return
                 val previous = trackedNetwork
                 trackedNetwork = network
                 if ((previous != null && previous != network) || lostSinceLastAvailable) {
