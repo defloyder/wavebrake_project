@@ -88,6 +88,10 @@ class WindowsVpnAdapter implements VpnAdapter {
   static const _networkChangeDebounce = Duration(milliseconds: 1200);
   static const _healthCheckInterval = Duration(seconds: 20);
   static const _maxConsecutiveHealthFailures = 2;
+  static const _wakeWatchInterval = Duration(seconds: 5);
+  static const _wakeGapThreshold = Duration(seconds: 20);
+  Timer? _wakeWatchTimer;
+  DateTime _lastWakeTick = DateTime.now();
   static const _reloadSettleDelay = Duration(seconds: 3);
   // Bounds a single recovery attempt (reload-then-probe, or a full
   // relaunch). Set above connect()'s own 25s ready-timeout so a
@@ -333,6 +337,22 @@ class WindowsVpnAdapter implements VpnAdapter {
       _healthCheckInterval,
       (_) => unawaited(_runHealthCheck()),
     );
+    // Bug 3: detect Windows sleep/hibernate without native hooks — a
+    // short timer whose wall-clock gap suddenly jumps means the machine
+    // was suspended. Check the tunnel right away instead of waiting up to
+    // a full health interval (plus two failures) after resume.
+    _lastWakeTick = DateTime.now();
+    _wakeWatchTimer = Timer.periodic(_wakeWatchInterval, (_) {
+      final now = DateTime.now();
+      final gap = now.difference(_lastWakeTick);
+      _lastWakeTick = now;
+      if (gap > _wakeGapThreshold) {
+        AppLogger.info(
+            'Resume from sleep detected (${gap.inSeconds}s gap) — verifying tunnel');
+        _consecutiveHealthFailures = _maxConsecutiveHealthFailures - 1;
+        unawaited(_runHealthCheck());
+      }
+    });
   }
 
   void _stopResilience() {
@@ -342,6 +362,8 @@ class WindowsVpnAdapter implements VpnAdapter {
     _networkDebounceTimer = null;
     _healthCheckTimer?.cancel();
     _healthCheckTimer = null;
+    _wakeWatchTimer?.cancel();
+    _wakeWatchTimer = null;
   }
 
   void _onConnectivityChanged(List<ConnectivityResult> results) {
@@ -371,27 +393,47 @@ class WindowsVpnAdapter implements VpnAdapter {
   // --- Health check ---
 
   /// Verifies the tunnel is actually passing traffic, not just that
-  /// sing-box.exe is still a live PID — a raw TCP connect through the
-  /// tunnel to a reliable external host, mirroring the mobile resilience
-  /// layer's protected-socket probe. Windows has no VpnService-style
-  /// self-routing loop to protect against here (there's no "protect()" to
-  /// call): the app's own traffic already rides the system TUN like
-  /// everything else, which is exactly what needs verifying. 1.1.1.1:443
-  /// is already a trusted, always-up dependency of this same adapter (see
-  /// the DNS server in [ShareLink.toSingBoxConfig]), so a failure here
-  /// that succeeds outside the tunnel is unambiguous evidence the tunnel
-  /// itself — not the wider internet — is the problem.
-  Future<bool> _probeTunnel() async {
-    Socket? socket;
+  /// sing-box.exe is still a live PID.
+  ///
+  /// Bug 3: the old probe was a raw TCP connect to 1.1.1.1:443 through the
+  /// TUN — but with `stack: system` sing-box accepts that handshake itself
+  /// before dialing the outbound, so the probe "passed" over a dead tunnel
+  /// (same flaw as the Android tun2socks probe). sing-box's Clash API delay
+  /// test makes a real HTTP request through the `proxy` outbound, so this
+  /// fails exactly when the tunnel can't reach the internet. The request
+  /// to the controller itself is loopback and never enters the TUN.
+  Future<bool> _probeTunnel() async => await measureTunnelLatency() != null;
+
+  /// Latency of a real request through the active outbound, in ms, or null
+  /// when sing-box isn't running or the tunnel doesn't pass traffic.
+  /// Verified against the bundled sing-box 1.14.1: it ignores the Clash
+  /// `url` parameter and always fetches https://www.gstatic.com/generate_204
+  /// through the outbound (so this includes a TLS handshake), honors
+  /// `timeout`, and answers 504 when the fetch fails.
+  Future<int?> measureTunnelLatency() async {
+    if (_process == null) return null;
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 3)
+      ..findProxy = (_) => 'DIRECT';
     try {
-      socket = await Socket.connect('1.1.1.1', 443,
-          timeout: const Duration(seconds: 5));
-      return true;
+      final uri = Uri.parse(
+          'http://127.0.0.1:$_kClashApiPort/proxies/proxy/delay?timeout=5000');
+      final request = await client.getUrl(uri);
+      final response =
+          await request.close().timeout(const Duration(seconds: 8));
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) {
+        AppLogger.debug(
+            'Tunnel health probe failed: status ${response.statusCode} $body');
+        return null;
+      }
+      final delay = (jsonDecode(body) as Map<String, dynamic>)['delay'];
+      return delay is int && delay > 0 ? delay : null;
     } catch (e) {
       AppLogger.debug('Tunnel health probe failed: $e');
-      return false;
+      return null;
     } finally {
-      socket?.destroy();
+      client.close(force: true);
     }
   }
 
