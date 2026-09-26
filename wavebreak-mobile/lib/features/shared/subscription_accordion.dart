@@ -196,7 +196,18 @@ class _SectionCardState extends State<_SectionCard> {
         .where((s) => s.connectionTest != null || (s.isCustom && (s.rawLink ?? '').isNotEmpty))
         .toList();
     if (targets.isEmpty) return;
-    final results = await Future.wait(targets.map((s) => _pingService.testLocation(s)));
+    // Bug 12: the selected location is measured through the tunnel when
+    // one is up (works for Hysteria2 too); otherwise, and for every other
+    // row, the pre-connect TCP probe.
+    Future<int?> ping(LocationItem s) async {
+      if (s.id == widget.currentId) {
+        final viaTunnel = await _pingService.measureTunnelLatency();
+        if (viaTunnel != null) return viaTunnel;
+      }
+      return _pingService.testLocation(s);
+    }
+
+    final results = await Future.wait(targets.map(ping));
     if (!mounted) return;
     setState(() {
       for (var i = 0; i < targets.length; i++) {
