@@ -30,6 +30,12 @@ class NativeVpnAdapter implements VpnAdapter {
   static const _events = EventChannel('app.wavebreak/vpn_engine/status');
   static const _vpnStateMethod = MethodChannel('app.wavebreak/vpn_state');
 
+  /// Phase 3 (option A, one engine): Hysteria2 runs through Xray-core's
+  /// own client (Hysteria2URL) instead of the separate apernet bridge.
+  /// Verified against the pilot node before switching. The bridge path
+  /// (Bridge.start) is kept intact as a fallback: set false to use it.
+  static const _hysteria2ViaXray = true;
+
   final _controller = StreamController<VpnNativeState>.broadcast();
   StreamSubscription<dynamic>? _eventSub;
   Completer<void>? _connectCompleter;
@@ -83,7 +89,7 @@ class NativeVpnAdapter implements VpnAdapter {
     final completer = Completer<void>();
     _connectCompleter = completer;
 
-    if (scheme == 'hysteria2' || scheme == 'hy2') {
+    if (!_hysteria2ViaXray && (scheme == 'hysteria2' || scheme == 'hy2')) {
       await _method.invokeMethod('connect', {'link': url});
     } else {
       final String config;
@@ -106,7 +112,11 @@ class NativeVpnAdapter implements VpnAdapter {
         AppLogger.debug(
             'xray security=${parsed.streamSetting['security']} address=${parsed.address} port=${parsed.port}');
         applySmartRoutingPolicy(parsed, _extractRoutingPolicy(profile.rawJson));
-        if (parsed.streamSetting['security'] == 'tls') {
+        // Not for Hysteria2: its cert is checked by SNI (valid public
+        // cert), and a TCP fetch of host:443 would pin a different
+        // service's certificate (nginx on the node).
+        if (parsed.streamSetting['security'] == 'tls' &&
+            parsed is! Hysteria2URL) {
           final pin = await _cachedCertSha256(parsed.address, parsed.port);
           AppLogger.debug('xray cert pin=$pin');
           if (pin != null) {
