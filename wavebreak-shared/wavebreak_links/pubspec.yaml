@@ -1,0 +1,12 @@
+name: wavebreak_links
+description: >-
+  Share-link and subscription parsing plus engine config generation shared by
+  the WAVEBREAK mobile (Xray-core) and desktop (sing-box) clients.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dev_dependencies:
+  test: ^1.25.0
