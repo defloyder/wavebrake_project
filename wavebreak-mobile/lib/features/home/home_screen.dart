@@ -18,7 +18,6 @@ import '../../services/custom_servers/custom_server_controller.dart';
 import '../../services/system/battery_optimization.dart';
 import '../../services/update/apk_installer.dart';
 import '../../services/vpn/connection_manager.dart';
-import '../../services/vpn/connection_test_service.dart';
 import '../shared/add_custom_server_sheet.dart';
 import '../shared/confirm_dialogs.dart';
 import '../shared/connect_button.dart';
@@ -49,42 +48,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   final _locationLink = LayerLink();
   final _scrollController = ScrollController();
   bool _dropdownOpen = false;
-  int? _lastPingMs;
-  bool _pingTesting = false;
-
-  Future<void> _testPing() async {
-    if (_pingTesting) return;
-    setState(() => _pingTesting = true);
-    final connection = ref.read(connectionManagerProvider);
-    // Always the same TCP-connect-and-time probe against the selected
-    // server's own address (ConnectionTestService — also what the
-    // location picker's per-row ping uses), whether or not the tunnel is
-    // currently up. A previous version used a hardcoded 1.1.1.1:443 check
-    // while connected instead — confirmed on-device that came back as an
-    // implausible ~2ms almost every time, far too fast for a real
-    // internet round trip even over a fast connection, most likely
-    // because Android's VPN stack special-cases traffic to the tunnel's
-    // own configured DNS server address rather than actually forwarding
-    // it through tun2socks like ordinary traffic. Testing the real node's
-    // own host:port instead has no such special case and — as a bonus —
-    // now reads the same number the location list shows for consistency.
-    // Bug 12: while connected this is measured through the tunnel (works
-    // for Hysteria2 too); the TCP probe described above is the fallback.
-    final result = await const ConnectionTestService().measure(
-        connection.location,
-        connected: connection.status == ConnectionStatus.connected);
-    if (!mounted) return;
-    setState(() {
-      _pingTesting = false;
-      _lastPingMs = result;
-    });
-    if (result == null && mounted) {
-      final s = ref.read(stringsProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.pingUnavailable)),
-      );
-    }
-  }
 
   // Closing a long, scrolled-into location list should smoothly bring the
   // gaze back up the page instead of leaving the view stranded on the
@@ -525,9 +488,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       onAddCustom: () => showAddCustomServerSheet(context, ref),
       s: s,
       tint: tint,
-      pingMs: _lastPingMs,
-      pingTesting: _pingTesting,
-      onTestPing: _testPing,
       onRetry: () {
         ref
             .read(connectionManagerProvider.notifier)
@@ -892,12 +852,9 @@ class _StatusCopy extends StatelessWidget {
     required this.s,
     required this.onRetry,
     required this.onChoosePlan,
-    required this.onTestPing,
     required this.isGuest,
     required this.onAddCustom,
     required this.onCancel,
-    this.pingMs,
-    this.pingTesting = false,
     this.tint,
   });
 
@@ -907,12 +864,9 @@ class _StatusCopy extends StatelessWidget {
   final AppStrings s;
   final VoidCallback onRetry;
   final VoidCallback onChoosePlan;
-  final VoidCallback onTestPing;
   final bool isGuest;
   final VoidCallback onAddCustom;
   final VoidCallback onCancel;
-  final int? pingMs;
-  final bool pingTesting;
   final Color? tint;
 
   @override
@@ -1042,17 +996,8 @@ class _StatusCopy extends StatelessWidget {
               child:
                   Text(s.cancel, style: const TextStyle(color: WbColors.ice60)),
             ),
-          if (!connection.isBusy &&
-              (connection.status == ConnectionStatus.connected ||
-                  connection.location.connectionTest != null)) ...[
-            const SizedBox(height: 4),
-            _PingRow(
-              pingMs: pingMs,
-              testing: pingTesting,
-              onTest: onTestPing,
-              s: s,
-            ),
-          ],
+          // Bug 5: no ping test under the connect button any more — latency
+          // is shown in the notification, the speed test and the list.
         ],
       ),
     );
@@ -1128,67 +1073,8 @@ class _ConnectWallSkeletonState extends State<_ConnectWallSkeleton>
   }
 }
 
-/// A small, explicit "test my connection" control — replaces the old
-/// silent, sometimes-there-sometimes-not ping number (real backends don't
-/// give per-location latency at all) with an honest on-demand measurement
-/// through whatever tunnel is actually up right now.
-class _PingRow extends StatelessWidget {
-  const _PingRow({
-    required this.pingMs,
-    required this.testing,
-    required this.onTest,
-    required this.s,
-  });
-
-  final int? pingMs;
-  final bool testing;
-  final VoidCallback onTest;
-  final AppStrings s;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: testing ? null : onTest,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (testing)
-                const SizedBox(
-                  width: 13,
-                  height: 13,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                const Icon(Icons.speed_rounded,
-                    size: 15, color: WbColors.ice60),
-              const SizedBox(width: 6),
-              Text(
-                testing
-                    ? s.testPing
-                    : pingMs != null
-                        ? '$pingMs ms'
-                        : s.testPing,
-                style: const TextStyle(
-                  color: WbColors.ice60,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Small entry point into the full [SpeedTestScreen] — styled like
-/// [_PingRow] right above it, but this is nav-only now; the actual test
+/// a small pill; this is nav-only; the actual test
 /// (with its live animated gauge) runs on its own dedicated page rather
 /// than inline here. Shows the last result once one exists so glancing
 class _SubscriptionStrip extends ConsumerWidget {
