@@ -81,6 +81,7 @@ func (s *Server) router() http.Handler {
 			r.Get("/me/usage", s.meUsage)
 			r.Post("/me/access", s.meAccess)
 			r.Post("/me/share", s.meShare)
+			r.Get("/me/sharing", s.meSharing)
 			r.Post("/share/redeem", s.redeemShare)
 			r.Get("/me/usage/history", s.meUsageHistory)
 			r.Get("/me/devices", s.listDevices)

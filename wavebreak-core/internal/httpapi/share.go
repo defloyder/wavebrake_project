@@ -202,6 +202,75 @@ func (s *Server) redeemShare(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type sharedSubscriptionView struct {
+	DeviceID        string      `json:"device_id,omitempty"`
+	PlanName        string      `json:"plan_name"`
+	Status          string      `json:"status"`
+	ExpiresAt       *time.Time  `json:"expires_at"`
+	SubscriptionURL string      `json:"subscription_url,omitempty"`
+	Limits          shareLimits `json:"limits"`
+	Links           []string    `json:"links,omitempty"`
+}
+
+func sharedView(d accounts.UserDetails) sharedSubscriptionView {
+	v := sharedSubscriptionView{Status: "none", Limits: shareLimitsOf(d), SubscriptionURL: d.Access.SubscriptionURL}
+	if d.Subscription != nil {
+		v.Status = d.Subscription.Status
+		at := d.Subscription.ExpiresAt
+		v.ExpiresAt = &at
+		if d.Subscription.Plan != nil {
+			v.PlanName = d.Subscription.Plan.Name
+		}
+	}
+	return v
+}
+
+// GET /v1/me/sharing
+//
+// The caller's own subscription (plan, limits; null without one) and every
+// subscription shared with the caller through a share code that still
+// holds a slot: plan, owner's limits and, while it is active, the app
+// links. A slot the owner revoked drops out of "received".
+func (s *Server) meSharing(w http.ResponseWriter, r *http.Request) {
+	actor := actorFrom(r)
+	resp := map[string]any{"own": nil, "received": []sharedSubscriptionView{}}
+	own, err := s.accounts.details.Get(r.Context(), actor.UserID)
+	if err != nil {
+		writeDomainError(w, r, err)
+		return
+	}
+	if own.Subscription != nil {
+		v := sharedView(own)
+		v.SubscriptionURL = ""
+		resp["own"] = v
+	}
+
+	slots, err := s.app.Store.SharedSlotsOf(r.Context(), actor.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load shared subscriptions")
+		return
+	}
+	received := make([]sharedSubscriptionView, 0, len(slots))
+	for _, slot := range slots {
+		d, err := s.accounts.details.Get(r.Context(), slot.OwnerID)
+		if err != nil {
+			continue // owner deleted: nothing left to show
+		}
+		v := sharedView(d)
+		v.DeviceID = slot.DeviceID
+		active := d.Subscription != nil && d.Subscription.Status == "active" && d.Subscription.ExpiresAt.After(time.Now())
+		if active && d.Access.CredentialID != "" {
+			if cfg, err := s.app.Store.AccessGrantConfigPublic(r.Context(), d.Access.CredentialID); err == nil {
+				s.applyVLESSRuntimeConfig(&cfg)
+				v.Links = appLinks(cfg)
+			}
+		}
+		received = append(received, v)
+	}
+	resp["received"] = received
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // GET /v1/share/{token}: what a plain camera app opens. The code is meant
 // for the WAVEBREAK app; nothing about the subscription is revealed here.
 func (s *Server) shareLanding(w http.ResponseWriter, r *http.Request) {

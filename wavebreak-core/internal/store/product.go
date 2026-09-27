@@ -431,6 +431,35 @@ func (s *Store) ClaimSharedDevice(ctx context.Context, ownerID, recipientID, nam
 	return d, tx.Commit(ctx)
 }
 
+// SharedSlot is a device slot someone's subscription gave the recipient
+// through their share code (see ClaimSharedDevice).
+type SharedSlot struct {
+	DeviceID string
+	OwnerID  string
+}
+
+// SharedSlotsOf lists the recipient's active slots on other people's
+// subscriptions, oldest first. A slot the owner revoked is not listed.
+func (s *Store) SharedSlotsOf(ctx context.Context, recipientID string) ([]SharedSlot, error) {
+	rows, err := s.db.Query(ctx, `
+		select id::text, user_id::text from devices
+		where device_public_id like 'share:%:' || $1 and revoked_at is null
+		order by created_at`, recipientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var slots []SharedSlot
+	for rows.Next() {
+		var slot SharedSlot
+		if err := rows.Scan(&slot.DeviceID, &slot.OwnerID); err != nil {
+			return nil, err
+		}
+		slots = append(slots, slot)
+	}
+	return slots, rows.Err()
+}
+
 func (s *Store) UpdateDevice(ctx context.Context, userID, deviceID, name, platform string) (Device, error) {
 	var d Device
 	err := s.db.QueryRow(ctx, `

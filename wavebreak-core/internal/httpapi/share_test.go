@@ -231,6 +231,33 @@ func TestShareSubscriptionE2E(t *testing.T) {
 		}
 	}
 	bobDevice := d["device_id"].(string)
+	// Bob's app lists it with the owner's plan and limits; the owner's
+	// own entry shows the same limits, Bob has none of his own.
+	received := func(tok string) []any {
+		code, d := call(tok, http.MethodGet, "/v1/me/sharing", nil)
+		if code != 200 {
+			t.Fatalf("me/sharing: %d %v", code, d)
+		}
+		return d["received"].([]any)
+	}
+	if code, d := call(bob, http.MethodGet, "/v1/me/sharing", nil); code != 200 || d["own"] != nil {
+		t.Fatalf("bob sharing: %d %v", code, d)
+	}
+	got := received(bob)
+	if len(got) != 1 {
+		t.Fatalf("bob received: %v", got)
+	}
+	shared := got[0].(map[string]any)
+	sharedLimits := shared["limits"].(map[string]any)
+	if shared["device_id"] != bobDevice || shared["plan_name"] != "E2E Duo" || shared["status"] != "active" ||
+		shared["subscription_url"] != "https://api.e2e.test/v1/sub/"+credential || len(shared["links"].([]any)) != len(links) ||
+		sharedLimits["devices_used"] != float64(2) || sharedLimits["device_limit"] != float64(2) {
+		t.Fatalf("bob received entry: %v", shared)
+	}
+	_, d = call(owner, http.MethodGet, "/v1/me/sharing", nil)
+	if own := d["own"].(map[string]any); own["plan_name"] != "E2E Duo" || own["limits"].(map[string]any)["devices_used"] != float64(2) || own["subscription_url"] != nil {
+		t.Fatalf("owner sharing: %v", d)
+	}
 	// Scanning again reuses Bob's slot.
 	if code, d := redeem(bob, token, "Bob phone"); code != 200 || d["device_id"] != bobDevice {
 		t.Fatalf("bob again: %d %v", code, d)
@@ -255,6 +282,9 @@ func TestShareSubscriptionE2E(t *testing.T) {
 	if code, _ := call(owner, http.MethodDelete, "/v1/me/devices/"+bobDevice, nil); code >= 300 {
 		t.Fatalf("revoke bob: %d", code)
 	}
+	if got := received(bob); len(got) != 0 {
+		t.Fatalf("revoked slot still listed: %v", got)
+	}
 	if code, d := redeem(carol, token, "Carol phone"); code != 200 {
 		t.Fatalf("carol after revoke: %d %v", code, d)
 	}
@@ -268,5 +298,10 @@ func TestShareSubscriptionE2E(t *testing.T) {
 	}
 	if code, d := redeem(carol, token, "Carol phone"); code != 422 || errCode(d) != accounts.CodeSubscriptionNotActive {
 		t.Fatalf("redeem of inactive subscription: %d %v", code, d)
+	}
+	// Carol still sees it, now inactive and without links.
+	got = received(carol)
+	if len(got) != 1 || got[0].(map[string]any)["status"] != "past_due" || got[0].(map[string]any)["links"] != nil {
+		t.Fatalf("carol received after past_due: %v", got)
 	}
 }
