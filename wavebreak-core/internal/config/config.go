@@ -158,7 +158,7 @@ func Load() (Config, error) {
 		BotServiceToken: env("WAVEBREAK_BOT_SERVICE_TOKEN", ""),
 		OTLPEndpoint:    env("WAVEBREAK_OTLP_ENDPOINT", "localhost:4317"),
 		Accounts: AccountsConfig{
-			SubscriptionURLBase:  env("WAVEBREAK_SUBSCRIPTION_URL_BASE", "https://api.wavebreak.com.tr/v1/sub/"),
+			SubscriptionURLBase:  env("WAVEBREAK_SUBSCRIPTION_URL_BASE", "https://core.wavebreak.com.tr/v1/sub/"),
 			PasswordResetURLBase: env("WAVEBREAK_PASSWORD_RESET_URL_BASE", "https://wavebreak.com.tr/reset-password"),
 			PasswordResetTTL:     mustDuration(env("WAVEBREAK_PASSWORD_RESET_TTL", "1h")),
 			AccessProtocol:       env("WAVEBREAK_ADMIN_ACCESS_PROTOCOL", "vless"),

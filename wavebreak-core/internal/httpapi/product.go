@@ -1408,7 +1408,7 @@ func grantLabel(grantID string) string {
 
 // subscriptionLink: the one centralized builder (accounts.SubscriptionURLBuilder,
 // base from WAVEBREAK_SUBSCRIPTION_URL_BASE; default unchanged:
-// https://api.wavebreak.com.tr/v1/sub/{grantID}).
+// https://core.wavebreak.com.tr/v1/sub/{grantID}).
 func (s *Server) subscriptionLink(grantID string) string {
 	return s.accounts.urls.Build(grantID)
 }

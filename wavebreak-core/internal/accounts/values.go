@@ -13,7 +13,7 @@ type SubscriptionURLBuilder struct {
 	base string
 }
 
-const DefaultSubscriptionURLBase = "https://api.wavebreak.com.tr/v1/sub/"
+const DefaultSubscriptionURLBase = "https://core.wavebreak.com.tr/v1/sub/"
 
 func NewSubscriptionURLBuilder(base string) SubscriptionURLBuilder {
 	base = strings.TrimSpace(base)

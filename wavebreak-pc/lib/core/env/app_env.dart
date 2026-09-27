@@ -24,7 +24,7 @@ class AppEnv {
   // --dart-define=CORE_BASE_URL=http://127.0.0.1:18080 --dart-define=USE_MOCK_API=true
   static const coreBaseUrl = String.fromEnvironment(
     'CORE_BASE_URL',
-    defaultValue: 'https://api.wavebreak.com.tr',
+    defaultValue: 'https://core.wavebreak.com.tr',
   );
 
   static const useMockApi = bool.fromEnvironment(
