@@ -22,6 +22,10 @@ class UserProfile {
     );
   }
 
+  /// Round-trips with [fromJson] above (flat shape, not the `me()` response
+  /// verbatim) — used to persist the last-known profile locally so a cold
+  /// start can show it immediately instead of waiting on `me()`. See
+  /// SessionController.bootstrapSession.
   Map<String, dynamic> toJson() => {
         'id': id,
         'email': email,
@@ -139,6 +143,7 @@ class SubscriptionInfo {
     this.deviceLimit,
     this.trafficLimitBytes,
     this.manageUrl,
+    this.graceEndsAt,
   });
 
   final String? id;
@@ -150,8 +155,15 @@ class SubscriptionInfo {
   final int? trafficLimitBytes;
   final String? manageUrl;
 
+  /// For a past_due subscription: until when it can be renewed (same
+  /// link, same devices) before Core resets it.
+  final DateTime? graceEndsAt;
+
   bool get isActive =>
       status.toLowerCase() == 'active' || status.toLowerCase() == 'trialing';
+
+  /// Period over or traffic used up; VPN is blocked until renewal.
+  bool get isPastDue => status.toLowerCase() == 'past_due';
 
   bool get isExpired =>
       status.toLowerCase() == 'expired' ||
@@ -179,6 +191,7 @@ class SubscriptionInfo {
       deviceLimit: deviceLimit,
       trafficLimitBytes: trafficLimitBytes,
       manageUrl: manageUrl,
+      graceEndsAt: graceEndsAt,
     );
   }
 
@@ -195,11 +208,19 @@ class SubscriptionInfo {
       planName:
           (nested['plan_name'] ?? nested['plan'] ?? nested['name'] ?? 'WAVEBREAK')
               .toString(),
-      expiresAt: _parseDate(nested['current_period_ends_at'] ?? nested['expires_at']),
-      deviceLimit: _asInt(nested['device_limit_snapshot'] ?? nested['device_limit']),
-      trafficLimitBytes:
-          _asInt(nested['traffic_limit_bytes_snapshot'] ?? nested['traffic_limit_bytes']),
+      // Core sends `current_period_end`; the other keys are older/mock shapes.
+      expiresAt: _parseDate(nested['current_period_end'] ??
+          nested['current_period_ends_at'] ??
+          nested['expires_at']),
+      // An admin override wins over the plan snapshot, as in Core itself.
+      deviceLimit: _asInt(nested['device_limit_override'] ??
+          nested['device_limit_snapshot'] ??
+          nested['device_limit']),
+      trafficLimitBytes: _asInt(nested['traffic_limit_override_bytes'] ??
+          nested['traffic_limit_bytes_snapshot'] ??
+          nested['traffic_limit_bytes']),
       manageUrl: nested['manage_url'] as String?,
+      graceEndsAt: _parseDate(nested['grace_ends_at']),
     );
   }
 
@@ -209,10 +230,11 @@ class SubscriptionInfo {
         'status': status,
         'plan_id': planId,
         'plan_name': planName,
-        'current_period_ends_at': expiresAt?.toIso8601String(),
+        'current_period_end': expiresAt?.toIso8601String(),
         'device_limit_snapshot': deviceLimit,
         'traffic_limit_bytes_snapshot': trafficLimitBytes,
         'manage_url': manageUrl,
+        'grace_ends_at': graceEndsAt?.toIso8601String(),
       };
 }
 
@@ -782,7 +804,9 @@ class ClientConfig {
   static const fallback = ClientConfig(
     privacyUrl: 'https://wavebreak.app/privacy',
     termsUrl: 'https://wavebreak.app/terms',
-    websiteUrl: 'https://wavebreak.app',
+    // Bug 13: Core has no client-config endpoint, so this fallback is what
+    // "About > Website" (and the share sheet) always use.
+    websiteUrl: 'https://wavebreak.com.tr',
     supportEmail: 'support@wavebreak.app',
   );
 }
@@ -859,4 +883,41 @@ int? _asInt(dynamic value) {
   if (value is int) return value;
   if (value is String) return int.tryParse(value);
   return null;
+}
+
+/// `POST /v1/me/access` — the account's own VPN access: one credential
+/// shared by all its devices (so traffic is counted on the account's one
+/// subscription) and the share links the app connects with, most
+/// preferred first (VLESS REALITY, Direct-TLS, Hysteria2).
+class PersonalAccess {
+  const PersonalAccess({
+    required this.credentialId,
+    required this.links,
+    this.subscriptionUrl,
+    this.configStatus = 'ready',
+  });
+
+  final String credentialId;
+  final String? subscriptionUrl;
+  final String configStatus;
+  final List<String> links;
+
+  factory PersonalAccess.fromJson(Map<String, dynamic> json) {
+    final raw = json['links'];
+    return PersonalAccess(
+      credentialId: (json['credential_id'] ?? '').toString(),
+      subscriptionUrl: json['subscription_url'] as String?,
+      configStatus: (json['config_status'] ?? 'ready').toString(),
+      links: raw is List
+          ? raw.map((e) => e.toString()).where((l) => l.isNotEmpty).toList()
+          : const [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'credential_id': credentialId,
+        'subscription_url': subscriptionUrl,
+        'config_status': configStatus,
+        'links': links,
+      };
 }

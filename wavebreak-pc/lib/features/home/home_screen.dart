@@ -20,6 +20,7 @@ import '../shared/add_custom_server_sheet.dart';
 import '../shared/confirm_dialogs.dart';
 import '../shared/connect_button.dart';
 import '../shared/data_providers.dart';
+import '../shared/subscription_texts.dart';
 import '../shared/traffic_wave_bar.dart';
 import '../shared/location_dropdown.dart';
 import '../shared/menu_button.dart';
@@ -1205,6 +1206,27 @@ class _SubscriptionStrip extends ConsumerWidget {
           style: const TextStyle(color: WbColors.ice60, fontSize: 13),
         ),
         data: (sub) {
+          if (sub.isPastDue) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.subscriptionPastDueTitle,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  renewBeforeLine(sub, s),
+                  style: const TextStyle(color: WbColors.warning, fontSize: 13),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  s.renewResetNote,
+                  style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                ),
+              ],
+            );
+          }
           if (sub.isExpired || !sub.isActive) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,

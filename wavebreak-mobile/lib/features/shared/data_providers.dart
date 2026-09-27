@@ -228,17 +228,21 @@ final locationsProvider = FutureProvider<List<LocationItem>>((ref) async {
         _readCachedList(PrefsStore.cachedLocations, LocationItem.fromJson);
     if (coreLocations.isNotEmpty) _markCacheState(ref, stale: true);
   }
-  // WAVEBREAK's own bundled pilot nodes (Direct-TLS + Hysteria2) are part
-  // of the paid plan, not a fallback for accounts without one — a real
-  // account that never subscribed must see the same "sign in to open
-  // servers" / upgrade prompt a guest does, not extra free servers.
+  // WAVEBREAK's own servers with the account's personal credential are
+  // part of the paid plan, not a fallback for accounts without one — a
+  // real account without an active subscription (never bought, or
+  // past_due: VPN blocked until renewal) sees the same upgrade prompt a
+  // guest does, not free servers.
   final sub = await ref.watch(subscriptionProvider.future);
-  if (!sub.isActive || sub.isExpired) return coreLocations;
-  // Hardcoded, not fetched — see bundled_locations.dart. Always available
-  // even with zero connectivity, so it's never gated behind the try/catch
-  // above.
-  final bundled = await ref.watch(bundledLocationsProvider.future);
-  return [...coreLocations, ...bundled];
+  if (!sub.isActive || sub.isExpired) {
+    await PersonalLocations.forget();
+    return coreLocations;
+  }
+  // See bundled_locations.dart: from Core, with the last one saved for
+  // when Core is unreachable, so it's not behind the try/catch above.
+  final personal =
+      await PersonalLocations.load(ref.watch(coreGatewayProvider));
+  return [...coreLocations, ...personal];
 });
 
 final devicesProvider = FutureProvider<List<DeviceItem>>((ref) async {

@@ -97,6 +97,20 @@ class CoreGateway {
     }
   }
 
+  /// The account's own VPN access, or null when it has none: no active
+  /// subscription (Core: 404 SUBSCRIPTION_NOT_FOUND / 422
+  /// SUBSCRIPTION_NOT_ACTIVE, e.g. past_due). The mock backend has no
+  /// real credentials to hand out.
+  Future<PersonalAccess?> personalAccess() async {
+    if (useMock) return null;
+    try {
+      return await live.myAccess();
+    } on AppException catch (error) {
+      if (error.statusCode == 404 || error.statusCode == 422) return null;
+      rethrow;
+    }
+  }
+
   Future<UsageSummary?> usage() async {
     if (useMock) return mock.getUsage();
     try {

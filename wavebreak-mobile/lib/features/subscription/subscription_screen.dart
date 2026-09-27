@@ -13,6 +13,7 @@ import '../../services/providers.dart';
 import '../shared/data_providers.dart';
 import '../shared/detail_scaffold.dart';
 import '../shared/nav_utils.dart';
+import '../shared/subscription_texts.dart';
 import '../shared/traffic_wave_bar.dart';
 import '../shared/wb_card.dart';
 
@@ -119,7 +120,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                sub.isActive ? s.active : sub.status,
+                                subscriptionStatusLabel(sub, s),
                                 style: TextStyle(
                                   color: sub.isActive
                                       ? WbColors.oceanTeal
@@ -132,6 +133,18 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                                 style: const TextStyle(color: WbColors.ice60),
                               ),
                               Text(until),
+                              if (sub.isPastDue) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  renewBeforeLine(sub, s),
+                                  style: const TextStyle(color: WbColors.warning),
+                                ),
+                                Text(
+                                  s.renewResetNote,
+                                  style: const TextStyle(
+                                      color: WbColors.ice60, fontSize: 12),
+                                ),
+                              ],
                               const SizedBox(height: 12),
                               Text(
                                 s.devices,

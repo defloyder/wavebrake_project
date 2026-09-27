@@ -109,6 +109,11 @@ class AppStrings {
     required this.devices,
     required this.traffic,
     required this.trafficUnlimited,
+    required this.subscriptionPastDueTitle,
+    required this.renewBefore,
+    required this.renewResetNote,
+    required this.statusPastDue,
+    required this.unitGb,
     required this.logOut,
     required this.faceIdTouchId,
     required this.useBiometricsForQuickUnlock,
@@ -289,6 +294,13 @@ class AppStrings {
   final String devices;
   final String traffic;
   final String trafficUnlimited;
+  final String subscriptionPastDueTitle;
+  /// Followed by the date: "Renew before 04.10.2026".
+  final String renewBefore;
+  final String renewResetNote;
+  final String statusPastDue;
+  /// Traffic unit; binary (1024^3 bytes) everywhere.
+  final String unitGb;
   final String logOut;
   final String faceIdTouchId;
   final String useBiometricsForQuickUnlock;
@@ -477,6 +489,11 @@ const kEnglishStrings = AppStrings(
   devices: 'Devices',
   traffic: 'Traffic',
   trafficUnlimited: 'Unlimited',
+  subscriptionPastDueTitle: 'Subscription ended',
+  renewBefore: 'Renew before',
+  renewResetNote: 'VPN is paused. Without renewal the subscription and its devices will be reset.',
+  statusPastDue: 'Awaiting renewal',
+  unitGb: 'GB',
   logOut: 'Log out',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Use biometrics for quick unlock',
@@ -668,6 +685,11 @@ const kRussianStrings = AppStrings(
   devices: 'Устройства',
   traffic: 'Трафик',
   trafficUnlimited: 'Безлимитно',
+  subscriptionPastDueTitle: 'Подписка закончилась',
+  renewBefore: 'Продлите до',
+  renewResetNote: 'VPN приостановлен. Без продления подписка и её устройства будут сброшены.',
+  statusPastDue: 'Ожидает продления',
+  unitGb: 'ГБ',
   logOut: 'Выйти',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Быстрый вход по биометрии',
@@ -862,6 +884,11 @@ const kSpanishStrings = AppStrings(
   devices: 'Dispositivos',
   traffic: 'Tráfico',
   trafficUnlimited: 'Ilimitado',
+  subscriptionPastDueTitle: 'Suscripción finalizada',
+  renewBefore: 'Renueve antes del',
+  renewResetNote: 'La VPN está en pausa. Sin renovación, la suscripción y sus dispositivos se restablecerán.',
+  statusPastDue: 'Pendiente de renovación',
+  unitGb: 'GB',
   logOut: 'Cerrar sesión',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Usar biometría para desbloqueo rápido',
@@ -1058,6 +1085,11 @@ const kGermanStrings = AppStrings(
   devices: 'Geräte',
   traffic: 'Datenverbrauch',
   trafficUnlimited: 'Unbegrenzt',
+  subscriptionPastDueTitle: 'Abo beendet',
+  renewBefore: 'Verlängern bis',
+  renewResetNote: 'VPN pausiert. Ohne Verlängerung werden das Abo und seine Geräte zurückgesetzt.',
+  statusPastDue: 'Verlängerung ausstehend',
+  unitGb: 'GB',
   logOut: 'Abmelden',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Biometrie für schnelles Entsperren verwenden',
@@ -1256,6 +1288,11 @@ const kFrenchStrings = AppStrings(
   devices: 'Appareils',
   traffic: 'Trafic',
   trafficUnlimited: 'Illimité',
+  subscriptionPastDueTitle: 'Abonnement terminé',
+  renewBefore: 'Renouvelez avant le',
+  renewResetNote: "Le VPN est en pause. Sans renouvellement, l'abonnement et ses appareils seront réinitialisés.",
+  statusPastDue: 'En attente de renouvellement',
+  unitGb: 'Go',
   logOut: 'Se déconnecter',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock:
@@ -1454,6 +1491,11 @@ const kPortugueseStrings = AppStrings(
   devices: 'Dispositivos',
   traffic: 'Tráfego',
   trafficUnlimited: 'Ilimitado',
+  subscriptionPastDueTitle: 'Assinatura encerrada',
+  renewBefore: 'Renove até',
+  renewResetNote: 'A VPN está pausada. Sem renovação, a assinatura e seus dispositivos serão redefinidos.',
+  statusPastDue: 'Aguardando renovação',
+  unitGb: 'GB',
   logOut: 'Sair',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Usar biometria para desbloqueio rápido',
@@ -1647,6 +1689,11 @@ const kTurkishStrings = AppStrings(
   devices: 'Cihazlar',
   traffic: 'Trafik',
   trafficUnlimited: 'Sınırsız',
+  subscriptionPastDueTitle: 'Abonelik sona erdi',
+  renewBefore: 'Şu tarihe kadar yenileyin:',
+  renewResetNote: 'VPN duraklatıldı. Yenilenmezse abonelik ve cihazları sıfırlanır.',
+  statusPastDue: 'Yenileme bekleniyor',
+  unitGb: 'GB',
   logOut: 'Çıkış yap',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Hızlı kilit açma için biyometri kullan',

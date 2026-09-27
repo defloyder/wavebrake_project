@@ -20,6 +20,11 @@ class SecureStore {
   /// registration so later app launches never re-register.
   static const deviceId = 'device_id';
 
+  /// The account's own VPN access from Core (`POST /v1/me/access`): its
+  /// credential and share links. Kept so the app can connect when Core is
+  /// unreachable; these are credentials, so Keystore, never prefs.
+  static const personalAccess = 'personal_access';
+
   static void init(FlutterSecureStorage storage) {
     _storage = storage;
     _cache.clear();
@@ -77,5 +82,7 @@ class SecureStore {
     // device id, which this new account's token can't see or manage.
     await _storage.delete(key: deviceId);
     await _storage.delete(key: devicePublicId);
+    // Another account must never connect with this account's credential.
+    await _storage.delete(key: personalAccess);
   }
 }

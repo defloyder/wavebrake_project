@@ -101,6 +101,16 @@ class CoreApi {
     );
   }
 
+  /// The account's own VPN credential and app links (issued by Core on
+  /// first use). 404/422 when there is no active subscription.
+  Future<PersonalAccess> myAccess() {
+    return _client.post(
+      '/me/access',
+      body: const <String, dynamic>{},
+      parse: (data) => PersonalAccess.fromJson(_asMap(data)),
+    );
+  }
+
   Future<SubscriptionInfo> currentSubscription() {
     return _client.get(
       '/subscriptions/current',
