@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"wavebreak-core/internal/accounts"
 	"wavebreak-core/internal/app"
 	"wavebreak-core/internal/observability"
 	"wavebreak-core/internal/security"
@@ -69,6 +70,7 @@ func (s *Server) router() http.Handler {
 			r.Post("/me/identities/telegram/link", s.createTelegramLink)
 			r.Delete("/me/identities/telegram", s.unlinkTelegram)
 			r.Get("/me/usage", s.meUsage)
+			r.Post("/me/access", s.meAccess)
 			r.Get("/me/usage/history", s.meUsageHistory)
 			r.Get("/me/devices", s.listDevices)
 			r.Post("/me/devices", s.createDevice)
@@ -175,8 +177,21 @@ func (s *Server) createSubscription(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	sub, err := s.app.Store.CreateSubscription(r.Context(), currentUser(r.Context()).ID, req.PlanID)
+	userID := currentUser(r.Context()).ID
+	sub, err := s.app.Store.CreateSubscription(r.Context(), userID, req.PlanID)
 	if errors.Is(err, store.ErrLiveSubscriptionExists) {
+		// One subscription per user: a past_due one (period over, within
+		// the grace period) is renewed in place, keeping its link.
+		renewed, renewErr := s.app.Store.RenewPastDueSubscription(r.Context(), userID, req.PlanID)
+		if renewErr == nil {
+			_ = s.accounts.auditLog.Record(r.Context(), accounts.AuditEntry{
+				Actor: actorFrom(r), TargetUserID: userID, Action: accounts.AuditSubscriptionRenewed,
+				ResourceType: "subscription", ResourceID: renewed.ID,
+				Metadata: map[string]any{"plan_id": renewed.PlanID, "expires_at": renewed.CurrentPeriodEnd.UTC().Format(time.RFC3339)},
+			})
+			writeJSON(w, http.StatusOK, renewed)
+			return
+		}
 		writeError(w, http.StatusConflict, "SUBSCRIPTION_ALREADY_ACTIVE")
 		return
 	}
@@ -188,7 +203,7 @@ func (s *Server) createSubscription(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) currentSubscription(w http.ResponseWriter, r *http.Request) {
-	sub, err := s.app.Store.GetActiveSubscription(r.Context(), currentUser(r.Context()).ID)
+	sub, err := s.app.Store.CurrentSubscription(r.Context(), currentUser(r.Context()).ID)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "subscription not found")
 		return
@@ -197,7 +212,19 @@ func (s *Server) currentSubscription(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load subscription")
 		return
 	}
-	writeJSON(w, http.StatusOK, sub)
+	resp := currentSubscriptionResponse{Subscription: sub}
+	if sub.Status == "past_due" {
+		graceEnds := s.accounts.lifecycle.GraceEndsAt(sub.CurrentPeriodEnd)
+		resp.GraceEndsAt = &graceEnds
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// currentSubscriptionResponse is the live subscription; for past_due it
+// also says until when it can be renewed before the account is reset.
+type currentSubscriptionResponse struct {
+	store.Subscription
+	GraceEndsAt *time.Time `json:"grace_ends_at,omitempty"`
 }
 
 func (s *Server) enrollNode(w http.ResponseWriter, r *http.Request) {

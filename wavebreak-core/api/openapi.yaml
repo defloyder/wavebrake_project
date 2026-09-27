@@ -243,18 +243,76 @@ paths:
     post:
       security:
         - bearerAuth: []
-      summary: Create active subscription
+      summary: Buy a plan (one subscription per user)
+      description: >
+        Creates and activates the subscription (201). When the user's
+        subscription is past_due (period over or traffic exhausted, within
+        the grace period) it is renewed in place instead (200): same
+        subscription and credential, so the subscription link keeps
+        working; fresh period and plan terms, usage from zero, keys served
+        to nodes again; audits subscription_renewed. An active one -> 409
+        SUBSCRIPTION_ALREADY_ACTIVE.
       responses:
+        "200":
+          description: past_due subscription renewed
         "201":
           description: Subscription created
+        "409":
+          description: SUBSCRIPTION_ALREADY_ACTIVE
   /v1/subscriptions/current:
     get:
       security:
         - bearerAuth: []
-      summary: Current active subscription
+      summary: Current live subscription (past_due included)
+      description: >
+        For past_due the response also has grace_ends_at: until then the
+        subscription can be renewed; VPN access is blocked meanwhile, and
+        afterwards it expires and the account is reset (keys revoked,
+        devices except the most recently active one revoked). Grace period:
+        WAVEBREAK_SUBSCRIPTION_GRACE, default 168h.
       responses:
         "200":
-          description: Subscription
+          description: Subscription, plus grace_ends_at when past_due
+        "404":
+          description: No live subscription
+  /v1/me/access:
+    post:
+      security:
+        - bearerAuth: []
+      summary: The caller's own VPN access (subscription credential and app links)
+      description: >
+        Returns the stable credential of the caller's subscription, issuing
+        it first if the subscription has none. All devices of the account
+        share it, so traffic is counted on the one subscription. links are
+        standard share links in order of preference: VLESS REALITY (when
+        published), VLESS Direct-TLS, Hysteria2.
+      responses:
+        "200":
+          description: Access
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  credential_id: {type: string, format: uuid}
+                  subscription_url: {type: string}
+                  config_status: {type: string, example: ready}
+                  expires_at: {type: string, format: date-time}
+                  links:
+                    type: array
+                    items: {type: string}
+        "404":
+          description: SUBSCRIPTION_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "422":
+          description: SUBSCRIPTION_NOT_ACTIVE (past_due, suspended, period over)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
   /v1/nodes:
     get:
       security:

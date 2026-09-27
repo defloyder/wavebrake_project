@@ -33,7 +33,11 @@ type AccountsConfig struct {
 	PasswordResetURLBase string
 	PasswordResetTTL     time.Duration
 	// AccessProtocol of credentials issued with an admin-assigned subscription.
+	// (Also used for the credential the app asks for via POST /v1/me/access.)
 	AccessProtocol string
+	// SubscriptionGrace: how long a past_due subscription waits for renewal
+	// (VPN blocked) before it expires and the account is reset.
+	SubscriptionGrace time.Duration
 }
 
 type VLESSConfig struct {
@@ -158,6 +162,7 @@ func Load() (Config, error) {
 			PasswordResetURLBase: env("WAVEBREAK_PASSWORD_RESET_URL_BASE", "https://wavebreak.com.tr/reset-password"),
 			PasswordResetTTL:     mustDuration(env("WAVEBREAK_PASSWORD_RESET_TTL", "1h")),
 			AccessProtocol:       env("WAVEBREAK_ADMIN_ACCESS_PROTOCOL", "vless"),
+			SubscriptionGrace:    mustDuration(env("WAVEBREAK_SUBSCRIPTION_GRACE", "168h")),
 		},
 		VLESS: VLESSConfig{
 			PublicHost:         env("WAVEBREAK_VLESS_PUBLIC_HOST", ""),

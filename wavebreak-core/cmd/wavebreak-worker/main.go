@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"wavebreak-core/internal/accounts"
 	"wavebreak-core/internal/config"
 	"wavebreak-core/internal/database"
 	"wavebreak-core/internal/messaging"
@@ -32,6 +33,11 @@ func main() {
 	}
 	defer db.Close()
 	st := store.New(db)
+
+	// Subscription lifecycle (grace period, expiry reset) runs regardless
+	// of RabbitMQ: it only needs the database.
+	lifecycle := accounts.NewSubscriptionLifecycleService(st.Accounts(), st.Accounts(), cfg.Accounts.SubscriptionGrace)
+	go runLifecycle(ctx, log, lifecycle)
 
 	var publisher *messaging.Publisher
 	for publisher == nil && ctx.Err() == nil {
@@ -73,6 +79,27 @@ func main() {
 					log.Warn("mark outbox published failed", "event_id", ev.ID, "error", err)
 				}
 			}
+		}
+	}
+}
+
+// lifecycleInterval: past_due/expiry transitions happen within a minute.
+const lifecycleInterval = time.Minute
+
+func runLifecycle(ctx context.Context, log *slog.Logger, lifecycle *accounts.SubscriptionLifecycleService) {
+	ticker := time.NewTicker(lifecycleInterval)
+	defer ticker.Stop()
+	for {
+		report, err := lifecycle.Run(ctx)
+		if err != nil {
+			log.Error("subscription lifecycle", "error", err, "past_due", report.PastDue, "expired", report.Expired)
+		} else if report.PastDue > 0 || report.Expired > 0 {
+			log.Info("subscription lifecycle", "past_due", report.PastDue, "expired", report.Expired)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 }

@@ -1202,8 +1202,14 @@ func (s *Store) AdminEditSubscription(ctx context.Context, subscriptionID string
 	if err != nil {
 		return Subscription{}, err
 	}
-	if currentPeriodEnd != nil {
-		if err := syncSubscriptionGrantExpiryTx(ctx, tx, sub.ID, sub.CurrentPeriodEnd); err != nil {
+	if currentPeriodEnd != nil || status != nil {
+		// Keys are served to nodes until the period end while the
+		// subscription is active; any other status blocks them now.
+		keysUntil := sub.CurrentPeriodEnd
+		if sub.Status != "active" && sub.Status != "trialing" && keysUntil.After(time.Now()) {
+			keysUntil = time.Now().UTC()
+		}
+		if err := syncSubscriptionGrantExpiryTx(ctx, tx, sub.ID, keysUntil); err != nil {
 			return Subscription{}, err
 		}
 	}

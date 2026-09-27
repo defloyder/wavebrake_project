@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/term"
 
+	"wavebreak-core/internal/accounts"
 	"wavebreak-core/internal/config"
 	"wavebreak-core/internal/database"
 	"wavebreak-core/internal/security"
@@ -54,6 +55,11 @@ func main() {
 	case "node token":
 		if err := nodeToken(ctx, st, os.Args[3:]); err != nil {
 			log.Error("node token failed", "error", err)
+			os.Exit(1)
+		}
+	case "subscriptions lifecycle":
+		if err := subscriptionsLifecycle(ctx, st, cfg.Accounts.SubscriptionGrace, os.Args[3:]); err != nil {
+			log.Error("subscriptions lifecycle failed", "error", err)
 			os.Exit(1)
 		}
 	default:
@@ -185,4 +191,38 @@ func usage() {
 	fmt.Println("  wavebreak-cli admin create [--email EMAIL] [--role superadmin] [--password PASSWORD]")
 	fmt.Println("  wavebreak-cli admin reset-password [--email EMAIL] [--password PASSWORD]")
 	fmt.Println("  wavebreak-cli node token [--region REGION] [--ttl 24h]")
+	fmt.Println("  wavebreak-cli subscriptions lifecycle [--dry-run]")
+}
+
+// subscriptionsLifecycle runs the subscription lifecycle once (what the
+// worker does every minute). --dry-run only lists what would change.
+func subscriptionsLifecycle(ctx context.Context, st *store.Store, grace time.Duration, args []string) error {
+	fs := flag.NewFlagSet("subscriptions lifecycle", flag.ContinueOnError)
+	dryRun := fs.Bool("dry-run", false, "only list the subscriptions that would change")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	repo := st.Accounts()
+	if *dryRun {
+		now := time.Now().UTC()
+		due, err := repo.DueForGrace(ctx, now)
+		if err != nil {
+			return err
+		}
+		for _, c := range due {
+			fmt.Printf("past_due  subscription=%s user=%s reason=%s\n", c.SubscriptionID, c.UserID, c.Reason)
+		}
+		expiring, err := repo.DueForExpiry(ctx, now.Add(-grace))
+		if err != nil {
+			return err
+		}
+		for _, c := range expiring {
+			fmt.Printf("expire    subscription=%s user=%s reason=%s\n", c.SubscriptionID, c.UserID, c.Reason)
+		}
+		fmt.Printf("dry run: %d would go past_due, %d would expire (past_due ones may also expire on the same run)\n", len(due), len(expiring))
+		return nil
+	}
+	report, err := accounts.NewSubscriptionLifecycleService(repo, repo, grace).Run(ctx)
+	fmt.Printf("past_due=%d expired=%d\n", report.PastDue, report.Expired)
+	return err
 }

@@ -16,11 +16,12 @@ import (
 // accountServices bundles the admin account-management use cases; the
 // handlers below only translate HTTP <-> use case.
 type accountServices struct {
-	details  *accounts.UserDetailsService
-	assign   *accounts.SubscriptionAssignmentService
-	reset    *accounts.PasswordResetService
-	urls     accounts.SubscriptionURLBuilder
-	auditLog accounts.AuditLog
+	details   *accounts.UserDetailsService
+	assign    *accounts.SubscriptionAssignmentService
+	reset     *accounts.PasswordResetService
+	urls      accounts.SubscriptionURLBuilder
+	auditLog  accounts.AuditLog
+	lifecycle *accounts.SubscriptionLifecycleService
 }
 
 func newAccountServices(a *app.App) *accountServices {
@@ -29,11 +30,12 @@ func newAccountServices(a *app.App) *accountServices {
 	urls := accounts.NewSubscriptionURLBuilder(cfg.SubscriptionURLBase)
 	details := accounts.NewUserDetailsService(repo, repo, repo, repo, urls)
 	return &accountServices{
-		details:  details,
-		assign:   accounts.NewSubscriptionAssignmentService(repo, repo, repo, repo, repo, details, cfg.AccessProtocol),
-		reset:    accounts.NewPasswordResetService(repo, repo, accounts.SecureTokenSource{}, accounts.UnconfiguredEmailNotifier{}, accounts.Argon2Hasher{}, repo, cfg.PasswordResetURLBase, cfg.PasswordResetTTL),
-		urls:     urls,
-		auditLog: repo,
+		details:   details,
+		assign:    accounts.NewSubscriptionAssignmentService(repo, repo, repo, repo, repo, details, cfg.AccessProtocol),
+		reset:     accounts.NewPasswordResetService(repo, repo, accounts.SecureTokenSource{}, accounts.UnconfiguredEmailNotifier{}, accounts.Argon2Hasher{}, repo, cfg.PasswordResetURLBase, cfg.PasswordResetTTL),
+		urls:      urls,
+		auditLog:  repo,
+		lifecycle: accounts.NewSubscriptionLifecycleService(repo, repo, cfg.SubscriptionGrace),
 	}
 }
 
