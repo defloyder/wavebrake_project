@@ -1,4 +1,5 @@
 -- +goose Up
+-- +goose StatementBegin
 do $$
 declare
     duplicate_groups integer;
@@ -17,6 +18,7 @@ begin
         raise exception 'cannot normalize users.email: % duplicate group(s) require manual resolution', duplicate_groups;
     end if;
 end $$;
+-- +goose StatementEnd
 
 update users
 set email = lower(btrim(email)), updated_at = now()
