@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../../core/storage/prefs_store.dart';
 import '../../services/core_api/models.dart';
 import '../../services/providers.dart';
 import '../../services/vpn/personal_locations.dart';
+import '../../services/vpn/connection_manager.dart';
 
 /// None of these providers have anything to fetch outside of
 /// [SessionPhase.authenticated] — a guest (see that enum) never touches
@@ -290,6 +292,15 @@ final plansProvider = FutureProvider<List<Plan>>((ref) async {
 /// which node, or whether any, the user is currently connected through.
 final trafficUsageProvider = FutureProvider<UsageSummary?>((ref) async {
   if (!_canQueryCore(ref)) return null;
+  // Nodes report usage about once a minute; while connected, re-read it
+  // at that pace so the Home strip moves instead of freezing at the
+  // value it had when the app opened.
+  final connected = ref.watch(connectionManagerProvider
+      .select((s) => s.status == ConnectionStatus.connected));
+  if (connected) {
+    final refresh = Timer(const Duration(seconds: 60), ref.invalidateSelf);
+    ref.onDispose(refresh.cancel);
+  }
   try {
     final result = await _withTimeout(ref.watch(coreGatewayProvider).usage());
     if (result != null) {

@@ -122,7 +122,11 @@ void main() {
     test('binary ГБ, same base as Core plan limits', () {
       expect(formatTraffic(107374182400 ~/ 10, 107374182400, kRussianStrings), '10 ГБ / 100 ГБ');
       expect(formatTraffic(1610612736, null, kRussianStrings), '1.5 ГБ / ${kRussianStrings.trafficUnlimited}');
-      expect(formatTraffic(0, 107374182400, kEnglishStrings), '0 GB / 100 GB');
+      expect(formatTraffic(0, 107374182400, kEnglishStrings), '0 MB / 100 GB');
+      // Small usage stays visible instead of rounding to "0 ГБ".
+      expect(formatTraffic(327155712, 322122547200, kRussianStrings), '312 МБ / 300 ГБ');
+      expect(formatTraffic(5452595, 322122547200, kRussianStrings), '5.2 МБ / 300 ГБ');
+      expect(formatTraffic(1073741823, null, kRussianStrings), '1 ГБ / ${kRussianStrings.trafficUnlimited}');
     });
   });
 }

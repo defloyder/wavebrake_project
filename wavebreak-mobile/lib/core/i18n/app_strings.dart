@@ -117,6 +117,7 @@ class AppStrings {
     required this.renewResetNote,
     required this.statusPastDue,
     required this.unitGb,
+    required this.unitMb,
     required this.logOut,
     required this.faceIdTouchId,
     required this.useBiometricsForQuickUnlock,
@@ -312,6 +313,8 @@ class AppStrings {
   final String statusPastDue;
   /// Traffic unit; binary (1024^3 bytes) everywhere.
   final String unitGb;
+  /// Traffic below 1 ГБ, binary (1024^2 bytes).
+  final String unitMb;
   final String logOut;
   final String faceIdTouchId;
   final String useBiometricsForQuickUnlock;
@@ -513,6 +516,7 @@ const kEnglishStrings = AppStrings(
   renewResetNote: 'VPN is paused. Without renewal the subscription and its devices will be reset.',
   statusPastDue: 'Awaiting renewal',
   unitGb: 'GB',
+  unitMb: 'MB',
   logOut: 'Log out',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Use biometrics for quick unlock',
@@ -718,6 +722,7 @@ const kRussianStrings = AppStrings(
   renewResetNote: 'VPN приостановлен. Без продления подписка и её устройства будут сброшены.',
   statusPastDue: 'Ожидает продления',
   unitGb: 'ГБ',
+  unitMb: 'МБ',
   logOut: 'Выйти',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Быстрый вход по биометрии',
@@ -926,6 +931,7 @@ const kSpanishStrings = AppStrings(
   renewResetNote: 'La VPN está en pausa. Sin renovación, la suscripción y sus dispositivos se restablecerán.',
   statusPastDue: 'Pendiente de renovación',
   unitGb: 'GB',
+  unitMb: 'MB',
   logOut: 'Cerrar sesión',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Usar biometría para desbloqueo rápido',
@@ -1136,6 +1142,7 @@ const kGermanStrings = AppStrings(
   renewResetNote: 'VPN pausiert. Ohne Verlängerung werden das Abo und seine Geräte zurückgesetzt.',
   statusPastDue: 'Verlängerung ausstehend',
   unitGb: 'GB',
+  unitMb: 'MB',
   logOut: 'Abmelden',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Biometrie für schnelles Entsperren verwenden',
@@ -1348,6 +1355,7 @@ const kFrenchStrings = AppStrings(
   renewResetNote: "Le VPN est en pause. Sans renouvellement, l'abonnement et ses appareils seront réinitialisés.",
   statusPastDue: 'En attente de renouvellement',
   unitGb: 'Go',
+  unitMb: 'Mo',
   logOut: 'Se déconnecter',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock:
@@ -1560,6 +1568,7 @@ const kPortugueseStrings = AppStrings(
   renewResetNote: 'A VPN está pausada. Sem renovação, a assinatura e seus dispositivos serão redefinidos.',
   statusPastDue: 'Aguardando renovação',
   unitGb: 'GB',
+  unitMb: 'MB',
   logOut: 'Sair',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Usar biometria para desbloqueio rápido',
@@ -1767,6 +1776,7 @@ const kTurkishStrings = AppStrings(
   renewResetNote: 'VPN duraklatıldı. Yenilenmezse abonelik ve cihazları sıfırlanır.',
   statusPastDue: 'Yenileme bekleniyor',
   unitGb: 'GB',
+  unitMb: 'MB',
   logOut: 'Çıkış yap',
   faceIdTouchId: 'Face ID / Touch ID',
   useBiometricsForQuickUnlock: 'Hızlı kilit açma için biyometri kullan',
