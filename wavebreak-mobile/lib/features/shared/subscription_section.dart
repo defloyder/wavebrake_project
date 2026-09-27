@@ -16,7 +16,9 @@ class SubscriptionSectionData {
     this.shareLink,
     this.canRefresh = false,
     this.shareable = true,
-    this.details,
+    this.limitsTraffic,
+    this.limitsDevices,
+    this.limitsNote,
   });
 
   final String id;
@@ -32,9 +34,13 @@ class SubscriptionSectionData {
   /// code: its links hold one of their device slots and aren't passed on.
   final bool shareable;
 
-  /// The subscription's limits for the header — traffic and devices used,
-  /// or why it can't be used right now. Null when not known.
-  final String? details;
+  /// Traffic used of the limit for the header ("2.3 ГБ / 300 ГБ"), the
+  /// compact device count ("1 / 2", shown next to a small device icon so
+  /// the line stays short), or a note replacing both when the subscription
+  /// can't be used ("Подписка владельца неактивна"). All null when unknown.
+  final String? limitsTraffic;
+  final String? limitsDevices;
+  final String? limitsNote;
 }
 
 /// Stands in for the account's own share code: the share sheet asks Core
@@ -59,28 +65,32 @@ List<SubscriptionSectionData> buildSubscriptionSections({
       servers: wavebreakServers,
       // Resolved to a fresh share code from Core when the sheet opens.
       shareLink: kPersonalShareLink,
-      details: own == null ? null : subscriptionLimitsLine(own, s),
+      limitsTraffic: own == null ? null : _trafficLine(own, s),
+      limitsDevices: own == null ? null : _deviceLine(own),
     ),
     for (final g in customGroups)
-      SubscriptionSectionData(
-        id: g.id,
-        title: g.name,
-        subtitle: '${g.servers.length} ${s.locationsWord}',
-        icon: g.isSubscriptionUrl ? Icons.cloud_outlined : Icons.link,
-        servers: g.servers,
-        isCustom: true,
-        shareLink: g.sharedWithMe ? null : g.sourceLink,
-        canRefresh: g.isSubscriptionUrl,
-        shareable: !g.sharedWithMe,
-        details: g.sharedWithMe ? _receivedDetails(sharing?.receivedFor(g.sourceLink), s) : null,
-      ),
+      _sectionFor(g, s, sharing),
   ];
 }
 
-String? _receivedDetails(SharedSubscription? received, AppStrings s) {
-  if (received == null) return null;
-  if (!received.isActive) return s.shareOwnerInactive;
-  return subscriptionLimitsLine(received, s);
+SubscriptionSectionData _sectionFor(
+    CustomSubscriptionGroup g, AppStrings s, SharingOverview? sharing) {
+  final received = g.sharedWithMe ? sharing?.receivedFor(g.sourceLink) : null;
+  final inactive = received != null && !received.isActive;
+  return SubscriptionSectionData(
+    id: g.id,
+    title: g.name,
+    subtitle: '${g.servers.length} ${s.locationsWord}',
+    icon: g.isSubscriptionUrl ? Icons.cloud_outlined : Icons.link,
+    servers: g.servers,
+    isCustom: true,
+    shareLink: g.sharedWithMe ? null : g.sourceLink,
+    canRefresh: g.isSubscriptionUrl,
+    shareable: !g.sharedWithMe,
+    limitsNote: inactive ? s.shareOwnerInactive : null,
+    limitsTraffic: received != null && !inactive ? _trafficLine(received, s) : null,
+    limitsDevices: received != null && !inactive ? _deviceLine(received) : null,
+  );
 }
 
 /// Our own section's title: the plan ("WAVEBREAK Fleet"), not a fixed name.
@@ -90,15 +100,15 @@ String wavebreakSectionTitle(String? planName) {
   return plan.toUpperCase().startsWith('WAVEBREAK') ? plan : 'WAVEBREAK $plan';
 }
 
-/// "2.3 ГБ / 300 ГБ · Устройств: 1 из 2".
-String subscriptionLimitsLine(SharedSubscription sub, AppStrings s) {
-  final traffic = formatTraffic(sub.trafficUsedBytes, sub.trafficLimitBytes, s);
-  if (sub.deviceLimit == null) return traffic;
-  final devices = s.shareDevices
-      .replaceAll('{used}', '${sub.devicesUsed}')
-      .replaceAll('{limit}', '${sub.deviceLimit}');
-  return '$traffic · $devices';
-}
+/// "2.3 ГБ / 300 ГБ" (or ".../ Без ограничений").
+String _trafficLine(SharedSubscription sub, AppStrings s) =>
+    formatTraffic(sub.trafficUsedBytes, sub.trafficLimitBytes, s);
+
+/// Compact "1 / 2" for the device count, shown next to a device icon —
+/// short enough to sit on the same line as the traffic. Null for an
+/// unmetered device count.
+String? _deviceLine(SharedSubscription sub) =>
+    sub.deviceLimit == null ? null : '${sub.devicesUsed} / ${sub.deviceLimit}';
 
 /// Which section contains the currently active server, so the picker can
 /// open with that section already expanded.

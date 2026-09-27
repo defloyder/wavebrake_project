@@ -8,6 +8,11 @@ class PrefsStore {
   static const biometricEnabled = 'biometric_enabled';
   static const requireBiometricOnOpen = 'require_biometric_on_open';
   static const pinEnabled = 'pin_enabled';
+  // Salted hash of the app-lock PIN and its length (see PinService: kept
+  // here, not only in Keystore, which can hang on some phones).
+  static const pinSalt = 'pin_salt_v2';
+  static const pinHash = 'pin_hash_v2';
+  static const pinLength = 'pin_length';
   static const appLockEnabled = 'app_lock_enabled';
   static const guestMode = 'guest_mode';
   static const onboardingChoiceMade = 'onboarding_choice_made';

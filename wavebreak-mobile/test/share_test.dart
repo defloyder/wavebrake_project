@@ -121,9 +121,11 @@ void main() {
       ),
     );
     expect(sections[0].title, 'WAVEBREAK Fleet');
-    expect(sections[0].details, contains('Устройств: 1 из 2'));
-    expect(sections[1].details, isNull);
-    expect(sections[2].details, kRussianStrings.shareOwnerInactive);
+    expect(sections[0].limitsDevices, '1 / 2');
+    expect(sections[0].limitsTraffic, isNotNull);
+    expect(sections[1].limitsTraffic, isNull);
+    expect(sections[2].limitsNote, kRussianStrings.shareOwnerInactive);
+    expect(sections[2].limitsTraffic, isNull);
     expect(sections[0].shareLink, kPersonalShareLink);
     expect(sections[1].shareLink, 'https://x.test/sub');
     expect(sections[1].shareable, isTrue);

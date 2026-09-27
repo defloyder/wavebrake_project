@@ -284,13 +284,39 @@ class _SectionCardState extends State<_SectionCard> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           // Traffic and devices of this subscription —
-                          // the owner's own limits for a shared one.
-                          if (section.details != null)
+                          // the owner's own limits for a shared one — or a
+                          // note (e.g. the owner's subscription is inactive).
+                          if (section.limitsNote != null)
                             Text(
-                              section.details!,
-                              style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                              section.limitsNote!,
+                              style: const TextStyle(color: WbColors.warning, fontSize: 12),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
+                            )
+                          else if (section.limitsTraffic != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 1),
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      section.limitsTraffic!,
+                                      style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (section.limitsDevices != null) ...[
+                                    const SizedBox(width: 8),
+                                    const Icon(Icons.devices_rounded,
+                                        color: WbColors.ice60, size: 12),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      section.limitsDevices!,
+                                      style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
                         ],
                       ),

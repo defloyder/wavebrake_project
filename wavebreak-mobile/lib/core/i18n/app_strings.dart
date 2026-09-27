@@ -39,6 +39,7 @@ class AppStrings {
     required this.confirmPin,
     required this.pinsDontMatch,
     required this.incorrectPin,
+    required this.pinCheckFailed,
     required this.unlockWavebreak,
     required this.pinRequiredForBiometric,
     required this.troubleUnlockingLogOut,
@@ -244,6 +245,7 @@ class AppStrings {
   final String confirmPin;
   final String pinsDontMatch;
   final String incorrectPin;
+  final String pinCheckFailed;
   final String unlockWavebreak;
   final String pinRequiredForBiometric;
   final String troubleUnlockingLogOut;
@@ -454,6 +456,7 @@ const kEnglishStrings = AppStrings(
   confirmPin: 'Confirm your PIN',
   pinsDontMatch: "PINs don't match — try again",
   incorrectPin: 'Incorrect PIN',
+  pinCheckFailed: 'Could not check the PIN. Try again or log out below',
   unlockWavebreak: 'Unlock WAVEBREAK',
   pinRequiredForBiometric:
       'Set a PIN as a backup in case biometric unlock ever fails',
@@ -671,6 +674,7 @@ const kRussianStrings = AppStrings(
   confirmPin: 'Подтвердите PIN',
   pinsDontMatch: 'PIN-коды не совпадают — попробуйте снова',
   incorrectPin: 'Неверный PIN',
+  pinCheckFailed: 'Не удалось проверить PIN. Повторите или выйдите из аккаунта ниже',
   unlockWavebreak: 'Разблокировать WAVEBREAK',
   pinRequiredForBiometric: 'Задайте PIN на случай, если биометрия не сработает',
   troubleUnlockingLogOut: 'Проблемы со входом? Выйти',
@@ -891,6 +895,7 @@ const kSpanishStrings = AppStrings(
   confirmPin: 'Confirma tu PIN',
   pinsDontMatch: 'Los PIN no coinciden — inténtalo de nuevo',
   incorrectPin: 'PIN incorrecto',
+  pinCheckFailed: 'No se pudo comprobar el PIN. Inténtalo de nuevo o cierra sesión abajo',
   unlockWavebreak: 'Desbloquear WAVEBREAK',
   pinRequiredForBiometric:
       'Configura un PIN de respaldo por si falla el desbloqueo biométrico',
@@ -1112,6 +1117,7 @@ const kGermanStrings = AppStrings(
   confirmPin: 'PIN bestätigen',
   pinsDontMatch: 'PINs stimmen nicht überein — erneut versuchen',
   incorrectPin: 'Falscher PIN',
+  pinCheckFailed: 'PIN konnte nicht geprüft werden. Erneut versuchen oder unten abmelden',
   unlockWavebreak: 'WAVEBREAK entsperren',
   pinRequiredForBiometric:
       'Lege eine PIN als Backup fest, falls die biometrische Entsperrung fehlschlägt',
@@ -1336,6 +1342,7 @@ const kFrenchStrings = AppStrings(
   confirmPin: 'Confirmez votre PIN',
   pinsDontMatch: 'Les PIN ne correspondent pas — réessayez',
   incorrectPin: 'PIN incorrect',
+  pinCheckFailed: 'Impossible de vérifier le PIN. Réessayez ou déconnectez-vous ci-dessous',
   unlockWavebreak: 'Déverrouiller WAVEBREAK',
   pinRequiredForBiometric:
       'Définissez un code PIN de secours en cas d\'échec du déverrouillage biométrique',
@@ -1560,6 +1567,7 @@ const kPortugueseStrings = AppStrings(
   confirmPin: 'Confirme seu PIN',
   pinsDontMatch: 'Os PINs não coincidem — tente novamente',
   incorrectPin: 'PIN incorreto',
+  pinCheckFailed: 'Não foi possível verificar o PIN. Tente de novo ou saia abaixo',
   unlockWavebreak: 'Desbloquear o WAVEBREAK',
   pinRequiredForBiometric:
       'Defina um PIN de backup caso o desbloqueio biométrico falhe',
@@ -1780,6 +1788,7 @@ const kTurkishStrings = AppStrings(
   confirmPin: 'PIN\'inizi onaylayın',
   pinsDontMatch: 'PIN\'ler eşleşmiyor — tekrar deneyin',
   incorrectPin: 'Yanlış PIN',
+  pinCheckFailed: 'PIN doğrulanamadı. Tekrar deneyin veya aşağıdan çıkış yapın',
   unlockWavebreak: 'WAVEBREAK kilidini aç',
   pinRequiredForBiometric:
       'Biyometrik kilit açma başarısız olursa diye yedek bir PIN belirleyin',

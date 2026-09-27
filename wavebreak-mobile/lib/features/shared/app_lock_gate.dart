@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/session_controller.dart';
@@ -125,8 +124,6 @@ class _LockScreen extends ConsumerStatefulWidget {
 class _LockScreenState extends ConsumerState<_LockScreen> {
   final _bio = BiometricService();
   final _pin = const PinService();
-  String _entered = '';
-  bool _error = false;
   bool _biometricBusy = false;
 
   @override
@@ -185,39 +182,6 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
     widget.onUnlocked();
   }
 
-  Future<void> _onDigit(String digit) async {
-    if (_entered.length >= 6) return;
-    setState(() {
-      _entered += digit;
-      _error = false;
-    });
-    if (_entered.length < 4) return;
-    // Auto-submit once a plausible PIN length is reached rather than
-    // requiring a separate "confirm" tap — one less step to unlock.
-    final ok = await _pin.verify(_entered);
-    if (!mounted) return;
-    if (ok) {
-      unawaited(HapticFeedback.mediumImpact());
-      widget.onUnlocked();
-      return;
-    }
-    if (_entered.length == 6) {
-      unawaited(HapticFeedback.heavyImpact());
-      setState(() {
-        _error = true;
-        _entered = '';
-      });
-    }
-  }
-
-  void _onBackspace() {
-    if (_entered.isEmpty) return;
-    setState(() {
-      _entered = _entered.substring(0, _entered.length - 1);
-      _error = false;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(stringsProvider);
@@ -248,17 +212,7 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
                       ),
                       const Spacer(),
                       if (showPinPad) ...[
-                        PinDots(length: _entered.length, error: _error),
-                        if (_error) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            s.incorrectPin,
-                            style: const TextStyle(
-                                color: WbColors.error, fontSize: 13),
-                          ),
-                        ],
-                        const SizedBox(height: 32),
-                        PinKeypad(onDigit: _onDigit, onBackspace: _onBackspace),
+                        PinEntry(s: s, onVerified: widget.onUnlocked),
                         if (_bio.isEnabled) ...[
                           const SizedBox(height: 12),
                           TextButton.icon(
