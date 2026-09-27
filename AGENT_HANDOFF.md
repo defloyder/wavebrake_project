@@ -4,7 +4,7 @@
 
 Этот документ нужен следующему агенту или разработчику, чтобы быстро понять текущее состояние проекта и не откатить важные рабочие решения.
 
-## 2026-09-27: переделка UI админки (ветка `app-main-sync`, на pilot ещё НЕ задеплоено)
+## 2026-09-27: переделка UI админки (ветка `app-main-sync`, задеплоено на pilot из f35bdf8; бэкапы `shared/backups/pre-admin-ui-20260927-094759.dump`, `src-core-admin-before-admin-ui-20260927-094759.tgz`)
 
 - Клик по пользователю в любой таблице открывает карточку; все действия над пользователем, подпиской, устройствами и ключами — только в карточке (`UserDetailsController`, маршруты `/users/{id}/...` в `routes/web.php`). Кнопок действий в таблицах больше нет, старые маршруты `/subscriptions/{id}/...`, `/users/{id}/disable|enable|delete|role`, `/devices/{id}/revoke`, `/grants/{id}/revoke` удалены.
 - Страница собирается `App\View\Admin\AdminPageBuilder` (грузит из Core только нужное секции), строки таблиц — `app/View/Admin/Rows/*`, статусы — `StatusBadge`, id -> email/тариф/нода — `AdminDirectory`, даты — `App\Support\DisplayDate` (`WAVEBREAK_DISPLAY_TIMEZONE`, по умолчанию Europe/Istanbul). Шаблоны: `resources/views/admin/sections/*`, компоненты `components/adm/*`, карточка `users/details*.blade.php`.
