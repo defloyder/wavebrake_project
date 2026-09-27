@@ -1167,8 +1167,14 @@ func (s *Store) AdminEditSubscription(ctx context.Context, subscriptionID string
 			return Subscription{}, errors.New("invalid subscription status")
 		}
 	}
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return Subscription{}, err
+	}
+	defer tx.Rollback(ctx)
+
 	var sub Subscription
-	err := s.db.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		update subscriptions
 		set plan_id = coalesce(nullif($7::text, '')::uuid, plan_id),
 		    traffic_limit_bytes_snapshot = case when nullif($7::text, '') is not null then (select traffic_limit_bytes from plans where id = $7::uuid and deleted_at is null) else traffic_limit_bytes_snapshot end,
@@ -1193,7 +1199,55 @@ func (s *Store) AdminEditSubscription(ctx context.Context, subscriptionID string
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Subscription{}, ErrNotFound
 	}
-	return sub, err
+	if err != nil {
+		return Subscription{}, err
+	}
+	if currentPeriodEnd != nil {
+		if err := syncSubscriptionGrantExpiryTx(ctx, tx, sub.ID, sub.CurrentPeriodEnd); err != nil {
+			return Subscription{}, err
+		}
+	}
+	return sub, tx.Commit(ctx)
+}
+
+// syncSubscriptionGrantExpiryTx moves the expiry of the subscription's
+// active grants to its new period end. Nodes only receive grants that
+// have not expired, so without this an admin extension would still cut
+// access at the old date. Affected nodes get a new desired revision.
+func syncSubscriptionGrantExpiryTx(ctx context.Context, tx pgx.Tx, subscriptionID string, periodEnd time.Time) error {
+	rows, err := tx.Query(ctx, `
+		update access_grants
+		set expires_at = $2, updated_at = now()
+		where subscription_id = $1 and status = 'active' and expires_at <> $2
+		returning node_id::text`, subscriptionID, periodEnd)
+	if err != nil {
+		return err
+	}
+	nodes := map[string]bool{}
+	for rows.Next() {
+		var nodeID string
+		if err := rows.Scan(&nodeID); err != nil {
+			rows.Close()
+			return err
+		}
+		nodes[nodeID] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for nodeID := range nodes {
+		revision, err := refreshNodeDesiredStateTx(ctx, tx, nodeID)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			update access_grants set desired_revision = $3, updated_at = now()
+			where subscription_id = $1 and node_id = $2 and status = 'active'`, subscriptionID, nodeID, revision); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ResetSubscriptionUsage zeroes the running usage counter that traffic-limit

@@ -548,6 +548,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DomainError"
+  /v1/admin/users/{userID}/access:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Issue the missing access credential of the user's live subscription (admin, superadmin)
+      description: >
+        For a subscription that has no active credential (bought in the app,
+        or created before primary_grant_id existed): issues a grant on the
+        default online node, stores it as the stable credential, writes an
+        access_created audit event and returns the refreshed user details.
+        Idempotent: an existing active credential is kept and nothing is
+        created.
+      parameters:
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Credential present; refreshed user details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserDetails"
+        "404":
+          description: USER_NOT_FOUND or SUBSCRIPTION_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "422":
+          description: SUBSCRIPTION_NOT_ACTIVE (past_due, suspended, pending or expired period)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "500":
+          description: ACCESS_ISSUE_FAILED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "503":
+          description: NO_NODE_AVAILABLE
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
   /v1/admin/users/{userID}/password-reset:
     post:
       security:

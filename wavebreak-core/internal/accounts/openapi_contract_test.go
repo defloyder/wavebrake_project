@@ -55,7 +55,7 @@ func TestOpenAPIDocumentsAccountResponses(t *testing.T) {
 	if len(missing) > 0 {
 		t.Fatalf("openapi.yaml does not document response fields: %v", missing)
 	}
-	for _, path := range []string{"/v1/admin/users/{userID}/subscriptions:", "/v1/admin/users/{userID}/password-reset:", "/v1/admin/users/{userID}/devices:", "/v1/auth/password-reset/confirm:"} {
+	for _, path := range []string{"/v1/admin/users/{userID}/subscriptions:", "/v1/admin/users/{userID}/password-reset:", "/v1/admin/users/{userID}/access:", "/v1/admin/users/{userID}/devices:", "/v1/auth/password-reset/confirm:"} {
 		if !strings.Contains(spec, "  "+path) {
 			t.Fatalf("openapi.yaml missing path %s", path)
 		}

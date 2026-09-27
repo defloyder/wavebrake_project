@@ -159,6 +159,18 @@ func TestAdminAccountManagementE2E(t *testing.T) {
 	if code, d := call(http.MethodPost, "/v1/subscriptions", &target, map[string]string{"plan_id": planID}); code != 409 {
 		t.Fatalf("legacy duplicate purchase: %d %v", code, d)
 	}
+	// 5b. Extending the subscription moves its key's expiry too, otherwise
+	// nodes would drop the key at the old date.
+	newEnd := time.Now().UTC().Add(90 * 24 * time.Hour).Truncate(time.Second)
+	if code, d := call(http.MethodPatch, "/v1/admin/subscriptions/"+sub["id"].(string), &admin, map[string]string{"expires_at": newEnd.Format(time.RFC3339)}); code != 200 {
+		t.Fatalf("extend subscription: %d %v", code, d)
+	}
+	var grantExpiry time.Time
+	var grantRevision, nodeRevision int
+	_ = pool.QueryRow(ctx, `select g.expires_at, g.desired_revision, n.desired_revision from access_grants g join nodes n on n.id = g.node_id where g.id = $1`, credential).Scan(&grantExpiry, &grantRevision, &nodeRevision)
+	if !grantExpiry.Equal(newEnd) || grantRevision != nodeRevision {
+		t.Fatalf("grant not moved with the subscription: expiry=%v want %v, revision %d vs node %d", grantExpiry, newEnd, grantRevision, nodeRevision)
+	}
 	// 6. Node usage report shows up as traffic.
 	if err := st.RecordNodeUsageReport(ctx, nodeID, credential, 1<<30, 3<<30, time.Now()); err != nil {
 		t.Fatalf("usage report: %v", err)
@@ -177,6 +189,27 @@ func TestAdminAccountManagementE2E(t *testing.T) {
 	items := devices["items"].([]any)
 	if devices["registered"].(float64) != 1 || len(items) != 1 || items[0].(map[string]any)["subscription_id"] != sub["id"] {
 		t.Fatalf("devices after register: %v", devices)
+	}
+	// 7b. Issue access: idempotent while a credential exists; after it is
+	// revoked (an app-bought subscription has none) a new one is issued.
+	if code, _ := call(http.MethodPost, detailsPath+"/access", &support, nil); code != 403 {
+		t.Fatalf("support issue access: %d", code)
+	}
+	code, d = call(http.MethodPost, detailsPath+"/access", &admin, nil)
+	if code != 200 || d["access"].(map[string]any)["credential_id"] != credential {
+		t.Fatalf("idempotent issue access: %d %v", code, d)
+	}
+	if _, err := st.RevokeAccessGrant(ctx, "", credential, "e2e"); err != nil {
+		t.Fatal(err)
+	}
+	_, d = call(http.MethodGet, detailsPath, &admin, nil)
+	if d["access"].(map[string]any)["credential_id"] != nil {
+		t.Fatalf("credential should be gone after revoke: %v", d["access"])
+	}
+	code, d = call(http.MethodPost, detailsPath+"/access", &admin, nil)
+	newCredential, _ := d["access"].(map[string]any)["credential_id"].(string)
+	if code != 200 || newCredential == "" || newCredential == credential {
+		t.Fatalf("issue access after revoke: %d %v", code, d)
 	}
 	// 8. Password reset: created, only hash stored, one-time, audited.
 	code, d = call(http.MethodPost, detailsPath+"/password-reset", &admin, nil)

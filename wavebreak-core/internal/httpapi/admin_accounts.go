@@ -99,6 +99,17 @@ func (s *Server) adminIssueUserSubscription(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusCreated, details)
 }
 
+// POST /v1/admin/users/{userID}/access
+// Issues the missing credential of the user's live subscription.
+func (s *Server) adminIssueUserAccess(w http.ResponseWriter, r *http.Request) {
+	details, err := s.accounts.assign.IssueAccess(r.Context(), actorFrom(r), chi.URLParam(r, "userID"))
+	if err != nil {
+		writeDomainError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, details)
+}
+
 // POST /v1/admin/users/{userID}/password-reset
 func (s *Server) adminRequestPasswordReset(w http.ResponseWriter, r *http.Request) {
 	result, err := s.accounts.reset.Request(r.Context(), actorFrom(r), chi.URLParam(r, "userID"))

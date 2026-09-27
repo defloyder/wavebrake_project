@@ -18,6 +18,9 @@ const (
 	CodePlanInactive                    = "PLAN_INACTIVE"
 	CodeSubscriptionAlreadyActive       = "SUBSCRIPTION_ALREADY_ACTIVE"
 	CodeSubscriptionCreateFailed        = "SUBSCRIPTION_CREATE_FAILED"
+	CodeSubscriptionNotFound            = "SUBSCRIPTION_NOT_FOUND"
+	CodeSubscriptionNotActive           = "SUBSCRIPTION_NOT_ACTIVE"
+	CodeAccessIssueFailed               = "ACCESS_ISSUE_FAILED"
 	CodeNoNodeAvailable                 = "NO_NODE_AVAILABLE"
 	CodePasswordResetChannelUnavailable = "PASSWORD_RESET_CHANNEL_UNAVAILABLE"
 	CodePasswordResetFailed             = "PASSWORD_RESET_FAILED"
@@ -56,6 +59,12 @@ var (
 	}
 	errAlreadyActive = func() *DomainError {
 		return newError(http.StatusConflict, CodeSubscriptionAlreadyActive, "User already has an active subscription.", nil)
+	}
+	errNoSubscription = func() *DomainError {
+		return newError(http.StatusNotFound, CodeSubscriptionNotFound, "User has no live subscription.", nil)
+	}
+	errSubscriptionNotActive = func() *DomainError {
+		return newError(http.StatusUnprocessableEntity, CodeSubscriptionNotActive, "Access can only be issued for an active, unexpired subscription.", nil)
 	}
 	errNoNode = func() *DomainError {
 		return newError(http.StatusServiceUnavailable, CodeNoNodeAvailable, "No node is available to issue access.", nil)

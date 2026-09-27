@@ -200,25 +200,28 @@ func accessView(grants []GrantRecord, primary *string, urls SubscriptionURLBuild
 			view.ActiveGrants++
 		}
 	}
-	credential := ""
-	if primary != nil {
-		for _, g := range grants {
-			if g.ID == *primary && g.Status == "active" {
-				credential = g.ID
-			}
-		}
-	}
-	if credential == "" {
-		for _, g := range grants {
-			if g.Status == "active" {
-				credential = g.ID
-				break
-			}
-		}
-	}
+	credential := currentCredential(grants, primary)
 	view.CredentialID = credential
 	view.SubscriptionURL = urls.Build(credential)
 	return view
+}
+
+// currentCredential is the primary grant if it is still active, else the
+// newest active grant, else "". grants must be sorted newest first.
+func currentCredential(grants []GrantRecord, primary *string) string {
+	if primary != nil {
+		for _, g := range grants {
+			if g.ID == *primary && g.Status == "active" {
+				return g.ID
+			}
+		}
+	}
+	for _, g := range grants {
+		if g.Status == "active" {
+			return g.ID
+		}
+	}
+	return ""
 }
 
 func devicesView(devices []DeviceRecord, sub *SubscriptionView) DevicesView {

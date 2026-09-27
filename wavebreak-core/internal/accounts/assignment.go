@@ -3,6 +3,7 @@ package accounts
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 )
 
@@ -91,6 +92,64 @@ func (s *SubscriptionAssignmentService) Issue(ctx context.Context, actor Actor, 
 			"expires_at": sub.CurrentPeriodEnd.UTC().Format(time.RFC3339),
 		},
 	})
+	s.record(ctx, AuditEntry{
+		Actor: actor, TargetUserID: userID, Action: AuditAccessCreated,
+		ResourceType: "access_grant", ResourceID: grant.ID,
+		Metadata: map[string]any{"subscription_id": sub.ID, "node_id": nodeID, "protocol": grant.Protocol},
+	})
+
+	return s.details.Get(ctx, userID)
+}
+
+// IssueAccess issues the missing credential of the user's live
+// subscription (subscriptions bought in the app, or created before
+// primary_grant_id existed, may have none). Idempotent: an existing
+// active credential is kept and nothing is created.
+func (s *SubscriptionAssignmentService) IssueAccess(ctx context.Context, actor Actor, userID string) (UserDetails, error) {
+	if _, err := s.users.UserByID(ctx, userID); errors.Is(err, ErrNotFound) {
+		return UserDetails{}, errUserNotFound()
+	} else if err != nil {
+		return UserDetails{}, wrapInternal(CodeInternal, "Could not load user.", err)
+	}
+
+	sub, err := s.subs.LiveSubscription(ctx, userID)
+	if errors.Is(err, ErrNotFound) {
+		return UserDetails{}, errNoSubscription()
+	} else if err != nil {
+		return UserDetails{}, wrapInternal(CodeInternal, "Could not load subscription.", err)
+	}
+	if sub.Status != "active" || !sub.CurrentPeriodEnd.After(time.Now()) {
+		return UserDetails{}, errSubscriptionNotActive()
+	}
+
+	grants, err := s.subs.Grants(ctx, sub.ID)
+	if err != nil {
+		return UserDetails{}, wrapInternal(CodeInternal, "Could not load access grants.", err)
+	}
+	sort.SliceStable(grants, func(i, j int) bool { return grants[i].CreatedAt.After(grants[j].CreatedAt) })
+	if existing := currentCredential(grants, sub.PrimaryGrantID); existing != "" {
+		if sub.PrimaryGrantID == nil || *sub.PrimaryGrantID != existing {
+			if err := s.subs.SetPrimaryGrant(ctx, sub.ID, existing); err != nil {
+				return UserDetails{}, wrapInternal(CodeAccessIssueFailed, "Access credential could not be linked to the subscription.", err)
+			}
+		}
+		return s.details.Get(ctx, userID)
+	}
+
+	nodeID, err := s.access.DefaultNodeID(ctx)
+	if errors.Is(err, ErrNotFound) {
+		return UserDetails{}, errNoNode()
+	} else if err != nil {
+		return UserDetails{}, wrapInternal(CodeInternal, "Could not select a node.", err)
+	}
+	grant, err := s.access.CreateSubscriptionGrant(ctx, userID, nodeID, s.protocol, sub.CurrentPeriodEnd)
+	if err != nil {
+		return UserDetails{}, wrapInternal(CodeAccessIssueFailed, "Access credential could not be issued.", err)
+	}
+	if err := s.subs.SetPrimaryGrant(ctx, sub.ID, grant.ID); err != nil {
+		return UserDetails{}, wrapInternal(CodeAccessIssueFailed, "Access credential could not be linked to the subscription.", err)
+	}
+
 	s.record(ctx, AuditEntry{
 		Actor: actor, TargetUserID: userID, Action: AuditAccessCreated,
 		ResourceType: "access_grant", ResourceID: grant.ID,

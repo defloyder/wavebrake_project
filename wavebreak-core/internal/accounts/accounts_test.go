@@ -318,6 +318,67 @@ func TestIssueSubscriptionValidatesUserPlanAndNode(t *testing.T) {
 	}
 }
 
+// A subscription bought in the app has no credential; the admin issues one.
+func TestIssueAccessForSubscriptionWithoutCredential(t *testing.T) {
+	f := newFixture()
+	ctx := context.Background()
+	if _, err := f.repo.Create(ctx, "u1", "p-starter", "app", ""); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := f.details.Get(ctx, "u1")
+	if before.Access.CredentialID != "" {
+		t.Fatalf("precondition: no credential expected, got %q", before.Access.CredentialID)
+	}
+
+	d, err := f.assign.IssueAccess(ctx, f.actor, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Access.CredentialID == "" || d.Access.SubscriptionURL == "" || d.Access.ActiveGrants != 1 {
+		t.Fatalf("credential not issued: %+v", d.Access)
+	}
+	sub, _ := f.repo.LiveSubscription(ctx, "u1")
+	if sub.PrimaryGrantID == nil || *sub.PrimaryGrantID != d.Access.CredentialID {
+		t.Fatalf("primary grant not linked: %+v", sub.PrimaryGrantID)
+	}
+	if len(f.repo.audit) != 1 || f.repo.audit[0].Action != AuditAccessCreated || f.repo.audit[0].TargetUserID != "u1" {
+		t.Fatalf("audit = %+v", f.repo.audit)
+	}
+
+	// Idempotent: a second call keeps the credential and creates nothing.
+	again, err := f.assign.IssueAccess(ctx, f.actor, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Access.CredentialID != d.Access.CredentialID || again.Access.ActiveGrants != 1 || len(f.repo.audit) != 1 {
+		t.Fatalf("second call must not issue a new credential: %+v", again.Access)
+	}
+}
+
+func TestIssueAccessValidation(t *testing.T) {
+	f := newFixture()
+	ctx := context.Background()
+	if _, err := f.assign.IssueAccess(ctx, f.actor, "ghost"); codeOf(err) != CodeUserNotFound {
+		t.Fatalf("want USER_NOT_FOUND, got %v", err)
+	}
+	if _, err := f.assign.IssueAccess(ctx, f.actor, "u1"); codeOf(err) != CodeSubscriptionNotFound {
+		t.Fatalf("want SUBSCRIPTION_NOT_FOUND, got %v", err)
+	}
+	sub, _ := f.repo.Create(ctx, "u1", "p-starter", "app", "")
+	f.repo.subs[len(f.repo.subs)-1].Status = "past_due"
+	if _, err := f.assign.IssueAccess(ctx, f.actor, "u1"); codeOf(err) != CodeSubscriptionNotActive {
+		t.Fatalf("past_due: want SUBSCRIPTION_NOT_ACTIVE, got %v", err)
+	}
+	f.repo.subs[len(f.repo.subs)-1].Status = "active"
+	f.repo.nodeID = ""
+	if _, err := f.assign.IssueAccess(ctx, f.actor, "u1"); codeOf(err) != CodeNoNodeAvailable {
+		t.Fatalf("want NO_NODE_AVAILABLE, got %v", err)
+	}
+	if len(f.repo.grants[sub.ID]) != 0 {
+		t.Fatal("no grant must be created on failure")
+	}
+}
+
 func TestTrafficSummary(t *testing.T) {
 	s := NewTrafficSummary(UsageTotals{BytesUp: 1 << 30, BytesDown: 3 << 30}, int64p(10<<30))
 	if s.BytesTotal != 4<<30 || *s.RemainingBytes != 6<<30 || *s.UsedPercent != 40 {

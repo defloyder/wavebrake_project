@@ -104,6 +104,7 @@ func (s *Server) router() http.Handler {
 			r.Post("/admin/users/{userID}/disable", s.adminDisableUser)
 			r.Post("/admin/users/{userID}/enable", s.adminEnableUser)
 			r.Post("/admin/users/{userID}/subscriptions", s.adminIssueUserSubscription)
+			r.Post("/admin/users/{userID}/access", s.adminIssueUserAccess)
 			r.Post("/admin/users/{userID}/password-reset", s.adminRequestPasswordReset)
 			r.With(s.requireRole("superadmin")).Delete("/admin/users/{userID}", s.adminDeleteUser)
 			r.Get("/admin/plans", s.adminPlans)
