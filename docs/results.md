@@ -38,3 +38,11 @@ Pass 1 tests added:
 - `wavebreak-core/internal/config`: production default secret validation tests.
 - `wavebreak-core/internal/store`: migration contract test for RBAC, refresh rotation, node token, and desired-state columns.
 - `wavebreak-node/internal/agent`: enroll, heartbeat, desired-state fetch, and ACK loop test.
+
+Admin user management (2026-09-27):
+
+- `wavebreak-core`: `go vet ./...` and `go test ./...` pass (accounts use-case tests with in-memory ports, RBAC/error-shape tests, OpenAPI contract test that checks every emitted JSON field is documented).
+- `wavebreak-core`: DB E2E `TestAdminAccountManagementE2E` passes on a fresh PostgreSQL 17 (all 4 migrations from zero): plans list, RBAC (support reads, cannot issue; user forbidden), issue -> subscription/credential/URL, duplicate -> 409 (admin and legacy purchase), node usage report -> traffic, device registration -> devices 1/3 bound to the subscription, reset token hashed-only / one-time / login with new password, audit with request ids and no secrets. Run: `WAVEBREAK_TEST_DATABASE_URL=postgres://... go test ./internal/httpapi -run E2E`.
+- Migration `00004` dedupe verified on data with duplicate live subscriptions: only the one with traffic survived; the unique index rejects a new duplicate.
+- `wavebreak-admin`: `php artisan test` 26/26 (101 assertions) in `composer:2` (PHP 8.5); 10 new feature tests for the user modal with Core faked over HTTP.
+- End-to-end on a local stack (Core API from source + PostgreSQL 17 + Admin via `php artisan serve`), driven in a browser: Users -> open user -> "No active subscription" -> plan select from Core -> issue -> modal refreshed in place (plan, active, dates, masked URL + copy, credential, traffic 0 B / 100 GB, devices 0 / 1) -> node `POST /v1/node/usage` -> traffic 10 GB / 90 GB left / 10% -> device registered -> Devices 1 / 1 -> password reset link created; audit rows `subscription_issued`, `access_created`, `password_reset_requested` with actor, target and request id.

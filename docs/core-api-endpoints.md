@@ -69,3 +69,17 @@ Notes:
 - `GET /v1/access/grants/{grantID}/config` is the app-facing VPN config contract. Current status is `pending_runtime_config`; real WireGuard/Outline material is the next backend step.
 - `POST /v1/node/usage` accepts monotonic aggregate counters per `grant_id` and aggregates them into subscription usage.
 - Access grant create/revoke updates node desired-state and relies on the existing node ACK flow.
+
+Admin user management (`internal/accounts`, see `wavebreak-core/api/openapi.yaml`):
+
+- `GET /v1/admin/users/{userID}` (support, admin, superadmin): one normalized response `{user, subscription, access, traffic, devices, connections}`.
+  - `subscription`: the live subscription with its plan, `started_at`, `expires_at`, effective `traffic_limit_bytes` / `device_limit`; `null` when none.
+  - `access`: `credential_id` (primary access grant id), `subscription_url` (built only by `accounts.SubscriptionURLBuilder` from `WAVEBREAK_SUBSCRIPTION_URL_BASE`, default `https://api.wavebreak.com.tr/v1/sub/`), `active_grants`, `grants[]`.
+  - `traffic`: `bytes_up`, `bytes_down`, `bytes_total`, `limit_bytes`, `remaining_bytes`, `used_percent` aggregated from `subscription_usage`; the three limit fields are `null` for an unlimited plan; `null` without a subscription.
+  - `devices`: `registered` (non-revoked), `limit` (from the live subscription), `items[]`.
+  - `connections.active`: `null` until nodes report live connections (`source: not_reported`).
+- `GET /v1/admin/users/{userID}/devices` (support, admin, superadmin).
+- `POST /v1/admin/users/{userID}/subscriptions` `{"plan_id"}` (admin, superadmin): validates user and plan, rejects a second live subscription, creates + activates it with the plan snapshot, issues its grant on the online node with the freshest heartbeat (protocol `WAVEBREAK_ADMIN_ACCESS_PROTOCOL`, default `vless`), stores it as `primary_grant_id`, audits `subscription_issued` and `access_created`, returns the refreshed details (201).
+- `POST /v1/admin/users/{userID}/password-reset` (admin, superadmin): creates a one-time reset token (TTL `WAVEBREAK_PASSWORD_RESET_TTL`, default 1h), stores only its hash, builds `WAVEBREAK_PASSWORD_RESET_URL_BASE?token=...` and hands it to the notifier, audits `password_reset_requested`, returns `{status: reset_link_created, channel, delivery, expires_at}` (202). No email provider exists yet, so `delivery` is `not_configured`. Users without email -> `PASSWORD_RESET_CHANNEL_UNAVAILABLE` (422).
+- `POST /v1/auth/password-reset/confirm` `{"token","password"}` (public): consumes the token once before expiry, sets the password (argon2id), revokes all sessions, audits `password_reset_completed`. Invalid/expired/used -> `PASSWORD_RESET_TOKEN_INVALID` (400).
+- Error model of these endpoints: `{"error": {"code", "message", "request_id"}}` with codes `USER_NOT_FOUND`, `PLAN_NOT_FOUND`, `PLAN_INACTIVE`, `SUBSCRIPTION_ALREADY_ACTIVE`, `SUBSCRIPTION_CREATE_FAILED`, `NO_NODE_AVAILABLE`, `PASSWORD_RESET_CHANNEL_UNAVAILABLE`, `PASSWORD_RESET_FAILED`, `PASSWORD_RESET_TOKEN_INVALID`, `WEAK_PASSWORD`, `VALIDATION_FAILED`, `INTERNAL_ERROR`. Older endpoints keep `{"code","error"}` because shipped mobile/desktop clients parse it; they now answer `409 SUBSCRIPTION_ALREADY_ACTIVE` instead of 500 on a duplicate subscription.

@@ -58,3 +58,14 @@ Product/Core completion columns added in migration `00002_product_core_completio
 - `devices` support `device_public_id`, `platform`, `last_seen_at`, and soft revoke.
 - `access_grants` now track `subscription_id`, `device_id`, revoke fields, and the desired-state revision that carried the change.
 - `subscription_usage`, `subscription_usage_daily`, and `grant_usage_counters` aggregate monotonic node usage reports into subscription traffic accounting.
+
+Admin user management added in migration `00004_admin_user_management.sql`:
+
+- One live subscription per user: live statuses are `pending`, `trialing`, `active`, `past_due`, `suspended`. The migration first closes duplicates (keeps the subscription that carries traffic, tie -> newest; others become `cancelled`, their active grants `revoked` with reason `subscription_deduplicated`) and then creates the partial unique index `subscriptions_one_live_per_user_idx`. Core maps a violation to `SUBSCRIPTION_ALREADY_ACTIVE` (409).
+- `subscriptions.primary_grant_id` -> `access_grants(id)`: the subscription's stable credential. Its id is the VLESS UUID / Hysteria2 user and the last segment of the subscription URL. Legacy subscriptions without it fall back to their newest active grant (read-only; never mutated on read).
+- `devices.subscription_id` -> `subscriptions(id)`: set on `POST /v1/me/devices` to the user's live subscription; `last_seen_at` is set on registration. Device status is derived: `revoked_at` null -> `active`, else `revoked`.
+- `password_reset_tokens`: `user_id`, `token_hash` (SHA-256 hex, unique; the token itself is never stored), `channel`, `requested_by`, `expires_at` (default 1h), `used_at` (one-time). Using a token also invalidates the user's other open tokens and revokes all sessions.
+- `audit_events.target_user_id` and `audit_events.request_id` (+ index on `target_user_id, created_at`). Metadata never contains passwords, tokens, subscription URLs or key material.
+- Indexes: `subscriptions(user_id, status)`, `node_usage_reports(grant_id, reported_at)` (`devices(user_id, revoked_at)` and `access_grants(user_id, status)` already existed).
+- `access_credentials` stays unused (reserved for WireGuard material); the credential nodes accept is the access grant id.
+- Migration `00003_normalize_user_email.sql` got `-- +goose StatementBegin/End` around its `DO $$` block; before that it could not run (the pilot was at version 2).

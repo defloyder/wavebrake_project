@@ -4,6 +4,18 @@
 
 Этот документ нужен следующему агенту или разработчику, чтобы быстро понять текущее состояние проекта и не откатить важные рабочие решения.
 
+## 2026-09-27: управление подпиской пользователя из админки (ветка `app-main-sync`)
+
+- Core: пакет `wavebreak-core/internal/accounts` (сервисы сценариев поверх интерфейсов-портов; реализация портов — `store/accounts_repository.go`). Эндпоинты: `GET /v1/admin/users/{id}`, `GET /v1/admin/users/{id}/devices`, `POST /v1/admin/users/{id}/subscriptions`, `POST /v1/admin/users/{id}/password-reset`, публичный `POST /v1/auth/password-reset/confirm`. Подробности — `docs/core-api-endpoints.md`, контракт — `wavebreak-core/api/openapi.yaml`.
+- Правило проекта: у пользователя ровно одна «живая» подписка (`pending|trialing|active|past_due|suspended`). Держится уникальным индексом из миграции `00004`; все пути создания подписки отвечают `409 SUBSCRIPTION_ALREADY_ACTIVE`.
+- Credential подписки = `subscriptions.primary_grant_id` (id access grant — это и VLESS UUID, и пользователь Hysteria2). Ссылка подписки строится только `accounts.SubscriptionURLBuilder` из `WAVEBREAK_SUBSCRIPTION_URL_BASE`. Таблица `access_credentials` не используется.
+- Сброс пароля: одноразовый токен на 1 час, в БД только SHA-256. Почтового провайдера в Core нет — `delivery: not_configured`; страницы `/reset-password` на сайте пока нет.
+- Admin: кнопка «Открыть» в Users → модалка (`UserDetailsController` → `UserAdministrationService` → `CoreClient`; ошибки Core → `CoreApiException` + `CoreErrorMessages`). Прямых обращений к БД Core нет.
+- ВНИМАНИЕ при выкладке: на пилоте применены только миграции 1–2. Выкладка применит `00003` (исправлена в `c5760b8`: без `goose StatementBegin/End` она не выполнялась) и `00004` (закроет дубли «живых» подписок — на 27.09 их было у 2 пользователей, остаётся та, где идёт трафик).
+- Локальный стенд: `php artisan serve` передаёт в приложение только белый список переменных окружения — `APP_KEY`/`WAVEBREAK_CORE_URL` нужно класть в `.env`, а не в `-e`. E2E Core на БД: `WAVEBREAK_TEST_DATABASE_URL=... go test ./internal/httpapi -run E2E`.
+- Известная проблема мобилки (не исправлена в этой задаче): `wavebreak-mobile/lib/services/vpn/bundled_locations.dart` зашивает ссылки REALITY/Direct-TLS/Hysteria2 с общими учётными данными одного grant — все платные пользователи ходят под ним, учёт трафика и лимиты по пользователям не работают. Нужно перевести приложение на персональные grant из Core (`/v1/access/grants/{id}/config`).
+- REALITY перенесён на свой DNS-only домен `r.wavebreak.com.tr` (сертификат LE, nginx `127.0.0.1:18447` как `dest`, `.env.pilot`: `XRAY_REALITY_SERVER_NAME`, `XRAY_REALITY_DEST`). С сетей владельца REALITY всё равно не пропускает данные после рукопожатия — расследование продолжается (кандидаты: REALITY без Vision, REALITY поверх XHTTP/gRPC).
+
 ## Публичный сайт: единый стиль и очистка
 
 - Публичные страницы: `/`, `/pricing`, `/access`, `/download`. Общие шапка и футер подключаются только из `wavebreak-web/resources/views/layout.blade.php`.
