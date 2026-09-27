@@ -22,6 +22,18 @@ type Config struct {
 	BotServiceToken string
 	OTLPEndpoint    string
 	VLESS           VLESSConfig
+	Accounts        AccountsConfig
+}
+
+// AccountsConfig drives admin account management (internal/accounts).
+type AccountsConfig struct {
+	// SubscriptionURLBase + credential id = the user's subscription URL.
+	SubscriptionURLBase string
+	// PasswordResetURLBase + "?token=..." = the link sent to the user.
+	PasswordResetURLBase string
+	PasswordResetTTL     time.Duration
+	// AccessProtocol of credentials issued with an admin-assigned subscription.
+	AccessProtocol string
 }
 
 type VLESSConfig struct {
@@ -141,6 +153,12 @@ func Load() (Config, error) {
 		RefreshTokenTTL: mustDuration(env("WAVEBREAK_REFRESH_TOKEN_TTL", "720h")),
 		BotServiceToken: env("WAVEBREAK_BOT_SERVICE_TOKEN", ""),
 		OTLPEndpoint:    env("WAVEBREAK_OTLP_ENDPOINT", "localhost:4317"),
+		Accounts: AccountsConfig{
+			SubscriptionURLBase:  env("WAVEBREAK_SUBSCRIPTION_URL_BASE", "https://api.wavebreak.com.tr/v1/sub/"),
+			PasswordResetURLBase: env("WAVEBREAK_PASSWORD_RESET_URL_BASE", "https://wavebreak.com.tr/reset-password"),
+			PasswordResetTTL:     mustDuration(env("WAVEBREAK_PASSWORD_RESET_TTL", "1h")),
+			AccessProtocol:       env("WAVEBREAK_ADMIN_ACCESS_PROTOCOL", "vless"),
+		},
 		VLESS: VLESSConfig{
 			PublicHost:         env("WAVEBREAK_VLESS_PUBLIC_HOST", ""),
 			PublicPort:         vlessPort,

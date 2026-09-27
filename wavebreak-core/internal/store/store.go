@@ -285,6 +285,9 @@ func (s *Store) CreateSubscriptionForOptions(ctx context.Context, userID, planID
 		          traffic_limit_override_bytes, device_limit_override, current_period_end, created_at, updated_at`,
 		userID, planID, source, createdBy, status, currentPeriodEnd,
 	).Scan(&sub.ID, &sub.UserID, &sub.PlanID, &sub.Status, &sub.Source, &sub.SourceReference, &sub.CreatedBy, &sub.TrafficLimitBytesSnapshot, &sub.DeviceLimitSnapshot, &sub.ConcurrentConnectionLimitSnapshot, &sub.TrafficLimitOverrideBytes, &sub.DeviceLimitOverride, &sub.CurrentPeriodEnd, &sub.CreatedAt, &sub.UpdatedAt)
+	if isLiveSubscriptionConflict(err) {
+		return Subscription{}, ErrLiveSubscriptionExists
+	}
 	if err != nil {
 		return Subscription{}, err
 	}

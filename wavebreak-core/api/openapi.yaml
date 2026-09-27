@@ -75,6 +75,40 @@ paths:
       responses:
         "200":
           description: Token revoked
+  /v1/auth/password-reset/confirm:
+    post:
+      summary: Set a new password with a one-time reset token
+      description: Public. The token (from the reset link) is single-use and expires (default 1h). All sessions of the user are revoked.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  minLength: 10
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [password_updated]
+        "400":
+          description: PASSWORD_RESET_TOKEN_INVALID (unknown, expired or used) or WEAK_PASSWORD
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
   /v1/me:
     get:
       security:
@@ -363,6 +397,30 @@ paths:
         "409":
           description: Email or username already exists
   /v1/admin/users/{userID}:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Normalized user details for the admin user modal (support, admin, superadmin)
+      parameters:
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User, live subscription, access credential + subscription URL, traffic, devices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserDetails"
+        "404":
+          description: USER_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
     patch:
       security:
         - bearerAuth: []
@@ -393,6 +451,135 @@ paths:
       responses:
         "200":
           description: User deleted
+  /v1/admin/users/{userID}/devices:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Registered devices of a user (support, admin, superadmin)
+      parameters:
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Device count, limit and list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserDevices"
+        "404":
+          description: USER_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+  /v1/admin/users/{userID}/subscriptions:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Force-assign a plan to a user without a live subscription (admin, superadmin)
+      description: >
+        Validates the user and plan, creates and activates the subscription
+        (plan terms snapshotted), issues its access grant on the default
+        online node, stores it as the subscription's stable credential,
+        writes subscription_issued + access_created audit events and returns
+        the refreshed user details.
+      parameters:
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan_id]
+              properties:
+                plan_id:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Subscription issued; refreshed user details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserDetails"
+        "400":
+          description: VALIDATION_FAILED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "404":
+          description: USER_NOT_FOUND or PLAN_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "409":
+          description: SUBSCRIPTION_ALREADY_ACTIVE
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "422":
+          description: PLAN_INACTIVE
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "500":
+          description: SUBSCRIPTION_CREATE_FAILED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "503":
+          description: NO_NODE_AVAILABLE
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+  /v1/admin/users/{userID}/password-reset:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Create a one-time password reset link and hand it to the notifier (admin, superadmin)
+      description: Only the token hash is stored. The link is never returned, logged or audited.
+      parameters:
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "202":
+          description: Reset link created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetResult"
+        "404":
+          description: USER_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
+        "422":
+          description: PASSWORD_RESET_CHANNEL_UNAVAILABLE (user has no email)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainError"
   /v1/admin/plans:
     get:
       security:
@@ -577,6 +764,140 @@ components:
       type: http
       scheme: bearer
   schemas:
+    DomainError:
+      type: object
+      description: Error model of the account-management endpoints. Older endpoints keep {"code","error"}.
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code:
+              type: string
+              example: SUBSCRIPTION_ALREADY_ACTIVE
+            message:
+              type: string
+            request_id:
+              type: string
+    TrafficSummary:
+      type: object
+      description: Aggregated usage of the live subscription. Unlimited plan -> limit_bytes, remaining_bytes and used_percent are null.
+      properties:
+        bytes_up: {type: integer, format: int64}
+        bytes_down: {type: integer, format: int64}
+        bytes_total: {type: integer, format: int64}
+        limit_bytes: {type: integer, format: int64, nullable: true}
+        remaining_bytes: {type: integer, format: int64, nullable: true}
+        used_percent: {type: number, nullable: true}
+    AdminUserDevices:
+      type: object
+      properties:
+        registered:
+          type: integer
+          description: Non-revoked devices
+        limit:
+          type: integer
+          nullable: true
+          description: Device limit of the live subscription; null without one
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string, format: uuid}
+              device_public_id: {type: string}
+              name: {type: string}
+              platform: {type: string, nullable: true}
+              subscription_id: {type: string, format: uuid, nullable: true}
+              status: {type: string, enum: [active, revoked]}
+              created_at: {type: string, format: date-time}
+              last_seen_at: {type: string, format: date-time, nullable: true}
+              revoked_at: {type: string, format: date-time, nullable: true}
+    AdminUserDetails:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id: {type: string, format: uuid}
+            email: {type: string}
+            username: {type: string}
+            role: {type: string}
+            status: {type: string}
+            created_at: {type: string, format: date-time}
+            last_login_at: {type: string, format: date-time, nullable: true}
+            disabled_at: {type: string, format: date-time, nullable: true}
+        subscription:
+          type: object
+          nullable: true
+          description: The user's one live subscription (pending, trialing, active, past_due, suspended); null when none
+          properties:
+            id: {type: string, format: uuid}
+            status: {type: string}
+            source: {type: string}
+            plan:
+              type: object
+              nullable: true
+              properties:
+                id: {type: string, format: uuid}
+                code: {type: string}
+                name: {type: string}
+                price_minor: {type: integer}
+                currency: {type: string}
+                interval: {type: string}
+                duration_days: {type: integer, nullable: true}
+                traffic_limit_bytes: {type: integer, format: int64, nullable: true}
+                device_limit: {type: integer}
+                is_active: {type: boolean}
+            started_at: {type: string, format: date-time, nullable: true}
+            expires_at: {type: string, format: date-time}
+            traffic_limit_bytes: {type: integer, format: int64, nullable: true}
+            device_limit: {type: integer}
+        access:
+          type: object
+          properties:
+            credential_id:
+              type: string
+              format: uuid
+              description: Access grant id nodes authenticate with (VLESS UUID / Hysteria2 user); the subscription's primary grant
+            subscription_url:
+              type: string
+              description: Built centrally from WAVEBREAK_SUBSCRIPTION_URL_BASE + credential_id. Sensitive.
+            active_grants: {type: integer}
+            grants:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: {type: string, format: uuid}
+                  node_id: {type: string, format: uuid}
+                  node_code: {type: string}
+                  device_id: {type: string, format: uuid, nullable: true}
+                  protocol: {type: string}
+                  status: {type: string}
+                  expires_at: {type: string, format: date-time}
+                  created_at: {type: string, format: date-time}
+        traffic:
+          allOf:
+            - $ref: "#/components/schemas/TrafficSummary"
+          nullable: true
+        devices:
+          $ref: "#/components/schemas/AdminUserDevices"
+        connections:
+          type: object
+          description: Reserved for node telemetry; active stays null until nodes report live connections
+          properties:
+            active: {type: integer, nullable: true}
+            source: {type: string, example: not_reported}
+    PasswordResetResult:
+      type: object
+      properties:
+        status: {type: string, enum: [reset_link_created]}
+        channel: {type: string, enum: [email]}
+        delivery:
+          type: string
+          description: sent, not_configured (no email provider in Core yet) or failed
+        expires_at: {type: string, format: date-time}
     RegisterRequest:
       type: object
       required: [email, password]

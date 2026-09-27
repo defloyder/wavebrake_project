@@ -18,11 +18,19 @@ import (
 )
 
 type Server struct {
-	app *app.App
+	app      *app.App
+	accounts *accountServices
 }
 
 func New(app *app.App) http.Handler {
-	s := &Server{app: app}
+	return newServer(app).router()
+}
+
+func newServer(app *app.App) *Server {
+	return &Server{app: app, accounts: newAccountServices(app)}
+}
+
+func (s *Server) router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -38,6 +46,7 @@ func New(app *app.App) http.Handler {
 		r.Post("/auth/login", s.login)
 		r.Post("/auth/refresh", s.refresh)
 		r.Post("/auth/logout", s.logout)
+		r.Post("/auth/password-reset/confirm", s.confirmPasswordReset)
 		r.Get("/plans", s.listPlans)
 		r.Post("/node/enroll", s.nodeEnrollWithToken)
 		r.Get("/sub/{grantID}", s.subscriptionByGrant)
@@ -78,6 +87,8 @@ func New(app *app.App) http.Handler {
 			r.Use(s.authRequired)
 			r.Use(s.requireRole("support", "admin", "superadmin"))
 			r.Get("/nodes", s.listNodes)
+			r.Get("/admin/users/{userID}", s.adminUserDetails)
+			r.Get("/admin/users/{userID}/devices", s.adminUserDevices)
 		})
 
 		r.Group(func(r chi.Router) {
@@ -92,6 +103,8 @@ func New(app *app.App) http.Handler {
 			r.Patch("/admin/users/{userID}/role", s.adminUpdateUserRole)
 			r.Post("/admin/users/{userID}/disable", s.adminDisableUser)
 			r.Post("/admin/users/{userID}/enable", s.adminEnableUser)
+			r.Post("/admin/users/{userID}/subscriptions", s.adminIssueUserSubscription)
+			r.Post("/admin/users/{userID}/password-reset", s.adminRequestPasswordReset)
 			r.With(s.requireRole("superadmin")).Delete("/admin/users/{userID}", s.adminDeleteUser)
 			r.Get("/admin/plans", s.adminPlans)
 			r.Post("/admin/plans", s.adminCreatePlan)
@@ -162,6 +175,10 @@ func (s *Server) createSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sub, err := s.app.Store.CreateSubscription(r.Context(), currentUser(r.Context()).ID, req.PlanID)
+	if errors.Is(err, store.ErrLiveSubscriptionExists) {
+		writeError(w, http.StatusConflict, "SUBSCRIPTION_ALREADY_ACTIVE")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "could not create subscription")
 		return

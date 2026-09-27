@@ -1142,6 +1142,10 @@ func (s *Server) adminCreateSubscription(w http.ResponseWriter, r *http.Request)
 		currentPeriodEnd = &parsed
 	}
 	subscription, err := s.app.Store.CreateSubscriptionForOptions(r.Context(), req.UserID, req.PlanID, "admin", actor, req.Status, currentPeriodEnd)
+	if errors.Is(err, store.ErrLiveSubscriptionExists) {
+		writeError(w, http.StatusConflict, "SUBSCRIPTION_ALREADY_ACTIVE")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "could not create subscription")
 		return
@@ -1168,6 +1172,10 @@ func (s *Server) adminUpdateSubscriptionStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 	subscription, err := s.app.Store.UpdateSubscriptionStatus(r.Context(), chi.URLParam(r, "subscriptionID"), req.Status)
+	if errors.Is(err, store.ErrLiveSubscriptionExists) {
+		writeError(w, http.StatusConflict, "SUBSCRIPTION_ALREADY_ACTIVE")
+		return
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "subscription not found")
 		return
@@ -1228,6 +1236,10 @@ func (s *Server) adminCreateManualSubscription(w http.ResponseWriter, r *http.Re
 
 	actor := currentUser(r.Context()).ID
 	sub, grant, err := s.app.Store.AdminCreateManualSubscription(r.Context(), req.UserID, trafficLimitBytes, req.DeviceLimit, expiresAt, req.NodeID, req.Protocol, actor)
+	if errors.Is(err, store.ErrLiveSubscriptionExists) {
+		writeError(w, http.StatusConflict, "SUBSCRIPTION_ALREADY_ACTIVE")
+		return
+	}
 	if errors.Is(err, store.ErrLimitReached) {
 		writeError(w, http.StatusForbidden, "TRAFFIC_LIMIT_REACHED")
 		return
@@ -1394,13 +1406,11 @@ func grantLabel(grantID string) string {
 	return "WVB-" + strings.ToUpper(id)
 }
 
-// subscriptionLink hardcodes the production API host rather than reading it
-// from config, since no such setting exists yet (see confirmed doc: the
-// public subscription URL format is already fixed at
-// https://api.wavebreak.com.tr/v1/sub/{grantID}). If Core's public host
-// ever becomes configurable, this should read that instead.
+// subscriptionLink: the one centralized builder (accounts.SubscriptionURLBuilder,
+// base from WAVEBREAK_SUBSCRIPTION_URL_BASE; default unchanged:
+// https://api.wavebreak.com.tr/v1/sub/{grantID}).
 func (s *Server) subscriptionLink(grantID string) string {
-	return "https://api.wavebreak.com.tr/v1/sub/" + grantID
+	return s.accounts.urls.Build(grantID)
 }
 
 func (s *Server) adminDevices(w http.ResponseWriter, r *http.Request) {

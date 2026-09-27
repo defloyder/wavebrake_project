@@ -347,8 +347,12 @@ func (s *Store) CreateDevice(ctx context.Context, userID, name, platform string)
 
 	var d Device
 	err = tx.QueryRow(ctx, `
-		insert into devices (user_id, name, platform)
-		values ($1, $2, nullif($3, ''))
+		insert into devices (user_id, name, platform, subscription_id, last_seen_at)
+		values ($1, $2, nullif($3, ''),
+		        (select id from subscriptions
+		         where user_id = $1 and status in ('pending', 'trialing', 'active', 'past_due', 'suspended')
+		         order by created_at desc limit 1),
+		        now())
 		returning id::text, user_id::text, coalesce(device_public_id, ''), name, platform, created_at, updated_at, last_seen_at, revoked_at`,
 		userID, name, platform,
 	).Scan(&d.ID, &d.UserID, &d.DevicePublicID, &d.Name, &d.Platform, &d.CreatedAt, &d.UpdatedAt, &d.LastSeenAt, &d.RevokedAt)
@@ -1129,6 +1133,9 @@ func (s *Store) AdminCreateManualSubscription(ctx context.Context, userID string
 		          traffic_limit_override_bytes, device_limit_override, current_period_end, created_at, updated_at`,
 		userID, planID, createdBy, periodEnd, trafficLimitBytes, devLimit,
 	).Scan(&sub.ID, &sub.UserID, &sub.PlanID, &sub.Status, &sub.Source, &sub.SourceReference, &sub.CreatedBy, &sub.TrafficLimitBytesSnapshot, &sub.DeviceLimitSnapshot, &sub.ConcurrentConnectionLimitSnapshot, &sub.TrafficLimitOverrideBytes, &sub.DeviceLimitOverride, &sub.CurrentPeriodEnd, &sub.CreatedAt, &sub.UpdatedAt)
+	if isLiveSubscriptionConflict(err) {
+		return Subscription{}, AccessGrant{}, ErrLiveSubscriptionExists
+	}
 	if err != nil {
 		return Subscription{}, AccessGrant{}, err
 	}
@@ -1312,6 +1319,9 @@ func (s *Store) UpdateSubscriptionStatus(ctx context.Context, subscriptionID, st
 		          traffic_limit_override_bytes, device_limit_override, current_period_end, created_at, updated_at`,
 		subscriptionID, status,
 	).Scan(&sub.ID, &sub.UserID, &sub.PlanID, &sub.Status, &sub.Source, &sub.SourceReference, &sub.CreatedBy, &sub.TrafficLimitBytesSnapshot, &sub.DeviceLimitSnapshot, &sub.ConcurrentConnectionLimitSnapshot, &sub.TrafficLimitOverrideBytes, &sub.DeviceLimitOverride, &sub.CurrentPeriodEnd, &sub.CreatedAt, &sub.UpdatedAt)
+	if isLiveSubscriptionConflict(err) {
+		return Subscription{}, ErrLiveSubscriptionExists
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Subscription{}, ErrNotFound
 	}
