@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"wavebreak-core/internal/config"
+	"wavebreak-core/internal/relays"
 	"wavebreak-core/internal/security"
 	"wavebreak-core/internal/store"
 )
@@ -418,6 +419,24 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 	}
 
 	if strings.TrimSpace(vless.RealityXHTTPServerName) != "" {
+		// Domestic relays first: on mobile networks with IP/SNI whitelists
+		// they're the only TCP path that gets through. Dead ones are left
+		// out (see internal/relays).
+		for _, relay := range s.relays.Healthy() {
+			relayLink := buildVLESSRealityXHTTPRelayLink(vless, config.Grant.ID, relay, location)
+			links = append(links, relayLink)
+			config.VLESSRelays = append(config.VLESSRelays, map[string]any{
+				"client_id": config.Grant.ID,
+				"relay":     relay.Name,
+				"protocol":  "vless",
+				"security":  "reality",
+				"network":   "xhttp",
+				"server":    relay.Host,
+				"port":      relay.Port,
+				"sni":       vless.RealityXHTTPServerName,
+				"uri":       relayLink,
+			})
+		}
 		xhttpLink := buildVLESSRealityXHTTPLink(vless, config.Grant.ID, location)
 		links = append(links, xhttpLink)
 		config.VLESSRealityXHTTP = map[string]any{
@@ -644,6 +663,34 @@ func buildVLESSRealityXHTTPLink(vless config.VLESSConfig, grantID, location stri
 	query.Set("sid", vless.RealityShortID)
 	query.Set("spx", "/")
 	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
+}
+
+// buildVLESSRealityXHTTPRelayLink is the XHTTP+REALITY link through a
+// domestic relay: the relay's address, everything else as the direct link
+// (the relay forwards TCP untouched to the main node).
+func buildVLESSRealityXHTTPRelayLink(vless config.VLESSConfig, grantID string, relay relays.Relay, location string) string {
+	direct := buildVLESSRealityXHTTPLink(vless, grantID, location)
+	u, err := url.Parse(direct)
+	if err != nil {
+		return direct
+	}
+	u.Host = relay.Address()
+	// "🇹🇷 Turkey, Istanbul" -> "Istanbul": the app shows "Russia · Moscow → Istanbul".
+	destination := stripFlag(location)
+	if i := strings.LastIndex(destination, ", "); i >= 0 {
+		destination = destination[i+2:]
+	}
+	u.Fragment = fmt.Sprintf("🇷🇺 Russia, %s → %s (XHTTP)", relay.Name, destination)
+	return u.String()
+}
+
+// stripFlag drops a leading flag emoji ("🇹🇷 Turkey, Istanbul" -> "Turkey, Istanbul").
+func stripFlag(label string) string {
+	runes := []rune(strings.TrimSpace(label))
+	if len(runes) >= 2 && runes[0] >= 0x1F1E6 && runes[0] <= 0x1F1FF && runes[1] >= 0x1F1E6 && runes[1] <= 0x1F1FF {
+		return strings.TrimSpace(string(runes[2:]))
+	}
+	return string(runes)
 }
 
 // buildVLESSCDNLink renders VLESS over WebSocket+TLS pointed at the CDN

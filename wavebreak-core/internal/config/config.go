@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"wavebreak-core/internal/relays"
 )
 
 type Config struct {
@@ -109,6 +111,10 @@ type VLESSConfig struct {
 	// RealityXHTTPServerName is set. See wavebreak-node's XrayConfig.
 	RealityXHTTPServerName string
 	RealityXHTTPPath       string
+	// Relays: domestic TCP forwarders to PublicHost:PublicPort (see
+	// internal/relays), WAVEBREAK_VLESS_RELAYS="Moscow=1.2.3.4[:443],...".
+	// Each healthy one gets an XHTTP+REALITY link with its own address.
+	Relays []relays.Relay
 }
 
 func Load() (Config, error) {
@@ -204,6 +210,11 @@ func Load() (Config, error) {
 			RealityXHTTPPath:       env("WAVEBREAK_VLESS_REALITY_XHTTP_PATH", "/wvb-rx"),
 		},
 	}
+	relayList, err := relays.Parse(env("WAVEBREAK_VLESS_RELAYS", ""))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_VLESS_RELAYS: %w", err)
+	}
+	cfg.VLESS.Relays = relayList
 	if cfg.Environment == "production" {
 		if cfg.JWTSecret == "change-me-in-production" || len(cfg.JWTSecret) < 32 {
 			return Config{}, fmt.Errorf("WAVEBREAK_JWT_SECRET must be strong and set in production")

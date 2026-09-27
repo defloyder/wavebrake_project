@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"wavebreak-core/internal/accounts"
 	"wavebreak-core/internal/app"
 	"wavebreak-core/internal/observability"
+	"wavebreak-core/internal/relays"
 	"wavebreak-core/internal/security"
 	"wavebreak-core/internal/store"
 )
@@ -21,6 +23,8 @@ import (
 type Server struct {
 	app      *app.App
 	accounts *accountServices
+	// relays: domestic entry points and whether they're reachable now.
+	relays *relays.Registry
 }
 
 func New(app *app.App) http.Handler {
@@ -28,7 +32,11 @@ func New(app *app.App) http.Handler {
 }
 
 func newServer(app *app.App) *Server {
-	return &Server{app: app, accounts: newAccountServices(app)}
+	registry := relays.NewRegistry(app.Config.VLESS.Relays, nil, 5*time.Second)
+	// Checked for the life of the API process; a relay the hoster closed
+	// drops out of the links within ~2 minutes.
+	go registry.Run(context.Background(), time.Minute)
+	return &Server{app: app, accounts: newAccountServices(app), relays: registry}
 }
 
 func (s *Server) router() http.Handler {

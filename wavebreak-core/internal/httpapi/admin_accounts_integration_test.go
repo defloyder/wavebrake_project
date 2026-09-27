@@ -172,7 +172,13 @@ func TestAdminAccountManagementE2E(t *testing.T) {
 		t.Fatalf("grant not moved with the subscription: expiry=%v want %v, revision %d vs node %d", grantExpiry, newEnd, grantRevision, nodeRevision)
 	}
 	// 6. Node usage report shows up as traffic.
-	if err := st.RecordNodeUsageReport(ctx, nodeID, credential, 1<<30, 3<<30, time.Now()); err != nil {
+	// The node the credential was actually issued on (the freshest online
+	// one — other tests sharing this database may have added nodes).
+	var grantNodeID string
+	if err := pool.QueryRow(ctx, `select node_id::text from access_grants where id = $1`, credential).Scan(&grantNodeID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.RecordNodeUsageReport(ctx, grantNodeID, credential, 1<<30, 3<<30, time.Now()); err != nil {
 		t.Fatalf("usage report: %v", err)
 	}
 	_, d = call(http.MethodGet, detailsPath, &admin, nil)

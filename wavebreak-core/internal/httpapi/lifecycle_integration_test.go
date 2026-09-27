@@ -18,6 +18,7 @@ import (
 	"wavebreak-core/internal/app"
 	"wavebreak-core/internal/config"
 	"wavebreak-core/internal/database"
+	"wavebreak-core/internal/relays"
 	"wavebreak-core/internal/security"
 	"wavebreak-core/internal/store"
 )
@@ -56,6 +57,7 @@ func TestSubscriptionLifecycleE2E(t *testing.T) {
 			DirectTLSHost: "direct.e2e.test", DirectTLSPort: 443, DirectTLSPath: "/wvb-dt",
 			HysteriaHost: "45.15.41.3", HysteriaPort: 443,
 			RealityXHTTPServerName: "x.e2e.test", RealityXHTTPPath: "/wvb-rx",
+			Relays: []relays.Relay{{Name: "Moscow", Host: "198.51.100.7", Port: 443}},
 		},
 	}, Store: st}
 	srv := newServer(a)
@@ -77,7 +79,7 @@ func TestSubscriptionLifecycleE2E(t *testing.T) {
 	}
 	var nodeID string
 	if err := pool.QueryRow(ctx, `
-		insert into nodes (code, region, status, last_heartbeat_at) values ($1, 'TR', 'online', now() + interval '1 hour') returning id::text`, "LIFE-"+suffix).Scan(&nodeID); err != nil {
+		insert into nodes (code, region, status, last_heartbeat_at) values ($1, 'TR', 'online', now()) returning id::text`, "LIFE-"+suffix).Scan(&nodeID); err != nil {
 		t.Fatal(err)
 	}
 	tok, err := srv.issueAccessToken(user.ID, user.Email, user.Role)
@@ -125,9 +127,14 @@ func TestSubscriptionLifecycleE2E(t *testing.T) {
 	}
 	credential := d["credential_id"].(string)
 	links := d["links"].([]any)
-	if credential == "" || d["subscription_url"] != "https://api.e2e.test/v1/sub/"+credential || len(links) != 4 {
+	if credential == "" || d["subscription_url"] != "https://api.e2e.test/v1/sub/"+credential || len(links) != 5 {
 		t.Fatalf("access payload: %v", d)
 	}
+	// The relay link comes first: same credential and XHTTP+REALITY, relay address.
+	if relay := links[0].(string); !strings.HasPrefix(relay, "vless://"+credential+"@198.51.100.7:443?") || !strings.Contains(relay, "type=xhttp") || !strings.Contains(relay, "sni=x.e2e.test") {
+		t.Fatalf("relay link: %v", relay)
+	}
+	links = links[1:]
 	if !strings.HasPrefix(links[0].(string), "vless://"+credential+"@") || !strings.Contains(links[0].(string), "security=reality") ||
 		!strings.Contains(links[1].(string), "type=xhttp") || !strings.Contains(links[1].(string), "sni=x.e2e.test") || strings.Contains(links[1].(string), "flow=") ||
 		!strings.Contains(links[2].(string), "direct.e2e.test") || !strings.Contains(links[2].(string), "fp=chrome") || !strings.HasPrefix(links[3].(string), "hysteria2://") {

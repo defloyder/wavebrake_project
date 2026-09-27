@@ -15,7 +15,8 @@ type meAccessResponse struct {
 	SubscriptionURL string     `json:"subscription_url"`
 	ConfigStatus    string     `json:"config_status"`
 	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
-	// Links, most preferred first: VLESS REALITY (when published),
+	// Links, most preferred first: XHTTP+REALITY through each healthy
+	// domestic relay, VLESS REALITY (when published),
 	// VLESS XHTTP+REALITY (when configured),
 	// VLESS Direct-TLS, Hysteria2. Each is a standard share link.
 	Links []string `json:"links"`
@@ -62,7 +63,14 @@ func (s *Server) meAccess(w http.ResponseWriter, r *http.Request) {
 // appLinks picks the transports the WAVEBREAK apps support, in order of
 // preference. The direct REALITY link only when Core publishes it.
 func appLinks(cfg store.AccessGrantConfig) []string {
-	links := make([]string, 0, 3)
+	links := make([]string, 0, 4+len(cfg.VLESSRelays))
+	// Domestic relays first: on whitelisted mobile networks they're the
+	// only TCP path that works; everywhere else the direct ones follow.
+	for _, relay := range cfg.VLESSRelays {
+		if uri := uriOf(relay); uri != "" {
+			links = append(links, uri)
+		}
+	}
 	if cfg.ShareURL != "" && cfg.VLESS != nil && cfg.ShareURL == uriOf(cfg.VLESS) {
 		links = append(links, cfg.ShareURL)
 	}
