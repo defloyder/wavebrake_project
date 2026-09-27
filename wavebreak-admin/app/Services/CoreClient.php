@@ -203,6 +203,12 @@ class CoreClient
         return $this->auth($token)->post('/v1/admin/users/'.rawurlencode($userId).'/subscriptions', ['plan_id' => $planId])->throw()->json();
     }
 
+    /** Issues the missing credential of the live subscription; returns the refreshed details. */
+    public function issueUserAccess(string $token, string $userId): array
+    {
+        return $this->auth($token)->post('/v1/admin/users/'.rawurlencode($userId).'/access')->throw()->json();
+    }
+
     public function requestPasswordReset(string $token, string $userId): array
     {
         return $this->auth($token)->post('/v1/admin/users/'.rawurlencode($userId).'/password-reset')->throw()->json();

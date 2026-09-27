@@ -1,6 +1,6 @@
 @extends('layout')
 
-@section('title', 'Admin sign in')
+@section('title', 'Вход')
 @section('body_class', 'adm-login-page')
 
 @section('auth_content')
@@ -11,9 +11,9 @@
     </a>
 
     <section class="card">
-        <p class="eyebrow">Operations</p>
-        <h1>Admin Sign In</h1>
-        <p class="hint">Core status: {{ $health['status'] ?? 'unavailable' }}</p>
+        <p class="eyebrow">Панель управления</p>
+        <h1>Вход в админку</h1>
+        <p class="hint">Core: {{ ($health['status'] ?? '') === 'ok' ? 'работает' : 'недоступен' }}</p>
 
         @if($errors->any())
             <div class="alert">
@@ -24,8 +24,8 @@
         <form method="post" action="/login">
             @csrf
             <label>Email<input name="email" type="email" autocomplete="email" required></label>
-            <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
-            <button type="submit">Sign In</button>
+            <label>Пароль<input name="password" type="password" autocomplete="current-password" required></label>
+            <button type="submit">Войти</button>
         </form>
     </section>
 </div>

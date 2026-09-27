@@ -54,6 +54,6 @@ class UserManagementTest extends TestCase
                 'status' => 'active',
             ])
             ->assertConflict()
-            ->assertJson(['message' => 'email or username already exists']);
+            ->assertJson(['message' => 'Пользователь с таким email или username уже существует.']);
     }
 }

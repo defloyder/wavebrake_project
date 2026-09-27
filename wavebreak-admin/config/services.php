@@ -37,6 +37,9 @@ return [
 
     'wavebreak' => [
         'core_url' => env('WAVEBREAK_CORE_URL', 'http://localhost:8080'),
+        // Dates in the admin UI are shown in the operators' timezone; Core
+        // always stores and returns UTC.
+        'display_timezone' => env('WAVEBREAK_DISPLAY_TIMEZONE', 'Europe/Istanbul'),
     ],
 
 ];

@@ -4,6 +4,13 @@
 
 Этот документ нужен следующему агенту или разработчику, чтобы быстро понять текущее состояние проекта и не откатить важные рабочие решения.
 
+## 2026-09-27: переделка UI админки (ветка `app-main-sync`, на pilot ещё НЕ задеплоено)
+
+- Клик по пользователю в любой таблице открывает карточку; все действия над пользователем, подпиской, устройствами и ключами — только в карточке (`UserDetailsController`, маршруты `/users/{id}/...` в `routes/web.php`). Кнопок действий в таблицах больше нет, старые маршруты `/subscriptions/{id}/...`, `/users/{id}/disable|enable|delete|role`, `/devices/{id}/revoke`, `/grants/{id}/revoke` удалены.
+- Страница собирается `App\View\Admin\AdminPageBuilder` (грузит из Core только нужное секции), строки таблиц — `app/View/Admin/Rows/*`, статусы — `StatusBadge`, id -> email/тариф/нода — `AdminDirectory`, даты — `App\Support\DisplayDate` (`WAVEBREAK_DISPLAY_TIMEZONE`, по умолчанию Europe/Istanbul). Шаблоны: `resources/views/admin/sections/*`, компоненты `components/adm/*`, карточка `users/details*.blade.php`.
+- Core: `POST /v1/admin/users/{id}/access` — выдать недостающий ключ подписке (купленной в приложении); продление подписки теперь переносит срок её ключей (иначе нода отключала ключ в старую дату).
+- QR в карточке берёт библиотеку с jsDelivr (как и раньше) — во встроенном браузере не проверен.
+
 ## 2026-09-27: управление подпиской пользователя из админки (ветка `app-main-sync`)
 
 - Core: пакет `wavebreak-core/internal/accounts` (сервисы сценариев поверх интерфейсов-портов; реализация портов — `store/accounts_repository.go`). Эндпоинты: `GET /v1/admin/users/{id}`, `GET /v1/admin/users/{id}/devices`, `POST /v1/admin/users/{id}/subscriptions`, `POST /v1/admin/users/{id}/password-reset`, публичный `POST /v1/auth/password-reset/confirm`. Подробности — `docs/core-api-endpoints.md`, контракт — `wavebreak-core/api/openapi.yaml`.
