@@ -55,3 +55,10 @@ Admin UI overhaul (2026-09-27):
 - Core: `POST /v1/admin/users/{id}/access` (issue missing key, idempotent); extending a subscription now moves its grants' expiry (previously nodes would drop the key at the old date).
 - Tests: `wavebreak-core` `go test ./...` + DB E2E pass (new steps: expiry sync, issue access idempotent/after revoke); `wavebreak-admin` 46/46 (249 assertions).
 - Verified in the in-app browser on a local stack (desktop ~800px and 375px phone): users -> card, subscription without key -> "Выдать доступ" -> link issued; subscription edit (devices 2, end date) -> card refreshed; all sections render. Not verified in that browser: QR code (the QR library comes from jsDelivr and external hosts are unreachable there).
+
+Bug 10 (2026-09-27):
+
+- Core: `go test ./...` passes; new unit tests for the lifecycle service; new DB E2E `TestSubscriptionLifecycleE2E` (me/access -> 3 links on one credential; period over -> past_due, key expiry now, `/subscriptions/current` shows `grace_ends_at`, me/access 422; renewal keeps subscription id and credential, key served again, usage 0, second purchase 409; traffic exhausted -> past_due; grace passed -> expired, key revoked, older device revoked, newest kept without subscription, account still works; new purchase gets a new credential; 4 audit events).
+- Mobile: `flutter analyze` clean, `flutter test` 43/43 (new `personal_access_test.dart`). PC: new tests pass; the one failing PC test (`connect with an active subscription reaches connected`) fails on the unchanged code too.
+- Pilot read-only dry run: nothing would transition today (5 active subscriptions). The subscription holding the shared credential of old APKs ends 2026-10-16; it goes past_due that day unless extended.
+- Not verified on a device yet: needs Core deployed to pilot first.
