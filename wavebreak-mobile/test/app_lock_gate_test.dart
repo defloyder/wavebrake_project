@@ -58,6 +58,19 @@ void main() {
   );
 
   testWidgets(
+    'a PIN alone locks the app — no separate App Lock switch (bug 7)',
+    (tester) async {
+      await PrefsStore.setBool(PrefsStore.appLockEnabled, false);
+      await PrefsStore.setBool(PrefsStore.pinEnabled, true);
+
+      await tester.pumpWidget(const ProviderScope(child: WavebreakApp()));
+      await tester.pump();
+
+      expect(find.text('Unlock WAVEBREAK'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'no lock screen on the first frame when App Lock is disabled',
     (tester) async {
       // Sanity check for the test above: confirms the assertion is

@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/session_controller.dart';
 import '../../core/i18n/language_controller.dart';
-import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/biometric/biometric_service.dart';
 import '../../services/pin/pin_service.dart';
@@ -38,8 +37,10 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     with WidgetsBindingObserver {
   bool _locked = _shouldLock();
 
-  static bool _shouldLock() =>
-      PrefsStore.getBool(PrefsStore.appLockEnabled) && appLockAvailable();
+  // Bug 7: a set PIN IS the lock. It used to also need the separate
+  // "App lock" switch, so setting a PIN alone never showed a prompt.
+  // Biometrics are only an alternative way to pass a PIN lock.
+  static bool _shouldLock() => const PinService().isSet;
 
   @override
   void initState() {
@@ -78,7 +79,10 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   // above (a permission dialog round-trip, a BiometricPrompt's own
   // spurious pause/resume) while closing the multi-minute window where a
   // deliberately-closed-and-reopened app stayed completely unprotected.
-  static const _relockAfterBackground = Duration(seconds: 8);
+  // Bug 7 spec: re-lock after more than N minutes in the background
+  // (N = 1). A cold start (including a swipe-away) always locks via the
+  // initial _shouldLock() above.
+  static const _relockAfterBackground = Duration(minutes: 1);
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -173,6 +177,9 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
   /// enforce and the user gets back into their own account rather than
   /// being stuck forever short of reinstalling.
   Future<void> _logOutToEscape() async {
+    // Also the escape from a forgotten PIN (bug 7): the PIN goes with the
+    // session, and getting back in needs the real account password.
+    await _pin.clear();
     await ref.read(sessionControllerProvider.notifier).forceLogout();
     if (!mounted) return;
     widget.onUnlocked();
@@ -221,63 +228,88 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
         illuminate: true,
         animateWaves: true,
         child: SafeArea(
-          child: Column(
-            children: [
-              const SizedBox(height: 56),
-              const WavebreakMark(size: 56, glow: true),
-              const SizedBox(height: 20),
-              Text(
-                s.unlockWavebreak,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              const Spacer(),
-              if (showPinPad) ...[
-                PinDots(length: _entered.length, error: _error),
-                if (_error) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    s.incorrectPin,
-                    style: const TextStyle(color: WbColors.error, fontSize: 13),
-                  ),
-                ],
-                const SizedBox(height: 32),
-                PinKeypad(onDigit: _onDigit, onBackspace: _onBackspace),
-                if (_bio.isEnabled) ...[
-                  const SizedBox(height: 12),
-                  TextButton.icon(
-                    onPressed: _biometricBusy ? null : _tryBiometric,
-                    icon: const Icon(Icons.fingerprint_rounded, size: 20),
-                    label: Text(s.faceIdTouchId),
-                  ),
-                ],
-              ] else ...[
-                _biometricBusy
-                    ? const CircularProgressIndicator(strokeWidth: 2)
-                    : TextButton.icon(
-                        onPressed: _tryBiometric,
-                        icon: const Icon(Icons.fingerprint_rounded, size: 22),
-                        label: Text(s.tryAgain),
+          // Scrolls instead of overflowing on short screens (the PIN pad
+          // plus the log-out escape don't fit everywhere); on normal
+          // screens IntrinsicHeight keeps the Spacers' centered layout.
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 56),
+                      const WavebreakMark(size: 56, glow: true),
+                      const SizedBox(height: 20),
+                      Text(
+                        s.unlockWavebreak,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w600),
                       ),
-                // Biometric-only lock, no PIN ever set — this is exactly
-                // the "permanently locked out" state a flaky scan used to
-                // leave someone in with no way back short of reinstalling.
-                // Always visible here, not tucked behind repeated failures
-                // — a user who already knows the scan isn't working
-                // shouldn't have to keep failing it first to find the way
-                // out.
-                const SizedBox(height: 20),
-                TextButton(
-                  onPressed: _biometricBusy ? null : _logOutToEscape,
-                  child: Text(
-                    s.troubleUnlockingLogOut,
-                    style: const TextStyle(color: WbColors.ice60, fontSize: 13),
+                      const Spacer(),
+                      if (showPinPad) ...[
+                        PinDots(length: _entered.length, error: _error),
+                        if (_error) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            s.incorrectPin,
+                            style: const TextStyle(
+                                color: WbColors.error, fontSize: 13),
+                          ),
+                        ],
+                        const SizedBox(height: 32),
+                        PinKeypad(onDigit: _onDigit, onBackspace: _onBackspace),
+                        if (_bio.isEnabled) ...[
+                          const SizedBox(height: 12),
+                          TextButton.icon(
+                            onPressed: _biometricBusy ? null : _tryBiometric,
+                            icon:
+                                const Icon(Icons.fingerprint_rounded, size: 20),
+                            label: Text(s.faceIdTouchId),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: _biometricBusy ? null : _logOutToEscape,
+                          child: Text(
+                            s.troubleUnlockingLogOut,
+                            style: const TextStyle(
+                                color: WbColors.ice60, fontSize: 13),
+                          ),
+                        ),
+                      ] else ...[
+                        _biometricBusy
+                            ? const CircularProgressIndicator(strokeWidth: 2)
+                            : TextButton.icon(
+                                onPressed: _tryBiometric,
+                                icon: const Icon(Icons.fingerprint_rounded,
+                                    size: 22),
+                                label: Text(s.tryAgain),
+                              ),
+                        // Biometric-only lock, no PIN ever set — this is exactly
+                        // the "permanently locked out" state a flaky scan used to
+                        // leave someone in with no way back short of reinstalling.
+                        // Always visible here, not tucked behind repeated failures
+                        // — a user who already knows the scan isn't working
+                        // shouldn't have to keep failing it first to find the way
+                        // out.
+                        const SizedBox(height: 20),
+                        TextButton(
+                          onPressed: _biometricBusy ? null : _logOutToEscape,
+                          child: Text(
+                            s.troubleUnlockingLogOut,
+                            style: const TextStyle(
+                                color: WbColors.ice60, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                      const Spacer(),
+                      const SizedBox(height: 24),
+                    ],
                   ),
                 ),
-              ],
-              const Spacer(),
-              const SizedBox(height: 24),
-            ],
+              ),
+            ),
           ),
         ),
       ),
