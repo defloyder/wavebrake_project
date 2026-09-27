@@ -32,7 +32,8 @@ List<SubscriptionSectionData> buildSubscriptionSections({
   required AppStrings s,
   String? wavebreakShareUrl,
 }) {
-  final wavebreakServers = [LocationItem.auto, ...wavebreakLocations];
+  // Bug 6: no "Auto · Fastest" row — only real locations.
+  final wavebreakServers = [...wavebreakLocations];
   return [
     SubscriptionSectionData(
       id: 'wavebreak',
