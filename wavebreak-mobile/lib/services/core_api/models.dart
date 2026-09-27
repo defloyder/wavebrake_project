@@ -786,7 +786,9 @@ class ClientConfig {
   static const fallback = ClientConfig(
     privacyUrl: 'https://wavebreak.app/privacy',
     termsUrl: 'https://wavebreak.app/terms',
-    websiteUrl: 'https://wavebreak.app',
+    // Bug 13: Core has no client-config endpoint, so this fallback is what
+    // "About > Website" (and the share sheet) always use.
+    websiteUrl: 'https://wavebreak.com.tr',
     supportEmail: 'support@wavebreak.app',
   );
 }
