@@ -24,8 +24,12 @@ import '../custom_servers/share_link_parsing.dart';
 class PersonalLocations {
   PersonalLocations._();
 
-  static const _timeout = Duration(seconds: 12);
+  /// Covers ApiClient's own retries (3 attempts of 5s plus backoff).
+  static const _timeout = Duration(seconds: 20);
 
+  /// Throws when Core can't be reached and nothing is saved yet: an empty
+  /// list would read as "no servers", while an error gets the screen's
+  /// own message and retry button.
   static Future<List<LocationItem>> load(CoreGateway gateway) async {
     PersonalAccess? access;
     try {
@@ -33,7 +37,8 @@ class PersonalLocations {
     } catch (error) {
       AppLogger.warn('Personal access unavailable, using the saved one: $error');
       access = await _saved();
-      return access == null ? const [] : _parse(access);
+      if (access == null) rethrow;
+      return _parse(access);
     }
     if (access == null) {
       await forget();

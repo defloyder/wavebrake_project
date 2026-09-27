@@ -107,6 +107,9 @@ class CoreApi {
     return _client.post(
       '/me/access',
       body: const <String, dynamic>{},
+      // Idempotent on Core (the same credential comes back), so a lost
+      // response on a flaky mobile path is safe to retry like a GET.
+      retryOnConnectionError: true,
       parse: (data) => PersonalAccess.fromJson(_asMap(data)),
     );
   }

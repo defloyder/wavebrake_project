@@ -68,8 +68,13 @@ void main() {
 
       expect(none, isEmpty);
       expect(await SecureStore.read(SecureStore.personalAccess), isNull);
-      // ...and it is not resurrected offline afterwards.
-      expect(await PersonalLocations.load(_FakeGateway(() async => throw Exception('offline'))), isEmpty);
+      // ...and it is not resurrected offline afterwards: nothing to connect
+      // with is an error the screen can offer a retry for, not "no servers".
+      expect(PersonalLocations.load(_FakeGateway(() async => throw Exception('offline'))), throwsException);
+    });
+
+    test('Core unreachable with nothing saved is an error, not an empty list', () async {
+      expect(PersonalLocations.load(_FakeGateway(() async => throw Exception('no network'))), throwsException);
     });
 
     test('sign-out forgets the credential', () async {
