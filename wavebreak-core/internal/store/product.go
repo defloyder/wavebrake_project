@@ -368,6 +368,69 @@ func (s *Store) CreateDevice(ctx context.Context, userID, name, platform string)
 	return d, tx.Commit(ctx)
 }
 
+// ClaimSharedDevice takes one device slot of the owner's subscription for
+// a recipient who scanned the owner's share QR. The slot is keyed by the
+// (owner, recipient) pair: scanning again reuses the active one, and one
+// the owner revoked comes back only if the limit allows. ErrLimitReached
+// when every slot is taken. The owner's user row is locked so two
+// concurrent scans can't both take the last slot.
+func (s *Store) ClaimSharedDevice(ctx context.Context, ownerID, recipientID, name, platform string) (Device, error) {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return Device{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `select 1 from users where id = $1 for update`, ownerID); err != nil {
+		return Device{}, err
+	}
+	publicID := "share:" + ownerID + ":" + recipientID
+	var existingID string
+	var revoked bool
+	err = tx.QueryRow(ctx, `
+		select id::text, revoked_at is not null from devices
+		where user_id = $1 and device_public_id = $2`, ownerID, publicID).Scan(&existingID, &revoked)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return Device{}, err
+	}
+	if existingID == "" || revoked {
+		limit, err := effectiveDeviceLimit(ctx, tx, ownerID)
+		if err != nil {
+			return Device{}, err
+		}
+		var activeCount int
+		if err := tx.QueryRow(ctx, `select count(*) from devices where user_id = $1 and revoked_at is null`, ownerID).Scan(&activeCount); err != nil {
+			return Device{}, err
+		}
+		if limit > 0 && activeCount >= limit {
+			return Device{}, ErrLimitReached
+		}
+	}
+
+	var d Device
+	err = tx.QueryRow(ctx, `
+		insert into devices (user_id, device_public_id, name, platform, subscription_id, last_seen_at)
+		values ($1, $2, $3, nullif($4, ''),
+		        (select id from subscriptions
+		         where user_id = $1 and status in ('pending', 'trialing', 'active', 'past_due', 'suspended')
+		         order by created_at desc limit 1),
+		        now())
+		on conflict (device_public_id) do update
+		set name = excluded.name,
+		    platform = coalesce(excluded.platform, devices.platform),
+		    subscription_id = excluded.subscription_id,
+		    revoked_at = null,
+		    last_seen_at = now(),
+		    updated_at = now()
+		returning id::text, user_id::text, coalesce(device_public_id, ''), name, platform, created_at, updated_at, last_seen_at, revoked_at`,
+		ownerID, publicID, name, platform,
+	).Scan(&d.ID, &d.UserID, &d.DevicePublicID, &d.Name, &d.Platform, &d.CreatedAt, &d.UpdatedAt, &d.LastSeenAt, &d.RevokedAt)
+	if err != nil {
+		return Device{}, err
+	}
+	return d, tx.Commit(ctx)
+}
+
 func (s *Store) UpdateDevice(ctx context.Context, userID, deviceID, name, platform string) (Device, error) {
 	var d Device
 	err := s.db.QueryRow(ctx, `

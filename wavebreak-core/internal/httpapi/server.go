@@ -59,6 +59,7 @@ func (s *Server) router() http.Handler {
 		r.Get("/plans", s.listPlans)
 		r.Post("/node/enroll", s.nodeEnrollWithToken)
 		r.Get("/sub/{grantID}", s.subscriptionByGrant)
+		r.Get("/share/{token}", s.shareLanding)
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.nodeAuthRequired)
@@ -79,6 +80,8 @@ func (s *Server) router() http.Handler {
 			r.Delete("/me/identities/telegram", s.unlinkTelegram)
 			r.Get("/me/usage", s.meUsage)
 			r.Post("/me/access", s.meAccess)
+			r.Post("/me/share", s.meShare)
+			r.Post("/share/redeem", s.redeemShare)
 			r.Get("/me/usage/history", s.meUsageHistory)
 			r.Get("/me/devices", s.listDevices)
 			r.Post("/me/devices", s.createDevice)
