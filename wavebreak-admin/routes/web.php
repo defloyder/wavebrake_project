@@ -1,7 +1,13 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\UserDetailsController;
 use Illuminate\Support\Facades\Route;
+
+// Users -> user modal (details, forced subscription, password reset).
+Route::get('/users/{userId}/details', [UserDetailsController::class, 'show']);
+Route::post('/users/{userId}/subscription', [UserDetailsController::class, 'issueSubscription']);
+Route::post('/users/{userId}/password-reset', [UserDetailsController::class, 'requestPasswordReset']);
 
 Route::get('/', [AdminController::class, 'index']);
 Route::get('/login', [AdminController::class, 'loginPage']);

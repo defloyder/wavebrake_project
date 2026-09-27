@@ -628,3 +628,22 @@ h1, h2, h3, h4, h5, h6, p { margin: 0; }
     .adm-assistant-launcher { right: 16px; bottom: 16px; }
     .adm-assistant { right: 16px; bottom: 82px; height: min(570px, calc(100vh - 105px)); }
 }
+
+/* Users -> user details modal (UserDetailsController / users/details.blade.php) */
+.adm-modal--wide { max-width: 640px; }
+.adm-user-details { display: grid; gap: 14px; }
+.adm-ud-section { border-top: 1px solid var(--ice-14); padding-top: 12px; }
+.adm-ud-section:first-of-type { border-top: 0; padding-top: 0; }
+.adm-ud-title { margin: 0 0 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+.adm-ud-grid { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; margin: 0; }
+.adm-ud-grid dt { opacity: .7; }
+.adm-ud-grid dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.adm-ud-grid code, .adm-ud-list code { font-size: 12px; }
+.adm-ud-copy { margin-left: 6px; background: none; border: 1px solid var(--ice-14); border-radius: 6px; color: inherit; cursor: pointer; padding: 0 6px; line-height: 20px; }
+.adm-ud-progress { height: 8px; border-radius: 999px; background: var(--ice-14); overflow: hidden; margin: 10px 0 4px; }
+.adm-ud-progress span { display: block; height: 100%; background: var(--wave-cyan, #00d6ff); }
+.adm-ud-list { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.adm-ud-issue { display: grid; gap: 8px; margin-top: 8px; }
+.adm-ud-label { font-size: 12px; opacity: .7; }
+.adm-ud-note { margin: 6px 0 0; }
+@media (max-width: 560px) { .adm-ud-grid { grid-template-columns: 1fr; } .adm-ud-grid dt { margin-top: 6px; } }

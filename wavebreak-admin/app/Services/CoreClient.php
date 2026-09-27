@@ -186,6 +186,28 @@ class CoreClient
         return $this->auth($token)->post('/v1/nodes/enroll', compact('code', 'region'))->throw()->json();
     }
 
+    /** Normalized user view: user, subscription, access, traffic, devices. */
+    public function userDetails(string $token, string $userId): array
+    {
+        return $this->auth($token, true)->get('/v1/admin/users/'.rawurlencode($userId))->throw()->json();
+    }
+
+    public function userDevices(string $token, string $userId): array
+    {
+        return $this->auth($token, true)->get('/v1/admin/users/'.rawurlencode($userId).'/devices')->throw()->json();
+    }
+
+    /** Forced assignment; returns the refreshed user details. */
+    public function issueUserSubscription(string $token, string $userId, string $planId): array
+    {
+        return $this->auth($token)->post('/v1/admin/users/'.rawurlencode($userId).'/subscriptions', ['plan_id' => $planId])->throw()->json();
+    }
+
+    public function requestPasswordReset(string $token, string $userId): array
+    {
+        return $this->auth($token)->post('/v1/admin/users/'.rawurlencode($userId).'/password-reset')->throw()->json();
+    }
+
     private function base(): PendingRequest
     {
         return Http::baseUrl(rtrim(config('services.wavebreak.core_url'), '/'))

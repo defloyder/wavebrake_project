@@ -407,6 +407,7 @@
                             </td>
                             <td class="date-cell" data-sort="{{ $user['last_login_at'] ?? '' }}">{{ $user['last_login_at'] ?? '-' }}</td>
                             <td>
+                                <button type="button" class="adm-link-button" data-open-user="{{ $user['id'] }}">Открыть</button>
                                 <button type="button" class="adm-icon-btn" title="Редактировать" onclick='admOpenUserModal(@json($user))'>
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                 </button>
@@ -436,6 +437,87 @@
                 </table>
             </div>
         </section>
+
+        <div class="adm-modal-backdrop" id="adm-user-details-modal">
+            <div class="adm-modal adm-modal--wide">
+                <div class="adm-modal-head">
+                    <h6>Пользователь</h6>
+                    <button type="button" class="adm-modal-close" data-close-user-details aria-label="Закрыть">×</button>
+                </div>
+                <div class="adm-alert adm-alert--error" data-user-details-error hidden></div>
+                <div data-user-details-body><p class="adm-muted">Загрузка…</p></div>
+            </div>
+        </div>
+        <script>
+        (() => {
+            const modal = document.getElementById('adm-user-details-modal');
+            if (!modal) return;
+            const body = modal.querySelector('[data-user-details-body]');
+            const errorBox = modal.querySelector('[data-user-details-error]');
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+                || document.querySelector('input[name="_token"]')?.value || '';
+
+            const showError = (message) => { errorBox.textContent = message; errorBox.hidden = !message; };
+            const request = async (url, options = {}) => {
+                const response = await fetch(url, {
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf, 'Accept': 'text/html, application/json' },
+                    ...options,
+                });
+                const type = response.headers.get('content-type') || '';
+                const payload = type.includes('application/json') ? await response.json() : await response.text();
+                if (!response.ok) {
+                    throw new Error((payload && payload.message) || 'Не удалось выполнить действие.');
+                }
+                return payload;
+            };
+            const load = async (userId) => {
+                showError('');
+                body.innerHTML = '<p class="adm-muted">Загрузка…</p>';
+                modal.classList.add('open');
+                try { body.innerHTML = await request(`/users/${encodeURIComponent(userId)}/details`); }
+                catch (e) { body.innerHTML = ''; showError(e.message); }
+            };
+
+            document.addEventListener('click', (event) => {
+                const open = event.target.closest('[data-open-user]');
+                if (open) { load(open.dataset.openUser); }
+            });
+            modal.addEventListener('click', async (event) => {
+                if (event.target === modal || event.target.closest('[data-close-user-details]')) {
+                    modal.classList.remove('open');
+                    return;
+                }
+                const copy = event.target.closest('[data-copy]');
+                if (copy) {
+                    try { await navigator.clipboard.writeText(copy.dataset.copy); copy.textContent = '✓'; setTimeout(() => { copy.textContent = '⧉'; }, 1200); }
+                    catch { showError('Не удалось скопировать.'); }
+                    return;
+                }
+                const reset = event.target.closest('[data-password-reset]');
+                if (reset && confirm('Отправить пользователю ссылку для восстановления пароля?')) {
+                    reset.disabled = true;
+                    const result = modal.querySelector('[data-password-reset-result]');
+                    try { const data = await request(reset.dataset.passwordReset, { method: 'POST' }); result.textContent = data.message; showError(''); }
+                    catch (e) { showError(e.message); }
+                    finally { reset.disabled = false; }
+                }
+            });
+            modal.addEventListener('submit', async (event) => {
+                const form = event.target.closest('[data-issue-subscription]');
+                if (!form) return;
+                event.preventDefault();
+                const button = form.querySelector('[data-issue-button]');
+                if (!confirm('Выдать выбранный тариф этому пользователю?')) return;
+                button.disabled = true;
+                try {
+                    // Core returns the refreshed details; the modal re-renders in place.
+                    body.innerHTML = await request(form.action, { method: 'POST', body: new FormData(form) });
+                    showError('');
+                } catch (e) { showError(e.message); button.disabled = false; }
+            });
+        })();
+        </script>
 
         <div class="adm-modal-backdrop" id="adm-user-modal">
             <div class="adm-modal">
