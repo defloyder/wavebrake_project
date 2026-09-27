@@ -21,8 +21,6 @@ import '../custom_servers/share_link_parsing.dart';
 /// still works when Core is unreachable (the nodes, not Core, carry the
 /// traffic). It is dropped as soon as Core says the account has no active
 /// subscription, and on sign-out.
-///
-/// (File name kept from the hardcoded-links era.)
 class PersonalLocations {
   PersonalLocations._();
 

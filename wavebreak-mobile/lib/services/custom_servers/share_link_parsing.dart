@@ -8,7 +8,7 @@ import '../core_api/models.dart';
 /// Turning a raw share link (or a whole subscription body full of them)
 /// into [LocationItem]s — shared between [CustomServerController] (a
 /// user's own pasted link/subscription) and WAVEBREAK's own bundled pilot
-/// locations (see bundled_locations.dart), so both read flag/country/city
+/// locations (see personal_locations.dart), so both read flag/country/city
 /// out of a link's fragment the exact same way instead of drifting apart.
 // Single source of truth: wavebreak_links (shared with the other client).
 // ssr was listed before but never connectable; tuic/wireguard/socks5 added.
@@ -46,7 +46,7 @@ LocationItem locationFromUri(Uri uri, String rawLink) {
 /// self — `ConnectionManager` and `PrefsStore.lastLocationId` identify the
 /// selected/persisted location purely by id, so restoring "what was
 /// selected" after a restart could only ever work by accident. Confirmed
-/// on-device: WAVEBREAK's own bundled pilot nodes (bundled_locations.dart)
+/// on-device: WAVEBREAK's own bundled pilot nodes (personal_locations.dart)
 /// are re-parsed fresh on every cold start, and a previously-selected one
 /// never rehydrated correctly — the app fell back to whatever OTHER stored
 /// selection happened to share an id, silently reconnecting to a stale

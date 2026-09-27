@@ -7,7 +7,7 @@ import '../../core/network/connectivity_provider.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../services/core_api/models.dart';
 import '../../services/providers.dart';
-import '../../services/vpn/bundled_locations.dart';
+import '../../services/vpn/personal_locations.dart';
 
 /// None of these providers have anything to fetch outside of
 /// [SessionPhase.authenticated] — a guest (see that enum) never touches
@@ -238,7 +238,7 @@ final locationsProvider = FutureProvider<List<LocationItem>>((ref) async {
     await PersonalLocations.forget();
     return coreLocations;
   }
-  // See bundled_locations.dart: from Core, with the last one saved for
+  // See personal_locations.dart: from Core, with the last one saved for
   // when Core is unreachable, so it's not behind the try/catch above.
   final personal =
       await PersonalLocations.load(ref.watch(coreGatewayProvider));
@@ -286,7 +286,7 @@ final plansProvider = FutureProvider<List<Plan>>((ref) async {
 /// subscription, not any particular access grant — unlike a grant-config's
 /// own `bytes_up`/`bytes_down` (only ever present for a Core-managed grant,
 /// never true for WAVEBREAK's own bundled pilot nodes, which connect via a
-/// raw share link — see bundled_locations.dart), this works regardless of
+/// raw share link — see personal_locations.dart), this works regardless of
 /// which node, or whether any, the user is currently connected through.
 final trafficUsageProvider = FutureProvider<UsageSummary?>((ref) async {
   if (!_canQueryCore(ref)) return null;

@@ -8,7 +8,7 @@ import 'package:wavebreak/features/shared/subscription_texts.dart';
 import 'package:wavebreak/features/shared/traffic_format.dart';
 import 'package:wavebreak/services/core_api/core_gateway.dart';
 import 'package:wavebreak/services/core_api/models.dart';
-import 'package:wavebreak/services/vpn/bundled_locations.dart';
+import 'package:wavebreak/services/vpn/personal_locations.dart';
 
 import 'test_helpers.dart';
 

@@ -295,7 +295,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     try {
       // Resolved BEFORE branching on isCustom: Auto isn't itself custom,
       // but it can resolve to one of WAVEBREAK's own bundled pilot nodes
-      // (see bundled_locations.dart), which ARE isCustom (they connect via
+      // (see personal_locations.dart), which ARE isCustom (they connect via
       // a raw share link, not a Core-managed nodeId) — deciding the branch
       // off the original `location` instead of the resolved `target` sent
       // a bundled pick straight into createAccessGrant with its random
