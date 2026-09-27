@@ -235,6 +235,15 @@ void main() {
       expect(ShareLink.parse(xhttp).supportedBy(TunnelEngine.singBox), isFalse);
     });
 
+    test('Direct-TLS takes the TLS fingerprint from the link', () {
+      // A single-packet ClientHello (fp=ios, ~0.5 KB) survives carrier DPI
+      // that drops the second segment of the large post-quantum ones.
+      final out = (config(_directTls.replaceFirst('&type=ws', '&type=ws&fp=ios'))['outbounds'] as List).first as Map;
+      final tls = (out['streamSettings'] as Map)['tlsSettings'] as Map;
+      expect(tls['fingerprint'], 'ios');
+      expect(tls['serverName'], 'direct.wavebreak.com.tr');
+    });
+
     test('WireGuard builds an Xray wireguard outbound', () {
       final out = (config('wg://K@w.example:51820?publickey=P&address=10.0.0.2')['outbounds']
               as List)

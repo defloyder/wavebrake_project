@@ -661,6 +661,9 @@ func buildVLESSCDNLink(vless config.VLESSConfig, grantID, location string) strin
 	query := url.Values{}
 	query.Set("type", "ws")
 	query.Set("security", "tls")
+	if vless.Fingerprint != "" {
+		query.Set("fp", vless.Fingerprint)
+	}
 	query.Set("encryption", "none")
 	query.Set("host", vless.CDNHost)
 	query.Set("sni", vless.CDNHost)
@@ -683,6 +686,9 @@ func buildVLESSCDNXHTTPLink(vless config.VLESSConfig, grantID, location string) 
 	query.Set("type", "xhttp")
 	query.Set("mode", "auto")
 	query.Set("security", "tls")
+	if vless.Fingerprint != "" {
+		query.Set("fp", vless.Fingerprint)
+	}
 	query.Set("encryption", "none")
 	query.Set("host", vless.CDNHost)
 	query.Set("sni", vless.CDNHost)
@@ -706,6 +712,9 @@ func buildTrojanCDNLink(vless config.VLESSConfig, grantID, location string) stri
 	query := url.Values{}
 	query.Set("type", "ws")
 	query.Set("security", "tls")
+	if vless.Fingerprint != "" {
+		query.Set("fp", vless.Fingerprint)
+	}
 	query.Set("host", vless.CDNHost)
 	query.Set("sni", vless.CDNHost)
 	query.Set("path", path)
@@ -726,6 +735,9 @@ func buildVLESSCDNGRPCLink(vless config.VLESSConfig, grantID, location string) s
 	query := url.Values{}
 	query.Set("type", "grpc")
 	query.Set("security", "tls")
+	if vless.Fingerprint != "" {
+		query.Set("fp", vless.Fingerprint)
+	}
 	query.Set("encryption", "none")
 	query.Set("serviceName", service)
 	query.Set("sni", vless.CDNHost)
@@ -745,6 +757,9 @@ func buildVLESSDirectTLSLink(vless config.VLESSConfig, grantID, location string)
 	query := url.Values{}
 	query.Set("type", "ws")
 	query.Set("security", "tls")
+	if vless.Fingerprint != "" {
+		query.Set("fp", vless.Fingerprint)
+	}
 	query.Set("encryption", "none")
 	query.Set("host", vless.DirectTLSHost)
 	query.Set("sni", vless.DirectTLSHost)

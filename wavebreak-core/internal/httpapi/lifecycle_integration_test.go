@@ -130,7 +130,7 @@ func TestSubscriptionLifecycleE2E(t *testing.T) {
 	}
 	if !strings.HasPrefix(links[0].(string), "vless://"+credential+"@") || !strings.Contains(links[0].(string), "security=reality") ||
 		!strings.Contains(links[1].(string), "type=xhttp") || !strings.Contains(links[1].(string), "sni=x.e2e.test") || strings.Contains(links[1].(string), "flow=") ||
-		!strings.Contains(links[2].(string), "direct.e2e.test") || !strings.HasPrefix(links[3].(string), "hysteria2://") {
+		!strings.Contains(links[2].(string), "direct.e2e.test") || !strings.Contains(links[2].(string), "fp=chrome") || !strings.HasPrefix(links[3].(string), "hysteria2://") {
 		t.Fatalf("links order/content: %v", links)
 	}
 	// Same credential for every device of the account.
