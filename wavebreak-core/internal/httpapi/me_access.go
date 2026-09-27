@@ -16,6 +16,7 @@ type meAccessResponse struct {
 	ConfigStatus    string     `json:"config_status"`
 	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
 	// Links, most preferred first: VLESS REALITY (when published),
+	// VLESS XHTTP+REALITY (when configured),
 	// VLESS Direct-TLS, Hysteria2. Each is a standard share link.
 	Links []string `json:"links"`
 }
@@ -65,7 +66,7 @@ func appLinks(cfg store.AccessGrantConfig) []string {
 	if cfg.ShareURL != "" && cfg.VLESS != nil && cfg.ShareURL == uriOf(cfg.VLESS) {
 		links = append(links, cfg.ShareURL)
 	}
-	for _, transport := range []map[string]any{cfg.VLESSDirectTLS, cfg.Hysteria} {
+	for _, transport := range []map[string]any{cfg.VLESSRealityXHTTP, cfg.VLESSDirectTLS, cfg.Hysteria} {
 		if uri := uriOf(transport); uri != "" {
 			links = append(links, uri)
 		}

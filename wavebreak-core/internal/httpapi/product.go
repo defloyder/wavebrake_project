@@ -417,6 +417,24 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		config.VLESS["flow"] = vless.Flow
 	}
 
+	if strings.TrimSpace(vless.RealityXHTTPServerName) != "" {
+		xhttpLink := buildVLESSRealityXHTTPLink(vless, config.Grant.ID, location)
+		links = append(links, xhttpLink)
+		config.VLESSRealityXHTTP = map[string]any{
+			"client_id": config.Grant.ID,
+			"label":     location,
+			"protocol":  "vless",
+			"security":  "reality",
+			"network":   "xhttp",
+			"server":    vless.PublicHost,
+			"port":      vless.PublicPort,
+			"sni":       vless.RealityXHTTPServerName,
+			"path":      vless.RealityXHTTPPath,
+			"uri":       xhttpLink,
+			"note":      "REALITY over XHTTP: the session travels as ordinary HTTP requests — try this where plain VLESS connects but pages don't load.",
+		}
+	}
+
 	cdnXHTTPAvailable := strings.TrimSpace(vless.CDNHost) != "" && vless.CDNXHTTPPort > 0 && vless.PublishCDNXHTTP
 	if cdnXHTTPAvailable {
 		cdnXHTTPLink := buildVLESSCDNXHTTPLink(vless, config.Grant.ID, location)
@@ -601,6 +619,30 @@ func buildVLESSLink(vless config.VLESSConfig, grantID, location string) string {
 		query.Set("flow", vless.Flow)
 		query.Set("packetEncoding", "xudp")
 	}
+	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
+}
+
+// buildVLESSRealityXHTTPLink renders VLESS over XHTTP with REALITY: the same
+// endpoint and REALITY keys as the raw REALITY link, its own SNI, no Vision
+// flow (XHTTP carries the session as ordinary HTTP requests instead).
+func buildVLESSRealityXHTTPLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (XHTTP)", location)
+	endpoint := net.JoinHostPort(vless.PublicHost, strconv.Itoa(vless.PublicPort))
+	path := vless.RealityXHTTPPath
+	if path == "" {
+		path = "/wvb-rx"
+	}
+	query := url.Values{}
+	query.Set("type", "xhttp")
+	query.Set("mode", "auto")
+	query.Set("path", path)
+	query.Set("security", "reality")
+	query.Set("encryption", "none")
+	query.Set("pbk", vless.RealityPublicKey)
+	query.Set("fp", vless.Fingerprint)
+	query.Set("sni", vless.RealityXHTTPServerName)
+	query.Set("sid", vless.RealityShortID)
+	query.Set("spx", "/")
 	return fmt.Sprintf("vless://%s@%s?%s#%s", grantID, endpoint, query.Encode(), url.PathEscape(label))
 }
 

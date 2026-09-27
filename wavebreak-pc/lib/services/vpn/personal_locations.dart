@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:wavebreak_links/wavebreak_links.dart' show ShareLink, TunnelEngine;
+
 import '../../core/logging/app_logger.dart';
 import '../../core/storage/secure_store.dart';
 import '../core_api/core_gateway.dart';
@@ -61,6 +63,13 @@ class PersonalLocations {
     }
   }
 
+  /// Windows runs sing-box, which has no XHTTP transport.
+  static const _engine = TunnelEngine.singBox;
+
+  /// Links this app's tunnel engine can't run are left out rather than
+  /// listed and failing on connect.
   static List<LocationItem> _parse(PersonalAccess access) =>
-      parseSubscriptionBody(access.links.join('\n'));
+      parseSubscriptionBody(access.links
+          .where((l) => ShareLink.tryParse(l)?.supportedBy(_engine) ?? false)
+          .join('\n'));
 }

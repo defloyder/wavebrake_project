@@ -135,6 +135,7 @@ type AccessGrantConfig struct {
 	VLESS                 map[string]any `json:"vless,omitempty"`
 	VLESSCDN              map[string]any `json:"vless_cdn,omitempty"`
 	VLESSCDNXHTTP         map[string]any `json:"vless_cdn_xhttp,omitempty"`
+	VLESSRealityXHTTP     map[string]any `json:"vless_reality_xhttp,omitempty"`
 	TrojanCDN             map[string]any `json:"trojan_cdn,omitempty"`
 	VLESSCDNGRPC          map[string]any `json:"vless_cdn_grpc,omitempty"`
 	Hysteria              map[string]any `json:"hysteria,omitempty"`

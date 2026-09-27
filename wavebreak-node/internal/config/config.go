@@ -27,11 +27,20 @@ type XrayConfig struct {
 	RealityShortID    string
 	RealityDest       string
 	RealityServerName string
-	Flow              string
-	ShadowsocksPort   int
-	ShadowsocksMethod string
-	DockerSocket      string
-	DockerContainer   string
+	// VLESS over XHTTP with REALITY: same REALITY keys, its own SNI and
+	// dest (the edge routes TLS by SNI), no Vision flow. Splits a session
+	// into ordinary-looking HTTP requests — the transport that survives
+	// the carrier DPI which stalls raw REALITY/Direct-TLS on some Russian
+	// mobile networks. Disabled unless RealityXHTTPListenPort is set.
+	RealityXHTTPListenPort int
+	RealityXHTTPServerName string
+	RealityXHTTPDest       string
+	RealityXHTTPPath       string
+	Flow                   string
+	ShadowsocksPort        int
+	ShadowsocksMethod      string
+	DockerSocket           string
+	DockerContainer        string
 	// CDN transport: a second, structurally ordinary VLESS+WebSocket+TLS
 	// inbound meant to sit behind a CDN proxy (e.g. Cloudflare orange-cloud)
 	// so a client's outer TLS handshake is indistinguishable from any other
@@ -115,6 +124,10 @@ func Load() Config {
 			RealityShortID:          env("WAVEBREAK_XRAY_REALITY_SHORT_ID", ""),
 			RealityDest:             env("WAVEBREAK_XRAY_REALITY_DEST", "www.microsoft.com:443"),
 			RealityServerName:       env("WAVEBREAK_XRAY_REALITY_SERVER_NAME", "www.microsoft.com"),
+			RealityXHTTPListenPort:  intEnv("WAVEBREAK_XRAY_REALITY_XHTTP_LISTEN_PORT", 0),
+			RealityXHTTPServerName:  env("WAVEBREAK_XRAY_REALITY_XHTTP_SERVER_NAME", ""),
+			RealityXHTTPDest:        env("WAVEBREAK_XRAY_REALITY_XHTTP_DEST", ""),
+			RealityXHTTPPath:        env("WAVEBREAK_XRAY_REALITY_XHTTP_PATH", "/wvb-rx"),
 			Flow:                    env("WAVEBREAK_XRAY_FLOW", "xtls-rprx-vision"),
 			ShadowsocksPort:         intEnv("WAVEBREAK_XRAY_SS_PORT", 0),
 			ShadowsocksMethod:       env("WAVEBREAK_XRAY_SS_METHOD", "aes-256-gcm"),

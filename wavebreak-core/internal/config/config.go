@@ -104,6 +104,11 @@ type VLESSConfig struct {
 	// (Hysteria2/Direct-TLS) are confirmed good enough on their own.
 	PublishCDNWS     bool
 	PublishTrojanCDN bool
+	// VLESS over XHTTP with REALITY on PublicHost:PublicPort, same REALITY
+	// keys, its own SNI (the edge routes TLS by SNI). Published when
+	// RealityXHTTPServerName is set. See wavebreak-node's XrayConfig.
+	RealityXHTTPServerName string
+	RealityXHTTPPath       string
 }
 
 func Load() (Config, error) {
@@ -165,36 +170,38 @@ func Load() (Config, error) {
 			SubscriptionGrace:    mustDuration(env("WAVEBREAK_SUBSCRIPTION_GRACE", "168h")),
 		},
 		VLESS: VLESSConfig{
-			PublicHost:         env("WAVEBREAK_VLESS_PUBLIC_HOST", ""),
-			PublicPort:         vlessPort,
-			RealityPublicKey:   env("WAVEBREAK_VLESS_REALITY_PUBLIC_KEY", ""),
-			RealityShortID:     env("WAVEBREAK_VLESS_REALITY_SHORT_ID", ""),
-			RealityServerName:  env("WAVEBREAK_VLESS_REALITY_SERVER_NAME", "www.microsoft.com"),
-			Fingerprint:        env("WAVEBREAK_VLESS_FINGERPRINT", "chrome"),
-			Flow:               env("WAVEBREAK_VLESS_FLOW", "xtls-rprx-vision"),
-			ShadowsocksPort:    ssPort,
-			ShadowsocksMethod:  env("WAVEBREAK_SS_METHOD", "aes-256-gcm"),
-			PublishShadowsocks: boolEnv("WAVEBREAK_PUBLISH_SHADOWSOCKS", false),
-			CDNHost:            env("WAVEBREAK_VLESS_CDN_HOST", ""),
-			CDNPort:            cdnPort,
-			CDNWSPath:          env("WAVEBREAK_VLESS_CDN_WS_PATH", "/wvb-ws"),
-			CDNXHTTPPort:       cdnXHTTPPort,
-			CDNXHTTPPath:       env("WAVEBREAK_VLESS_CDN_XHTTP_PATH", "/wvb-xh"),
-			PublishDirect:      boolEnv("WAVEBREAK_VLESS_PUBLISH_DIRECT", true),
-			PublishCDNXHTTP:    boolEnv("WAVEBREAK_VLESS_PUBLISH_CDN_XHTTP", true),
-			TrojanCDNPort:      trojanCDNPort,
-			TrojanCDNWSPath:    env("WAVEBREAK_TROJAN_CDN_WS_PATH", "/wvb-tr"),
-			CDNGRPCPort:        cdnGRPCPort,
-			CDNGRPCService:     env("WAVEBREAK_VLESS_CDN_GRPC_SERVICE", "wvb-grpc"),
-			HysteriaHost:       env("WAVEBREAK_HYSTERIA_HOST", ""),
-			HysteriaPort:       hysteriaPort,
-			HysteriaSNI:        env("WAVEBREAK_HYSTERIA_SNI", ""),
-			HysteriaInsecure:   boolEnv("WAVEBREAK_HYSTERIA_INSECURE", true),
-			DirectTLSHost:      env("WAVEBREAK_DIRECT_TLS_HOST", ""),
-			DirectTLSPort:      directTLSPort,
-			DirectTLSPath:      env("WAVEBREAK_DIRECT_TLS_PATH", "/wvb-dt"),
-			PublishCDNWS:       boolEnv("WAVEBREAK_VLESS_PUBLISH_CDN_WS", true),
-			PublishTrojanCDN:   boolEnv("WAVEBREAK_VLESS_PUBLISH_TROJAN_CDN", true),
+			PublicHost:             env("WAVEBREAK_VLESS_PUBLIC_HOST", ""),
+			PublicPort:             vlessPort,
+			RealityPublicKey:       env("WAVEBREAK_VLESS_REALITY_PUBLIC_KEY", ""),
+			RealityShortID:         env("WAVEBREAK_VLESS_REALITY_SHORT_ID", ""),
+			RealityServerName:      env("WAVEBREAK_VLESS_REALITY_SERVER_NAME", "www.microsoft.com"),
+			Fingerprint:            env("WAVEBREAK_VLESS_FINGERPRINT", "chrome"),
+			Flow:                   env("WAVEBREAK_VLESS_FLOW", "xtls-rprx-vision"),
+			ShadowsocksPort:        ssPort,
+			ShadowsocksMethod:      env("WAVEBREAK_SS_METHOD", "aes-256-gcm"),
+			PublishShadowsocks:     boolEnv("WAVEBREAK_PUBLISH_SHADOWSOCKS", false),
+			CDNHost:                env("WAVEBREAK_VLESS_CDN_HOST", ""),
+			CDNPort:                cdnPort,
+			CDNWSPath:              env("WAVEBREAK_VLESS_CDN_WS_PATH", "/wvb-ws"),
+			CDNXHTTPPort:           cdnXHTTPPort,
+			CDNXHTTPPath:           env("WAVEBREAK_VLESS_CDN_XHTTP_PATH", "/wvb-xh"),
+			PublishDirect:          boolEnv("WAVEBREAK_VLESS_PUBLISH_DIRECT", true),
+			PublishCDNXHTTP:        boolEnv("WAVEBREAK_VLESS_PUBLISH_CDN_XHTTP", true),
+			TrojanCDNPort:          trojanCDNPort,
+			TrojanCDNWSPath:        env("WAVEBREAK_TROJAN_CDN_WS_PATH", "/wvb-tr"),
+			CDNGRPCPort:            cdnGRPCPort,
+			CDNGRPCService:         env("WAVEBREAK_VLESS_CDN_GRPC_SERVICE", "wvb-grpc"),
+			HysteriaHost:           env("WAVEBREAK_HYSTERIA_HOST", ""),
+			HysteriaPort:           hysteriaPort,
+			HysteriaSNI:            env("WAVEBREAK_HYSTERIA_SNI", ""),
+			HysteriaInsecure:       boolEnv("WAVEBREAK_HYSTERIA_INSECURE", true),
+			DirectTLSHost:          env("WAVEBREAK_DIRECT_TLS_HOST", ""),
+			DirectTLSPort:          directTLSPort,
+			DirectTLSPath:          env("WAVEBREAK_DIRECT_TLS_PATH", "/wvb-dt"),
+			PublishCDNWS:           boolEnv("WAVEBREAK_VLESS_PUBLISH_CDN_WS", true),
+			PublishTrojanCDN:       boolEnv("WAVEBREAK_VLESS_PUBLISH_TROJAN_CDN", true),
+			RealityXHTTPServerName: env("WAVEBREAK_VLESS_REALITY_XHTTP_SERVER_NAME", ""),
+			RealityXHTTPPath:       env("WAVEBREAK_VLESS_REALITY_XHTTP_PATH", "/wvb-rx"),
 		},
 	}
 	if cfg.Environment == "production" {

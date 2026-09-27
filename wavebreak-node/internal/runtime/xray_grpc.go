@@ -69,6 +69,9 @@ func (a XrayAdapter) vlessInboundTags() []string {
 	if a.cfg.ListenPort > 0 {
 		tags = append(tags, "vless-reality")
 	}
+	if a.realityXHTTPEnabled() {
+		tags = append(tags, "vless-xhttp-reality")
+	}
 	if a.cfg.CDNListenPort > 0 && strings.TrimSpace(a.cfg.CDNTLSCertPath) != "" && strings.TrimSpace(a.cfg.CDNTLSKeyPath) != "" {
 		tags = append(tags, "vless-cdn-ws")
 	}
@@ -304,4 +307,13 @@ func (a XrayAdapter) ApplyIncremental(ctx context.Context, previous, next json.R
 		return false, fmt.Errorf("apply hysteria2 sidecar after live apply: %w", err)
 	}
 	return true, nil
+}
+
+// realityXHTTPEnabled: the XHTTP+REALITY inbound is rendered only when it
+// has a port, its own SNI and dest, and the shared REALITY key.
+func (a XrayAdapter) realityXHTTPEnabled() bool {
+	return a.cfg.RealityXHTTPListenPort > 0 &&
+		strings.TrimSpace(a.cfg.RealityXHTTPServerName) != "" &&
+		strings.TrimSpace(a.cfg.RealityXHTTPDest) != "" &&
+		strings.TrimSpace(a.cfg.RealityPrivateKey) != ""
 }

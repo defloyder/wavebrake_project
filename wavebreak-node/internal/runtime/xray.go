@@ -157,6 +157,45 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			},
 		})
 	}
+	// VLESS over XHTTP with REALITY (see XrayConfig.RealityXHTTPListenPort):
+	// same REALITY keys as vless-reality, its own SNI/dest, flow-less
+	// clients (Vision is raw-TCP only).
+	if a.realityXHTTPEnabled() {
+		xhttpPath := strings.TrimSpace(a.cfg.RealityXHTTPPath)
+		if xhttpPath == "" {
+			xhttpPath = "/wvb-rx"
+		}
+		inbounds = append(inbounds, map[string]any{
+			"tag":      "vless-xhttp-reality",
+			"listen":   "0.0.0.0",
+			"port":     a.cfg.RealityXHTTPListenPort,
+			"protocol": "vless",
+			"settings": map[string]any{
+				"clients":    vlessClientsNoFlow,
+				"decryption": "none",
+			},
+			"streamSettings": map[string]any{
+				"network":  "xhttp",
+				"security": "reality",
+				"realitySettings": map[string]any{
+					"show":        false,
+					"xver":        0,
+					"dest":        a.cfg.RealityXHTTPDest,
+					"serverNames": []string{a.cfg.RealityXHTTPServerName},
+					"privateKey":  a.cfg.RealityPrivateKey,
+					"shortIds":    []string{a.cfg.RealityShortID},
+				},
+				"xhttpSettings": map[string]any{
+					"path": xhttpPath,
+					"mode": "auto",
+				},
+			},
+			"sniffing": map[string]any{
+				"enabled":      true,
+				"destOverride": []string{"http", "tls", "quic"},
+			},
+		})
+	}
 	// CDN transport: VLESS over WebSocket+TLS, meant to be proxied through a
 	// CDN (Cloudflare orange-cloud) so the outer TLS handshake terminates at
 	// the CDN edge with a real, CA-issued certificate for the public domain

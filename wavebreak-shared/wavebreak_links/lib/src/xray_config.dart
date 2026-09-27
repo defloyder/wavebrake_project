@@ -166,6 +166,7 @@ abstract class V2RayURL {
     "quicSettings": null,
     "realitySettings": null,
     "grpcSettings": null,
+    "xhttpSettings": null,
     "dsSettings": null,
     "sockopt": null
   };
@@ -264,6 +265,16 @@ abstract class V2RayURL {
       streamSetting['grpcSettings'] = {
         "serviceName": serviceName ?? "",
         "multiMode": mode == "multi",
+      };
+      sni = host ?? "";
+    } else if (transport == 'xhttp' || transport == 'splithttp') {
+      // XHTTP (formerly SplitHTTP): the session travels as ordinary HTTP
+      // requests. Xray-core only; sing-box has no such transport.
+      streamSetting['network'] = 'xhttp';
+      streamSetting['xhttpSettings'] = {
+        "path": (path == null || path.isEmpty) ? '/' : path,
+        "host": (host == null || host.isEmpty) ? null : host,
+        "mode": (mode == null || mode.isEmpty) ? 'auto' : mode,
       };
       sni = host ?? "";
     }

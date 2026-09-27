@@ -77,6 +77,15 @@ void main() {
       expect(PersonalLocations.load(_FakeGateway(() async => throw Exception('no network'))), throwsException);
     });
 
+    test('Android (Xray) lists the XHTTP location too', () async {
+      const xhttp = 'vless://$_credential@45.15.41.3:443?encryption=none&fp=chrome&mode=auto'
+          '&path=%2Fwvb-rx&pbk=test-key&security=reality&sid=ab12&sni=x.example.test&type=xhttp'
+          '#%F0%9F%87%B9%F0%9F%87%B7%20Turkey%2C%20Istanbul%20%28XHTTP%29';
+      final locations = await PersonalLocations.load(_FakeGateway(
+          () async => const PersonalAccess(credentialId: _credential, links: [..._links, xhttp])));
+      expect(locations, hasLength(4));
+    });
+
     test('sign-out forgets the credential', () async {
       await PersonalLocations.load(_FakeGateway(() async => const PersonalAccess(credentialId: _credential, links: _links)));
       await SecureStore.clearSession();

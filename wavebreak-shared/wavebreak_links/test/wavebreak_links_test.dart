@@ -214,6 +214,27 @@ void main() {
       expect(user['flow'], 'xtls-rprx-vision');
     });
 
+    test('XHTTP + REALITY builds an xhttp stream without Vision flow', () {
+      // Shape of wavebreak-core's buildVLESSRealityXHTTPLink.
+      const xhttp = 'vless://$_grant@45.15.41.3:443'
+          '?encryption=none&fp=chrome&mode=auto&path=%2Fwvb-rx&pbk=PUBKEY'
+          '&security=reality&sid=abcd&sni=x.wavebreak.com.tr&spx=%2F&type=xhttp'
+          '#Turkey,%20Istanbul%20%28XHTTP%29';
+      final out = (config(xhttp)['outbounds'] as List).first as Map;
+      final stream = out['streamSettings'] as Map;
+      expect(stream['network'], 'xhttp');
+      expect(stream['xhttpSettings'], {'path': '/wvb-rx', 'mode': 'auto'});
+      expect(stream['security'], 'reality');
+      final reality = stream['realitySettings'] as Map;
+      expect(reality['serverName'], 'x.wavebreak.com.tr');
+      expect(reality['publicKey'], 'PUBKEY');
+      expect(reality['shortId'], 'abcd');
+      final user = (((out['settings'] as Map)['vnext'] as List).first as Map)['users'][0] as Map;
+      expect(user['flow'] ?? '', isEmpty);
+      // sing-box (Windows) has no XHTTP: the link is reported, not mis-built.
+      expect(ShareLink.parse(xhttp).supportedBy(TunnelEngine.singBox), isFalse);
+    });
+
     test('WireGuard builds an Xray wireguard outbound', () {
       final out = (config('wg://K@w.example:51820?publickey=P&address=10.0.0.2')['outbounds']
               as List)
