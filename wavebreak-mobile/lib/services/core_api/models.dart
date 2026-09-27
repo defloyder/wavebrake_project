@@ -983,3 +983,94 @@ class SharedAccess {
     );
   }
 }
+
+/// One subscription as GET /me/sharing reports it: the account's own, or
+/// someone else's shared through their code (then [links] while active
+/// and [subscriptionUrl] identify it).
+class SharedSubscription {
+  const SharedSubscription({
+    this.planName = '',
+    this.status = 'none',
+    this.expiresAt,
+    this.subscriptionUrl,
+    this.deviceLimit,
+    this.devicesUsed = 0,
+    this.trafficLimitBytes,
+    this.trafficUsedBytes = 0,
+    this.links = const [],
+  });
+
+  final String planName;
+  final String status;
+  final DateTime? expiresAt;
+  final String? subscriptionUrl;
+  final int? deviceLimit;
+  final int devicesUsed;
+  final int? trafficLimitBytes;
+  final int trafficUsedBytes;
+  final List<String> links;
+
+  bool get isActive =>
+      status == 'active' && (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
+
+  int? get daysRemaining {
+    if (expiresAt == null) return null;
+    final left = expiresAt!.difference(DateTime.now());
+    return left.isNegative ? 0 : (left.inHours / 24).ceil();
+  }
+
+  factory SharedSubscription.fromJson(Map<String, dynamic> json) {
+    final limits = json['limits'] is Map
+        ? (json['limits'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    int? asInt(Object? v) => v is num ? v.toInt() : null;
+    final raw = json['links'];
+    return SharedSubscription(
+      planName: (json['plan_name'] ?? '').toString(),
+      status: (json['status'] ?? 'none').toString(),
+      expiresAt: DateTime.tryParse((json['expires_at'] ?? '').toString()),
+      subscriptionUrl: json['subscription_url'] as String?,
+      deviceLimit: asInt(limits['device_limit']),
+      devicesUsed: asInt(limits['devices_used']) ?? 0,
+      trafficLimitBytes: asInt(limits['traffic_limit_bytes']),
+      trafficUsedBytes: asInt(limits['traffic_used_bytes']) ?? 0,
+      links: raw is List
+          ? raw.map((e) => e.toString()).where((l) => l.isNotEmpty).toList()
+          : const [],
+    );
+  }
+}
+
+/// GET /me/sharing: the account's own subscription (null without one) and
+/// the ones shared with it.
+class SharingOverview {
+  const SharingOverview({this.own, this.received = const []});
+
+  final SharedSubscription? own;
+  final List<SharedSubscription> received;
+
+  static const empty = SharingOverview();
+
+  /// The received subscription a redeemed section came from, by its
+  /// subscription URL.
+  SharedSubscription? receivedFor(String subscriptionUrl) {
+    for (final r in received) {
+      if (r.subscriptionUrl == subscriptionUrl) return r;
+    }
+    return null;
+  }
+
+  factory SharingOverview.fromJson(Map<String, dynamic> json) {
+    final own = json['own'];
+    final received = json['received'];
+    return SharingOverview(
+      own: own is Map ? SharedSubscription.fromJson(own.cast<String, dynamic>()) : null,
+      received: received is List
+          ? received
+              .whereType<Map>()
+              .map((e) => SharedSubscription.fromJson(e.cast<String, dynamic>()))
+              .toList()
+          : const [],
+    );
+  }
+}

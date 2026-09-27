@@ -124,6 +124,14 @@ class CoreApi {
     );
   }
 
+  /// The account's own subscription and the ones shared with it.
+  Future<SharingOverview> mySharing() {
+    return _client.get(
+      '/me/sharing',
+      parse: (data) => SharingOverview.fromJson(_asMap(data)),
+    );
+  }
+
   /// Redeems someone's share code: takes one of their device slots for
   /// this device (403 DEVICE_LIMIT_REACHED when none is left).
   Future<SharedAccess> redeemShare({

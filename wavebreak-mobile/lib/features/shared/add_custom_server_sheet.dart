@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/custom_servers/custom_server_controller.dart';
+import 'data_providers.dart';
 import 'qr_scan_screen.dart';
 import 'wave_params.dart';
 
@@ -40,6 +41,8 @@ Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async
                 await ref.read(customServersProvider.notifier).addFromLink(controller.text);
             setState(() => busy = false);
             if (result == null) {
+              // A redeemed share code: fetch its limits for the new section.
+              ref.invalidate(sharingProvider);
               if (context.mounted) Navigator.pop(context);
               return;
             }

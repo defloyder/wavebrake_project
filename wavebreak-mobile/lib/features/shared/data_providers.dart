@@ -7,6 +7,7 @@ import '../../core/auth/session_controller.dart';
 import '../../core/network/connectivity_provider.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../services/core_api/models.dart';
+import '../../services/custom_servers/custom_server_controller.dart';
 import '../../services/providers.dart';
 import '../../services/vpn/personal_locations.dart';
 import '../../services/vpn/connection_manager.dart';
@@ -316,5 +317,28 @@ final trafficUsageProvider = FutureProvider<UsageSummary?>((ref) async {
       return cached;
     }
     rethrow;
+  }
+});
+
+/// The account's own subscription and the ones shared with it (GET
+/// /me/sharing): plan names, limits and traffic for each section, and
+/// what Home's strip shows when a shared location is selected. Each fresh
+/// read also brings the redeemed sections in line (see
+/// [CustomServerController.syncShared]). Refreshed at usage's pace while
+/// connected; null when unavailable — sections then just show less.
+final sharingProvider = FutureProvider<SharingOverview?>((ref) async {
+  if (!_canQueryCore(ref)) return null;
+  final connected = ref.watch(connectionManagerProvider
+      .select((s) => s.status == ConnectionStatus.connected));
+  if (connected) {
+    final refresh = Timer(const Duration(seconds: 60), ref.invalidateSelf);
+    ref.onDispose(refresh.cancel);
+  }
+  try {
+    final overview = await _withTimeout(ref.watch(coreGatewayProvider).sharing());
+    unawaited(ref.read(customServersProvider.notifier).syncShared(overview));
+    return overview;
+  } catch (_) {
+    return null;
   }
 });

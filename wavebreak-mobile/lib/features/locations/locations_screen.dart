@@ -85,6 +85,7 @@ class LocationsScreen extends ConsumerWidget {
                       wavebreakLocations: items,
                       customGroups: custom,
                       s: s,
+                      sharing: ref.watch(sharingProvider).asData?.value,
                     );
                     return SingleChildScrollView(
                       child: SubscriptionAccordion(

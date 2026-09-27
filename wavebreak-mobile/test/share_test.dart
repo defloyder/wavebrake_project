@@ -12,6 +12,8 @@ import 'package:wavebreak/services/custom_servers/custom_server_controller.dart'
 import 'package:wavebreak/services/custom_servers/custom_subscription.dart';
 import 'package:wavebreak/services/custom_servers/share_link_parsing.dart';
 import 'package:wavebreak/services/providers.dart';
+import 'package:wavebreak/services/vpn/connection_manager.dart';
+import 'package:wavebreak/services/vpn/vpn_adapter.dart';
 
 import 'test_helpers.dart';
 
@@ -32,6 +34,11 @@ class _FakeGateway implements CoreGateway {
   Future<SharedAccess> Function() answer;
   int calls = 0;
   String? lastToken;
+
+  SharingOverview overview = SharingOverview.empty;
+
+  @override
+  Future<SharingOverview> sharing() async => overview;
 
   @override
   Future<SharedAccess> redeemShare({
@@ -59,6 +66,11 @@ AppException _mapped(int status, String code) => const ErrorMapper().map(DioExce
         },
       ),
     ));
+
+List<Override> _overrides(_FakeGateway gateway) => [
+      coreGatewayProvider.overrideWithValue(gateway),
+      vpnAdapterProvider.overrideWithValue(SimulatedVpnAdapter(delay: Duration.zero)),
+    ];
 
 void main() {
   test('share code detection: only /v1/share/<48-char token>', () {
@@ -101,7 +113,17 @@ void main() {
         CustomSubscriptionGroup(id: 'b', name: 'Shared', sourceLink: 'https://core.test/v1/sub/1', servers: [], sharedWithMe: true),
       ],
       s: kRussianStrings,
+      sharing: const SharingOverview(
+        own: SharedSubscription(planName: 'Fleet', status: 'active', deviceLimit: 2, devicesUsed: 1),
+        received: [
+          SharedSubscription(subscriptionUrl: 'https://core.test/v1/sub/1', status: 'past_due'),
+        ],
+      ),
     );
+    expect(sections[0].title, 'WAVEBREAK Fleet');
+    expect(sections[0].details, contains('Устройств: 1 из 2'));
+    expect(sections[1].details, isNull);
+    expect(sections[2].details, kRussianStrings.shareOwnerInactive);
     expect(sections[0].shareLink, kPersonalShareLink);
     expect(sections[1].shareLink, 'https://x.test/sub');
     expect(sections[1].shareable, isTrue);
@@ -120,7 +142,7 @@ void main() {
             planName: 'Plus',
             subscriptionUrl: 'https://core.example.test/v1/sub/$_credential',
           ));
-      container = ProviderContainer(overrides: [coreGatewayProvider.overrideWithValue(gateway)]);
+      container = ProviderContainer(overrides: _overrides(gateway));
       addTearDown(container.dispose);
     });
 
@@ -130,6 +152,7 @@ void main() {
       expect(gateway.lastToken, _token);
       var groups = container.read(customServersProvider);
       expect(groups, hasLength(1));
+      expect(groups.single.name, 'WAVEBREAK Plus');
       expect(groups.single.sharedWithMe, isTrue);
       expect(groups.single.sourceLink, 'https://core.example.test/v1/sub/$_credential');
       expect(groups.single.servers, hasLength(2));
@@ -138,7 +161,7 @@ void main() {
       expect(container.read(customServersProvider), hasLength(1));
 
       // A fresh controller reads the saved list back, flag included.
-      final reloaded = ProviderContainer(overrides: [coreGatewayProvider.overrideWithValue(gateway)]);
+      final reloaded = ProviderContainer(overrides: _overrides(gateway));
       addTearDown(reloaded.dispose);
       groups = reloaded.read(customServersProvider);
       expect(groups.single.sharedWithMe, isTrue);
@@ -159,6 +182,46 @@ void main() {
         expect(await notifier.addFromLink('https://core.example.test/v1/share/$_token'), entry.value);
       }
       expect(container.read(customServersProvider), isEmpty);
+    });
+
+    test('sync: plan name and app links from Core; a revoked slot drops the section', () async {
+      final notifier = container.read(customServersProvider.notifier);
+      expect(await notifier.addFromLink('https://core.example.test/v1/share/$_token'), isNull);
+      final url = 'https://core.example.test/v1/sub/$_credential';
+
+      // Refresh goes through Core (no CDN, no host as the name).
+      gateway.overview = SharingOverview(received: [
+        SharedSubscription(planName: 'Fleet', status: 'active', subscriptionUrl: url, links: [_links.last]),
+      ]);
+      await notifier.refreshGroup(container.read(customServersProvider).single.id);
+      var group = container.read(customServersProvider).single;
+      expect(group.name, 'WAVEBREAK Fleet');
+      expect(group.servers, hasLength(1));
+      expect(group.sharedWithMe, isTrue);
+
+      // Owner's subscription inactive: links kept as they were.
+      await notifier.syncShared(SharingOverview(received: [
+        SharedSubscription(planName: 'Fleet', status: 'past_due', subscriptionUrl: url),
+      ]));
+      group = container.read(customServersProvider).single;
+      expect(group.servers, hasLength(1));
+
+      // Right after a scan an overview without the new slot is stale, not
+      // a revocation.
+      await notifier.syncShared(SharingOverview.empty);
+      expect(container.read(customServersProvider), hasLength(1));
+
+      // Owner revoked the slot: gone.
+      notifier.forgetRecentRedeems();
+      await notifier.syncShared(SharingOverview.empty);
+      expect(container.read(customServersProvider), isEmpty);
+    });
+
+    test('sync never touches the user\'s own links', () async {
+      final notifier = container.read(customServersProvider.notifier);
+      expect(await notifier.addFromLink(_links.first), isNull);
+      await notifier.syncShared(SharingOverview.empty);
+      expect(container.read(customServersProvider), hasLength(1));
     });
 
     test('a non-share link never reaches Core', () async {

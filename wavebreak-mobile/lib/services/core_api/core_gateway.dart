@@ -120,6 +120,11 @@ class CoreGateway {
     return live.myShare();
   }
 
+  Future<SharingOverview> sharing() {
+    if (useMock) return Future.value(SharingOverview.empty);
+    return live.mySharing();
+  }
+
   Future<SharedAccess> redeemShare({
     required String token,
     required String deviceName,

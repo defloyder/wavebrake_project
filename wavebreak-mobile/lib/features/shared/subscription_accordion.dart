@@ -283,6 +283,15 @@ class _SectionCardState extends State<_SectionCard> {
                             style: const TextStyle(color: WbColors.ice60, fontSize: 12),
                             overflow: TextOverflow.ellipsis,
                           ),
+                          // Traffic and devices of this subscription —
+                          // the owner's own limits for a shared one.
+                          if (section.details != null)
+                            Text(
+                              section.details!,
+                              style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                         ],
                       ),
                     ),

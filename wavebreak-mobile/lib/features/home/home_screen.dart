@@ -15,6 +15,7 @@ import '../../core/theme/wb_colors.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../services/core_api/models.dart';
 import '../../services/custom_servers/custom_server_controller.dart';
+import '../../services/custom_servers/custom_subscription.dart';
 import '../../services/system/battery_optimization.dart';
 import '../../services/update/apk_installer.dart';
 import '../../services/vpn/connection_manager.dart';
@@ -217,6 +218,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       wavebreakLocations: locations,
       customGroups: custom,
       s: s,
+      sharing: ref.read(sharingProvider).asData?.value,
     );
     if (!mounted) return;
     final isDesktop = MediaQuery.sizeOf(context).width >= 820;
@@ -383,6 +385,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           wavebreakLocations: items,
           customGroups: ref.watch(customServersProvider),
           s: s,
+          sharing: ref.watch(sharingProvider).asData?.value,
         );
         return SubscriptionAccordion(
           sections: sections,
@@ -1112,6 +1115,24 @@ class _SubscriptionStrip extends ConsumerWidget {
         ),
       );
     }
+    // A location of a subscription someone shared with us is selected:
+    // show that subscription (the owner's days and traffic), not ours.
+    final locationId = ref.watch(connectionManagerProvider.select((c) => c.location.id));
+    CustomSubscriptionGroup? sharedGroup;
+    for (final g in ref.watch(customServersProvider)) {
+      if (g.sharedWithMe && g.servers.any((server) => server.id == locationId)) {
+        sharedGroup = g;
+        break;
+      }
+    }
+    if (sharedGroup != null) {
+      final received =
+          ref.watch(sharingProvider).asData?.value?.receivedFor(sharedGroup.sourceLink);
+      return WbCard(
+        tint: tint,
+        child: _SharedSubscriptionStrip(title: sharedGroup.name, received: received, s: s),
+      );
+    }
     return WbCard(
       onTap: onOpen,
       tint: tint,
@@ -1188,6 +1209,54 @@ class _SubscriptionStrip extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Home's strip for a subscription shared with us: its owner's plan, days
+/// and traffic (everyone sharing it uses the same traffic).
+class _SharedSubscriptionStrip extends StatelessWidget {
+  const _SharedSubscriptionStrip({required this.title, required this.received, required this.s});
+
+  final String title;
+  final SharedSubscription? received;
+  final AppStrings s;
+
+  @override
+  Widget build(BuildContext context) {
+    final sub = received;
+    final active = sub != null && sub.isActive;
+    final days = sub?.daysRemaining;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          active ? s.subscriptionActive : title,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          sub == null
+              ? s.sharedAccessTitle
+              : !active
+                  ? s.shareOwnerInactive
+                  : days == null
+                      ? title
+                      : '$days ${s.daysRemaining} · $title',
+          style: TextStyle(
+            color: sub != null && !active ? WbColors.warning : WbColors.ice60,
+            fontSize: 13,
+          ),
+        ),
+        if (active) ...[
+          const SizedBox(height: 10),
+          TrafficWaveBar(
+            usedBytes: sub.trafficUsedBytes,
+            limitBytes: sub.trafficLimitBytes,
+            s: s,
+          ),
+        ],
+      ],
     );
   }
 }
