@@ -81,12 +81,22 @@ class _QrScanScreenState extends State<QrScanScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Stack(
+      // Bug 11: only a code inside the frame counts — scanWindow makes the
+      // scanner ignore anything detected outside it, and the overlay dims
+      // everything but the frame so it's clear where to aim.
+      body: LayoutBuilder(builder: (context, constraints) {
+        final scanWindow = Rect.fromCenter(
+          center: constraints.biggest.center(Offset.zero),
+          width: _frameSize,
+          height: _frameSize,
+        );
+        return Stack(
         fit: StackFit.expand,
         children: [
           MobileScanner(
             key: ValueKey(_controller),
             controller: _controller,
+            scanWindow: scanWindow,
             onDetect: _onDetect,
             errorBuilder: (context, error) {
               // Deferred out of build(): MobileScanner's own
@@ -103,21 +113,21 @@ class _QrScanScreenState extends State<QrScanScreen> {
             },
           ),
           if (_error == null)
-            Center(
-              child: Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  border: Border.all(color: WbColors.waveCyan, width: 2),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
+            ScanWindowOverlay(
+              controller: _controller,
+              scanWindow: scanWindow,
+              borderColor: WbColors.waveCyan,
+              borderRadius: BorderRadius.circular(24),
+              color: Colors.black54,
             ),
         ],
-      ),
+      );
+      }),
     );
   }
 }
+
+const double _frameSize = 240;
 
 class _ScanErrorView extends StatelessWidget {
   const _ScanErrorView({required this.s, required this.error, required this.onRetry});

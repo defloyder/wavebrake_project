@@ -114,6 +114,30 @@ class CoreApi {
     );
   }
 
+  /// A fresh share code for the account's own subscription. 404/422
+  /// without an active subscription, like [myAccess].
+  Future<ShareInfo> myShare() {
+    return _client.post(
+      '/me/share',
+      body: const <String, dynamic>{},
+      parse: (data) => ShareInfo.fromJson(_asMap(data)),
+    );
+  }
+
+  /// Redeems someone's share code: takes one of their device slots for
+  /// this device (403 DEVICE_LIMIT_REACHED when none is left).
+  Future<SharedAccess> redeemShare({
+    required String token,
+    required String deviceName,
+    required String platform,
+  }) {
+    return _client.post(
+      '/share/redeem',
+      body: {'token': token, 'device_name': deviceName, 'platform': platform},
+      parse: (data) => SharedAccess.fromJson(_asMap(data)),
+    );
+  }
+
   Future<SubscriptionInfo> currentSubscription() {
     return _client.get(
       '/subscriptions/current',

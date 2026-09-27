@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/auth/session_controller.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
@@ -86,8 +85,6 @@ class LocationsScreen extends ConsumerWidget {
                       wavebreakLocations: items,
                       customGroups: custom,
                       s: s,
-                      wavebreakShareUrl:
-                          ref.watch(sessionControllerProvider).config.websiteUrl,
                     );
                     return SingleChildScrollView(
                       child: SubscriptionAccordion(

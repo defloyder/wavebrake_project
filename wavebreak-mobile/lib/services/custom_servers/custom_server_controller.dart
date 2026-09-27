@@ -3,9 +3,14 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:wavebreak_links/wavebreak_links.dart' show ShareLink, TunnelEngine;
 
+import '../../core/errors/app_exception.dart';
+import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
 import '../core_api/models.dart';
+import '../device/device_service.dart';
+import '../providers.dart';
 import 'custom_subscription.dart';
 import 'share_link_parsing.dart';
 
@@ -30,12 +35,19 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
   /// Adds either a single server link (vless://, trojan://, ...) or a
   /// subscription URL that expands into many servers. WAVEBREAK never
   /// inspects or forwards link contents anywhere but the local (simulated)
-  /// VPN adapter — nothing here is ever sent to WAVEBREAK Core.
+  /// VPN adapter — nothing here is ever sent to WAVEBREAK Core, except the
+  /// token of WAVEBREAK's own share code.
+  ///
+  /// A WAVEBREAK share code (the "Share" QR) is redeemed with Core instead:
+  /// that takes one of the owner's device slots, see [_addFromShareCode].
   ///
   /// Returns null on success, or an error code: 'invalid', 'blocked',
-  /// 'unreachable', 'empty'.
+  /// 'unreachable', 'empty', or for share codes 'share_limit',
+  /// 'share_invalid', 'share_own', 'share_inactive'.
   Future<String?> addFromLink(String link) async {
     final trimmed = link.trim();
+    final shareToken = wavebreakShareToken(trimmed);
+    if (shareToken != null) return _addFromShareCode(shareToken);
     if (!trimmed.contains('://')) return 'invalid';
     final uri = Uri.tryParse(trimmed);
     if (uri == null || uri.scheme.isEmpty) return 'invalid';
@@ -113,6 +125,48 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     return null;
   }
 
+  /// Redeems someone's share code with this app's own Core. Core checks
+  /// the owner's device limit and only then returns the owner's links;
+  /// they land here as one more section. Scanning the same code again
+  /// refreshes that section instead of adding a second one.
+  Future<String?> _addFromShareCode(String token) async {
+    final gateway = ref.read(coreGatewayProvider);
+    final SharedAccess access;
+    try {
+      final (platform, name) = await DeviceService(gateway).platformInfo();
+      access = await gateway.redeemShare(token: token, deviceName: name, platform: platform);
+    } on AppException catch (e) {
+      return switch (e.kind) {
+        AppErrorKind.deviceLimitReached => 'share_limit',
+        AppErrorKind.shareInvalid => 'share_invalid',
+        AppErrorKind.shareOwnSubscription => 'share_own',
+        _ when e.statusCode == 404 || e.statusCode == 422 => 'share_inactive',
+        _ => 'unreachable',
+      };
+    } catch (_) {
+      return 'unreachable';
+    }
+    // Only what this app's tunnel engine runs, as for our own locations.
+    final servers = parseSubscriptionBody(access.links
+        .where((l) => ShareLink.tryParse(l)?.supportedBy(TunnelEngine.xray) ?? false)
+        .join('\n'));
+    if (servers.isEmpty) return 'empty';
+    final source = access.subscriptionUrl ?? '';
+    final existing = state.where((g) => g.sharedWithMe && g.sourceLink == source).toList();
+    final group = CustomSubscriptionGroup(
+      id: existing.isNotEmpty ? existing.first.id : const Uuid().v4(),
+      name: ref.read(stringsProvider).sharedAccessTitle,
+      sourceLink: source,
+      servers: servers,
+      sharedWithMe: true,
+    );
+    state = existing.isNotEmpty
+        ? [for (final g in state) g.id == group.id ? group : g]
+        : [...state, group];
+    await _persist();
+    return null;
+  }
+
   Future<void> removeGroup(String id) async {
     state = state.where((g) => g.id != id).toList();
     await _persist();
@@ -145,6 +199,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
             name: uri.host,
             sourceLink: g.sourceLink,
             servers: servers,
+            sharedWithMe: g.sharedWithMe,
           )
         else
           g,
@@ -158,6 +213,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
               'id': g.id,
               'name': g.name,
               'link': g.sourceLink,
+              if (g.sharedWithMe) 'shared': true,
               'servers': g.servers
                   .map((s) => {
                         'id': s.id,
@@ -190,6 +246,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       name: (json['name'] ?? 'Custom').toString(),
       sourceLink: (json['link'] ?? '').toString(),
       servers: servers,
+      sharedWithMe: json['shared'] == true,
     );
   }
 }

@@ -70,6 +70,12 @@ class ErrorMapper {
           return AppException(AppErrorKind.weakPassword, statusCode: status);
         }
       }
+      if (text.contains('share_invalid') || text.contains('share_expired')) {
+        return AppException(AppErrorKind.shareInvalid, statusCode: status);
+      }
+      if (text.contains('share_own_subscription')) {
+        return AppException(AppErrorKind.shareOwnSubscription, statusCode: status);
+      }
       if (text.contains('device_limit_reached')) {
         return AppException(AppErrorKind.deviceLimitReached, statusCode: status);
       }

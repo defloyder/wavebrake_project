@@ -14,6 +14,7 @@ class SubscriptionSectionData {
     this.isCustom = false,
     this.shareLink,
     this.canRefresh = false,
+    this.shareable = true,
   });
 
   final String id;
@@ -24,13 +25,20 @@ class SubscriptionSectionData {
   final bool isCustom;
   final String? shareLink;
   final bool canRefresh;
+
+  /// False for someone else's subscription redeemed from their share
+  /// code: its links hold one of their device slots and aren't passed on.
+  final bool shareable;
 }
+
+/// Stands in for the account's own share code: the share sheet asks Core
+/// for a fresh one (with its limits) instead of showing a fixed link.
+const kPersonalShareLink = 'wavebreak:personal-share';
 
 List<SubscriptionSectionData> buildSubscriptionSections({
   required List<LocationItem> wavebreakLocations,
   required List<CustomSubscriptionGroup> customGroups,
   required AppStrings s,
-  String? wavebreakShareUrl,
 }) {
   // Bug 6: no "Auto · Fastest" row — only real locations.
   final wavebreakServers = [...wavebreakLocations];
@@ -41,7 +49,8 @@ List<SubscriptionSectionData> buildSubscriptionSections({
       subtitle: '${wavebreakServers.length} ${s.locationsWord}',
       icon: Icons.workspace_premium_outlined,
       servers: wavebreakServers,
-      shareLink: wavebreakShareUrl,
+      // Resolved to a fresh share code from Core when the sheet opens.
+      shareLink: kPersonalShareLink,
     ),
     for (final g in customGroups)
       SubscriptionSectionData(
@@ -51,8 +60,9 @@ List<SubscriptionSectionData> buildSubscriptionSections({
         icon: g.isSubscriptionUrl ? Icons.cloud_outlined : Icons.link,
         servers: g.servers,
         isCustom: true,
-        shareLink: g.sourceLink,
+        shareLink: g.sharedWithMe ? null : g.sourceLink,
         canRefresh: g.isSubscriptionUrl,
+        shareable: !g.sharedWithMe,
       ),
   ];
 }

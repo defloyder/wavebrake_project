@@ -921,3 +921,65 @@ class PersonalAccess {
         'links': links,
       };
 }
+
+/// A share code for the account's own subscription (POST /me/share): the
+/// URL shown as a QR plus the limits everyone who scans it shares.
+class ShareInfo {
+  const ShareInfo({
+    required this.shareUrl,
+    this.expiresAt,
+    this.deviceLimit,
+    this.devicesUsed = 0,
+    this.trafficLimitBytes,
+    this.trafficUsedBytes = 0,
+  });
+
+  final String shareUrl;
+  final DateTime? expiresAt;
+  final int? deviceLimit;
+  final int devicesUsed;
+  final int? trafficLimitBytes;
+  final int trafficUsedBytes;
+
+  bool get slotsFull => deviceLimit != null && devicesUsed >= deviceLimit!;
+
+  factory ShareInfo.fromJson(Map<String, dynamic> json) {
+    final limits = json['limits'] is Map
+        ? (json['limits'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    int? asInt(Object? v) => v is num ? v.toInt() : null;
+    return ShareInfo(
+      shareUrl: (json['share_url'] ?? '').toString(),
+      expiresAt: DateTime.tryParse((json['expires_at'] ?? '').toString()),
+      deviceLimit: asInt(limits['device_limit']),
+      devicesUsed: asInt(limits['devices_used']) ?? 0,
+      trafficLimitBytes: asInt(limits['traffic_limit_bytes']),
+      trafficUsedBytes: asInt(limits['traffic_used_bytes']) ?? 0,
+    );
+  }
+}
+
+/// Someone else's subscription, redeemed from their share code
+/// (POST /share/redeem): their links, counted on their limits.
+class SharedAccess {
+  const SharedAccess({
+    required this.links,
+    this.planName = '',
+    this.subscriptionUrl,
+  });
+
+  final List<String> links;
+  final String planName;
+  final String? subscriptionUrl;
+
+  factory SharedAccess.fromJson(Map<String, dynamic> json) {
+    final raw = json['links'];
+    return SharedAccess(
+      planName: (json['plan_name'] ?? '').toString(),
+      subscriptionUrl: json['subscription_url'] as String?,
+      links: raw is List
+          ? raw.map((e) => e.toString()).where((l) => l.isNotEmpty).toList()
+          : const [],
+    );
+  }
+}

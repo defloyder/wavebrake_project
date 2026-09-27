@@ -59,6 +59,9 @@ class DeviceService {
   // blocking sign-in.
   static const _platformInfoTimeout = Duration(seconds: 5);
 
+  /// (platform, human-readable name) of this device, as sent to Core.
+  Future<(String, String)> platformInfo() => _platformInfo();
+
   Future<(String, String)> _platformInfo() async {
     final info = DeviceInfoPlugin();
     try {

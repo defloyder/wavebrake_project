@@ -217,7 +217,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       wavebreakLocations: locations,
       customGroups: custom,
       s: s,
-      wavebreakShareUrl: ref.read(sessionControllerProvider).config.websiteUrl,
     );
     if (!mounted) return;
     final isDesktop = MediaQuery.sizeOf(context).width >= 820;
@@ -384,8 +383,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           wavebreakLocations: items,
           customGroups: ref.watch(customServersProvider),
           s: s,
-          wavebreakShareUrl: ref.watch(sessionControllerProvider
-              .select((session) => session.config.websiteUrl)),
         );
         return SubscriptionAccordion(
           sections: sections,

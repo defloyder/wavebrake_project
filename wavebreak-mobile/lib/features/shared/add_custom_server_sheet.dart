@@ -48,6 +48,10 @@ Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async
                 'blocked' => s.blockedSubscriptionLink,
                 'unreachable' => s.errUnavailable,
                 'empty' => s.invalidSubscriptionLink,
+                'share_limit' => s.shareDeviceLimitReached,
+                'share_invalid' => s.shareInvalid,
+                'share_own' => s.shareOwnSubscription,
+                'share_inactive' => s.shareOwnerInactive,
                 _ => s.invalidSubscriptionLink,
               };
             });
@@ -98,7 +102,13 @@ Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async
                             final scanned = await Navigator.of(context).push<String>(
                               MaterialPageRoute(builder: (_) => QrScanScreen(s: s)),
                             );
-                            if (scanned != null) controller.text = scanned;
+                            // Bug 11: a scanned code is added right away —
+                            // on success the new section appears; if it
+                            // can't be added, the scanned URL stays in
+                            // the field next to the reason.
+                            if (scanned == null || !context.mounted) return;
+                            controller.text = scanned.trim();
+                            await submit();
                           },
                           style: FilledButton.styleFrom(
                             backgroundColor: scanColor.withValues(alpha: 0.16),

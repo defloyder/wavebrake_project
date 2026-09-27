@@ -329,6 +329,7 @@ class _SectionCardState extends State<_SectionCard> {
                           onShare: widget.onShare == null
                               ? null
                               : (title, link) => widget.onShare!(title, link),
+                          shareable: section.shareable,
                         ),
                     ],
                   )
@@ -459,6 +460,7 @@ class _ServerRow extends StatelessWidget {
     required this.onTap,
     required this.onShare,
     this.livePingMs,
+    this.shareable = true,
   });
 
   final LocationItem server;
@@ -466,6 +468,9 @@ class _ServerRow extends StatelessWidget {
   final bool selected;
   final VoidCallback? onTap;
   final void Function(String title, String link)? onShare;
+
+  /// False for a section redeemed from someone else's share code.
+  final bool shareable;
 
   /// A real, just-measured reachability figure from _SectionCard's
   /// periodic sweep (see connection_test_service.dart) — real backend
@@ -527,7 +532,7 @@ class _ServerRow extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                 ],
-                if (server.isCustom && server.rawLink != null)
+                if (shareable && server.isCustom && server.rawLink != null)
                   _HeaderIcon(
                     icon: Icons.ios_share_rounded,
                     tooltip: s.shareSubscription,
