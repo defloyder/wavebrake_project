@@ -10,6 +10,9 @@
 - Приложения (мобилка и ПК): зашитые ссылки с общим ключом удалены; `lib/services/vpn/personal_locations.dart` (бывший `bundled_locations.dart`) — `PersonalLocations`, личный доступ из Core с кешем в SecureStore.
 - ВАЖНО: старые APK продолжают ходить по общему ключу; его подписка кончается 2026-10-16 и в этот день уйдёт в `past_due` (VPN у старых версий пропадёт), если её не продлить. Отзывать общий ключ — только после обновления пользователей.
 - Пробный прогон на проде: `wavebreak-cli subscriptions lifecycle --dry-run`.
+- Задеплоено на pilot 2026-09-27 (api + worker). Новый прямой хост API `core.wavebreak.com.tr` (DNS only -> 45.15.41.3, SNI в nginx -> 18446, сертификат в `runtime/letsencrypt/live/core.wavebreak.com.tr`, выпуск dns-cloudflare). Причина: `api.wavebreak.com.tr` за Cloudflare на мобильной сети Yota не доставляет ответы. Приложения собирать с `CORE_BASE_URL=https://core.wavebreak.com.tr`; ссылки подписки по умолчанию тоже на core. Старый `api.*` работает для старых версий.
+- Конфиг nginx смонтирован в контейнер read-only по одному файлу: правка на хосте применяется только `docker restart wavebreak-pilot-public-http` (обрыв TCP-сессий на 443 ~1 с), `reload` новый файл не увидит.
+- Не решено: автопродление сертификатов в `runtime/letsencrypt` (host certbot.timer продлевает `/etc/letsencrypt`, cron из `wavebreak-infrastructure/cron/pilot.crontab` не установлен). Сертификаты core/r истекают 2026-12-26.
 
 ## 2026-09-27: переделка UI админки (ветка `app-main-sync`, задеплоено на pilot из f35bdf8; бэкапы `shared/backups/pre-admin-ui-20260927-094759.dump`, `src-core-admin-before-admin-ui-20260927-094759.tgz`)
 
