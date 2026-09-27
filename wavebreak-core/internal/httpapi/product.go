@@ -437,20 +437,25 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 				"uri":       relayLink,
 			})
 		}
-		xhttpLink := buildVLESSRealityXHTTPLink(vless, config.Grant.ID, location)
-		links = append(links, xhttpLink)
-		config.VLESSRealityXHTTP = map[string]any{
-			"client_id": config.Grant.ID,
-			"label":     location,
-			"protocol":  "vless",
-			"security":  "reality",
-			"network":   "xhttp",
-			"server":    vless.PublicHost,
-			"port":      vless.PublicPort,
-			"sni":       vless.RealityXHTTPServerName,
-			"path":      vless.RealityXHTTPPath,
-			"uri":       xhttpLink,
-			"note":      "REALITY over XHTTP: the session travels as ordinary HTTP requests — try this where plain VLESS connects but pages don't load.",
+		// The same transport straight to this node: off by default — its SNI
+		// is a domestic site, which is exactly what whitelisting carriers
+		// reject on a foreign IP, and elsewhere the other transports work.
+		if vless.PublishRealityXHTTPDirect {
+			xhttpLink := buildVLESSRealityXHTTPLink(vless, config.Grant.ID, location)
+			links = append(links, xhttpLink)
+			config.VLESSRealityXHTTP = map[string]any{
+				"client_id": config.Grant.ID,
+				"label":     location,
+				"protocol":  "vless",
+				"security":  "reality",
+				"network":   "xhttp",
+				"server":    vless.PublicHost,
+				"port":      vless.PublicPort,
+				"sni":       vless.RealityXHTTPServerName,
+				"path":      vless.RealityXHTTPPath,
+				"uri":       xhttpLink,
+				"note":      "REALITY over XHTTP: the session travels as ordinary HTTP requests — try this where plain VLESS connects but pages don't load.",
+			}
 		}
 	}
 

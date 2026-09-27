@@ -127,17 +127,17 @@ func TestSubscriptionLifecycleE2E(t *testing.T) {
 	}
 	credential := d["credential_id"].(string)
 	links := d["links"].([]any)
-	if credential == "" || d["subscription_url"] != "https://api.e2e.test/v1/sub/"+credential || len(links) != 5 {
+	if credential == "" || d["subscription_url"] != "https://api.e2e.test/v1/sub/"+credential || len(links) != 4 {
 		t.Fatalf("access payload: %v", d)
 	}
 	// The relay link comes first: same credential and XHTTP+REALITY, relay address.
 	if relay := links[0].(string); !strings.HasPrefix(relay, "vless://"+credential+"@198.51.100.7:443?") || !strings.Contains(relay, "type=xhttp") || !strings.Contains(relay, "sni=x.e2e.test") {
 		t.Fatalf("relay link: %v", relay)
 	}
+	// Then the node itself; XHTTP straight to the node is off by default.
 	links = links[1:]
-	if !strings.HasPrefix(links[0].(string), "vless://"+credential+"@") || !strings.Contains(links[0].(string), "security=reality") ||
-		!strings.Contains(links[1].(string), "type=xhttp") || !strings.Contains(links[1].(string), "sni=x.e2e.test") || strings.Contains(links[1].(string), "flow=") ||
-		!strings.Contains(links[2].(string), "direct.e2e.test") || !strings.Contains(links[2].(string), "fp=chrome") || !strings.HasPrefix(links[3].(string), "hysteria2://") {
+	if !strings.HasPrefix(links[0].(string), "vless://"+credential+"@") || !strings.Contains(links[0].(string), "security=reality") || strings.Contains(links[0].(string), "type=xhttp") ||
+		!strings.Contains(links[1].(string), "direct.e2e.test") || !strings.Contains(links[1].(string), "fp=chrome") || !strings.HasPrefix(links[2].(string), "hysteria2://") {
 		t.Fatalf("links order/content: %v", links)
 	}
 	// Same credential for every device of the account.
