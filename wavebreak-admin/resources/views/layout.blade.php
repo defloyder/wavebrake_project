@@ -44,43 +44,26 @@
             </button>
         </div>
 
+        @php
+            $navItems = [
+                ['dashboard', 'Обзор', '<rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/>'],
+                ['users', 'Пользователи', '<path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM21 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
+                ['subscriptions', 'Подписки', '<path d="M4 6h16M6 10h12M8 14h8M10 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
+                ['plans', 'Тарифы', '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
+                ['traffic', 'Трафик', '<path d="M4 17h4l3-10 4 14 3-8h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'],
+                ['grants', 'Ключи доступа', '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
+                ['nodes', 'Ноды', '<circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3m-3.5-7.5-2.1 2.1M6.6 17.4l-2.1 2.1m0-13.1 2.1 2.1m8.7 8.7 2.1 2.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
+                ['audit', 'Аудит', '<path d="M6 3h9l3 3v15H6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 10h6M9 14h6M9 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
+                ['enroll', 'Подключить ноду', '<path d="M4 7h16M4 12h10M4 17h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M17 15l2 2 3-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'],
+            ];
+        @endphp
         <nav class="adm-nav">
-            <a href="/dashboard" class="adm-link {{ $activeSection === 'dashboard' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/></svg>
-                <span>Dashboard</span>
-            </a>
-            <a href="/nodes" class="adm-link {{ $activeSection === 'nodes' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3m-3.5-7.5-2.1 2.1M6.6 17.4l-2.1 2.1m0-13.1 2.1 2.1m8.7 8.7 2.1 2.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                <span>Nodes</span>
-            </a>
-            <a href="/plans" class="adm-link {{ $activeSection === 'plans' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                <span>Plans</span>
-            </a>
-            <a href="/users" class="adm-link {{ $activeSection === 'users' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM21 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                <span>Users</span>
-            </a>
-            <a href="/subscriptions" class="adm-link {{ $activeSection === 'subscriptions' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M6 10h12M8 14h8M10 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                <span>Subscriptions</span>
-            </a>
-            <a href="/grants" class="adm-link {{ $activeSection === 'grants' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                <span>Grants</span>
-            </a>
-            <a href="/traffic" class="adm-link {{ $activeSection === 'traffic' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M4 17h4l3-10 4 14 3-8h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>Traffic</span>
-            </a>
-            <a href="/audit" class="adm-link {{ $activeSection === 'audit' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M6 3h9l3 3v15H6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 10h6M9 14h6M9 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                <span>Audit</span>
-            </a>
-            <a href="/enroll" class="adm-link {{ $activeSection === 'enroll' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h10M4 17h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M17 15l2 2 3-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>Enroll</span>
-            </a>
+            @foreach($navItems as [$key, $label, $icon])
+                <a href="/{{ $key }}" class="adm-link {{ $activeSection === $key ? 'active' : '' }}" @if($activeSection === $key) aria-current="page" @endif>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">{!! $icon !!}</svg>
+                    <span>{{ $label }}</span>
+                </a>
+            @endforeach
         </nav>
 
         <form method="post" action="/logout" class="adm-logout-form">
@@ -98,19 +81,19 @@
                 <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
         </button>
+        @php $coreOk = ($health['status'] ?? '') === 'ok'; @endphp
         <div class="health-bar">
             <div class="health-bar-stats">
-                <strong>Core:</strong>
-                <span class="health-stat">Status <span>{{ $health['status'] ?? 'unavailable' }}</span></span>
-                <span class="health-stat">Nodes <span>{{ $onlineNodes }}/{{ count($nodeList) }}</span></span>
+                <span class="node-chip {{ $coreOk ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>Core {{ $coreOk ? 'работает' : ($health['status'] ?? 'недоступен') }}</span>
+                <span class="health-stat">Ноды <span>{{ $onlineNodes }} из {{ count($nodeList) }}</span></span>
                 <span class="node-chip" id="traffic-health-chip" hidden>
                     <span class="node-chip__dot"></span>
-                    <span id="traffic-health-text">Трафик: проверка...</span>
+                    <span id="traffic-health-text">Трафик: проверка…</span>
                 </span>
             </div>
             <div class="health-bar-nodes">
                 @foreach($nodeList as $node)
-                    <span class="node-chip {{ ($node['status'] ?? '') === 'online' ? 'alive' : 'dead' }}">
+                    <span class="node-chip {{ ($node['status'] ?? '') === 'online' ? 'alive' : 'dead' }}" title="{{ ($node['status'] ?? '') === 'online' ? 'Онлайн' : 'Недоступна' }}">
                         <span class="node-chip__dot"></span>
                         {{ $node['code'] ?? 'node' }}
                         <span class="hb-load">{{ $node['region'] ?? '-' }}</span>
@@ -156,7 +139,9 @@
     </form>
 </section>
 
+<script src="{{ asset('js/admin-ui.js') }}?v={{ $assetVersion('js/admin-ui.js') }}" defer></script>
 <script src="{{ asset('js/admin-table.js') }}?v={{ $assetVersion('js/admin-table.js') }}" defer></script>
+<script src="{{ asset('js/admin-user-card.js') }}?v={{ $assetVersion('js/admin-user-card.js') }}" defer></script>
 <script src="{{ asset('js/admin-assistant.js') }}?v={{ $assetVersion('js/admin-assistant.js') }}" defer></script>
 <script>
 function admToggleSidebar() {
@@ -169,39 +154,6 @@ function admCloseSidebar() {
 }
 document.querySelectorAll('.adm-link').forEach(function (link) {
     link.addEventListener('click', admCloseSidebar);
-});
-
-document.querySelectorAll('#users-admin, #adm-user-modal, #subscriptions-admin, #adm-sub-modal, #adm-sub-edit-modal').forEach(function (root) {
-    root.addEventListener('submit', async function (event) {
-        if (event.defaultPrevented) return;
-        const form = event.target.closest('form');
-        if (!form || form.hasAttribute('data-sync')) return;
-        event.preventDefault();
-        const button = form.querySelector('[type="submit"]');
-        if (button) button.disabled = true;
-        try {
-            const response = await fetch(form.action, {
-                method: (form.method || 'post').toUpperCase(),
-                body: new FormData(form),
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            });
-            const result = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                const validation = result.errors ? Object.values(result.errors).flat().join('\n') : '';
-                throw new Error(validation || result.message || 'Не удалось выполнить действие.');
-            }
-            window.location.reload();
-        } catch (error) {
-            const target = form.querySelector('.adm-form-error');
-            if (target) {
-                target.textContent = error.message;
-                target.hidden = false;
-            } else {
-                window.alert(error.message);
-            }
-            if (button) button.disabled = false;
-        }
-    });
 });
 </script>
 @endif

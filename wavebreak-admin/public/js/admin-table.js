@@ -16,21 +16,32 @@
       : null;
     const searchInput = toolbar?.querySelector('[data-table-search]');
     const countEl = toolbar?.querySelector('[data-table-count]');
+    const filterGroup = toolbar?.querySelector('[data-table-filter]');
 
     let sortCol = null;
     let sortDir = 1;
+    let activeFilter = '';
 
     function applyFilter() {
       const q = (searchInput?.value || '').trim().toLowerCase();
       let visible = 0;
       rows.forEach((row) => {
         const hay = row.getAttribute('data-search') || row.textContent;
-        const match = !q || hay.toLowerCase().includes(q);
+        const tags = (row.getAttribute('data-filter-tags') || '').split(/\s+/);
+        const match = (!q || hay.toLowerCase().includes(q)) && (!activeFilter || tags.includes(activeFilter));
         row.hidden = !match;
         if (match) visible += 1;
       });
-      if (countEl) countEl.textContent = `${visible} / ${rows.length}`;
+      if (countEl) countEl.textContent = visible === rows.length ? `${rows.length}` : `${visible} из ${rows.length}`;
     }
+
+    filterGroup?.querySelectorAll('[data-filter]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activeFilter = button.dataset.filter;
+        filterGroup.querySelectorAll('[data-filter]').forEach((b) => b.classList.toggle('is-active', b === button));
+        applyFilter();
+      });
+    });
 
     function applySort() {
       if (sortCol === null) return;

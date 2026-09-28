@@ -3,20 +3,30 @@
 namespace App\Http\Controllers;
 
 use App\Services\AdminAssistant;
+use App\Services\Core\CoreApiException;
 use App\Services\CoreClient;
+use App\Services\UserAdministration\CoreErrorMessages;
+use App\Support\ByteFormatter;
+use App\View\Admin\AdminPageBuilder;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
+/**
+ * Admin pages and the page-level actions (create user, plans, node
+ * enrollment, sign-in). Per-user actions live in the user card
+ * (UserDetailsController).
+ */
 class AdminController extends Controller
 {
     public function __construct(
         private readonly CoreClient $core,
         private readonly AdminAssistant $assistant,
+        private readonly AdminPageBuilder $pages,
+        private readonly CoreErrorMessages $messages,
     ) {}
 
     public function index(Request $request): View|RedirectResponse
@@ -33,52 +43,37 @@ class AdminController extends Controller
         return $this->index($request);
     }
 
-    public function dashboard(Request $request): View|RedirectResponse
+    public function section(Request $request, string $section): View|RedirectResponse
     {
-        return $this->renderAdminPage($request, 'dashboard');
+        $token = $this->token($request);
+        if ($token === null) {
+            return view('login', ['health' => $this->core->health()]);
+        }
+
+        // The Core JWT is short-lived and this app has no refresh flow yet,
+        // so an expired session is sent back to sign in instead of a 500.
+        try {
+            $me = $this->core->me($token);
+            if (! in_array(($me['role'] ?? 'user'), ['admin', 'superadmin'], true)) {
+                $request->session()->forget('wavebreak_admin_tokens');
+
+                return redirect('/')->withErrors(['email' => 'Нужна роль администратора.']);
+            }
+
+            return view('dashboard', $this->pages->build($token, $section, $me));
+        } catch (RequestException $e) {
+            if ($e->response->status() === 401) {
+                $request->session()->forget('wavebreak_admin_tokens');
+
+                return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
+            }
+            throw $e;
+        }
     }
 
-    public function nodes(Request $request): View|RedirectResponse
-    {
-        return $this->renderAdminPage($request, 'nodes');
-    }
-
-    public function plans(Request $request): View|RedirectResponse
-    {
-        return $this->renderAdminPage($request, 'plans');
-    }
-
-    public function enroll(Request $request): View|RedirectResponse
-    {
-        return $this->renderAdminPage($request, 'enroll');
-    }
-
-    public function users(Request $request): View|RedirectResponse
-    {
-        return $this->renderAdminPage($request, 'users');
-    }
-
-    public function subscriptions(Request $request): View|RedirectResponse
-    {
-        return $this->renderAdminPage($request, 'subscriptions');
-    }
-
-    public function grants(Request $request): View|RedirectResponse
-    {
-        return $this->renderAdminPage($request, 'grants');
-    }
-
-    public function traffic(Request $request): View|RedirectResponse
-    {
-        return $this->renderAdminPage($request, 'traffic');
-    }
-
-    // Polled every few seconds by the live-traffic widget (see
-    // dashboard.blade.php) — deliberately tiny (one number, not the whole
-    // per-subscription breakdown /traffic already loads) so polling it
-    // doesn't get heavier than the thing it's watching. The widget itself
-    // computes the delta between polls; this just reports the current
-    // cumulative total across every subscription right now.
+    // Polled every few seconds by the live-traffic widget — one number, the
+    // cumulative total across every subscription; the widget computes the
+    // delta between polls.
     public function trafficLive(Request $request): JsonResponse
     {
         $token = $this->token($request);
@@ -95,10 +90,9 @@ class AdminController extends Controller
         return response()->json(['total_bytes' => $totalBytes, 'timestamp' => now()->toIso8601String()]);
     }
 
-    // Polled by the health badge in the sidebar header on every admin page
-    // (see layout.blade.php) — a dead node agent produces no error anywhere
-    // else in the system, just a growing gap since its last usage report,
-    // so this is the only way anyone would notice without reading raw logs.
+    // Polled by the health chip in the header on every admin page: a dead
+    // node agent produces no error anywhere else, just a growing gap since
+    // its last usage report.
     public function trafficHealth(Request $request): JsonResponse
     {
         $token = $this->token($request);
@@ -110,11 +104,6 @@ class AdminController extends Controller
         } catch (RequestException $e) {
             return response()->json(['error' => 'core unavailable'], $e->response->status() === 401 ? 401 : 502);
         }
-    }
-
-    public function audit(Request $request): View|RedirectResponse
-    {
-        return $this->renderAdminPage($request, 'audit');
     }
 
     public function assistantMessage(Request $request): JsonResponse
@@ -188,164 +177,74 @@ class AdminController extends Controller
         }
     }
 
-    private function renderAdminPage(Request $request, string $section): View|RedirectResponse
-    {
-        $token = $this->token($request);
-        if ($token === null) {
-            return view('login', ['health' => $this->core->health()]);
-        }
-
-        // The Core JWT is short-lived (15 min) and this app has no refresh-
-        // token flow yet, so a session left open past that window used to
-        // surface as a raw 500 (uncaught RequestException from the first
-        // Core call to fail) instead of just asking the admin to sign back
-        // in — same session, no data lost, just a fresh token.
-        try {
-            $me = $this->core->me($token);
-            if (! in_array(($me['role'] ?? 'user'), ['admin', 'superadmin'], true)) {
-                $request->session()->forget('wavebreak_admin_tokens');
-
-                return redirect('/')->withErrors(['email' => 'Admin role is required.']);
-            }
-
-            $needsTraffic = in_array($section, ['dashboard', 'traffic'], true);
-
-            return view('dashboard', [
-                'section' => $section,
-                'me' => $me,
-                'health' => $this->core->health(),
-                'plans' => $this->core->adminPlans($token),
-                'nodes' => $this->core->nodes($token),
-                'dashboard' => $this->core->dashboard($token),
-                'users' => $this->core->users($token),
-                'subscriptions' => $this->core->subscriptions($token),
-                'grants' => $this->core->grants($token),
-                'traffic' => $this->core->traffic($token),
-                'trafficHistory' => $needsTraffic ? $this->core->trafficHistory($token, 30) : [],
-                'auditEvents' => $this->core->audit($token),
-            ]);
-        } catch (RequestException $e) {
-            if ($e->response->status() === 401) {
-                $request->session()->forget('wavebreak_admin_tokens');
-
-                return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
-            }
-            throw $e;
-        }
-    }
-
     public function createUser(Request $request): RedirectResponse|JsonResponse
-    {
-        $data = $this->validatedUser($request, true);
-
-        return $this->coreAction($request, '/users', 'Пользователь создан.', fn ($token) => $this->core->createUser($token, $data));
-    }
-
-    public function updateUser(Request $request, string $userId): RedirectResponse|JsonResponse
-    {
-        $data = $this->validatedUser($request, false);
-
-        return $this->coreAction($request, '/users', 'Пользователь обновлён.', fn ($token) => $this->core->updateUser($token, $userId, $data));
-    }
-
-    private function validatedUser(Request $request, bool $passwordRequired): array
     {
         $data = $request->validate([
             'email' => ['required', 'email:rfc', 'max:254'],
             'username' => ['nullable', 'string', 'max:80'],
-            'password' => [$passwordRequired ? 'required' : 'nullable', 'string', 'min:10', 'max:200'],
+            'password' => ['required', 'string', 'min:10', 'max:200'],
             'role' => ['required', 'string', 'in:user,support,admin,superadmin'],
             'status' => ['required', 'string', 'in:active,disabled'],
         ]);
         $data['email'] = mb_strtolower(trim($data['email']));
         $data['username'] = trim($data['username'] ?? '');
-        $data['password'] = $data['password'] ?? '';
 
-        return $data;
+        return $this->coreAction($request, '/users', 'Пользователь создан.', fn ($token) => $this->core->createUser($token, $data));
     }
 
-    public function updateUserRole(Request $request, string $userId): RedirectResponse|JsonResponse
-    {
-        $data = $request->validate([
-            'role' => ['required', 'string', 'in:user,support,admin,superadmin'],
-        ]);
-
-        return $this->coreAction($request, '/users', 'Роль обновлена.', fn ($token) => $this->core->updateUserRole($token, $userId, $data['role']));
-    }
-
-    public function disableUser(Request $request, string $userId): RedirectResponse|JsonResponse
-    {
-        return $this->coreAction($request, '/users', 'Пользователь заблокирован.', fn ($token) => $this->core->disableUser($token, $userId));
-    }
-
-    public function enableUser(Request $request, string $userId): RedirectResponse|JsonResponse
-    {
-        return $this->coreAction($request, '/users', 'Пользователь разблокирован.', fn ($token) => $this->core->enableUser($token, $userId));
-    }
-
-    public function deleteUser(Request $request, string $userId): RedirectResponse|JsonResponse
-    {
-        $token = $this->token($request);
-        if ($token === null) {
-            return redirect('/login');
-        }
-        try {
-            $me = $this->core->me($token);
-            if (($me['role'] ?? '') !== 'superadmin') {
-                return redirect('/users')->with('error', 'Удаление пользователей доступно только superadmin.');
-            }
-            if (($me['id'] ?? '') === $userId) {
-                return redirect('/users')->with('error', 'Нельзя удалить собственную учётную запись.');
-            }
-        } catch (RequestException) {
-            return redirect('/login');
-        }
-
-        return $this->coreAction($request, '/users', 'Пользователь и связанные данные удалены.', fn ($accessToken) => $this->core->deleteUser($accessToken, $userId));
-    }
-
-    public function createPlan(Request $request): RedirectResponse
+    public function createPlan(Request $request): RedirectResponse|JsonResponse
     {
         $data = $this->validatedPlan($request);
 
         return $this->coreAction($request, '/plans', 'Тариф создан.', fn ($token) => $this->core->createPlan($token, $data));
     }
 
-    public function updatePlan(Request $request, string $planId): RedirectResponse
+    public function updatePlan(Request $request, string $planId): RedirectResponse|JsonResponse
     {
         $data = $this->validatedPlan($request);
 
-        return $this->coreAction($request, '/plans', 'Тариф обновлён.', fn ($token) => $this->core->updatePlan($token, $planId, $data));
+        return $this->coreAction($request, '/plans', 'Тариф сохранён.', fn ($token) => $this->core->updatePlan($token, $planId, $data));
     }
 
-    public function deletePlan(Request $request, string $planId): RedirectResponse
+    public function deletePlan(Request $request, string $planId): RedirectResponse|JsonResponse
     {
         return $this->coreAction($request, '/plans', 'Тариф удалён.', fn ($token) => $this->core->deletePlan($token, $planId));
     }
 
+    /**
+     * The plan form speaks operator units (price in currency, traffic in
+     * ГБ); Core stores minor units and bytes.
+     */
     private function validatedPlan(Request $request): array
     {
         $data = $request->validate([
-            'code' => ['required', 'string', 'max:60'],
+            'code' => ['required', 'string', 'max:60', 'regex:/^[a-z0-9][a-z0-9_-]*$/i'],
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:500'],
-            'price_minor' => ['required', 'integer', 'min:0'],
-            'currency' => ['nullable', 'string', 'max:6'],
+            'price' => ['required', 'numeric', 'min:0', 'max:1000000'],
+            'currency' => ['required', 'string', 'in:USD,EUR,RUB,TRY'],
             'interval' => ['required', 'string', 'in:month,year'],
-            'device_limit' => ['required', 'integer', 'min:1'],
-            'traffic_limit_bytes' => ['nullable', 'integer', 'min:0'],
+            'duration_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
+            'device_limit' => ['required', 'integer', 'min:1', 'max:100'],
+            'traffic_limit_gb' => ['nullable', 'numeric', 'min:0.01', 'max:1048576'],
             'is_active' => ['nullable', 'boolean'],
             'is_public' => ['nullable', 'boolean'],
-            'sort_order' => ['nullable', 'integer'],
         ]);
-        $data['is_active'] = $request->boolean('is_active', true);
-        $data['is_public'] = $request->boolean('is_public', true);
-        $data['sort_order'] = (int) ($data['sort_order'] ?? 0);
-        if (empty($data['traffic_limit_bytes'])) {
-            $data['traffic_limit_bytes'] = null;
-        }
 
-        return $data;
+        return [
+            'code' => strtolower(trim($data['code'])),
+            'name' => trim($data['name']),
+            'description' => trim($data['description'] ?? ''),
+            'price_minor' => (int) round(((float) $data['price']) * 100),
+            'currency' => $data['currency'],
+            'interval' => $data['interval'],
+            'duration_days' => isset($data['duration_days']) ? (int) $data['duration_days'] : null,
+            'device_limit' => (int) $data['device_limit'],
+            'traffic_limit_bytes' => isset($data['traffic_limit_gb']) ? (int) round(((float) $data['traffic_limit_gb']) * ByteFormatter::GIB) : null,
+            'is_active' => $request->boolean('is_active'),
+            'is_public' => $request->boolean('is_public'),
+            'sort_order' => 0,
+        ];
     }
 
     public function login(Request $request): RedirectResponse
@@ -367,187 +266,31 @@ class AdminController extends Controller
     public function enrollNode(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'code' => ['required', 'string'],
-            'region' => ['required', 'string'],
+            'code' => ['required', 'string', 'max:40'],
+            'region' => ['required', 'string', 'max:20'],
         ]);
 
         return $this->coreAction($request, '/nodes', "Нода {$data['code']} зарегистрирована.", fn ($token) => $this->core->enrollNode($token, $data['code'], $data['region']));
     }
 
-    public function revokeGrant(Request $request, string $grantId): RedirectResponse
+    public function logout(Request $request): RedirectResponse
     {
-        $data = $request->validate([
-            'reason' => ['nullable', 'string', 'max:160'],
-        ]);
+        $request->session()->forget('wavebreak_admin_tokens');
 
-        return $this->coreAction($request, '/grants', 'Подключение отозвано.', fn ($token) => $this->core->revokeGrant($token, $grantId, $data['reason'] ?? 'admin'));
+        return redirect('/');
     }
 
-    public function updateSubscriptionStatus(Request $request, string $subscriptionId): RedirectResponse|JsonResponse
-    {
-        $data = $request->validate([
-            'status' => ['required', 'string', 'in:pending,active,expired,cancelled,suspended'],
-        ]);
-
-        return $this->coreAction($request, '/subscriptions', 'Статус подписки обновлён.', fn ($token) => $this->core->updateSubscriptionStatus($token, $subscriptionId, $data['status']));
-    }
-
-    public function createSubscription(Request $request): RedirectResponse|JsonResponse
-    {
-        $data = $request->validate([
-            'user_id' => ['required', 'uuid'],
-            'plan_id' => ['required', 'uuid'],
-            'expires_at' => ['nullable', 'date'],
-            'status' => ['required', 'string', 'in:pending,active,expired,cancelled,suspended'],
-        ]);
-
-        $payload = [
-            'user_id' => $data['user_id'],
-            'plan_id' => $data['plan_id'],
-            'status' => $data['status'],
-            'expires_at' => ! empty($data['expires_at']) ? Carbon::parse($data['expires_at'])->toRfc3339String() : null,
-        ];
-
-        return $this->coreAction($request, '/subscriptions', 'Подписка создана.', fn ($token) => $this->core->createSubscription($token, $payload));
-    }
-
-    // Ad-hoc "issue a subscription not tied to a plan" form: a GB number or
-    // the unlimited checkbox for traffic, a date or the unlimited checkbox
-    // for expiry. On success the new grant/link is flashed back so the view
-    // can show it plus a QR code, same session, no second page.
-    public function createManualSubscription(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'user_id' => ['required', 'string'],
-            'node_id' => ['required', 'string'],
-            'protocol' => ['nullable', 'string', 'max:40'],
-            'traffic_unlimited' => ['nullable', 'boolean'],
-            'traffic_limit_gb' => ['nullable', 'numeric', 'min:0.01'],
-            'expiry_unlimited' => ['nullable', 'boolean'],
-            'expires_at' => ['nullable', 'date'],
-        ]);
-
-        $trafficUnlimited = $request->boolean('traffic_unlimited');
-        $expiryUnlimited = $request->boolean('expiry_unlimited');
-        if (! $trafficUnlimited && empty($data['traffic_limit_gb'])) {
-            return redirect('/subscriptions')->with('error', 'Укажите лимит трафика в ГБ или отметьте «безлимит».');
-        }
-        if (! $expiryUnlimited && empty($data['expires_at'])) {
-            return redirect('/subscriptions')->with('error', 'Укажите дату окончания или отметьте «бессрочно».');
-        }
-
-        $payload = [
-            'user_id' => $data['user_id'],
-            'node_id' => $data['node_id'],
-            'protocol' => $data['protocol'] ?? 'vless-reality',
-            'traffic_unlimited' => $trafficUnlimited,
-            'traffic_limit_gb' => $trafficUnlimited ? null : (float) $data['traffic_limit_gb'],
-            'expiry_unlimited' => $expiryUnlimited,
-            'expires_at' => $expiryUnlimited ? null : Carbon::parse($data['expires_at'])->toRfc3339String(),
-        ];
-
-        $token = $this->token($request);
-        if ($token === null) {
-            return redirect('/login');
-        }
-        try {
-            $result = $this->core->createManualSubscription($token, $payload);
-        } catch (RequestException $e) {
-            if ($e->response->status() === 401) {
-                $request->session()->forget('wavebreak_admin_tokens');
-
-                return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
-            }
-            $message = $e->response->json('error') ?? 'Не удалось создать подписку.';
-
-            return redirect('/subscriptions')->with('error', is_string($message) ? $message : 'Не удалось создать подписку.');
-        }
-
-        return redirect('/subscriptions')->with('success', 'Подписка создана.')->with('new_subscription_link', [
-            'label' => $result['grant_label'] ?? null,
-            'link' => $result['link'] ?? null,
-        ]);
-    }
-
-    public function editSubscription(Request $request, string $subscriptionId): RedirectResponse|JsonResponse
-    {
-        $data = $request->validate([
-            'traffic_unlimited' => ['nullable', 'boolean'],
-            'traffic_limit_gb' => ['nullable', 'numeric', 'min:0.01'],
-            'device_limit' => ['nullable', 'integer', 'min:1'],
-            'expires_at' => ['nullable', 'date'],
-            'status' => ['nullable', 'string', 'in:pending,active,expired,cancelled,suspended'],
-            'plan_id' => ['nullable', 'uuid'],
-        ]);
-
-        $payload = [
-            'traffic_unlimited' => $request->boolean('traffic_unlimited'),
-            'traffic_limit_gb' => ! empty($data['traffic_limit_gb']) ? (float) $data['traffic_limit_gb'] : null,
-            'device_limit' => $data['device_limit'] ?? null,
-            'expires_at' => ! empty($data['expires_at']) ? Carbon::parse($data['expires_at'])->toRfc3339String() : null,
-            'status' => $data['status'] ?? null,
-            'plan_id' => $data['plan_id'] ?? null,
-        ];
-
-        return $this->coreAction($request, '/subscriptions', 'Подписка обновлена.', fn ($token) => $this->core->editSubscription($token, $subscriptionId, $payload));
-    }
-
-    public function resetSubscriptionUsage(Request $request, string $subscriptionId): RedirectResponse|JsonResponse
-    {
-        return $this->coreAction($request, '/subscriptions', 'Счётчик использования сброшен.', fn ($token) => $this->core->resetSubscriptionUsage($token, $subscriptionId));
-    }
-
-    // Revokes the current grant and issues a fresh one — the old
-    // subscription link stops working immediately. The confirmation prompt
-    // for this lives in the subscriptions view (JS confirm()), since this
-    // invalidates a link that may already be in a customer's hands.
-    public function reissueSubscription(Request $request, string $subscriptionId): RedirectResponse
-    {
-        $token = $this->token($request);
-        if ($token === null) {
-            return redirect('/login');
-        }
-        try {
-            $result = $this->core->reissueSubscription($token, $subscriptionId);
-        } catch (RequestException $e) {
-            if ($e->response->status() === 401) {
-                $request->session()->forget('wavebreak_admin_tokens');
-
-                return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
-            }
-            $message = $e->response->json('error') ?? 'Не удалось перевыпустить ссылку.';
-
-            return redirect('/subscriptions')->with('error', is_string($message) ? $message : 'Не удалось перевыпустить ссылку.');
-        }
-
-        return redirect('/subscriptions')->with('success', 'Ссылка перевыпущена. Старая ссылка больше не работает.')->with('new_subscription_link', [
-            'label' => $result['grant_label'] ?? null,
-            'link' => $result['link'] ?? null,
-        ]);
-    }
-
-    // Destructive — the Core endpoint itself requires confirm:true (see
-    // CoreClient::deleteSubscription), and this form's own submit button
-    // requires a JS confirm() in the view on top of that, matching how
-    // other destructive actions (deleteUser) already gate on a second
-    // explicit step rather than a bare POST.
-    public function deleteSubscription(Request $request, string $subscriptionId): RedirectResponse|JsonResponse
-    {
-        return $this->coreAction($request, '/subscriptions', 'Подписка удалена, доступ отозван.', fn ($token) => $this->core->deleteSubscription($token, $subscriptionId));
-    }
-
-    // Every mutating admin action funnels through here: runs $action with
-    // the current token, flashes a success message on the way back to
-    // $redirectTo, and turns whatever Core says on failure into something
-    // an admin can actually read instead of a raw Laravel 500 — a 401
-    // means the session expired mid-click (same handling as
-    // renderAdminPage), anything else surfaces Core's own error message
-    // when it sent one.
+    // Every page-level mutation funnels through here: runs $action with the
+    // current token and answers JSON (modal forms) or a redirect with a
+    // flash. Core errors become readable Russian messages; an expired
+    // session sends the admin back to sign in.
     private function coreAction(Request $request, string $redirectTo, string $successMessage, \Closure $action): RedirectResponse|JsonResponse
     {
         $token = $this->token($request);
         if ($token === null) {
-            return redirect('/login');
+            return $request->expectsJson()
+                ? response()->json(['message' => 'Сессия истекла, войдите снова.'], 401)
+                : redirect('/login');
         }
         try {
             $result = $action($token);
@@ -558,26 +301,22 @@ class AdminController extends Controller
 
             return redirect($redirectTo)->with('success', $successMessage);
         } catch (RequestException $e) {
-            if ($e->response->status() === 401) {
+            $error = CoreApiException::fromRequestException($e);
+            if ($error->isUnauthenticated()) {
                 $request->session()->forget('wavebreak_admin_tokens');
 
-                return redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
+                return $request->expectsJson()
+                    ? response()->json(['message' => 'Сессия истекла, войдите снова.'], 401)
+                    : redirect('/login')->withErrors(['email' => 'Сессия истекла, войдите снова.']);
             }
-            $message = $e->response->json('error') ?? $e->response->json('code') ?? 'Не удалось выполнить действие.';
+            $message = $this->messages->for($error);
 
             if ($request->expectsJson()) {
-                return response()->json(['message' => is_string($message) ? $message : 'Не удалось выполнить действие.'], $e->response->status());
+                return response()->json(['message' => $message, 'code' => $error->errorCode], $error->status);
             }
 
-            return redirect($redirectTo)->with('error', is_string($message) ? $message : 'Не удалось выполнить действие.');
+            return redirect($redirectTo)->with('error', $message);
         }
-    }
-
-    public function logout(Request $request): RedirectResponse
-    {
-        $request->session()->forget('wavebreak_admin_tokens');
-
-        return redirect('/');
     }
 
     private function token(Request $request): ?string
