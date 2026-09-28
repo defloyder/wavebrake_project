@@ -1,0 +1,15 @@
+# Client config template — for your colleague.
+# Same instructions as peer-you.conf.example: they generate their own
+# keypair on their own machine, send you only the PUBLIC key, and you
+# paste that into wg0.conf.example's "Peer: colleague" block on the server.
+# NEVER commit a filled-in copy of this file — it contains a private key.
+
+[Interface]
+PrivateKey = <COLLEAGUE_PRIVATE_KEY>
+Address = 10.66.0.3/32
+
+[Peer]
+PublicKey = <SERVER_PUBLIC_KEY>
+Endpoint = <SERVER_PUBLIC_IP>:51820
+AllowedIPs = 10.66.0.1/32
+PersistentKeepalive = 25

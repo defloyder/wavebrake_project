@@ -169,7 +169,14 @@ services:
       WAVEBREAK_CORE_URL: http://wavebreak-api:8080
       SESSION_DRIVER: file
     ports:
-      - "${WAVEBREAK_ADMIN_PORT:-18002}:8000"
+      # Bound to loopback only — nginx (on the box) reaches this over
+      # 127.0.0.1, and that's the only path meant to exist. Publishing this
+      # on all interfaces (the old bare "18002:8000" form) put the admin
+      # panel directly on the public IP by its raw port, completely
+      # bypassing nginx, the SNI router, and the WireGuard-only vhost added
+      # for it — anyone who found the port could talk to it straight from
+      # the internet.
+      - "127.0.0.1:${WAVEBREAK_ADMIN_PORT:-18002}:8000"
     healthcheck:
       test: ["CMD-SHELL", "php -r \"exit(@file_get_contents('http://127.0.0.1:8000/') === false ? 1 : 0);\""]
       interval: 15s

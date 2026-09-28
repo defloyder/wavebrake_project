@@ -1,0 +1,21 @@
+# Client config template — for you.
+# Generate your own keypair on YOUR machine, never on the server:
+#   wg genkey | tee privatekey | wg pubkey > publickey
+# Put the contents of publickey into wg0.conf.example's "Peer: you" block
+# (PublicKey = ...) before applying it on the server.
+# NEVER commit a filled-in copy of this file — it contains a private key.
+
+[Interface]
+PrivateKey = <YOUR_PRIVATE_KEY>
+Address = 10.66.0.2/32
+# Only DNS-free numeric hostname resolution is needed for the one host
+# this tunnel talks to — no DNS override required.
+
+[Peer]
+PublicKey = <SERVER_PUBLIC_KEY>
+Endpoint = <SERVER_PUBLIC_IP>:51820
+# Split-tunnel on purpose: only traffic to the nginx admin listener goes
+# through this tunnel. Nothing else about your machine's internet traffic
+# changes when this interface is up.
+AllowedIPs = 10.66.0.1/32
+PersistentKeepalive = 25

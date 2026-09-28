@@ -13,3 +13,8 @@ storage/framework/sessions/*
 storage/framework/views/*
 wavebreak-infrastructure/runtime/
 .artifacts/
+
+# Real WireGuard configs contain private keys — only the *.conf.example
+# templates in wavebreak-infrastructure/wireguard/ are meant to be tracked.
+wavebreak-infrastructure/wireguard/*.conf
+!wavebreak-infrastructure/wireguard/*.conf.example

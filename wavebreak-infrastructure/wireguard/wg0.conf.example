@@ -1,0 +1,34 @@
+# Server-side WireGuard interface for WAVEBREAK ops/admin access ONLY.
+#
+# This is deliberately a separate, minimal WireGuard instance from the
+# client-facing VPN stack (Hysteria2/Xray) — it exists purely to gate
+# access to admin.wavebreak.com.tr, nothing else. It does not route
+# general internet traffic and does not touch net.ipv4.ip_forward: nginx
+# listens directly on this interface's address (see
+# ../nginx/pilot-public-http.conf, the 10.66.0.1:9443 admin server block),
+# so nothing here needs to forward packets anywhere past this host.
+#
+# Copy to /etc/wireguard/wg0.conf on the server and fill in the real
+# values (see README.md "Setup" section). NEVER commit a filled-in copy of
+# this file — it contains a private key.
+
+[Interface]
+# Generate on the server:
+#   wg genkey | tee /etc/wireguard/server_private.key | wg pubkey > /etc/wireguard/server_public.key
+#   chmod 600 /etc/wireguard/server_private.key
+PrivateKey = <SERVER_PRIVATE_KEY>
+Address = 10.66.0.1/24
+ListenPort = 51820
+# No PostUp/PostDown iptables MASQUERADE rules here on purpose — this
+# tunnel is not meant to carry anything but requests to this host's own
+# nginx, so there is nothing to NAT or forward.
+
+# --- Peer: you ---
+[Peer]
+PublicKey = <PEER_YOU_PUBLIC_KEY>
+AllowedIPs = 10.66.0.2/32
+
+# --- Peer: colleague ---
+[Peer]
+PublicKey = <PEER_COLLEAGUE_PUBLIC_KEY>
+AllowedIPs = 10.66.0.3/32
