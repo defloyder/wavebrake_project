@@ -42,13 +42,14 @@ void main() {
       expect(mask['udp'], [
         {'type': 'salamander', 'settings': {'password': 'OBFSPW'}}
       ]);
-      expect((mask['quicParams'] as Map)['udpHop'], {'ports': '20000-30000', 'interval': '10-20'});
-      // Plain Hysteria2 carries neither.
+      expect((mask['quicParams'] as Map)['udpHop'], {'ports': '20000-30000', 'interval': '5-10'});
+      // Plain Hysteria2: no mask, but still a new source port every 5-10 s
+      // (hops on its own port).
       final plain = (jsonDecode(parseShareLink(_hysteria).getFullConfiguration())['outbounds'] as List)
           .first as Map;
       final plainMask = (plain['streamSettings'] as Map)['finalmask'] as Map;
       expect(plainMask.containsKey('udp'), isFalse);
-      expect((plainMask['quicParams'] as Map).containsKey('udpHop'), isFalse);
+      expect((plainMask['quicParams'] as Map)['udpHop'], {'ports': '443', 'interval': '5-10'});
     });
 
     test('sing-box: obfs, server_ports and hop_interval', () {
@@ -331,6 +332,7 @@ void main() {
             'maxConnectionReceiveWindow': 41943040,
             'keepAlivePeriod': 10,
             'maxIdleTimeout': 30,
+            'udpHop': {'ports': '443', 'interval': '5-10'},
           },
         },
       });

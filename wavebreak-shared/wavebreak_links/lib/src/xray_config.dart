@@ -850,10 +850,17 @@ class Hysteria2URL extends V2RayURL {
           "maxConnectionReceiveWindow": 41943040,
           "keepAlivePeriod": 10,
           "maxIdleTimeout": 30,
-          // Port hopping: a new UDP port every 10–20 s, so no single flow
-          // lives long enough to be throttled.
-          if (l.portHopping != null)
-            "udpHop": {"ports": l.portHopping, "interval": "10-20"},
+          // A new UDP flow every 5–10 s: a fresh local socket each hop (and
+          // a new server port when the link has a range). Field log, T2
+          // network: each Hysteria2 flow went silent ~30 s after it started
+          // (server: "no recent network activity"), while a new flow from a
+          // new port worked again at once — so no flow may live that long.
+          // With no range this hops on the link's own port: only the source
+          // port changes, which the server follows as QUIC migration.
+          "udpHop": {
+            "ports": l.portHopping ?? '${l.port}',
+            "interval": "5-10",
+          },
         },
       },
     };
