@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/services.dart';
 
 import '../../core/logging/app_logger.dart';
@@ -14,6 +16,9 @@ class StatusNotificationService {
   static const _channel = MethodChannel('app.wavebreak/status_notification');
 
   Future<void> show({required String title, required String text, bool ongoing = true}) async {
+    // Android only: there is no such channel on Windows, and every call
+    // just filled the diagnostic log with a MissingPluginException.
+    if (!Platform.isAndroid) return;
     try {
       await _channel.invokeMethod<void>('show', {
         'title': title,
@@ -27,6 +32,7 @@ class StatusNotificationService {
   }
 
   Future<void> hide() async {
+    if (!Platform.isAndroid) return;
     try {
       await _channel.invokeMethod<void>('hide');
     } catch (e) {
