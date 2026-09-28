@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -20,19 +21,22 @@ import 'package:package_info_plus/package_info_plus.dart';
 /// them in separate files means an Android release and a Windows
 /// release can ship independently without one platform's version bump
 /// looking like an available update to the other.
-/// The Moscow mirror (dl.) is the fallback: a Russian IP that Russian
-/// carriers don't throttle, carrying the same manifests.
+/// The Moscow mirror (dl.) first: a Russian IP that Russian carriers
+/// don't throttle, carrying the same manifest; the site is the fallbacks.
 List<String> get _versionCheckUrls {
   final name = Platform.isWindows ? 'version-windows.json' : 'version.json';
   return [
-    'https://wavebreak.com.tr/downloads/$name',
     'https://dl.wavebreak.com.tr/downloads/$name',
+    'https://wavebreak.com.tr/downloads/$name',
   ];
 }
 
-/// Same "re-check periodically instead of once per cold start" fix as
-/// wavebreak-mobile's own update_service.dart — see its doc comment.
-const _pollInterval = Duration(minutes: 20);
+/// Same checking cadence as wavebreak-mobile's update_service.dart — see
+/// its doc comment: at start, on every return to the app, every 10 minutes,
+/// and one minute after a failed check.
+const _pollInterval = Duration(minutes: 10);
+const _retryAfterFailure = Duration(minutes: 1);
+const _minGapOnResume = Duration(seconds: 30);
 
 class UpdateInfo {
   const UpdateInfo({
@@ -179,15 +183,19 @@ final rollbackOfferProvider = FutureProvider<RollbackInfo?>((ref) async {
   return rollback;
 });
 
-Future<UpdateInfo?> _checkOnce() async {
+/// One check: `checked` is false when the manifest couldn't be fetched
+/// (so "no update" can't be concluded), `update` the newer release or null.
+Future<({bool checked, UpdateInfo? update})> _checkOnce() async {
   final current = await PackageInfo.fromPlatform();
   final currentCode = int.tryParse(current.buildNumber) ?? 0;
 
   final data = await _fetchManifest();
-  if (data == null) return null;
+  if (data == null) return (checked: false, update: null);
   final info = UpdateInfo.fromJson(data);
-  if (info.versionCode <= currentCode || info.url.isEmpty) return null;
-  return info;
+  if (info.versionCode <= currentCode || info.url.isEmpty) {
+    return (checked: true, update: null);
+  }
+  return (checked: true, update: info);
 }
 
 /// Null when no update is available (either the check failed, or the
@@ -195,14 +203,52 @@ Future<UpdateInfo?> _checkOnce() async {
 /// treats "checked, nothing to show" and "haven't checked yet" the same
 /// way (no banner), so there's no separate loading/error state to render.
 ///
-/// StreamProvider, not FutureProvider — re-checks on [_pollInterval] for
-/// as long as something is watching it (the Settings badge watches it
-/// continuously) instead of running exactly once per cold start. See
-/// wavebreak-mobile's identical fix for the real-device complaint this
-/// closes. `ref.invalidate(availableUpdateProvider)` (the manual "Check
-/// now" button) still works the same way — it restarts the whole async*
-/// body, which re-yields immediately.
-final availableUpdateProvider = StreamProvider<UpdateInfo?>((ref) async* {
-  yield await _checkOnce();
-  yield* Stream.periodic(_pollInterval).asyncMap((_) => _checkOnce());
+/// StreamProvider, not FutureProvider — deliberately, so it keeps
+/// re-checking on [_pollInterval] for as long as something is watching it
+/// instead of running exactly once. See this file's own doc comment on
+/// the real-device "have to close and reopen the app" complaint this
+/// fixes. `ref.invalidate(availableUpdateProvider)` (updates_screen.dart's
+/// manual "Check now" button) still works exactly as before — invalidating
+/// a StreamProvider restarts its whole async* body, which re-yields
+/// immediately and resumes the same polling cadence from there.
+final availableUpdateProvider = StreamProvider<UpdateInfo?>((ref) {
+  final controller = StreamController<UpdateInfo?>();
+  Timer? timer;
+  var running = false;
+  var emitted = false;
+  DateTime? lastRun;
+
+  Future<void> run() async {
+    if (running || controller.isClosed) return;
+    running = true;
+    timer?.cancel();
+    lastRun = DateTime.now();
+    final result = await _checkOnce();
+    running = false;
+    if (controller.isClosed) return;
+    // A failed check keeps whatever was shown (a found update must not
+    // vanish because one request timed out); only the very first result
+    // is emitted regardless, so the UI isn't left loading.
+    if (result.checked || !emitted) {
+      controller.add(result.update);
+      emitted = true;
+    }
+    timer = Timer(result.checked ? _pollInterval : _retryAfterFailure, run);
+  }
+
+  // Back in the app: check again (timers don't run while it's in the
+  // background for long on Android).
+  final lifecycle = AppLifecycleListener(onResume: () {
+    final last = lastRun;
+    if (last == null || DateTime.now().difference(last) > _minGapOnResume) {
+      unawaited(run());
+    }
+  });
+  ref.onDispose(() {
+    timer?.cancel();
+    lifecycle.dispose();
+    controller.close();
+  });
+  unawaited(run());
+  return controller.stream;
 });

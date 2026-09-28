@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
  * Bug 2: the update notification used to depend on the Flutter UI being
  * open (availableUpdateProvider only polls while something watches it),
  * so users heard about a release late or only after opening Settings >
- * Updates. This checks the same manifest in the background every 6 hours
+ * Updates. This checks the same manifest in the background every hour
  * (and once per app start) and posts UpdateAvailableNotifier, which
  * dedupes by versionCode so the UI path and this worker never double-post.
  */
@@ -47,11 +47,23 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : Worker(con
         }
     }
 
+    /** The first manifest source that answers. */
     private fun fetchManifest(): JSONObject? {
-        val connection = URL(MANIFEST_URL).openConnection() as HttpURLConnection
+        for (url in MANIFEST_URLS) {
+            try {
+                fetchFrom(url)?.let { return it }
+            } catch (t: Throwable) {
+                Log.w(TAG, "manifest $url: ${t.javaClass.simpleName}: ${t.message}")
+            }
+        }
+        return null
+    }
+
+    private fun fetchFrom(url: String): JSONObject? {
+        val connection = URL("$url?t=${System.currentTimeMillis()}").openConnection() as HttpURLConnection
         return try {
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 15_000
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 10_000
             connection.setRequestProperty("Cache-Control", "no-cache")
             if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
             JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
@@ -62,12 +74,24 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : Worker(con
 
     companion object {
         private const val TAG = "UpdateCheckWorker"
-        // Same manifest as update_service.dart's _versionCheckUrl.
-        private const val MANIFEST_URL = "https://wavebreak.com.tr/downloads/version.json"
+        // Same manifests as update_service.dart's _versionCheckUrls. The
+        // Moscow mirror first: the app is excluded from its own tunnel and
+        // Russian mobile networks often drop its direct requests to Turkey,
+        // so a check against the Turkish site alone kept failing.
+        private val MANIFEST_URLS = listOf(
+            "https://dl.wavebreak.com.tr/downloads/version.json",
+            "https://wavebreak.com.tr/downloads/version.json",
+        )
         private const val PERIODIC_NAME = "wavebreak-update-check"
         private const val ON_START_NAME = "wavebreak-update-check-on-start"
 
-        /** Called on every app start: one check now + the 6-hour schedule. */
+        /**
+         * Called on every app start: one check now + the hourly schedule
+         * (was every 6 h: a release reached users hours late). UPDATE, not
+         * KEEP, so installs that already had the 6-hour job move to the new
+         * interval; the job's name and worker are unchanged, so this only
+         * replaces the schedule.
+         */
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -75,8 +99,8 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : Worker(con
             val workManager = WorkManager.getInstance(context)
             workManager.enqueueUniquePeriodicWork(
                 PERIODIC_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<UpdateCheckWorker>(6, TimeUnit.HOURS)
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<UpdateCheckWorker>(1, TimeUnit.HOURS)
                     .setConstraints(constraints)
                     .build(),
             )
