@@ -1,11 +1,12 @@
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/logging/app_logger.dart';
 import '../../core/storage/prefs_store.dart';
+import 'resumable_download.dart';
 import 'update_service.dart';
 
 enum ApkInstallStatus {
@@ -98,18 +99,27 @@ class ApkInstallController extends Notifier<ApkInstallState> {
       final dir = await _channel.invokeMethod<String>('getApkStagingDir');
       if (dir == null) throw StateError('no staging dir');
       final path = '$dir/wavebreak-${info.versionCode}.apk';
+      await _removeStaleDownloads(dir, info.versionCode);
 
-      final dio = Dio();
-      await dio.download(
-        info.url,
+      final abis = await _channel
+              .invokeListMethod<String>('supportedAbis')
+              .catchError((Object _) => null) ??
+          const <String>[];
+      final urls = info.downloadUrls(abis);
+      AppLogger.info(
+          'Update download: ${urls.first} (+${urls.length - 1} fallback)');
+      var lastShown = -1.0;
+      await ResumableDownloader().download(
+        urls,
         path,
-        onReceiveProgress: (received, total) {
+        onProgress: (received, total) {
           if (total <= 0) return;
-          // A handful of updates a second is plenty for a progress bar —
-          // Dio's own callback already fires far more often than that for
-          // a fast connection, so this isn't adding throttling that isn't
-          // already implicitly needed, just not fighting it either.
-          state = state.copyWith(progress: received / total);
+          final progress = received / total;
+          // Per-chunk callbacks are far more often than a progress bar
+          // needs; rebuild on each tenth of a percent.
+          if (progress - lastShown < 0.001 && progress < 1) return;
+          lastShown = progress;
+          state = state.copyWith(progress: progress);
         },
       );
 
@@ -119,8 +129,27 @@ class ApkInstallController extends Notifier<ApkInstallState> {
       // download that already succeeded; the only tap left is Android's
       // own unavoidable install-confirmation dialog.
       await _tryInstall(path, info.versionCode);
-    } catch (_) {
+    } catch (error) {
+      AppLogger.warn('Update download failed: $error');
       state = state.copyWith(status: ApkInstallStatus.failed);
+    }
+  }
+
+  /// APKs and partial downloads of other versions: each is ~40-100 MB of the
+  /// user's storage. A partial of THIS version stays, to be resumed.
+  static Future<void> _removeStaleDownloads(String dir, int versionCode) async {
+    try {
+      final keep = 'wavebreak-$versionCode.apk';
+      await for (final entry in Directory(dir).list()) {
+        final name = entry.uri.pathSegments.last;
+        if (entry is File &&
+            name.startsWith('wavebreak-') &&
+            !name.startsWith(keep)) {
+          await entry.delete();
+        }
+      }
+    } catch (_) {
+      // Housekeeping only.
     }
   }
 

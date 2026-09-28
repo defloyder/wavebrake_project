@@ -20,9 +20,15 @@ import 'package:package_info_plus/package_info_plus.dart';
 /// them in separate files means an Android release and a Windows
 /// release can ship independently without one platform's version bump
 /// looking like an available update to the other.
-String get _versionCheckUrl => Platform.isWindows
-    ? 'https://wavebreak.com.tr/downloads/version-windows.json'
-    : 'https://wavebreak.com.tr/downloads/version.json';
+/// The Moscow mirror (dl.) is the fallback: a Russian IP that Russian
+/// carriers don't throttle, carrying the same manifests.
+List<String> get _versionCheckUrls {
+  final name = Platform.isWindows ? 'version-windows.json' : 'version.json';
+  return [
+    'https://wavebreak.com.tr/downloads/$name',
+    'https://dl.wavebreak.com.tr/downloads/$name',
+  ];
+}
 
 /// Same "re-check periodically instead of once per cold start" fix as
 /// wavebreak-mobile's own update_service.dart — see its doc comment.
@@ -33,17 +39,64 @@ class UpdateInfo {
     required this.versionCode,
     required this.versionName,
     required this.url,
+    this.mirrors = const [],
+    this.abiUrls = const {},
   });
 
   final int versionCode;
   final String versionName;
+
+  /// The universal APK — all older app versions read only this.
   final String url;
+
+  /// The same universal APK elsewhere, tried in order after [url]
+  /// (`"mirrors": [...]`).
+  final List<String> mirrors;
+
+  /// Per-architecture APKs, a third of the universal one's size:
+  /// `"abis": {"arm64-v8a": ["https://...", ...], ...}`.
+  final Map<String, List<String>> abiUrls;
+
+  /// What to download, best first: the APK for the device's preferred
+  /// architecture that the manifest has (from [supportedAbis], most
+  /// preferred first), then the universal one and its mirrors.
+  List<String> downloadUrls(List<String> supportedAbis) {
+    final out = <String>[];
+    for (final abi in supportedAbis) {
+      final urls = abiUrls[abi];
+      if (urls != null && urls.isNotEmpty) {
+        out.addAll(urls);
+        break;
+      }
+    }
+    out
+      ..add(url)
+      ..addAll(mirrors);
+    final seen = <String>{};
+    return [
+      for (final u in out)
+        if (u.isNotEmpty && seen.add(u)) u
+    ];
+  }
 
   factory UpdateInfo.fromJson(Map<String, dynamic> json) => UpdateInfo(
         versionCode: (json['versionCode'] as num?)?.toInt() ?? 0,
         versionName: (json['versionName'] ?? '').toString(),
         url: (json['url'] ?? '').toString(),
+        mirrors: _urlList(json['mirrors']),
+        abiUrls: {
+          if (json['abis'] is Map)
+            for (final e in (json['abis'] as Map).entries)
+              e.key.toString(): _urlList(e.value),
+        },
       );
+
+  static List<String> _urlList(Object? value) => [
+        if (value is String && value.startsWith('https://')) value,
+        if (value is List)
+          for (final v in value)
+            if (v is String && v.startsWith('https://')) v,
+      ];
 }
 
 /// Bug 14: a one-step rollback the server offers for exactly one release.
@@ -61,16 +114,21 @@ class RollbackInfo {
     required this.versionCode,
     required this.versionName,
     required this.url,
+    this.mirrors = const [],
   });
 
   final int fromVersionCode;
   final int versionCode;
   final String versionName;
   final String url;
+  final List<String> mirrors;
 
-  /// What the installer downloads and runs.
-  UpdateInfo get asUpdate =>
-      UpdateInfo(versionCode: versionCode, versionName: versionName, url: url);
+  /// What the installer downloads and installs.
+  UpdateInfo get asUpdate => UpdateInfo(
+      versionCode: versionCode,
+      versionName: versionName,
+      url: url,
+      mirrors: mirrors);
 
   static RollbackInfo? fromJson(Object? json) {
     if (json is! Map) return null;
@@ -83,54 +141,49 @@ class RollbackInfo {
       versionCode: code,
       versionName: (json['versionName'] ?? '').toString(),
       url: url,
+      mirrors: UpdateInfo._urlList(json['mirrors']),
     );
   }
 }
 
-/// The rollback this exact build may take, or null (none published, it's
-/// for another build, or the manifest can't be read).
-final rollbackOfferProvider = FutureProvider<RollbackInfo?>((ref) async {
-  final current = await PackageInfo.fromPlatform();
-  final currentCode = int.tryParse(current.buildNumber) ?? 0;
+Future<Map<String, dynamic>?> _fetchManifest() async {
   final dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 8),
     receiveTimeout: const Duration(seconds: 8),
   ));
-  try {
-    final response = await dio.get<Map<String, dynamic>>(
-      _versionCheckUrl,
-      queryParameters: {'t': DateTime.now().millisecondsSinceEpoch},
-    );
-    final rollback = RollbackInfo.fromJson(response.data?['rollback']);
-    if (rollback == null || rollback.fromVersionCode != currentCode) return null;
-    return rollback;
-  } catch (_) {
-    return null;
+  for (final url in _versionCheckUrls) {
+    try {
+      final response = await dio.get<Map<String, dynamic>>(
+        url,
+        // Cache-busting: this is a small static file behind a CDN/browser
+        // cache by default, which would otherwise keep serving a stale
+        // "no update" answer well after a new APK actually shipped.
+        queryParameters: {'t': DateTime.now().millisecondsSinceEpoch},
+      );
+      if (response.data != null) return response.data;
+    } catch (_) {
+      // Next source.
+    }
   }
+  return null;
+}
+
+/// The rollback this exact build may take, or null (none published, or
+/// it's for another build).
+final rollbackOfferProvider = FutureProvider<RollbackInfo?>((ref) async {
+  final current = await PackageInfo.fromPlatform();
+  final currentCode = int.tryParse(current.buildNumber) ?? 0;
+  final data = await _fetchManifest();
+  final rollback = RollbackInfo.fromJson(data?['rollback']);
+  if (rollback == null || rollback.fromVersionCode != currentCode) return null;
+  return rollback;
 });
 
 Future<UpdateInfo?> _checkOnce() async {
   final current = await PackageInfo.fromPlatform();
   final currentCode = int.tryParse(current.buildNumber) ?? 0;
 
-  final dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 8),
-    receiveTimeout: const Duration(seconds: 8),
-  ));
-  final Response<Map<String, dynamic>> response;
-  try {
-    response = await dio.get<Map<String, dynamic>>(
-      _versionCheckUrl,
-      // Cache-busting: this is a small static file behind a CDN/browser
-      // cache by default, which would otherwise keep serving a stale
-      // "no update" answer well after a new APK actually shipped.
-      queryParameters: {'t': DateTime.now().millisecondsSinceEpoch},
-    );
-  } catch (_) {
-    return null;
-  }
-
-  final data = response.data;
+  final data = await _fetchManifest();
   if (data == null) return null;
   final info = UpdateInfo.fromJson(data);
   if (info.versionCode <= currentCode || info.url.isEmpty) return null;

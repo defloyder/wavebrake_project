@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../vpn/connection_manager.dart';
+import 'resumable_download.dart';
 import 'update_service.dart';
 
 enum WindowsUpdateStatus { idle, downloading, readyToInstall, failed }
@@ -69,13 +69,18 @@ class WindowsUpdateController extends Notifier<WindowsUpdateState> {
       // (its own exe/DLLs), which only works from outside {app}.
       final path =
           '${Directory.systemTemp.path}\\WaveBreak-Setup-${info.versionName}.exe';
-      final dio = Dio();
-      await dio.download(
-        info.url,
+      // Resumes over dropped/stalled connections and falls back to the
+      // mirrors — see ResumableDownloader.
+      var lastShown = -1.0;
+      await ResumableDownloader().download(
+        info.downloadUrls(const []),
         path,
-        onReceiveProgress: (received, total) {
+        onProgress: (received, total) {
           if (total <= 0) return;
-          state = state.copyWith(progress: received / total);
+          final progress = received / total;
+          if (progress - lastShown < 0.001 && progress < 1) return;
+          lastShown = progress;
+          state = state.copyWith(progress: progress);
         },
       );
       state = state.copyWith(

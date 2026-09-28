@@ -120,6 +120,8 @@ class MainActivity : FlutterFragmentActivity() {
                 when (call.method) {
                     "getApkStagingDir" -> result.success(UpdateInstaller.stagingDir(this))
                     "canRequestInstall" -> result.success(UpdateInstaller.canRequestInstall(this))
+                    // Picks the per-architecture APK (a third of the universal one).
+                    "supportedAbis" -> result.success(Build.SUPPORTED_ABIS.toList())
                     "openInstallUnknownAppsSettings" -> {
                         startActivity(UpdateInstaller.installUnknownAppsSettingsIntent(this))
                         result.success(null)

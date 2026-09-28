@@ -25,7 +25,10 @@ cd "$(dirname "$0")"
 export JAVA_HOME ANDROID_HOME ANDROID_NDK_HOME
 export PATH="/c/Program Files/Go/bin:$HOME/go/bin:$JAVA_HOME/bin:$PATH"
 
+# -s -w: no symbol table / DWARF — debug info the phone never uses, a large
+# share of each architecture's library (the universal APK carries three).
 gomobile bind -v -o hysteria_bridge.aar -target android -androidapi 24 \
+  -trimpath -ldflags="-s -w" \
   -javapkg=app.wavebreak.bridge -libname=hysteriabridge .
 
 cp hysteria_bridge.aar ../../android/app/libs/hysteria_bridge.aar
