@@ -44,6 +44,7 @@ class UpdatesScreen extends ConsumerWidget {
     final needsPermission = install.status == ApkInstallStatus.needsPermission;
     final installing = install.status == ApkInstallStatus.installing;
     final installed = install.status == ApkInstallStatus.installed;
+    final rollback = ref.watch(rollbackOfferProvider).asData?.value;
 
     return DetailScaffold(
       title: s.updates,
@@ -162,9 +163,63 @@ class UpdatesScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          // Bug 14: one step back to the previous version, only while no
+          // download/install is running and no newer update is pending.
+          if (!installed &&
+              !installing &&
+              !downloading &&
+              !needsPermission &&
+              pendingUpdate == null &&
+              rollback != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton(
+                onPressed: () => _rollBack(context, ref, rollback),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: WbColors.ice,
+                  side: const BorderSide(color: WbColors.ice08),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                    s.rollbackAction.replaceAll('{v}', rollback.versionName)),
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Future<void> _rollBack(
+      BuildContext context, WidgetRef ref, RollbackInfo rollback) async {
+    final s = ref.read(stringsProvider);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: WbColors.card,
+        title: Text(s.rollbackConfirmTitle),
+        content:
+            Text(s.rollbackConfirmBody.replaceAll('{v}', rollback.versionName)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(s.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(s.rollbackConfirm),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    unawaited(ref
+        .read(apkInstallControllerProvider.notifier)
+        .downloadAndInstall(rollback.asUpdate));
   }
 }
 

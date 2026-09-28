@@ -46,6 +46,69 @@ class UpdateInfo {
       );
 }
 
+/// Bug 14: a one-step rollback the server offers for exactly one release.
+/// The manifest carries `"rollback": {"fromVersionCode": N,
+/// "versionCode": N+1, "versionName": "...", "url": "..."}`: the previous
+/// version's installer, built with a build number ABOVE the release it
+/// rolls back from — so the older app, once reinstalled, doesn't at once
+/// offer to update back to N (the next regular release is ≥ N+2). It is
+/// offered only on exactly build N; the reinstalled older app has no
+/// rollback of its own, so a second rollback is impossible until the next
+/// update. Settings and sign-in live outside the install directory.
+class RollbackInfo {
+  const RollbackInfo({
+    required this.fromVersionCode,
+    required this.versionCode,
+    required this.versionName,
+    required this.url,
+  });
+
+  final int fromVersionCode;
+  final int versionCode;
+  final String versionName;
+  final String url;
+
+  /// What the installer downloads and runs.
+  UpdateInfo get asUpdate =>
+      UpdateInfo(versionCode: versionCode, versionName: versionName, url: url);
+
+  static RollbackInfo? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final from = (json['fromVersionCode'] as num?)?.toInt() ?? 0;
+    final code = (json['versionCode'] as num?)?.toInt() ?? 0;
+    final url = (json['url'] ?? '').toString();
+    if (from <= 0 || code <= from || url.isEmpty) return null;
+    return RollbackInfo(
+      fromVersionCode: from,
+      versionCode: code,
+      versionName: (json['versionName'] ?? '').toString(),
+      url: url,
+    );
+  }
+}
+
+/// The rollback this exact build may take, or null (none published, it's
+/// for another build, or the manifest can't be read).
+final rollbackOfferProvider = FutureProvider<RollbackInfo?>((ref) async {
+  final current = await PackageInfo.fromPlatform();
+  final currentCode = int.tryParse(current.buildNumber) ?? 0;
+  final dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 8),
+  ));
+  try {
+    final response = await dio.get<Map<String, dynamic>>(
+      _versionCheckUrl,
+      queryParameters: {'t': DateTime.now().millisecondsSinceEpoch},
+    );
+    final rollback = RollbackInfo.fromJson(response.data?['rollback']);
+    if (rollback == null || rollback.fromVersionCode != currentCode) return null;
+    return rollback;
+  } catch (_) {
+    return null;
+  }
+});
+
 Future<UpdateInfo?> _checkOnce() async {
   final current = await PackageInfo.fromPlatform();
   final currentCode = int.tryParse(current.buildNumber) ?? 0;

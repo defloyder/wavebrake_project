@@ -41,6 +41,75 @@ class UpdateInfo {
       );
 }
 
+/// Bug 14: a one-step rollback the server offers for exactly one release.
+/// Android never installs a lower versionCode over a higher one, so the
+/// previous version is published rebuilt with a versionCode ABOVE the
+/// release it rolls back from (N → N−1 built as N+1; the next regular
+/// release is ≥ N+2). The manifest carries it as
+/// `"rollback": {"fromVersionCode": N, "versionCode": N+1,
+/// "versionName": "N−1", "url": "..."}` (N−1 as its name); it is offered only on exactly
+/// build N. The rolled-back build is the old app, which has no rollback
+/// of its own — so a second rollback is impossible until the next update.
+/// Sign-in and settings survive (same package and signing key).
+class RollbackInfo {
+  const RollbackInfo({
+    required this.fromVersionCode,
+    required this.versionCode,
+    required this.versionName,
+    required this.url,
+  });
+
+  final int fromVersionCode;
+  final int versionCode;
+  final String versionName;
+  final String url;
+
+  /// What the installer downloads and installs.
+  UpdateInfo get asUpdate =>
+      UpdateInfo(versionCode: versionCode, versionName: versionName, url: url);
+
+  static RollbackInfo? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final from = (json['fromVersionCode'] as num?)?.toInt() ?? 0;
+    final code = (json['versionCode'] as num?)?.toInt() ?? 0;
+    final url = (json['url'] ?? '').toString();
+    if (from <= 0 || code <= from || url.isEmpty) return null;
+    return RollbackInfo(
+      fromVersionCode: from,
+      versionCode: code,
+      versionName: (json['versionName'] ?? '').toString(),
+      url: url,
+    );
+  }
+}
+
+Future<Map<String, dynamic>?> _fetchManifest() async {
+  final dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 8),
+  ));
+  try {
+    final response = await dio.get<Map<String, dynamic>>(
+      _versionCheckUrl,
+      queryParameters: {'t': DateTime.now().millisecondsSinceEpoch},
+    );
+    return response.data;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// The rollback this exact build may take, or null (none published, or
+/// it's for another build).
+final rollbackOfferProvider = FutureProvider<RollbackInfo?>((ref) async {
+  final current = await PackageInfo.fromPlatform();
+  final currentCode = int.tryParse(current.buildNumber) ?? 0;
+  final data = await _fetchManifest();
+  final rollback = RollbackInfo.fromJson(data?['rollback']);
+  if (rollback == null || rollback.fromVersionCode != currentCode) return null;
+  return rollback;
+});
+
 Future<UpdateInfo?> _checkOnce() async {
   final current = await PackageInfo.fromPlatform();
   final currentCode = int.tryParse(current.buildNumber) ?? 0;

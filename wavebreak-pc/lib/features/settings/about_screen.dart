@@ -20,6 +20,34 @@ import '../shared/wb_card.dart';
 class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
 
+  Future<void> _rollBack(
+      BuildContext context, WidgetRef ref, RollbackInfo rollback) async {
+    final s = ref.read(stringsProvider);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: WbColors.card,
+        title: Text(s.rollbackConfirmTitle),
+        content:
+            Text(s.rollbackConfirmBody.replaceAll('{v}', rollback.versionName)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(s.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(s.rollbackConfirm),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    unawaited(ref
+        .read(windowsUpdateControllerProvider.notifier)
+        .downloadAndInstall(rollback.asUpdate));
+  }
+
   Future<void> _checkForUpdates(BuildContext context, WidgetRef ref) async {
     final s = ref.read(stringsProvider);
     final messenger = ScaffoldMessenger.of(context);
@@ -67,6 +95,9 @@ class AboutScreen extends ConsumerWidget {
     final pendingUpdate = (Platform.isAndroid || Platform.isWindows)
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
+    final rollback = Platform.isWindows
+        ? ref.watch(rollbackOfferProvider).asData?.value
+        : null;
 
     return DetailScaffold(
       title: s.about,
@@ -106,6 +137,14 @@ class AboutScreen extends ConsumerWidget {
               downloadingUpdate ? null : () => _checkForUpdates(context, ref),
               badged: pendingUpdate != null,
             ),
+          // Bug 14: one step back to the previous version (Windows only:
+          // Android's rollback lives in its own updates flow).
+          if (Platform.isWindows &&
+              rollback != null &&
+              pendingUpdate == null &&
+              !downloadingUpdate)
+            _row(s.rollbackAction.replaceAll('{v}', rollback.versionName),
+                () => _rollBack(context, ref, rollback)),
           if (config.privacyUrl != null)
             _row(s.privacyPolicy,
                 () => launchUrl(Uri.parse(config.privacyUrl!))),

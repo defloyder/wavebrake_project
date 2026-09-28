@@ -63,6 +63,10 @@ class AppStrings {
     required this.updateAvailable,
     required this.updateDownloading,
     required this.updateInstall,
+    required this.rollbackAction,
+    required this.rollbackConfirmTitle,
+    required this.rollbackConfirmBody,
+    required this.rollbackConfirm,
     required this.updateAllowInstalls,
     required this.checkForUpdates,
     required this.upToDate,
@@ -269,6 +273,10 @@ class AppStrings {
   final String updateAvailable;
   final String updateDownloading;
   final String updateInstall;
+  final String rollbackAction;
+  final String rollbackConfirmTitle;
+  final String rollbackConfirmBody;
+  final String rollbackConfirm;
   final String updateAllowInstalls;
   final String checkForUpdates;
   final String upToDate;
@@ -482,6 +490,10 @@ const kEnglishStrings = AppStrings(
   updateAvailable: 'Update available',
   updateDownloading: 'Downloading update…',
   updateInstall: 'Install',
+  rollbackAction: 'Roll back to version {v}',
+  rollbackConfirmTitle: 'Roll back the update?',
+  rollbackConfirmBody: 'Version {v} will be installed. Your sign-in and settings stay. You can roll back again only after the next update.',
+  rollbackConfirm: 'Roll back',
   updateAllowInstalls: 'Allow installs',
   checkForUpdates: 'Check for updates',
   upToDate: 'You’re up to date',
@@ -699,6 +711,10 @@ const kRussianStrings = AppStrings(
   updateAvailable: 'Доступно обновление',
   updateDownloading: 'Загрузка обновления…',
   updateInstall: 'Установить',
+  rollbackAction: 'Откатить на версию {v}',
+  rollbackConfirmTitle: 'Откатить обновление?',
+  rollbackConfirmBody: 'Будет установлена версия {v}. Вход и настройки сохранятся. Повторный откат станет доступен только после следующего обновления.',
+  rollbackConfirm: 'Откатить',
   updateAllowInstalls: 'Разрешить установку',
   checkForUpdates: 'Проверить обновления',
   upToDate: 'У вас последняя версия',
@@ -921,6 +937,10 @@ const kSpanishStrings = AppStrings(
   updateAvailable: 'Actualización disponible',
   updateDownloading: 'Descargando actualización…',
   updateInstall: 'Instalar',
+  rollbackAction: 'Volver a la versión {v}',
+  rollbackConfirmTitle: '¿Revertir la actualización?',
+  rollbackConfirmBody: 'Se instalará la versión {v}. Tu sesión y ajustes se conservan. Podrás volver a revertir solo tras la próxima actualización.',
+  rollbackConfirm: 'Revertir',
   updateAllowInstalls: 'Permitir instalación',
   checkForUpdates: 'Buscar actualizaciones',
   upToDate: 'Estás al día',
@@ -1143,6 +1163,10 @@ const kGermanStrings = AppStrings(
   updateAvailable: 'Update verfügbar',
   updateDownloading: 'Update wird heruntergeladen…',
   updateInstall: 'Installieren',
+  rollbackAction: 'Zurück zu Version {v}',
+  rollbackConfirmTitle: 'Update rückgängig machen?',
+  rollbackConfirmBody: 'Version {v} wird installiert. Anmeldung und Einstellungen bleiben erhalten. Ein weiteres Zurücksetzen ist erst nach dem nächsten Update möglich.',
+  rollbackConfirm: 'Zurücksetzen',
   updateAllowInstalls: 'Installationen erlauben',
   checkForUpdates: 'Nach Updates suchen',
   upToDate: 'Du bist auf dem neuesten Stand',
@@ -1368,6 +1392,10 @@ const kFrenchStrings = AppStrings(
   updateAvailable: 'Mise à jour disponible',
   updateDownloading: 'Téléchargement de la mise à jour…',
   updateInstall: 'Installer',
+  rollbackAction: 'Revenir à la version {v}',
+  rollbackConfirmTitle: 'Annuler la mise à jour ?',
+  rollbackConfirmBody: 'La version {v} sera installée. Votre connexion et vos réglages sont conservés. Un nouveau retour ne sera possible qu’après la prochaine mise à jour.',
+  rollbackConfirm: 'Revenir',
   updateAllowInstalls: 'Autoriser les installations',
   checkForUpdates: 'Rechercher des mises à jour',
   upToDate: 'Vous êtes à jour',
@@ -1593,6 +1621,10 @@ const kPortugueseStrings = AppStrings(
   updateAvailable: 'Atualização disponível',
   updateDownloading: 'Baixando atualização…',
   updateInstall: 'Instalar',
+  rollbackAction: 'Voltar para a versão {v}',
+  rollbackConfirmTitle: 'Reverter a atualização?',
+  rollbackConfirmBody: 'A versão {v} será instalada. Seu login e configurações são mantidos. Só será possível reverter de novo após a próxima atualização.',
+  rollbackConfirm: 'Reverter',
   updateAllowInstalls: 'Permitir instalação',
   checkForUpdates: 'Verificar atualizações',
   upToDate: 'Você está atualizado',
@@ -1814,6 +1846,10 @@ const kTurkishStrings = AppStrings(
   updateAvailable: 'Güncelleme mevcut',
   updateDownloading: 'Güncelleme indiriliyor…',
   updateInstall: 'Yükle',
+  rollbackAction: '{v} sürümüne geri dön',
+  rollbackConfirmTitle: 'Güncelleme geri alınsın mı?',
+  rollbackConfirmBody: '{v} sürümü yüklenecek. Oturumunuz ve ayarlarınız korunur. Tekrar geri alma yalnızca bir sonraki güncellemeden sonra mümkün olur.',
+  rollbackConfirm: 'Geri al',
   updateAllowInstalls: 'Yüklemelere izin ver',
   checkForUpdates: 'Güncellemeleri denetle',
   upToDate: 'Güncelsiniz',
