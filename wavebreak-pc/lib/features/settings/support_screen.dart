@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:file_selector/file_selector.dart' as fs;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -36,7 +37,8 @@ class SupportScreen extends ConsumerWidget {
   List<_Template> _templates(AppStrings s) => [
         _Template(Icons.wifi_off_rounded, s.tplNoConnect, s.tplNoConnectHint),
         _Template(Icons.speed_rounded, s.tplSlow, s.tplSlowHint),
-        _Template(Icons.credit_card_rounded, s.tplSubscription, s.tplSubscriptionHint),
+        _Template(Icons.credit_card_rounded, s.tplSubscription,
+            s.tplSubscriptionHint),
         _Template(Icons.devices_rounded, s.tplDevices, s.tplDevicesHint),
         _Template(Icons.lock_outline_rounded, s.tplLogin, s.tplLoginHint),
         _Template(Icons.flag_outlined, s.reportAProblem, s.tplOtherHint),
@@ -80,7 +82,7 @@ class SupportScreen extends ConsumerWidget {
           _row(
             s.exportDiagnosticLogs,
             Icons.bug_report_outlined,
-            () => _exportLogs(context),
+            () => _exportLogs(context, s),
           ),
           const SizedBox(height: 14),
           Padding(
@@ -145,8 +147,8 @@ class SupportScreen extends ConsumerWidget {
     ].join('\n');
   }
 
-  Future<void> _sendTemplate(BuildContext context, WidgetRef ref,
-      AppStrings s, String email, _Template t) async {
+  Future<void> _sendTemplate(BuildContext context, WidgetRef ref, AppStrings s,
+      String email, _Template t) async {
     final body = await _templateBody(ref, s, t);
     if (!context.mounted) return;
     await _sendEmail(context, s, email,
@@ -178,9 +180,32 @@ class SupportScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _exportLogs(BuildContext context) async {
+  Future<void> _exportLogs(BuildContext context, AppStrings s) async {
     final file = await AppLogger.exportToFile();
     if (!context.mounted) return;
+    if (Platform.isWindows) {
+      // Windows: a "Save as" dialog, the file goes to the folder the user
+      // picks (the Windows share sheet was no use for sending it on).
+      final stamp = DateTime.now()
+          .toIso8601String()
+          .substring(0, 19)
+          .replaceAll(':', '-');
+      final location = await fs.getSaveLocation(
+        suggestedName: 'wavebreak-diagnostic-log-$stamp.txt',
+        acceptedTypeGroups: const [
+          fs.XTypeGroup(label: 'Text', extensions: ['txt']),
+        ],
+      );
+      if (location == null) return; // cancelled
+      var target = location.path;
+      if (!target.toLowerCase().endsWith('.txt')) target = '$target.txt';
+      await file.copy(target);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(s.logSavedTo.replaceAll('{path}', target))),
+      );
+      return;
+    }
     if (Platform.isAndroid) {
       // Own share on Android: the receiving app (Telegram) opens in its own
       // task, not inside WAVEBREAK's — see FileSharer.kt.
@@ -203,7 +228,8 @@ class SupportScreen extends ConsumerWidget {
     );
   }
 
-  Widget _row(String title, IconData icon, VoidCallback onTap, {String? subtitle}) {
+  Widget _row(String title, IconData icon, VoidCallback onTap,
+      {String? subtitle}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: WbCard(
@@ -220,7 +246,8 @@ class SupportScreen extends ConsumerWidget {
                   if (subtitle != null)
                     Text(
                       subtitle,
-                      style: const TextStyle(color: WbColors.ice60, fontSize: 12.5),
+                      style: const TextStyle(
+                          color: WbColors.ice60, fontSize: 12.5),
                     ),
                 ],
               ),

@@ -1,7 +1,7 @@
 name: wavebreak
 description: WAVEBREAK — premium simple connectivity.
 publish_to: "none"
-version: 1.0.4+9
+version: 1.0.5+11
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -33,6 +33,7 @@ dependencies:
   crypto: ^3.0.5
   path_provider: ^2.1.5
   share_plus: ^10.1.4
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

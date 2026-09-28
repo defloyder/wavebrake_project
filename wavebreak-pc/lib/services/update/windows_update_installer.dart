@@ -100,7 +100,7 @@ class WindowsUpdateController extends Notifier<WindowsUpdateState> {
   /// with its parent depending on how the OS/job-object hierarchy is set
   /// up).
   ///
-  /// /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-: this is an update the
+  /// /SILENT /SUPPRESSMSGBOXES /NORESTART /SP- (progress window only): this is an update the
   /// user already asked for from inside a running WAVEBREAK (the update
   /// screen's own progress bar was the "something happened" signal, not
   /// the installer's wizard) — re-clicking through the same directory
@@ -126,10 +126,26 @@ class WindowsUpdateController extends Notifier<WindowsUpdateState> {
           .disconnect()
           .timeout(const Duration(seconds: 8));
     } catch (_) {}
+    // Field report: after "Install" the app closed and nothing happened for
+    // a long time (or it took a restart): the invisible installer was
+    // waiting for files still held — sing-box.exe/wintun.dll when the
+    // disconnect above didn't finish in time. Stop our own sing-box for
+    // sure (only the one in WAVEBREAK's folder; another VPN's is left alone).
+    await _stopOwnSingBox();
     try {
+      // /SILENT, not /VERYSILENT: no wizard questions, but the installer's
+      // own progress window shows, so the user sees the update happening
+      // instead of an app that just vanished.
       await Process.start(
         path,
-        ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-'],
+        [
+          '/SILENT',
+          '/SUPPRESSMSGBOXES',
+          '/NORESTART',
+          '/SP-',
+          '/CLOSEAPPLICATIONS',
+          '/FORCECLOSEAPPLICATIONS',
+        ],
         mode: ProcessStartMode.detached,
       );
     } catch (_) {
@@ -137,6 +153,29 @@ class WindowsUpdateController extends Notifier<WindowsUpdateState> {
       return;
     }
     exit(0);
+  }
+
+  /// Kills sing-box.exe processes running from this app's own folder and
+  /// waits (briefly) for them to be gone.
+  static Future<void> _stopOwnSingBox() async {
+    final dir = File(Platform.resolvedExecutable).parent.path;
+    final own = '$dir\\sing-box.exe'.replaceAll("'", "''");
+    try {
+      await Process.run(
+        'powershell',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          "Get-Process sing-box -ErrorAction SilentlyContinue | "
+              "Where-Object { \$_.Path -eq '$own' } | "
+              "Stop-Process -Force -ErrorAction SilentlyContinue; "
+              "Start-Sleep -Milliseconds 500",
+        ],
+      ).timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Best effort: the installer force-closes what's left.
+    }
   }
 
   void reset() => state = const WindowsUpdateState();

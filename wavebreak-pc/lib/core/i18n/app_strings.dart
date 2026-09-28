@@ -189,6 +189,7 @@ class AppStrings {
     required this.errCodeTooManyAttempts,
     required this.errResendTooSoon,
     required this.errEmailSendFailed,
+    required this.logSavedTo,
     required this.errNoInternet,
     required this.errUnavailable,
     required this.errSessionExpired,
@@ -436,6 +437,7 @@ class AppStrings {
   final String errCodeTooManyAttempts;
   final String errResendTooSoon;
   final String errEmailSendFailed;
+  final String logSavedTo;
   final String errNoInternet;
   final String errUnavailable;
   final String errSessionExpired;
@@ -688,6 +690,7 @@ const kEnglishStrings = AppStrings(
   errCodeTooManyAttempts: 'Too many attempts — request a new code',
   errResendTooSoon: 'Wait a minute before sending again',
   errEmailSendFailed: 'Couldn\'t send the email. Try again later.',
+  logSavedTo: 'Log saved: {path}',
   errNoInternet: 'No internet connection',
   errUnavailable:
       'WAVEBREAK temporarily unavailable.\nCheck your connection and try again.',
@@ -945,6 +948,7 @@ const kRussianStrings = AppStrings(
   errCodeTooManyAttempts: 'Слишком много попыток — запросите новый код',
   errResendTooSoon: 'Подождите минуту перед повторной отправкой',
   errEmailSendFailed: 'Не удалось отправить письмо. Попробуйте позже.',
+  logSavedTo: 'Лог сохранён: {path}',
   errNoInternet: 'Нет подключения к интернету',
   errUnavailable:
       'WAVEBREAK временно недоступен.\nПроверьте соединение и попробуйте снова.',
@@ -1204,6 +1208,7 @@ const kSpanishStrings = AppStrings(
   errCodeTooManyAttempts: 'Demasiados intentos: solicita un código nuevo',
   errResendTooSoon: 'Espera un minuto antes de reenviar',
   errEmailSendFailed: 'No se pudo enviar el correo. Inténtalo más tarde.',
+  logSavedTo: 'Registro guardado: {path}',
   errNoInternet: 'Sin conexión a internet',
   errUnavailable:
       'WAVEBREAK no disponible temporalmente.\nRevisa tu conexión e inténtalo de nuevo.',
@@ -1466,6 +1471,7 @@ const kGermanStrings = AppStrings(
   errCodeTooManyAttempts: 'Zu viele Versuche – fordere einen neuen Code an',
   errResendTooSoon: 'Warte eine Minute, bevor du erneut sendest',
   errEmailSendFailed: 'E-Mail konnte nicht gesendet werden. Versuche es später erneut.',
+  logSavedTo: 'Protokoll gespeichert: {path}',
   errNoInternet: 'Keine Internetverbindung',
   errUnavailable:
       'WAVEBREAK vorübergehend nicht verfügbar.\nPrüfe deine Verbindung und versuche es erneut.',
@@ -1730,6 +1736,7 @@ const kFrenchStrings = AppStrings(
   errCodeTooManyAttempts: 'Trop de tentatives : demandez un nouveau code',
   errResendTooSoon: 'Patientez une minute avant de renvoyer',
   errEmailSendFailed: 'Impossible d\'envoyer l\'e-mail. Réessayez plus tard.',
+  logSavedTo: 'Journal enregistré : {path}',
   errNoInternet: 'Pas de connexion internet',
   errUnavailable:
       'WAVEBREAK temporairement indisponible.\nVérifiez votre connexion et réessayez.',
@@ -1991,6 +1998,7 @@ const kPortugueseStrings = AppStrings(
   errCodeTooManyAttempts: 'Tentativas demais — solicite um novo código',
   errResendTooSoon: 'Aguarde um minuto antes de reenviar',
   errEmailSendFailed: 'Não foi possível enviar o e-mail. Tente mais tarde.',
+  logSavedTo: 'Log salvo: {path}',
   errNoInternet: 'Sem conexão à internet',
   errUnavailable:
       'WAVEBREAK temporariamente indisponível.\nVerifique sua conexão e tente novamente.',
@@ -2249,6 +2257,7 @@ const kTurkishStrings = AppStrings(
   errCodeTooManyAttempts: 'Çok fazla deneme — yeni bir kod isteyin',
   errResendTooSoon: 'Tekrar göndermeden önce bir dakika bekleyin',
   errEmailSendFailed: 'E-posta gönderilemedi. Daha sonra tekrar deneyin.',
+  logSavedTo: 'Kayıt kaydedildi: {path}',
   errNoInternet: 'İnternet bağlantısı yok',
   errUnavailable:
       'WAVEBREAK geçici olarak kullanılamıyor.\nBağlantınızı kontrol edip tekrar deneyin.',

@@ -18,7 +18,7 @@
 ; only changes on a deliberate release. Bump it by hand alongside
 ; pubspec.yaml's own version when cutting a new release.
 #define MyAppName "WAVEBREAK"
-#define MyAppVersion "1.0.4"
+#define MyAppVersion "1.0.5"
 #define MyAppPublisher "WAVEBREAK"
 #define MyAppURL "https://wavebreak.com.tr"
 #define MyAppExeName "wavebreak.exe"
@@ -63,6 +63,11 @@ ArchitecturesInstallIn64BitMode=x64compatible
 VersionInfoVersion={#MyAppVersion}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
+; In-app updates: close whatever still holds the app's files (wavebreak.exe,
+; sing-box.exe, wintun.dll) instead of waiting on them, and don't reopen
+; them — [Run] below relaunches the app once.
+CloseApplications=force
+RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -89,7 +94,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; downloaded-from-the-website) run, matching the wizard's own finish-page
 ; convention. Deliberately WITHOUT `skipifsilent`: the in-app self-update
 ; flow (windows_update_installer.dart) runs this same installer with
-; /VERYSILENT, and that path needs this same entry to still fire so the
+; /SILENT, and that path needs this same entry to still fire so the
 ; app relaunches itself automatically once the silent install finishes —
 ; `skipifsilent` would suppress it there, leaving the user's WAVEBREAK
 ; just gone until they went and found the exe themselves. The Description
