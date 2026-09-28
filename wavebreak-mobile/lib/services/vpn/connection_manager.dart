@@ -543,10 +543,14 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     // ConnectionTestService.measureTunnelLatency); elsewhere there is
     // nothing to measure with, so no verdict either way.
     if (!Platform.isAndroid) return;
+    // Short: a transport the carrier drops "connects" in a fraction of a
+    // second (only the local tunnel comes up), and people switch by hand
+    // long before a slow check gives up. Worst case ~12 s to the swap.
+    var attempt = 0;
     for (final wait in const [
-      Duration(seconds: 3),
-      Duration(seconds: 4),
-      Duration(seconds: 6),
+      Duration(milliseconds: 1500),
+      Duration(seconds: 2),
+      Duration(seconds: 2),
     ]) {
       await Future<void>.delayed(wait);
       if (generation != _connectGeneration ||
@@ -554,7 +558,12 @@ class ConnectionManager extends Notifier<WbConnectionState> {
           state.location.id != used.id) {
         return;
       }
-      if (await const ConnectionTestService().measureTunnelLatency() != null) {
+      attempt++;
+      final ms = await const ConnectionTestService()
+          .measureTunnelLatency(timeout: const Duration(seconds: 4));
+      AppLogger.info('Traffic check $attempt via ${_transportKey(used)}: '
+          '${ms == null ? 'no answer' : '$ms ms'}');
+      if (ms != null) {
         _failedTransports.remove(used.id);
         final key = _transportKey(used);
         if (key.isNotEmpty) {

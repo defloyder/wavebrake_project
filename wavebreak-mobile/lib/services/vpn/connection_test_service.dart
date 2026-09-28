@@ -123,12 +123,13 @@ class ConnectionTestService {
   /// the engine itself (WaveEngineVpnService.measureTunnelLatencyMs), so
   /// Hysteria2 gets a number too and every protocol is measured the same
   /// way. Null when no tunnel is up or the probe fails.
-  Future<int?> measureTunnelLatency() async {
+  Future<int?> measureTunnelLatency(
+      {Duration timeout = const Duration(seconds: 8)}) async {
     if (!Platform.isAndroid) return null;
     try {
       return await _engineChannel
           .invokeMethod<int>('tunnelLatency')
-          .timeout(const Duration(seconds: 8));
+          .timeout(timeout);
     } catch (_) {
       return null;
     }
