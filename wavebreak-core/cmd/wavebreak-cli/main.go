@@ -158,6 +158,34 @@ func nodeToken(ctx context.Context, st *store.Store, args []string) error {
 	return nil
 }
 
+// nodeMirror makes a second location (e.g. RU-MSK-01) serve another node's
+// accounts (e.g. TR-PILOT-01), with its own public connection parameters:
+// a JSON object of config.VLESSConfig fields (PublicHost, PublicPort,
+// RealityPublicKey, RealityShortID, RealityServerName, PublishDirect,
+// DirectTLSHost, DirectTLSPort, DirectTLSPath, HysteriaHost, HysteriaPort, ...).
+func nodeMirror(ctx context.Context, st *store.Store, args []string) error {
+	fs := flag.NewFlagSet("node mirror", flag.ExitOnError)
+	node := fs.String("node", "", "code of the mirror node")
+	of := fs.String("of", "", "code of the node whose accounts it serves")
+	configPath := fs.String("config", "", "public connection parameters (JSON file)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *node == "" || *of == "" || *configPath == "" {
+		return fmt.Errorf("--node, --of and --config are required")
+	}
+	raw, err := os.ReadFile(*configPath)
+	if err != nil {
+		return err
+	}
+	revision, err := st.LinkMirrorNode(ctx, *node, *of, raw)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s now serves the accounts of %s (desired-state revision %d)\n", *node, *of, revision)
+	return nil
+}
+
 func promptLine(label string) string {
 	fmt.Print(label)
 	value, _ := bufio.NewReader(os.Stdin).ReadString('\n')

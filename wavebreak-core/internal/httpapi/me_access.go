@@ -54,6 +54,10 @@ func (s *Server) meAccess(w http.ResponseWriter, r *http.Request) {
 		ConfigStatus:    cfg.ConfigStatus,
 		Links:           appLinks(cfg, clientFeatures(r)),
 	}
+	// Second locations serving the same account (e.g. Moscow) follow.
+	for _, mirror := range s.mirrorConfigs(r.Context(), cfg) {
+		resp.Links = append(resp.Links, appLinks(mirror, clientFeatures(r))...)
+	}
 	if details.Subscription != nil {
 		expires := details.Subscription.ExpiresAt
 		resp.ExpiresAt = &expires

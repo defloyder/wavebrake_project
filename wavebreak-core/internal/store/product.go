@@ -589,7 +589,7 @@ func (s *Store) ClientBootstrap(ctx context.Context, userID string) (ClientBoots
 	if err != nil {
 		return ClientBootstrap{}, err
 	}
-	nodes, err := s.ListNodes(ctx)
+	nodes, err := s.ListPrimaryNodes(ctx)
 	if err != nil {
 		return ClientBootstrap{}, err
 	}
@@ -806,11 +806,15 @@ func (s *Store) RecordNodeUsageReport(ctx context.Context, nodeID, grantID strin
 	}
 	defer tx.Rollback(ctx)
 
+	// The grant's own node, or a mirror node serving that node's grants
+	// (see migration 00006).
 	var subscriptionID string
 	if err := tx.QueryRow(ctx, `
-		select subscription_id::text
-		from access_grants
-		where id = $1 and node_id = $2 and status = 'active'`,
+		select g.subscription_id::text
+		from access_grants g
+		join nodes n on n.id = $2
+		where g.id = $1 and g.status = 'active'
+		  and (g.node_id = n.id or g.node_id = n.shares_grants_of)`,
 		grantID, nodeID).Scan(&subscriptionID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
@@ -818,17 +822,35 @@ func (s *Store) RecordNodeUsageReport(ctx context.Context, nodeID, grantID strin
 		return err
 	}
 
-	var lastUp, lastDown, totalUp, totalDown int64
+	// Totals per grant (locked: two nodes may report the same grant), the
+	// delta baseline per node: each node's counters are its own.
+	var totalUp, totalDown int64
 	err = tx.QueryRow(ctx, `
-		select last_bytes_up_total, last_bytes_down_total, total_bytes_up, total_bytes_down
+		select total_bytes_up, total_bytes_down
 		from grant_usage_counters
 		where grant_id = $1
-		for update`, grantID).Scan(&lastUp, &lastDown, &totalUp, &totalDown)
+		for update`, grantID).Scan(&totalUp, &totalDown)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	if errors.Is(err, pgx.ErrNoRows) {
-		lastUp, lastDown, totalUp, totalDown = 0, 0, 0, 0
+	var lastUp, lastDown int64
+	err = tx.QueryRow(ctx, `
+		select last_bytes_up_total, last_bytes_down_total
+		from node_grant_counters
+		where node_id = $1 and grant_id = $2
+		for update`, nodeID, grantID).Scan(&lastUp, &lastDown)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		insert into node_grant_counters (node_id, grant_id, last_bytes_up_total, last_bytes_down_total)
+		values ($1, $2, $3, $4)
+		on conflict (node_id, grant_id) do update set
+		    last_bytes_up_total = excluded.last_bytes_up_total,
+		    last_bytes_down_total = excluded.last_bytes_down_total,
+		    updated_at = now()`,
+		nodeID, grantID, upTotal, downTotal); err != nil {
+		return err
 	}
 	deltaUp := monotonicDelta(lastUp, upTotal)
 	deltaDown := monotonicDelta(lastDown, downTotal)
@@ -1627,7 +1649,42 @@ func effectiveDeviceLimit(ctx context.Context, tx pgx.Tx, userID string) (int, e
 	return limit, err
 }
 
+// refreshNodeDesiredStateTx publishes a new desired state for the node, and
+// for every mirror node serving its grants (nodes.shares_grants_of), so a
+// grant issued or revoked here reaches the second location too.
 func refreshNodeDesiredStateTx(ctx context.Context, tx pgx.Tx, nodeID string) (int, error) {
+	revision, err := writeNodeDesiredStateTx(ctx, tx, nodeID, nodeID)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := tx.Query(ctx, `select id::text from nodes where shares_grants_of = $1`, nodeID)
+	if err != nil {
+		return 0, err
+	}
+	var mirrors []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		mirrors = append(mirrors, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, mirror := range mirrors {
+		if _, err := writeNodeDesiredStateTx(ctx, tx, mirror, nodeID); err != nil {
+			return 0, err
+		}
+	}
+	return revision, nil
+}
+
+// writeNodeDesiredStateTx: a new revision for nodeID carrying the active
+// grants of grantsNodeID (itself, or the node it mirrors).
+func writeNodeDesiredStateTx(ctx context.Context, tx pgx.Tx, nodeID, grantsNodeID string) (int, error) {
 	var revision int
 	if err := tx.QueryRow(ctx, `
 		update nodes
@@ -1653,7 +1710,7 @@ func refreshNodeDesiredStateTx(ctx context.Context, tx pgx.Tx, nodeID string) (i
 		    ) order by created_at) filter (where id is not null), '[]'::jsonb)
 		)
 		from access_grants
-		where node_id = $1 and status = 'active' and expires_at > now()`, nodeID, revision).Scan(&desired); err != nil {
+		where node_id = $3 and status = 'active' and expires_at > now()`, nodeID, revision, grantsNodeID).Scan(&desired); err != nil {
 		return 0, err
 	}
 	if _, err := tx.Exec(ctx, `

@@ -220,6 +220,7 @@ var regionFlags = map[string]string{
 	"FR": "🇫🇷",
 	"SG": "🇸🇬",
 	"JP": "🇯🇵",
+	"RU": "🇷🇺",
 }
 
 var regionNames = map[string]string{
@@ -231,6 +232,7 @@ var regionNames = map[string]string{
 	"FR": "France",
 	"SG": "Singapore",
 	"JP": "Japan",
+	"RU": "Russia",
 }
 
 // nodeCities fills in a friendly city for specific known node codes; nodes
@@ -238,6 +240,7 @@ var regionNames = map[string]string{
 var nodeCities = map[string]string{
 	"NL-PILOT-01": "Amsterdam",
 	"TR-PILOT-01": "Istanbul",
+	"RU-MSK-01":   "Moscow",
 }
 
 // locationLabel renders a human node code like "NL-PILOT-01" as something
@@ -337,6 +340,10 @@ func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "subscription is not ready yet: "+cfg.ConfigStatus)
 		return
 	}
+	// Second locations serving the same account (e.g. Moscow).
+	for _, mirror := range s.mirrorConfigs(r.Context(), cfg) {
+		cfg.Links = append(cfg.Links, mirror.Links...)
+	}
 
 	planName := cfg.PlanName
 	if planName == "" {
@@ -360,6 +367,13 @@ func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
+	s.applyVLESSRuntimeConfigFor(config, s.app.Config.VLESS, true)
+}
+
+// applyVLESSRuntimeConfigFor builds the links with the given settings: Core's
+// own for the primary node, merged with a mirror node's public_config for
+// a second location (without the domestic relays, which front the primary).
+func (s *Server) applyVLESSRuntimeConfigFor(config *store.AccessGrantConfig, vless config.VLESSConfig, withRelays bool) {
 	if config.Grant.Protocol != "vless" && config.Grant.Protocol != "vless-reality" {
 		return
 	}
@@ -367,7 +381,6 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		config.ConfigStatus = "revoked"
 		return
 	}
-	vless := s.app.Config.VLESS
 	if strings.TrimSpace(vless.PublicHost) == "" || strings.TrimSpace(vless.RealityPublicKey) == "" || strings.TrimSpace(vless.RealityShortID) == "" {
 		config.ConfigStatus = "pending_runtime_config"
 		config.Warnings = []string{"VLESS REALITY public endpoint is not configured on Core yet."}
@@ -422,7 +435,11 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 		// Domestic relays first: on mobile networks with IP/SNI whitelists
 		// they're the only TCP path that gets through. Dead ones are left
 		// out (see internal/relays).
-		for _, relay := range s.relays.Healthy() {
+		var healthy []relays.Relay
+		if withRelays {
+			healthy = s.relays.Healthy()
+		}
+		for _, relay := range healthy {
 			relayLink := buildVLESSRealityXHTTPRelayLink(vless, config.Grant.ID, relay, location)
 			links = append(links, relayLink)
 			config.VLESSRelays = append(config.VLESSRelays, map[string]any{

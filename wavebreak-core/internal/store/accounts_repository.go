@@ -139,13 +139,17 @@ func (r *AccountsRepository) Usage(ctx context.Context, subscriptionID string) (
 	return u, err
 }
 
-// DefaultNodeID: the online node with the freshest heartbeat.
+// DefaultNodeID: the node new subscription credentials go to — the online
+// primary that already serves the most of them (a freshly enrolled node
+// never takes over), freshest heartbeat as the tie-break. Mirror nodes
+// (migration 00006) serve another node's credentials and are never picked.
 func (r *AccountsRepository) DefaultNodeID(ctx context.Context) (string, error) {
 	var id string
 	err := r.st.db.QueryRow(ctx, `
-		select id::text from nodes
-		where status = 'online'
-		order by last_heartbeat_at desc nulls last, code
+		select n.id::text from nodes n
+		where n.status = 'online' and n.shares_grants_of is null
+		order by (select count(*) from access_grants g where g.node_id = n.id and g.status = 'active') desc,
+		         n.last_heartbeat_at desc nulls last, n.code
 		limit 1`).Scan(&id)
 	return id, notFound(err)
 }

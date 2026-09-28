@@ -105,7 +105,7 @@ func (s *Server) router() http.Handler {
 			r.Delete("/me/devices/{deviceID}", s.revokeDevice)
 			r.Post("/subscriptions", s.createSubscription)
 			r.Get("/subscriptions/current", s.currentSubscription)
-			r.Get("/locations", s.listNodes)
+			r.Get("/locations", s.listLocations)
 			r.Get("/access/grants", s.listAccessGrants)
 			r.Post("/access/grants", s.createAccessGrant)
 			r.Get("/access/grants/{grantID}/config", s.accessGrantConfig)
@@ -401,6 +401,17 @@ func (s *Server) nodeFailDesiredState(w http.ResponseWriter, r *http.Request) {
 	}
 	observability.NodeSyncFailures.Inc()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// listLocations: the apps' location list — without mirror nodes, whose rows
+// come with the account's links (/v1/me/access). Admins list all (/v1/nodes).
+func (s *Server) listLocations(w http.ResponseWriter, r *http.Request) {
+	nodes, err := s.app.Store.ListPrimaryNodes(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list nodes")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"nodes": nodes, "locations": s.locationPayloads(nodes)})
 }
 
 func (s *Server) listNodes(w http.ResponseWriter, r *http.Request) {
