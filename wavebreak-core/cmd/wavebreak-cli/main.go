@@ -57,6 +57,11 @@ func main() {
 			log.Error("node token failed", "error", err)
 			os.Exit(1)
 		}
+	case "node mirror":
+		if err := nodeMirror(ctx, st, os.Args[3:]); err != nil {
+			log.Error("node mirror failed", "error", err)
+			os.Exit(1)
+		}
 	case "subscriptions lifecycle":
 		if err := subscriptionsLifecycle(ctx, st, cfg.Accounts.SubscriptionGrace, os.Args[3:]); err != nil {
 			log.Error("subscriptions lifecycle failed", "error", err)
@@ -219,6 +224,7 @@ func usage() {
 	fmt.Println("  wavebreak-cli admin create [--email EMAIL] [--role superadmin] [--password PASSWORD]")
 	fmt.Println("  wavebreak-cli admin reset-password [--email EMAIL] [--password PASSWORD]")
 	fmt.Println("  wavebreak-cli node token [--region REGION] [--ttl 24h]")
+	fmt.Println("  wavebreak-cli node mirror --node CODE --of CODE --config FILE.json")
 	fmt.Println("  wavebreak-cli subscriptions lifecycle [--dry-run]")
 }
 
