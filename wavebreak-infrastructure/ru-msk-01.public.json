@@ -1,0 +1,14 @@
+{
+  "PublicHost": "135.106.227.90",
+  "PublicPort": 8443,
+  "RealityPublicKey": "G29nR-V72pzu26hpyG6isUi0OmIoVKc661iBhL1jmUg",
+  "RealityShortID": "a7e7d5b1",
+  "RealityServerName": "dl.wavebreak.com.tr",
+  "PublishDirect": true,
+  "DirectTLSHost": "dl.wavebreak.com.tr",
+  "DirectTLSPort": 9443,
+  "DirectTLSPath": "/wvb-dt",
+  "HysteriaHost": "135.106.227.90",
+  "HysteriaPort": 443,
+  "HysteriaSNI": "dl.wavebreak.com.tr"
+}
