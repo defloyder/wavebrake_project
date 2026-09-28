@@ -22,10 +22,10 @@ class SettingsScreen extends ConsumerWidget {
     final s = ref.watch(stringsProvider);
     final language = ref.watch(languageProvider);
     final waves = ref.watch(appWaveParamsProvider);
-    // Android only — this app ships outside the Play Store, so this is
-    // the only in-app path to a new build (see update_service.dart's own
-    // doc comment). iOS/Windows have no equivalent self-update flow yet.
-    final pendingUpdate = Platform.isAndroid
+    // Android and Windows ship outside any app store, so Settings >
+    // Updates is the in-app path to a new build (APK installer on
+    // Android, Inno Setup installer on Windows). iOS has none.
+    final pendingUpdate = (Platform.isAndroid || Platform.isWindows)
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
 
@@ -82,7 +82,7 @@ class SettingsScreen extends ConsumerWidget {
                 _languageRow(context, ref, s, language),
                 _row(context, s.support, Icons.chat_bubble_outline,
                     '/settings/support'),
-                if (Platform.isAndroid)
+                if (Platform.isAndroid || Platform.isWindows)
                   _row(context, s.updates, Icons.system_update_rounded,
                       '/settings/updates',
                       badged: pendingUpdate != null),

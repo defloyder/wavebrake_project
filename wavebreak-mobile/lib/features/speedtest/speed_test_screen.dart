@@ -69,145 +69,191 @@ class SpeedTestScreen extends ConsumerWidget {
 
     final waves = ref.watch(appWaveParamsProvider);
 
+    final statusText = Text(
+      switch (state.status) {
+        SpeedTestStatus.idle => s.speedTestIdleHint,
+        SpeedTestStatus.done => s.speedTestDoneHint,
+        SpeedTestStatus.failed => s.speedTestFailedHint,
+        _ => phaseLabel,
+      },
+      style: const TextStyle(color: WbColors.ice60, fontSize: 13),
+    );
+    final meter = WaveMeter(
+      visualState: visualState,
+      valueMbps: meterValue,
+      maxMbps: _meterMaxMbps,
+      unit: 'Mbps',
+      label: phaseLabel,
+    );
+    final results = Row(
+      children: [
+        Expanded(
+          child: _ResultCard(
+            icon: Icons.speed_rounded,
+            label: s.speedTestLatency,
+            value: state.latencyMs != null ? '${state.latencyMs} ms' : '–',
+            highlighted: state.status == SpeedTestStatus.testingLatency,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ResultCard(
+            icon: Icons.arrow_downward_rounded,
+            label: s.speedTestDownload,
+            value: '${_formatMbps(state.downloadMbps)} Mbps',
+            highlighted: state.status == SpeedTestStatus.testingDownload,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ResultCard(
+            icon: Icons.arrow_upward_rounded,
+            label: s.speedTestUpload,
+            value: '${_formatMbps(state.uploadMbps)} Mbps',
+            highlighted: state.status == SpeedTestStatus.testingUpload,
+          ),
+        ),
+      ],
+    );
+    final button = SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        onPressed: state.isRunning ? null : notifier.run,
+        style: FilledButton.styleFrom(
+          backgroundColor: WbColors.waveCyan,
+          foregroundColor: WbColors.midnight,
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: Text(
+          state.isRunning
+              ? phaseLabel
+              : state.status == SpeedTestStatus.idle
+                  ? s.speedTestStart
+                  : s.speedTestRetest,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        ),
+      ),
+    );
+    Widget title({required bool withMenu}) => Row(
+          children: [
+            if (withMenu) ...[
+              const MenuButton(),
+              const SizedBox(width: 12),
+            ],
+            Text(
+              s.speedTest,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+            ),
+          ],
+        );
+
     // A real top-level tab now (its own bottom-nav destination — see
     // app_shell.dart), not a screen pushed on top of another one, so it
     // matches Home/Settings/Locations' own pattern (OceanBackground +
-    // ListView, no back button, MenuButton only on desktop where there's
-    // a rail to open) instead of DetailScaffold's back-button header.
-    // DetailScaffold's header sat at a different vertical position than
-    // this pattern's plain title row — that mismatch was the actual
-    // cause of the offline banner overlapping this screen's title
-    // specifically; matching the same header shape every other tab uses
-    // means the banner's existing clearance now applies here too.
+    // plain title row, no back button, MenuButton only on desktop where
+    // there's a rail to open) instead of DetailScaffold's back-button
+    // header — that header sat lower and the offline banner overlapped it.
     return LayoutBuilder(
       builder: (context, outer) {
         final isDesktop = outer.maxWidth >= 820;
+        if (isDesktop) {
+          // Desktop: the meter on the left sized to the window's height,
+          // everything else in a column beside it. Stacked like the phone
+          // layout, a full-width square meter plus the rest never fit a
+          // desktop window and the page scrolled.
+          return OceanBackground(
+            illuminate: true,
+            tint: waves.tint,
+            waveSpeed: waves.speed,
+            waveAmplitude: waves.amplitude,
+            maxContentWidth: 1040,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    title(withMenu: true),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, box) {
+                          final side = (box.maxHeight < box.maxWidth * 0.5
+                                  ? box.maxHeight
+                                  : box.maxWidth * 0.5)
+                              .clamp(160.0, 520.0);
+                          return Row(
+                            children: [
+                              SizedBox(width: side, height: side, child: meter),
+                              const SizedBox(width: 36),
+                              Expanded(
+                                child: Center(
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        statusText,
+                                        const SizedBox(height: 14),
+                                        _PhaseProgress(
+                                            status: state.status,
+                                            progress: state.progress),
+                                        const SizedBox(height: 22),
+                                        _PhaseStepper(state: state, s: s),
+                                        const SizedBox(height: 22),
+                                        results,
+                                        const SizedBox(height: 24),
+                                        button,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
         return OceanBackground(
           illuminate: true,
           tint: waves.tint,
           waveSpeed: waves.speed,
           waveAmplitude: waves.amplitude,
-          maxContentWidth: isDesktop ? 640 : 560,
+          maxContentWidth: 560,
           child: SafeArea(
             child: ListView(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                isDesktop ? 12 : kMobileBottomBarReserve + 12,
-              ),
+              padding: const EdgeInsets.fromLTRB(
+                  20, 12, 20, kMobileBottomBarReserve + 12),
               children: [
-                Row(
-                  children: [
-                    if (isDesktop) ...[
-                      const MenuButton(),
-                      const SizedBox(width: 12),
-                    ],
-                    Text(
-                      s.speedTest,
-                      style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
+                title(withMenu: false),
                 const SizedBox(height: 8),
                 // Always names what's actively being measured (or that
                 // nothing is yet, or that it's finished/failed) right
-                // under the title — the porthole and its label say the
-                // same thing, but this is the plain-language version
-                // that's readable at a glance without parsing the
-                // animation, exactly the "unclear what's happening"
-                // complaint this redesign exists to fix.
-                Text(
-                  switch (state.status) {
-                    SpeedTestStatus.idle => s.speedTestIdleHint,
-                    SpeedTestStatus.done => s.speedTestDoneHint,
-                    SpeedTestStatus.failed => s.speedTestFailedHint,
-                    _ => phaseLabel,
-                  },
-                  style: const TextStyle(color: WbColors.ice60, fontSize: 13),
-                ),
+                // under the title — the plain-language version of what the
+                // porthole shows.
+                statusText,
                 const SizedBox(height: 20),
-                AspectRatio(
-                  aspectRatio: 1,
-                  child: WaveMeter(
-                    visualState: visualState,
-                    valueMbps: meterValue,
-                    maxMbps: _meterMaxMbps,
-                    unit: 'Mbps',
-                    label: phaseLabel,
-                  ),
-                ),
+                AspectRatio(aspectRatio: 1, child: meter),
                 const SizedBox(height: 8),
-                // Determinate progress for whichever leg is actively
-                // running — a clear "how far through this is" signal
-                // distinct from the porthole's own live-speed reading.
-                // Latency has no meaningful sub-progress (one TCP
-                // connect, not a multi-second transfer), so it shows an
-                // indeterminate bar instead of a fake determinate one.
+                // Determinate progress for whichever leg is running;
+                // latency (one TCP connect) gets an indeterminate bar.
                 _PhaseProgress(status: state.status, progress: state.progress),
                 const SizedBox(height: 20),
                 _PhaseStepper(state: state, s: s),
                 const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ResultCard(
-                        icon: Icons.speed_rounded,
-                        label: s.speedTestLatency,
-                        value: state.latencyMs != null
-                            ? '${state.latencyMs} ms'
-                            : '–',
-                        highlighted:
-                            state.status == SpeedTestStatus.testingLatency,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ResultCard(
-                        icon: Icons.arrow_downward_rounded,
-                        label: s.speedTestDownload,
-                        value: '${_formatMbps(state.downloadMbps)} Mbps',
-                        highlighted:
-                            state.status == SpeedTestStatus.testingDownload,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ResultCard(
-                        icon: Icons.arrow_upward_rounded,
-                        label: s.speedTestUpload,
-                        value: '${_formatMbps(state.uploadMbps)} Mbps',
-                        highlighted:
-                            state.status == SpeedTestStatus.testingUpload,
-                      ),
-                    ),
-                  ],
-                ),
+                results,
                 const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: state.isRunning ? null : notifier.run,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
-                      foregroundColor: WbColors.midnight,
-                      minimumSize: const Size.fromHeight(52),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: Text(
-                      state.isRunning
-                          ? phaseLabel
-                          : state.status == SpeedTestStatus.idle
-                              ? s.speedTestStart
-                              : s.speedTestRetest,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 15),
-                    ),
-                  ),
-                ),
+                button,
               ],
             ),
           ),

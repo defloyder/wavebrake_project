@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../vpn/connection_manager.dart';
 import 'update_service.dart';
 
 enum WindowsUpdateStatus { idle, downloading, readyToInstall, failed }
@@ -110,6 +111,16 @@ class WindowsUpdateController extends Notifier<WindowsUpdateState> {
   Future<void> runInstallerAndExit() async {
     final path = state.installerPath;
     if (path == null) return;
+    // exit(0) below skips the window-close cleanup that stops sing-box
+    // (windows/runner/main.cpp): take the tunnel down first, or sing-box
+    // keeps the TUN adapter and its own exe locked while the installer
+    // tries to replace it.
+    try {
+      await ref
+          .read(connectionManagerProvider.notifier)
+          .disconnect()
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {}
     try {
       await Process.start(
         path,

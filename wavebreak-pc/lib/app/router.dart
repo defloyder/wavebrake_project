@@ -19,6 +19,7 @@ import '../features/settings/personalization_screen.dart';
 import '../features/settings/security_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/support_screen.dart';
+import '../features/settings/updates_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/speedtest/speed_test_screen.dart';
 import '../features/splash/splash_screen.dart';
@@ -180,6 +181,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'about',
                     pageBuilder: (_, state) =>
                         fadeThroughPage(state, const AboutScreen()),
+                  ),
+                  GoRoute(
+                    path: 'updates',
+                    pageBuilder: (_, state) =>
+                        fadeThroughPage(state, const UpdatesScreen()),
                   ),
                 ],
               ),

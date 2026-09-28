@@ -123,7 +123,19 @@ class WindowsVpnAdapter implements VpnAdapter {
 
   static const _networkChangeDebounce = Duration(milliseconds: 1200);
   static const _healthCheckInterval = Duration(seconds: 20);
-  static const _maxConsecutiveHealthFailures = 2;
+  // Three misses in a row (about a minute), not two: on a slow or
+  // throttled path a single probe regularly takes longer than its 5 s
+  // budget, and every recovery reloads the tunnel — which is exactly the
+  // "the connection keeps dropping" users saw.
+  static const _maxConsecutiveHealthFailures = 3;
+  // Right after sing-box starts (or recovers), Windows reports its own TUN
+  // adapter coming up as a network change. Changes this soon after are
+  // ours, not the user's network.
+  static const _networkChangeGrace = Duration(seconds: 15);
+  DateTime _tunnelUpAt = DateTime.fromMillisecondsSinceEpoch(0);
+  // The physical networks (Wi-Fi/Ethernet/mobile) last seen; a change
+  // that only adds/removes VPN or virtual adapters leaves this unchanged.
+  Set<ConnectivityResult>? _lastPhysicalNetworks;
   static const _wakeWatchInterval = Duration(seconds: 5);
   static const _wakeGapThreshold = Duration(seconds: 20);
   Timer? _wakeWatchTimer;
@@ -372,6 +384,12 @@ class WindowsVpnAdapter implements VpnAdapter {
   void _startResilience() {
     _stopResilience();
     _consecutiveHealthFailures = 0;
+    _tunnelUpAt = DateTime.now();
+    _lastPhysicalNetworks = null;
+    // Baseline to compare later network events against.
+    unawaited(Connectivity().checkConnectivity().then((results) {
+      _lastPhysicalNetworks ??= _physicalNetworks(results);
+    }).catchError((_) {}));
     _connectivitySub =
         Connectivity().onConnectivityChanged.listen(_onConnectivityChanged);
     _healthCheckTimer = Timer.periodic(
@@ -407,6 +425,15 @@ class WindowsVpnAdapter implements VpnAdapter {
     _wakeWatchTimer = null;
   }
 
+  static Set<ConnectivityResult> _physicalNetworks(
+          List<ConnectivityResult> results) =>
+      results
+          .where((r) =>
+              r == ConnectivityResult.wifi ||
+              r == ConnectivityResult.ethernet ||
+              r == ConnectivityResult.mobile)
+          .toSet();
+
   void _onConnectivityChanged(List<ConnectivityResult> results) {
     if (_process == null) return;
     // Debounced so a rapid down/up flap (an adapter briefly re-negotiating
@@ -418,6 +445,19 @@ class WindowsVpnAdapter implements VpnAdapter {
     _networkDebounceTimer?.cancel();
     _networkDebounceTimer = Timer(_networkChangeDebounce, () {
       if (_process == null) return;
+      final physical = _physicalNetworks(results);
+      final previous = _lastPhysicalNetworks;
+      _lastPhysicalNetworks = physical;
+      // Our own TUN adapter appearing, another VPN's adapter, or any
+      // change that leaves the real networks as they were: not a reason
+      // to reload a working tunnel (each reload is a visible drop).
+      if (DateTime.now().difference(_tunnelUpAt) < _networkChangeGrace ||
+          previous == null ||
+          (physical.length == previous.length &&
+              physical.containsAll(previous))) {
+        AppLogger.debug('Network event ignored ($results)');
+        return;
+      }
       if (results.every((r) => r == ConnectivityResult.none)) {
         // Fully offline right now — nothing to nudge until connectivity
         // actually returns; that return is itself a future
