@@ -16,10 +16,15 @@ put a packet on that address in the first place.
 ## What changed (already applied in git)
 
 - `nginx/pilot-public-http.conf`: `admin.wavebreak.com.tr` removed from
-  the public SNI map and its plaintext port-80 vhost deleted. In their
-  place, a new server block listens on `10.66.0.1:9443` — the WireGuard
-  interface's address — and proxies to the admin container exactly as
-  before.
+  the public SNI map. In its place, a server block listens on
+  `10.66.0.1:9443` — the WireGuard interface's address — and proxies to
+  the admin container, passing `Host`/`X-Forwarded-*` with `:9443` so
+  Laravel builds asset and redirect URLs for that port. The port-80 vhost
+  for `admin.*` is kept for the ACME HTTP-01 path only (the name is in the
+  `wavebreak.com.tr` certificate's SAN) and answers 404 to everything else.
+- Host: `net.ipv4.ip_nonlocal_bind=1` (`/etc/sysctl.d/60-wavebreak-nonlocal-bind.conf`)
+  so the host-network nginx container can start even if `wg0` is not up
+  yet — otherwise a boot-order race would take the whole public 443 down.
 - `docker-compose.pilot.yml`: the admin container's port publish is now
   `127.0.0.1:${WAVEBREAK_ADMIN_PORT}:8000` instead of publishing on every
   interface. This closes a separate, pre-existing gap: the raw port was
