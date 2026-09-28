@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"wavebreak-core/internal/store"
@@ -51,7 +52,7 @@ func (s *Server) meAccess(w http.ResponseWriter, r *http.Request) {
 		CredentialID:    details.Access.CredentialID,
 		SubscriptionURL: details.Access.SubscriptionURL,
 		ConfigStatus:    cfg.ConfigStatus,
-		Links:           appLinks(cfg),
+		Links:           appLinks(cfg, clientFeatures(r)),
 	}
 	if details.Subscription != nil {
 		expires := details.Subscription.ExpiresAt
@@ -62,7 +63,7 @@ func (s *Server) meAccess(w http.ResponseWriter, r *http.Request) {
 
 // appLinks picks the transports the WAVEBREAK apps support, in order of
 // preference. The direct REALITY link only when Core publishes it.
-func appLinks(cfg store.AccessGrantConfig) []string {
+func appLinks(cfg store.AccessGrantConfig, features map[string]bool) []string {
 	links := make([]string, 0, 4+len(cfg.VLESSRelays))
 	// Domestic relays first: on whitelisted mobile networks they're the
 	// only TCP path that works; everywhere else the direct ones follow.
@@ -79,7 +80,28 @@ func appLinks(cfg store.AccessGrantConfig) []string {
 			links = append(links, uri)
 		}
 	}
+	// Only to apps that say they can run it: older ones ignore the
+	// obfuscation parameters and would list a location that never connects.
+	if features[featureHysteriaObfs] {
+		if uri := uriOf(cfg.HysteriaObfs); uri != "" {
+			links = append(links, uri)
+		}
+	}
 	return links
+}
+
+const featureHysteriaObfs = "hysteria-obfs"
+
+// clientFeatures: what the calling WAVEBREAK app can run, from its
+// comma-separated X-Wavebreak-Features header (absent in older versions).
+func clientFeatures(r *http.Request) map[string]bool {
+	features := map[string]bool{}
+	for _, f := range strings.Split(r.Header.Get("X-Wavebreak-Features"), ",") {
+		if f = strings.TrimSpace(strings.ToLower(f)); f != "" {
+			features[f] = true
+		}
+	}
+	return features
 }
 
 func uriOf(transport map[string]any) string {

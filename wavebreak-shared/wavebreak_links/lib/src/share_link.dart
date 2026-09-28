@@ -61,6 +61,7 @@ class ShareLink {
     this.insecure = false,
     this.obfs,
     this.obfsPassword,
+    this.portHopping,
     this.alterId = 0,
     this.congestionControl,
     this.udpRelayMode,
@@ -118,6 +119,12 @@ class ShareLink {
   /// Hysteria2 obfuscation (salamander).
   final String? obfs;
   final String? obfsPassword;
+
+  /// Hysteria2 port hopping: the UDP port range(s) the server answers on,
+  /// as in the link's `mport` ("20000-30000" or "20000-25000,27000").
+  /// The client moves between them every few seconds, so no single UDP
+  /// flow lives long enough for a carrier to throttle or cut it.
+  final String? portHopping;
 
   final int alterId;
 
@@ -210,6 +217,29 @@ class ShareLink {
 
   static String? _nonEmpty(String? v) => (v == null || v.isEmpty) ? null : v;
 
+  /// "20000-30000" / "20000-25000,27000" when every part is a valid port
+  /// or ascending range; anything else is ignored rather than handed to
+  /// an engine that would reject the whole config.
+  static String? _portRanges(String? v) {
+    if (v == null || v.trim().isEmpty) return null;
+    final parts = v.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+    bool port(String s) {
+      final n = int.tryParse(s);
+      return n != null && n > 0 && n < 65536;
+    }
+    for (final p in parts) {
+      final bounds = p.split('-');
+      final ok = bounds.length == 1
+          ? port(bounds[0])
+          : bounds.length == 2 &&
+              port(bounds[0]) &&
+              port(bounds[1]) &&
+              int.parse(bounds[0]) <= int.parse(bounds[1]);
+      if (!ok) return null;
+    }
+    return parts.isEmpty ? null : parts.join(',');
+  }
+
   static bool _truthy(String? v) =>
       v != null && (v == '1' || v.toLowerCase() == 'true');
 
@@ -250,6 +280,7 @@ class ShareLink {
       insecure: _truthy(q['insecure']) || _truthy(q['allowInsecure']),
       obfs: _nonEmpty(q['obfs']),
       obfsPassword: _nonEmpty(q['obfs-password']),
+      portHopping: isHysteria ? _portRanges(q['mport']) : null,
       remark: _remark(uri),
     );
   }

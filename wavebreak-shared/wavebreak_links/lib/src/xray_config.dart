@@ -831,6 +831,17 @@ class Hysteria2URL extends V2RayURL {
       // download over a 100–300 ms mobile path, and keep-alives often
       // enough that a carrier NAT doesn't drop an idle session.
       "finalmask": {
+        // Salamander: every datagram is obfuscated, so nothing on the path
+        // can recognise (and cut) the flow as QUIC — which is what some
+        // carriers do to QUIC towards foreign servers right after the
+        // handshake.
+        if (l.obfs == 'salamander' && l.obfsPassword != null)
+          "udp": [
+            {
+              "type": "salamander",
+              "settings": {"password": l.obfsPassword},
+            }
+          ],
         "quicParams": {
           "congestion": "bbr",
           "initStreamReceiveWindow": 8388608,
@@ -839,6 +850,10 @@ class Hysteria2URL extends V2RayURL {
           "maxConnectionReceiveWindow": 41943040,
           "keepAlivePeriod": 10,
           "maxIdleTimeout": 30,
+          // Port hopping: a new UDP port every 10–20 s, so no single flow
+          // lives long enough to be throttled.
+          if (l.portHopping != null)
+            "udpHop": {"ports": l.portHopping, "interval": "10-20"},
         },
       },
     };

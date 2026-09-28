@@ -560,16 +560,63 @@ func (a XrayAdapter) Apply(ctx context.Context, rendered []byte) error {
 	return nil
 }
 
-// applyHysteria writes the Hysteria2 sidecar's config from the same
+// hysteriaInstance is one Hysteria2 listener the agent renders and
+// restarts: the plain one, and optionally a salamander-obfuscated one on
+// its own port. Both share the same users (the same grants Render just
+// used for Xray).
+type hysteriaInstance struct {
+	listenPort   int
+	configPath   string
+	container    string
+	statsPort    int
+	obfsPassword string
+}
+
+func (a XrayAdapter) hysteriaInstances() []hysteriaInstance {
+	var out []hysteriaInstance
+	if a.cfg.HysteriaListenPort > 0 && strings.TrimSpace(a.cfg.HysteriaConfigPath) != "" {
+		out = append(out, hysteriaInstance{
+			listenPort: a.cfg.HysteriaListenPort,
+			configPath: a.cfg.HysteriaConfigPath,
+			container:  a.cfg.HysteriaDockerContainer,
+			statsPort:  a.cfg.HysteriaStatsPort,
+		})
+	}
+	if a.cfg.HysteriaObfsListenPort > 0 && strings.TrimSpace(a.cfg.HysteriaObfsConfigPath) != "" &&
+		strings.TrimSpace(a.cfg.HysteriaObfsPassword) != "" {
+		out = append(out, hysteriaInstance{
+			listenPort:   a.cfg.HysteriaObfsListenPort,
+			configPath:   a.cfg.HysteriaObfsConfigPath,
+			container:    a.cfg.HysteriaObfsDockerContainer,
+			statsPort:    a.cfg.HysteriaObfsStatsPort,
+			obfsPassword: a.cfg.HysteriaObfsPassword,
+		})
+	}
+	return out
+}
+
+// applyHysteria writes each Hysteria2 listener's config from the same
 // desired-state grants Render just used for Xray (see hyUsers) and restarts
-// its container. A no-op unless HysteriaListenPort/ConfigPath are set.
+// its container when the config changed. A no-op unless a listener is
+// configured.
 func (a XrayAdapter) applyHysteria(ctx context.Context) error {
-	if a.cfg.HysteriaListenPort <= 0 || strings.TrimSpace(a.cfg.HysteriaConfigPath) == "" {
+	instances := a.hysteriaInstances()
+	if len(instances) == 0 {
 		return nil
 	}
 	if strings.TrimSpace(a.cfg.HysteriaTLSCertPath) == "" || strings.TrimSpace(a.cfg.HysteriaTLSKeyPath) == "" {
 		return fmt.Errorf("WAVEBREAK_HYSTERIA_TLS_CERT_PATH and WAVEBREAK_HYSTERIA_TLS_KEY_PATH are required")
 	}
+	var firstErr error
+	for _, inst := range instances {
+		if err := a.applyHysteriaInstance(ctx, inst); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func (a XrayAdapter) renderHysteriaYAML(inst hysteriaInstance) string {
 	var users []hysteriaUser
 	if a.hyUsers != nil {
 		users = *a.hyUsers
@@ -586,8 +633,15 @@ func (a XrayAdapter) applyHysteria(ctx context.Context) error {
 		masqueradeURL = "https://www.bing.com"
 	}
 	var trafficStats string
-	if a.cfg.HysteriaStatsPort > 0 {
-		trafficStats = fmt.Sprintf("trafficStats:\n  listen: 127.0.0.1:%d\n", a.cfg.HysteriaStatsPort)
+	if inst.statsPort > 0 {
+		trafficStats = fmt.Sprintf("trafficStats:\n  listen: 127.0.0.1:%d\n", inst.statsPort)
+	}
+	// Salamander: every datagram obfuscated, so nothing on the path can
+	// recognise the flow as QUIC (some carriers cut QUIC to foreign servers
+	// right after the handshake).
+	var obfs string
+	if inst.obfsPassword != "" {
+		obfs = fmt.Sprintf("obfs:\n  type: salamander\n  salamander:\n    password: %q\n", inst.obfsPassword)
 	}
 	// Throughput tuning (measured Moscow -> Istanbul, 76 ms RTT): BBR "standard"
 	// instead of "conservative" (which never left slow start on a lossy
@@ -595,11 +649,11 @@ func (a XrayAdapter) applyHysteria(ctx context.Context) error {
 	// wasted ~15% of every datagram) and 16 MiB per-stream / 40 MiB
 	// per-connection windows so one long download (a Telegram file, an
 	// update) isn't capped by flow control on a high-RTT link.
-	yaml := fmt.Sprintf(`listen: :%d
+	return fmt.Sprintf(`listen: :%d
 tls:
   cert: %q
   key: %q
-quic:
+%squic:
   initStreamReceiveWindow: 16777216
   maxStreamReceiveWindow: 16777216
   initConnReceiveWindow: 41943040
@@ -622,26 +676,29 @@ auth:
   proxy:
     url: %q
     rewriteHost: true
-%s`, a.cfg.HysteriaListenPort, a.cfg.HysteriaTLSCertPath, a.cfg.HysteriaTLSKeyPath, userpass.String(), masqueradeURL, trafficStats)
+%s`, inst.listenPort, a.cfg.HysteriaTLSCertPath, a.cfg.HysteriaTLSKeyPath, obfs, userpass.String(), masqueradeURL, trafficStats)
+}
 
-	if err := os.MkdirAll(filepath.Dir(a.cfg.HysteriaConfigPath), 0o755); err != nil {
+func (a XrayAdapter) applyHysteriaInstance(ctx context.Context, inst hysteriaInstance) error {
+	yaml := a.renderHysteriaYAML(inst)
+	if err := os.MkdirAll(filepath.Dir(inst.configPath), 0o755); err != nil {
 		return err
 	}
 	// Unchanged config: nothing to restart. A restart drops every connected
 	// Hysteria2 client, and Render runs this on every desired-state apply,
 	// most of which don't touch the user list.
-	if current, err := os.ReadFile(a.cfg.HysteriaConfigPath); err == nil && string(current) == yaml {
+	if current, err := os.ReadFile(inst.configPath); err == nil && string(current) == yaml {
 		return nil
 	}
-	tmp := a.cfg.HysteriaConfigPath + ".tmp"
+	tmp := inst.configPath + ".tmp"
 	if err := os.WriteFile(tmp, []byte(yaml), 0o644); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, a.cfg.HysteriaConfigPath); err != nil {
+	if err := os.Rename(tmp, inst.configPath); err != nil {
 		return err
 	}
-	if strings.TrimSpace(a.cfg.HysteriaDockerContainer) != "" {
-		return a.restartNamedDockerContainer(ctx, a.cfg.HysteriaDockerContainer)
+	if strings.TrimSpace(inst.container) != "" {
+		return a.restartNamedDockerContainer(ctx, inst.container)
 	}
 	return nil
 }
@@ -808,9 +865,14 @@ func (a XrayAdapter) QueryUsage(ctx context.Context) ([]GrantUsage, error) {
 			firstErr = fmt.Errorf("query xray usage: %w", err)
 		}
 	}
-	if a.cfg.HysteriaListenPort > 0 && a.cfg.HysteriaStatsPort > 0 {
-		if err := a.addHysteriaUsage(ctx, totals); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("query hysteria usage: %w", err)
+	// Every Hysteria2 listener (plain and obfuscated) counts its own
+	// traffic; a grant's usage is the sum.
+	for _, inst := range a.hysteriaInstances() {
+		if inst.statsPort <= 0 {
+			continue
+		}
+		if err := a.addHysteriaUsage(ctx, inst.statsPort, totals); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("query hysteria usage (port %d): %w", inst.listenPort, err)
 		}
 	}
 
@@ -865,8 +927,8 @@ func (a XrayAdapter) addXrayUsage(ctx context.Context, emailToGrant map[string]s
 	return nil
 }
 
-func (a XrayAdapter) addHysteriaUsage(ctx context.Context, totals map[string]*GrantUsage) error {
-	url := fmt.Sprintf("http://127.0.0.1:%d/traffic", a.cfg.HysteriaStatsPort)
+func (a XrayAdapter) addHysteriaUsage(ctx context.Context, statsPort int, totals map[string]*GrantUsage) error {
+	url := fmt.Sprintf("http://127.0.0.1:%d/traffic", statsPort)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err

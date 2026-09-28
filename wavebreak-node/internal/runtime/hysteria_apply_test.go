@@ -54,6 +54,42 @@ func TestApplyHysteriaTuning(t *testing.T) {
 	}
 }
 
+func TestApplyHysteriaObfsInstance(t *testing.T) {
+	a, plainPath := hysteriaTestAdapter(t, []hysteriaUser{{ID: "bbbbbbbb-0000-4000-8000-000000000001"}})
+	dir := filepath.Dir(plainPath)
+	a.cfg.HysteriaStatsPort = 19998
+	a.cfg.HysteriaObfsListenPort = 20443
+	a.cfg.HysteriaObfsConfigPath = filepath.Join(dir, "hysteria-obfs.yaml")
+	a.cfg.HysteriaObfsPassword = "obfs-secret"
+	a.cfg.HysteriaObfsStatsPort = 19997
+	_ = a.applyHysteria(context.Background())
+
+	plain, _ := os.ReadFile(plainPath)
+	obfs, err := os.ReadFile(a.cfg.HysteriaObfsConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plain), "salamander") || !strings.Contains(string(plain), "listen: :443") ||
+		!strings.Contains(string(plain), "127.0.0.1:19998") {
+		t.Fatalf("plain listener:\n%s", plain)
+	}
+	for _, want := range []string{
+		"listen: :20443",
+		"obfs:\n  type: salamander\n  salamander:\n    password: \"obfs-secret\"",
+		"127.0.0.1:19997",
+		`"bbbbbbbb-0000-4000-8000-000000000001"`,
+	} {
+		if !strings.Contains(string(obfs), want) {
+			t.Errorf("obfs listener lacks %q:\n%s", want, obfs)
+		}
+	}
+	// Without a password there is no second listener.
+	a.cfg.HysteriaObfsPassword = ""
+	if n := len(a.hysteriaInstances()); n != 1 {
+		t.Fatalf("instances without obfs password: %d", n)
+	}
+}
+
 func TestApplyHysteriaRestartsOnlyOnChange(t *testing.T) {
 	users := []hysteriaUser{{ID: "aaaaaaaa-0000-4000-8000-000000000001"}}
 	a, _ := hysteriaTestAdapter(t, users)

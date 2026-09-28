@@ -147,6 +147,13 @@ class SingBoxProxy {
             'type': l.obfs,
             if (l.obfsPassword != null) 'password': l.obfsPassword,
           },
+        // Port hopping: sing-box spells ranges "from:to".
+        if (l.portHopping != null) ...{
+          'server_ports': [
+            for (final r in l.portHopping!.split(',')) r.replaceAll('-', ':'),
+          ],
+          'hop_interval': '15s',
+        },
       };
 
   static Map<String, dynamic> _tuic(ShareLink l) => {

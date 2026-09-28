@@ -97,6 +97,17 @@ type XrayConfig struct {
 	// reporting loop can poll it directly (wavebreak-node runs with
 	// network_mode: host specifically so that loopback reaches it).
 	HysteriaStatsPort int
+	// A second Hysteria2 listener with the same users and salamander
+	// obfuscation, for carriers that cut plain QUIC to foreign servers
+	// right after the handshake. Its own port, config file, container and
+	// stats port; off unless port, config path and password are all set.
+	// Port hopping onto it is a host-level UDP redirect (see
+	// wavebreak-infrastructure), not something the listener itself does.
+	HysteriaObfsListenPort      int
+	HysteriaObfsConfigPath      string
+	HysteriaObfsPassword        string
+	HysteriaObfsDockerContainer string
+	HysteriaObfsStatsPort       int
 	// StatsAPIPort, when set, enables Xray's own StatsService (gRPC) on
 	// 127.0.0.1:<port> inside the xray container. The agent can't dial gRPC
 	// directly without pulling in xray-core as a Go dependency, so it shells
@@ -118,43 +129,48 @@ func Load() Config {
 		UsageInterval:     durationEnv("WAVEBREAK_NODE_USAGE_INTERVAL", 60*time.Second),
 		RuntimeAdapter:    env("WAVEBREAK_RUNTIME_ADAPTER", "noop"),
 		Xray: XrayConfig{
-			ConfigPath:              env("WAVEBREAK_XRAY_CONFIG_PATH", "/etc/wavebreak/xray/config.json"),
-			ListenPort:              intEnv("WAVEBREAK_XRAY_LISTEN_PORT", 8443),
-			RealityPrivateKey:       env("WAVEBREAK_XRAY_REALITY_PRIVATE_KEY", ""),
-			RealityShortID:          env("WAVEBREAK_XRAY_REALITY_SHORT_ID", ""),
-			RealityDest:             env("WAVEBREAK_XRAY_REALITY_DEST", "www.microsoft.com:443"),
-			RealityServerName:       env("WAVEBREAK_XRAY_REALITY_SERVER_NAME", "www.microsoft.com"),
-			RealityXHTTPListenPort:  intEnv("WAVEBREAK_XRAY_REALITY_XHTTP_LISTEN_PORT", 0),
-			RealityXHTTPServerName:  env("WAVEBREAK_XRAY_REALITY_XHTTP_SERVER_NAME", ""),
-			RealityXHTTPDest:        env("WAVEBREAK_XRAY_REALITY_XHTTP_DEST", ""),
-			RealityXHTTPPath:        env("WAVEBREAK_XRAY_REALITY_XHTTP_PATH", "/wvb-rx"),
-			Flow:                    env("WAVEBREAK_XRAY_FLOW", "xtls-rprx-vision"),
-			ShadowsocksPort:         intEnv("WAVEBREAK_XRAY_SS_PORT", 0),
-			ShadowsocksMethod:       env("WAVEBREAK_XRAY_SS_METHOD", "aes-256-gcm"),
-			DockerSocket:            env("WAVEBREAK_XRAY_DOCKER_SOCKET", "/var/run/docker.sock"),
-			DockerContainer:         env("WAVEBREAK_XRAY_DOCKER_CONTAINER", ""),
-			CDNListenPort:           intEnv("WAVEBREAK_XRAY_CDN_LISTEN_PORT", 0),
-			CDNWSPath:               env("WAVEBREAK_XRAY_CDN_WS_PATH", "/wvb-ws"),
-			CDNTLSCertPath:          env("WAVEBREAK_XRAY_CDN_TLS_CERT_PATH", ""),
-			CDNTLSKeyPath:           env("WAVEBREAK_XRAY_CDN_TLS_KEY_PATH", ""),
-			CDNXHTTPListenPort:      intEnv("WAVEBREAK_XRAY_CDN_XHTTP_LISTEN_PORT", 0),
-			CDNXHTTPPath:            env("WAVEBREAK_XRAY_CDN_XHTTP_PATH", "/wvb-xh"),
-			TrojanCDNListenPort:     intEnv("WAVEBREAK_XRAY_TROJAN_CDN_LISTEN_PORT", 0),
-			TrojanCDNWSPath:         env("WAVEBREAK_XRAY_TROJAN_CDN_WS_PATH", "/wvb-tr"),
-			CDNGRPCListenPort:       intEnv("WAVEBREAK_XRAY_CDN_GRPC_LISTEN_PORT", 0),
-			CDNGRPCService:          env("WAVEBREAK_XRAY_CDN_GRPC_SERVICE", "wvb-grpc"),
-			HysteriaListenPort:      intEnv("WAVEBREAK_HYSTERIA_LISTEN_PORT", 0),
-			HysteriaConfigPath:      env("WAVEBREAK_HYSTERIA_CONFIG_PATH", ""),
-			HysteriaTLSCertPath:     env("WAVEBREAK_HYSTERIA_TLS_CERT_PATH", ""),
-			HysteriaTLSKeyPath:      env("WAVEBREAK_HYSTERIA_TLS_KEY_PATH", ""),
-			HysteriaDockerContainer: env("WAVEBREAK_HYSTERIA_DOCKER_CONTAINER", ""),
-			HysteriaMasqueradeURL:   env("WAVEBREAK_HYSTERIA_MASQUERADE_URL", "https://www.bing.com"),
-			HysteriaStatsPort:       intEnv("WAVEBREAK_HYSTERIA_STATS_PORT", 0),
-			StatsAPIPort:            intEnv("WAVEBREAK_XRAY_STATS_API_PORT", 0),
-			DirectTLSListenPort:     intEnv("WAVEBREAK_XRAY_DIRECT_TLS_LISTEN_PORT", 0),
-			DirectTLSWSPath:         env("WAVEBREAK_XRAY_DIRECT_TLS_WS_PATH", "/wvb-dt"),
-			DirectTLSCertPath:       env("WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH", ""),
-			DirectTLSKeyPath:        env("WAVEBREAK_XRAY_DIRECT_TLS_KEY_PATH", ""),
+			ConfigPath:                  env("WAVEBREAK_XRAY_CONFIG_PATH", "/etc/wavebreak/xray/config.json"),
+			ListenPort:                  intEnv("WAVEBREAK_XRAY_LISTEN_PORT", 8443),
+			RealityPrivateKey:           env("WAVEBREAK_XRAY_REALITY_PRIVATE_KEY", ""),
+			RealityShortID:              env("WAVEBREAK_XRAY_REALITY_SHORT_ID", ""),
+			RealityDest:                 env("WAVEBREAK_XRAY_REALITY_DEST", "www.microsoft.com:443"),
+			RealityServerName:           env("WAVEBREAK_XRAY_REALITY_SERVER_NAME", "www.microsoft.com"),
+			RealityXHTTPListenPort:      intEnv("WAVEBREAK_XRAY_REALITY_XHTTP_LISTEN_PORT", 0),
+			RealityXHTTPServerName:      env("WAVEBREAK_XRAY_REALITY_XHTTP_SERVER_NAME", ""),
+			RealityXHTTPDest:            env("WAVEBREAK_XRAY_REALITY_XHTTP_DEST", ""),
+			RealityXHTTPPath:            env("WAVEBREAK_XRAY_REALITY_XHTTP_PATH", "/wvb-rx"),
+			Flow:                        env("WAVEBREAK_XRAY_FLOW", "xtls-rprx-vision"),
+			ShadowsocksPort:             intEnv("WAVEBREAK_XRAY_SS_PORT", 0),
+			ShadowsocksMethod:           env("WAVEBREAK_XRAY_SS_METHOD", "aes-256-gcm"),
+			DockerSocket:                env("WAVEBREAK_XRAY_DOCKER_SOCKET", "/var/run/docker.sock"),
+			DockerContainer:             env("WAVEBREAK_XRAY_DOCKER_CONTAINER", ""),
+			CDNListenPort:               intEnv("WAVEBREAK_XRAY_CDN_LISTEN_PORT", 0),
+			CDNWSPath:                   env("WAVEBREAK_XRAY_CDN_WS_PATH", "/wvb-ws"),
+			CDNTLSCertPath:              env("WAVEBREAK_XRAY_CDN_TLS_CERT_PATH", ""),
+			CDNTLSKeyPath:               env("WAVEBREAK_XRAY_CDN_TLS_KEY_PATH", ""),
+			CDNXHTTPListenPort:          intEnv("WAVEBREAK_XRAY_CDN_XHTTP_LISTEN_PORT", 0),
+			CDNXHTTPPath:                env("WAVEBREAK_XRAY_CDN_XHTTP_PATH", "/wvb-xh"),
+			TrojanCDNListenPort:         intEnv("WAVEBREAK_XRAY_TROJAN_CDN_LISTEN_PORT", 0),
+			TrojanCDNWSPath:             env("WAVEBREAK_XRAY_TROJAN_CDN_WS_PATH", "/wvb-tr"),
+			CDNGRPCListenPort:           intEnv("WAVEBREAK_XRAY_CDN_GRPC_LISTEN_PORT", 0),
+			CDNGRPCService:              env("WAVEBREAK_XRAY_CDN_GRPC_SERVICE", "wvb-grpc"),
+			HysteriaListenPort:          intEnv("WAVEBREAK_HYSTERIA_LISTEN_PORT", 0),
+			HysteriaConfigPath:          env("WAVEBREAK_HYSTERIA_CONFIG_PATH", ""),
+			HysteriaTLSCertPath:         env("WAVEBREAK_HYSTERIA_TLS_CERT_PATH", ""),
+			HysteriaTLSKeyPath:          env("WAVEBREAK_HYSTERIA_TLS_KEY_PATH", ""),
+			HysteriaDockerContainer:     env("WAVEBREAK_HYSTERIA_DOCKER_CONTAINER", ""),
+			HysteriaMasqueradeURL:       env("WAVEBREAK_HYSTERIA_MASQUERADE_URL", "https://www.bing.com"),
+			HysteriaStatsPort:           intEnv("WAVEBREAK_HYSTERIA_STATS_PORT", 0),
+			HysteriaObfsListenPort:      intEnv("WAVEBREAK_HYSTERIA_OBFS_LISTEN_PORT", 0),
+			HysteriaObfsConfigPath:      env("WAVEBREAK_HYSTERIA_OBFS_CONFIG_PATH", ""),
+			HysteriaObfsPassword:        env("WAVEBREAK_HYSTERIA_OBFS_PASSWORD", ""),
+			HysteriaObfsDockerContainer: env("WAVEBREAK_HYSTERIA_OBFS_DOCKER_CONTAINER", ""),
+			HysteriaObfsStatsPort:       intEnv("WAVEBREAK_HYSTERIA_OBFS_STATS_PORT", 0),
+			StatsAPIPort:                intEnv("WAVEBREAK_XRAY_STATS_API_PORT", 0),
+			DirectTLSListenPort:         intEnv("WAVEBREAK_XRAY_DIRECT_TLS_LISTEN_PORT", 0),
+			DirectTLSWSPath:             env("WAVEBREAK_XRAY_DIRECT_TLS_WS_PATH", "/wvb-dt"),
+			DirectTLSCertPath:           env("WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH", ""),
+			DirectTLSKeyPath:            env("WAVEBREAK_XRAY_DIRECT_TLS_KEY_PATH", ""),
 		},
 	}
 }

@@ -198,7 +198,7 @@ func (s *Server) redeemShare(w http.ResponseWriter, r *http.Request) {
 		"plan_name":        planName,
 		"subscription_url": details.Access.SubscriptionURL,
 		"expires_at":       expiresAt,
-		"links":            appLinks(cfg),
+		"links":            appLinks(cfg, clientFeatures(r)),
 	})
 }
 
@@ -262,7 +262,7 @@ func (s *Server) meSharing(w http.ResponseWriter, r *http.Request) {
 		if active && d.Access.CredentialID != "" {
 			if cfg, err := s.app.Store.AccessGrantConfigPublic(r.Context(), d.Access.CredentialID); err == nil {
 				s.applyVLESSRuntimeConfig(&cfg)
-				v.Links = appLinks(cfg)
+				v.Links = appLinks(cfg, clientFeatures(r))
 			}
 		}
 		received = append(received, v)

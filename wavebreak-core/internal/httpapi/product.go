@@ -542,6 +542,19 @@ func (s *Server) applyVLESSRuntimeConfig(config *store.AccessGrantConfig) {
 			"uri":       hyLink,
 			"note":      "Direct connection, no CDN — fastest and most reliable option, but only works in clients that support Hysteria2 (not Happ; Karing and others do).",
 		}
+		if vless.HysteriaObfsPort > 0 && strings.TrimSpace(vless.HysteriaObfsPassword) != "" {
+			obfsLink := buildHysteriaObfsLink(vless, config.Grant.ID, location)
+			links = append(links, obfsLink)
+			config.HysteriaObfs = map[string]any{
+				"client_id": config.Grant.ID,
+				"label":     location,
+				"protocol":  "hysteria2",
+				"server":    vless.HysteriaHost,
+				"port":      vless.HysteriaObfsPort,
+				"uri":       obfsLink,
+				"note":      "Hysteria2 with salamander obfuscation and port hopping — for networks that cut plain QUIC to foreign servers.",
+			}
+		}
 	}
 
 	if strings.TrimSpace(vless.CDNHost) != "" && vless.CDNGRPCPort > 0 {
@@ -824,6 +837,28 @@ func buildVLESSDirectTLSLink(vless config.VLESSConfig, grantID, location string)
 // and Cloudflare's free tier can't proxy raw UDP, so there's no CDN to hide
 // behind here. auth is "grantID:grantID" (see wavebreak-node's userpass
 // config) so the grant ID alone is both username and password.
+// buildHysteriaObfsLink: the same credential on the obfuscated listener —
+// salamander (obfs/obfs-password) and, when configured, the UDP port range
+// the client hops across (mport; the node redirects it to the listener).
+func buildHysteriaObfsLink(vless config.VLESSConfig, grantID, location string) string {
+	label := fmt.Sprintf("%s (Hysteria2 Obfs)", location)
+	endpoint := net.JoinHostPort(vless.HysteriaHost, strconv.Itoa(vless.HysteriaObfsPort))
+	auth := fmt.Sprintf("%s:%s", grantID, grantID)
+	sni := vless.HysteriaSNI
+	if sni == "" {
+		sni = vless.HysteriaHost
+	}
+	query := url.Values{}
+	query.Set("sni", sni)
+	query.Set("alpn", "h3")
+	query.Set("obfs", "salamander")
+	query.Set("obfs-password", vless.HysteriaObfsPassword)
+	if hop := strings.TrimSpace(vless.HysteriaObfsHopPorts); hop != "" {
+		query.Set("mport", hop)
+	}
+	return fmt.Sprintf("hysteria2://%s@%s/?%s#%s", auth, endpoint, query.Encode(), url.PathEscape(label))
+}
+
 func buildHysteriaLink(vless config.VLESSConfig, grantID, location string) string {
 	label := fmt.Sprintf("%s (Hysteria2)", location)
 	endpoint := net.JoinHostPort(vless.HysteriaHost, strconv.Itoa(vless.HysteriaPort))

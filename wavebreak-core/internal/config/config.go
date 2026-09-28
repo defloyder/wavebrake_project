@@ -83,6 +83,15 @@ type VLESSConfig struct {
 	HysteriaPort     int
 	HysteriaSNI      string
 	HysteriaInsecure bool
+	// A second Hysteria2 listener on the same host with salamander
+	// obfuscation (and, when HysteriaObfsHopPorts is set, port hopping):
+	// some carriers let a QUIC handshake to a foreign server through and
+	// then cut the flow; an obfuscated, port-hopping one isn't recognisable
+	// as QUIC. Published as an extra link only when port and password are
+	// set; the plain listener stays for existing clients.
+	HysteriaObfsPort     int
+	HysteriaObfsPassword string
+	HysteriaObfsHopPorts string
 	// Direct VLESS+WS+TLS with a real cert, no CDN — see wavebreak-node's
 	// XrayConfig comment for the DPI-evasion hypothesis behind this.
 	// DirectTLSHost is the VPS's own domain/IP, not the CDN host.
@@ -153,6 +162,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_HYSTERIA_PORT: %w", err)
 	}
+	hysteriaObfsPort, err := strconv.Atoi(env("WAVEBREAK_HYSTERIA_OBFS_PORT", "0"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_HYSTERIA_OBFS_PORT: %w", err)
+	}
 	directTLSPort, err := strconv.Atoi(env("WAVEBREAK_DIRECT_TLS_PORT", "0"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_DIRECT_TLS_PORT: %w", err)
@@ -204,6 +217,9 @@ func Load() (Config, error) {
 			HysteriaPort:              hysteriaPort,
 			HysteriaSNI:               env("WAVEBREAK_HYSTERIA_SNI", ""),
 			HysteriaInsecure:          boolEnv("WAVEBREAK_HYSTERIA_INSECURE", true),
+			HysteriaObfsPort:          hysteriaObfsPort,
+			HysteriaObfsPassword:      env("WAVEBREAK_HYSTERIA_OBFS_PASSWORD", ""),
+			HysteriaObfsHopPorts:      env("WAVEBREAK_HYSTERIA_OBFS_HOP_PORTS", ""),
 			DirectTLSHost:             env("WAVEBREAK_DIRECT_TLS_HOST", ""),
 			DirectTLSPort:             directTLSPort,
 			DirectTLSPath:             env("WAVEBREAK_DIRECT_TLS_PATH", "/wvb-dt"),

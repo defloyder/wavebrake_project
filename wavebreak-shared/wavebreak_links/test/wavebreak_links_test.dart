@@ -17,7 +17,48 @@ const _directTls = 'vless://$_grant@direct.wavebreak.com.tr:443'
 const _hysteria = 'hysteria2://$_grant:$_grant@45.15.41.3:443/'
     '?alpn=h3&sni=hy2.wavebreak.com.tr#Turkey,%20Istanbul%20%28Hysteria2%29';
 
+const _hysteriaObfs = 'hysteria2://$_grant:$_grant@45.15.41.3:20443/'
+    '?alpn=h3&sni=hy2.wavebreak.com.tr&obfs=salamander&obfs-password=OBFSPW&mport=20000-30000'
+    '#Turkey,%20Istanbul%20%28Hysteria2%20Obfs%29';
+
 void main() {
+  group('Hysteria2 obfuscation and port hopping', () {
+    test('mport is parsed; a malformed one is ignored', () {
+      expect(ShareLink.parse(_hysteriaObfs).portHopping, '20000-30000');
+      expect(ShareLink.parse(_hysteriaObfs).obfs, 'salamander');
+      for (final bad in ['30000-20000', '0-100', '20000-70000', 'abc', '1-2-3']) {
+        expect(ShareLink.parse(_hysteriaObfs.replaceFirst('20000-30000', bad)).portHopping, isNull,
+            reason: bad);
+      }
+      expect(ShareLink.parse(_hysteriaObfs.replaceFirst('20000-30000', '20000-25000,27000')).portHopping,
+          '20000-25000,27000');
+      expect(ShareLink.parse(_hysteria).portHopping, isNull);
+    });
+
+    test('Xray: salamander mask and UDP hop', () {
+      final out = (jsonDecode(parseShareLink(_hysteriaObfs).getFullConfiguration())['outbounds'] as List)
+          .first as Map;
+      final mask = (out['streamSettings'] as Map)['finalmask'] as Map;
+      expect(mask['udp'], [
+        {'type': 'salamander', 'settings': {'password': 'OBFSPW'}}
+      ]);
+      expect((mask['quicParams'] as Map)['udpHop'], {'ports': '20000-30000', 'interval': '10-20'});
+      // Plain Hysteria2 carries neither.
+      final plain = (jsonDecode(parseShareLink(_hysteria).getFullConfiguration())['outbounds'] as List)
+          .first as Map;
+      final plainMask = (plain['streamSettings'] as Map)['finalmask'] as Map;
+      expect(plainMask.containsKey('udp'), isFalse);
+      expect((plainMask['quicParams'] as Map).containsKey('udpHop'), isFalse);
+    });
+
+    test('sing-box: obfs, server_ports and hop_interval', () {
+      final out = SingBoxProxy.fromLink(ShareLink.parse(_hysteriaObfs)).entry;
+      expect(out['obfs'], {'type': 'salamander', 'password': 'OBFSPW'});
+      expect(out['server_ports'], ['20000:30000']);
+      expect(out['hop_interval'], '15s');
+    });
+  });
+
   group('smart routing (WAVEBREAK locations)', () {
     Map<String, dynamic> routed(String link, Map<String, dynamic>? policy) {
       final parsed = parseShareLink(link);
