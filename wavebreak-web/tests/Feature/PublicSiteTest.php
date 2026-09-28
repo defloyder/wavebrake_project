@@ -48,6 +48,54 @@ class PublicSiteTest extends TestCase
             ->assertDontSee('Disabled plan');
     }
 
+    public function test_pricing_pairs_monthly_and_yearly_plans_behind_a_switch(): void
+    {
+        Http::fake(['*' => Http::response(['plans' => [
+            ['name' => 'Plus', 'price_minor' => 199000, 'currency' => 'RUB', 'interval' => 'year', 'duration_days' => 365, 'device_limit' => 5],
+            ['name' => 'Starter', 'price_minor' => 11900, 'currency' => 'RUB', 'interval' => 'month', 'duration_days' => 30, 'device_limit' => 3],
+            ['name' => 'Plus', 'price_minor' => 19900, 'currency' => 'RUB', 'interval' => 'month', 'duration_days' => 30, 'device_limit' => 5],
+            ['name' => 'Starter', 'price_minor' => 119000, 'currency' => 'RUB', 'interval' => 'year', 'duration_days' => 365, 'device_limit' => 3],
+        ]])]);
+
+        $html = $this->get('/pricing')->assertOk()
+            ->assertSee('id="period-year"', false)
+            ->assertSee('−17%')
+            ->assertSee('1 990')
+            ->assertSee('≈ 166')
+            ->assertSee('выгода 398')
+            ->assertSee('≈ 99')
+            ->getContent();
+
+        // One card per tier, not per plan; cheapest tier first; month checked by default.
+        $this->assertSame(2, substr_count($html, '<article class="plan"'));
+        $this->assertLessThan(strpos($html, '<h2>Plus</h2>'), strpos($html, '<h2>Starter</h2>'));
+        $this->assertMatchesRegularExpression('/id="period-month"[^>]*checked/', $html);
+    }
+
+    public function test_pricing_without_yearly_plans_has_no_switch(): void
+    {
+        Http::fake(['*' => Http::response(['plans' => [
+            ['name' => 'Plus', 'price_minor' => 19900, 'currency' => 'RUB', 'interval' => 'month', 'duration_days' => 30],
+        ]])]);
+
+        $this->get('/pricing')->assertOk()
+            ->assertSee('199')
+            ->assertSee('за 30 дней')
+            ->assertDontSee('period-switch', false)
+            ->assertDontSee('Только годовая оплата');
+    }
+
+    public function test_tier_without_yearly_variant_says_so_in_year_mode(): void
+    {
+        Http::fake(['*' => Http::response(['plans' => [
+            ['name' => 'Plus', 'price_minor' => 19900, 'currency' => 'RUB', 'interval' => 'month'],
+            ['name' => 'Plus', 'price_minor' => 199000, 'currency' => 'RUB', 'interval' => 'year'],
+            ['name' => 'Starter', 'price_minor' => 11900, 'currency' => 'RUB', 'interval' => 'month'],
+        ]])]);
+
+        $this->get('/pricing')->assertOk()->assertSee('Только помесячная оплата');
+    }
+
     public function test_pricing_does_not_invent_prices_when_upstream_is_down(): void
     {
         Http::fake(['*' => Http::response([], 503)]);
