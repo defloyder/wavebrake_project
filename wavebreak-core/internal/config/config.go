@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"wavebreak-core/internal/mailer"
 	"wavebreak-core/internal/relays"
 )
 
@@ -25,6 +26,9 @@ type Config struct {
 	OTLPEndpoint    string
 	VLESS           VLESSConfig
 	Accounts        AccountsConfig
+	// Mail: transactional email over SMTP (Brevo). Off until host, user,
+	// password and sender are all set.
+	Mail mailer.Config
 }
 
 // AccountsConfig drives admin account management (internal/accounts).
@@ -130,6 +134,10 @@ type VLESSConfig struct {
 }
 
 func Load() (Config, error) {
+	smtpPort, err := strconv.Atoi(env("WAVEBREAK_SMTP_PORT", "587"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse WAVEBREAK_SMTP_PORT: %w", err)
+	}
 	redisDB, err := strconv.Atoi(env("WAVEBREAK_REDIS_DB", "0"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_REDIS_DB: %w", err)
@@ -184,6 +192,15 @@ func Load() (Config, error) {
 		RefreshTokenTTL: mustDuration(env("WAVEBREAK_REFRESH_TOKEN_TTL", "720h")),
 		BotServiceToken: env("WAVEBREAK_BOT_SERVICE_TOKEN", ""),
 		OTLPEndpoint:    env("WAVEBREAK_OTLP_ENDPOINT", "localhost:4317"),
+		Mail: mailer.Config{
+			Host:     env("WAVEBREAK_SMTP_HOST", ""),
+			Port:     smtpPort,
+			Username: env("WAVEBREAK_SMTP_USERNAME", ""),
+			Password: env("WAVEBREAK_SMTP_PASSWORD", ""),
+			From:     env("WAVEBREAK_SMTP_FROM", ""),
+			FromName: env("WAVEBREAK_SMTP_FROM_NAME", "WAVEBREAK"),
+			ReplyTo:  env("WAVEBREAK_SMTP_REPLY_TO", "support@wavebreak.com.tr"),
+		},
 		Accounts: AccountsConfig{
 			SubscriptionURLBase:  env("WAVEBREAK_SUBSCRIPTION_URL_BASE", "https://core.wavebreak.com.tr/v1/sub/"),
 			PasswordResetURLBase: env("WAVEBREAK_PASSWORD_RESET_URL_BASE", "https://wavebreak.com.tr/reset-password"),

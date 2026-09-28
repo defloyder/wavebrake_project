@@ -11,6 +11,7 @@ import (
 	"wavebreak-core/internal/accounts"
 	"wavebreak-core/internal/config"
 	"wavebreak-core/internal/database"
+	"wavebreak-core/internal/mailer"
 	"wavebreak-core/internal/messaging"
 	"wavebreak-core/internal/observability"
 	"wavebreak-core/internal/store"
@@ -52,6 +53,8 @@ func main() {
 	}
 	defer publisher.Close()
 
+	mail := mailer.NewSMTP(cfg.Mail)
+
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -75,6 +78,9 @@ func main() {
 					continue
 				}
 				observability.RabbitPublish.WithLabelValues(ev.Type).Inc()
+				if ev.Type == "subscription.activated" {
+					notifySubscription(ctx, log, st, mail, ev.AggregateID)
+				}
 				if err := st.MarkOutboxPublished(ctx, ev.ID); err != nil {
 					log.Warn("mark outbox published failed", "event_id", ev.ID, "error", err)
 				}
@@ -101,5 +107,24 @@ func runLifecycle(ctx context.Context, log *slog.Logger, lifecycle *accounts.Sub
 			return
 		case <-ticker.C:
 		}
+	}
+}
+
+// notifySubscription emails "your subscription is active" for a plan that
+// was bought or assigned (any path: app, Core admin, the web admin), once,
+// right after its activation event is published. Nothing for a
+// subscription still pending payment, or while email isn't configured.
+func notifySubscription(ctx context.Context, log *slog.Logger, st *store.Store, mail *mailer.SMTP, subscriptionID string) {
+	if !mail.Enabled() {
+		return
+	}
+	n, err := st.SubscriptionNoticeFor(ctx, subscriptionID)
+	if err != nil || !n.Live() || n.Email == "" {
+		return
+	}
+	sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := mail.Send(sendCtx, mailer.SubscriptionActivated(n.Language, n.Email, n.PlanName, n.PeriodEnd)); err != nil {
+		log.Warn("send subscription email", "subscription_id", subscriptionID, "error", err)
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"wavebreak-core/internal/accounts"
 	"wavebreak-core/internal/app"
 	"wavebreak-core/internal/observability"
+	"wavebreak-core/internal/mailer"
 	"wavebreak-core/internal/relays"
 	"wavebreak-core/internal/security"
 	"wavebreak-core/internal/store"
@@ -25,6 +26,8 @@ type Server struct {
 	accounts *accountServices
 	// relays: domestic entry points and whether they're reachable now.
 	relays *relays.Registry
+	// mail: transactional email; Enabled() is false until SMTP is set up.
+	mail mailer.Sender
 }
 
 func New(app *app.App) http.Handler {
@@ -36,7 +39,8 @@ func newServer(app *app.App) *Server {
 	// Checked for the life of the API process; a relay the hoster closed
 	// drops out of the links within ~2 minutes.
 	go registry.Run(context.Background(), time.Minute)
-	return &Server{app: app, accounts: newAccountServices(app), relays: registry}
+	mail := mailer.NewSMTP(app.Config.Mail)
+	return &Server{app: app, accounts: newAccountServices(app), relays: registry, mail: mail}
 }
 
 func (s *Server) router() http.Handler {
@@ -56,6 +60,8 @@ func (s *Server) router() http.Handler {
 		r.Post("/auth/refresh", s.refresh)
 		r.Post("/auth/logout", s.logout)
 		r.Post("/auth/password-reset/confirm", s.confirmPasswordReset)
+		r.Post("/auth/email/verify", s.verifyEmail)
+		r.Post("/auth/email/resend", s.resendEmailCode)
 		r.Get("/plans", s.listPlans)
 		r.Post("/node/enroll", s.nodeEnrollWithToken)
 		r.Get("/sub/{grantID}", s.subscriptionByGrant)
@@ -73,6 +79,8 @@ func (s *Server) router() http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(s.authRequired)
 			r.Get("/me", s.me)
+			r.Post("/me/email/send-code", s.meSendEmailCode)
+			r.Post("/me/email/verify", s.meVerifyEmail)
 			r.Get("/client/bootstrap", s.clientBootstrap)
 			r.Get("/me/overview", s.meOverview)
 			r.Get("/me/identities", s.meIdentities)

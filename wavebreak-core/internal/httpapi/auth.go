@@ -44,6 +44,8 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
+		// Language of the emails ("ru", "en", ...; app language).
+		Language string `json:"language"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
@@ -61,6 +63,25 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	user, err := s.app.Store.CreateUser(r.Context(), req.Email, string(hash))
 	if err != nil {
 		writeError(w, http.StatusConflict, "user already exists")
+		return
+	}
+	// An app with the verification step: no tokens until the emailed code
+	// is confirmed (see email_verification.go).
+	if s.emailVerificationOn(r) {
+		lang := requestLanguage(r, req.Language)
+		if err := s.app.Store.RequireEmailVerification(r.Context(), user.ID, lang); err != nil {
+			writeError(w, http.StatusInternalServerError, "account setup failed")
+			return
+		}
+		sendErr := s.sendEmailCode(r.Context(), user.ID, user.Email, lang)
+		writeJSON(w, http.StatusCreated, map[string]any{
+			"user":                  user,
+			"verification_required": true,
+			// false: the account exists but the email didn't go out; the
+			// app offers "send again".
+			"code_sent":            sendErr == nil,
+			"resend_after_seconds": int(emailCodeResendAfter.Seconds()),
+		})
 		return
 	}
 	tokens, err := s.issueTokens(r.Context(), user.ID, user.Email, user.Role)
@@ -89,6 +110,16 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if err != nil || !ok {
 		observability.AuthLoginFailed.Inc()
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	// Signed up through the verification step but never confirmed: a
+	// fresh code (unless one just went out) and no tokens yet. Only after
+	// the password matched, so this doesn't reveal which emails exist.
+	if state, err := s.app.Store.UserEmailState(r.Context(), user.ID); err == nil && state.Required && !state.Verified() {
+		if s.mail != nil && s.mail.Enabled() {
+			_ = s.sendEmailCode(r.Context(), user.ID, user.Email, state.Language)
+		}
+		writeEmailNotVerified(w, user.Email)
 		return
 	}
 	observability.AuthLogin.Inc()
@@ -131,7 +162,21 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) me(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, currentUser(r.Context()))
+	user := currentUser(r.Context())
+	// The user's fields as before, plus whether the address is confirmed
+	// and whether it can be confirmed now (email is configured) — the app
+	// shows its "confirm email" row from these.
+	verified := false
+	if state, err := s.app.Store.UserEmailState(r.Context(), user.ID); err == nil {
+		verified = state.Verified()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":                           user.ID,
+		"email":                        user.Email,
+		"role":                         user.Role,
+		"email_verified":               verified,
+		"email_verification_available": s.mail != nil && s.mail.Enabled(),
+	})
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
