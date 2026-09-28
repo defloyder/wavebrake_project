@@ -28,6 +28,8 @@ type Server struct {
 	relays *relays.Registry
 	// mail: transactional email; Enabled() is false until SMTP is set up.
 	mail mailer.Sender
+	// resetLimit: one self-service reset email per address per minute.
+	resetLimit resetThrottle
 }
 
 func New(app *app.App) http.Handler {
@@ -40,7 +42,7 @@ func newServer(app *app.App) *Server {
 	// drops out of the links within ~2 minutes.
 	go registry.Run(context.Background(), time.Minute)
 	mail := mailer.NewSMTP(app.Config.Mail)
-	return &Server{app: app, accounts: newAccountServices(app), relays: registry, mail: mail}
+	return &Server{app: app, accounts: newAccountServices(app, resetMailer{mail: mail, store: app.Store}), relays: registry, mail: mail}
 }
 
 func (s *Server) router() http.Handler {
@@ -51,6 +53,10 @@ func (s *Server) router() http.Handler {
 	r.Use(observability.MetricsMiddleware)
 
 	r.Get("/healthz", s.health)
+	// The page the reset email links to (wavebreak.com.tr/reset-password is
+	// routed here by the edge nginx).
+	r.Get("/reset-password", s.resetPasswordPage)
+	r.Post("/reset-password", s.resetPasswordPage)
 	r.Get("/readyz", s.ready)
 	r.Handle("/metrics", promhttp.Handler())
 
@@ -60,6 +66,7 @@ func (s *Server) router() http.Handler {
 		r.Post("/auth/refresh", s.refresh)
 		r.Post("/auth/logout", s.logout)
 		r.Post("/auth/password-reset/confirm", s.confirmPasswordReset)
+		r.Post("/auth/password-reset/request", s.requestPasswordReset)
 		r.Post("/auth/email/verify", s.verifyEmail)
 		r.Post("/auth/email/resend", s.resendEmailCode)
 		r.Get("/plans", s.listPlans)

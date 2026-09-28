@@ -24,7 +24,7 @@ type accountServices struct {
 	lifecycle *accounts.SubscriptionLifecycleService
 }
 
-func newAccountServices(a *app.App) *accountServices {
+func newAccountServices(a *app.App, notifier accounts.ResetNotifier) *accountServices {
 	repo := a.Store.Accounts()
 	cfg := a.Config.Accounts
 	urls := accounts.NewSubscriptionURLBuilder(cfg.SubscriptionURLBase)
@@ -32,7 +32,7 @@ func newAccountServices(a *app.App) *accountServices {
 	return &accountServices{
 		details:   details,
 		assign:    accounts.NewSubscriptionAssignmentService(repo, repo, repo, repo, repo, details, cfg.AccessProtocol),
-		reset:     accounts.NewPasswordResetService(repo, repo, accounts.SecureTokenSource{}, accounts.UnconfiguredEmailNotifier{}, accounts.Argon2Hasher{}, repo, cfg.PasswordResetURLBase, cfg.PasswordResetTTL),
+		reset:     accounts.NewPasswordResetService(repo, repo, accounts.SecureTokenSource{}, notifier, accounts.Argon2Hasher{}, repo, cfg.PasswordResetURLBase, cfg.PasswordResetTTL),
 		urls:      urls,
 		auditLog:  repo,
 		lifecycle: accounts.NewSubscriptionLifecycleService(repo, repo, cfg.SubscriptionGrace),

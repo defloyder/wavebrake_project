@@ -78,9 +78,11 @@ class CoreGateway {
     await live.logout(refreshToken);
   }
 
-  Future<void> forgotPassword(String email) {
-    // Core's public API doesn't expose a forgot-password endpoint yet.
-    return Future<void>.value();
+  /// Core emails a one-time link to wavebreak.com.tr/reset-password (and
+  /// answers the same whether or not the account exists).
+  Future<void> forgotPassword(String email, {String? language}) async {
+    if (useMock) return;
+    await live.requestPasswordReset(email: email, language: language);
   }
 
   Future<UserProfile> me() {

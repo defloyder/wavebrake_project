@@ -64,6 +64,16 @@ class CoreApi {
     );
   }
 
+  /// "Forgot password?": Core emails a reset link.
+  Future<void> requestPasswordReset({required String email, String? language}) {
+    return _client.post(
+      '/auth/password-reset/request',
+      body: {'email': email, if (language != null) 'language': language},
+      parse: (_) {},
+      retryOnConnectionError: true,
+    );
+  }
+
   /// Signed in: email a code to confirm the account's address.
   Future<void> sendMyEmailCode({String? language}) {
     return _client.post(

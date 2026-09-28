@@ -30,10 +30,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     });
     final s = ref.read(stringsProvider);
     try {
-      await ref.read(coreGatewayProvider).forgotPassword(_email.text.trim());
-      setState(() => _sent = true);
+      await ref.read(coreGatewayProvider).forgotPassword(_email.text.trim(),
+          language: ref.read(languageProvider).name);
+      if (mounted) setState(() => _sent = true);
     } on AppException catch (error) {
-      setState(() => _error = error.localized(s));
+      if (mounted) setState(() => _error = error.localized(s));
+    } catch (_) {
+      if (mounted) setState(() => _error = s.errUnavailable);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
