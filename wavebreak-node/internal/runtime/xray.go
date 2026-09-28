@@ -589,23 +589,29 @@ func (a XrayAdapter) applyHysteria(ctx context.Context) error {
 	if a.cfg.HysteriaStatsPort > 0 {
 		trafficStats = fmt.Sprintf("trafficStats:\n  listen: 127.0.0.1:%d\n", a.cfg.HysteriaStatsPort)
 	}
+	// Throughput tuning (measured Moscow -> Istanbul, 76 ms RTT): BBR "standard"
+	// instead of "conservative" (which never left slow start on a lossy
+	// mobile path), path-MTU discovery on (fixed ~1200-byte QUIC packets
+	// wasted ~15% of every datagram) and 16 MiB per-stream / 40 MiB
+	// per-connection windows so one long download (a Telegram file, an
+	// update) isn't capped by flow control on a high-RTT link.
 	yaml := fmt.Sprintf(`listen: :%d
 tls:
   cert: %q
   key: %q
 quic:
-  initStreamReceiveWindow: 8388608
-  maxStreamReceiveWindow: 8388608
-  initConnReceiveWindow: 20971520
-  maxConnReceiveWindow: 20971520
+  initStreamReceiveWindow: 16777216
+  maxStreamReceiveWindow: 16777216
+  initConnReceiveWindow: 41943040
+  maxConnReceiveWindow: 41943040
   maxIdleTimeout: 60s
   maxIncomingStreams: 1024
-  disablePathMTUDiscovery: true
+  disablePathMTUDiscovery: false
   disableStatelessReset: false
 ignoreClientBandwidth: true
 congestion:
   type: bbr
-  bbrProfile: conservative
+  bbrProfile: standard
 disableUDP: false
 udpIdleTimeout: 90s
 auth:
@@ -620,6 +626,12 @@ auth:
 
 	if err := os.MkdirAll(filepath.Dir(a.cfg.HysteriaConfigPath), 0o755); err != nil {
 		return err
+	}
+	// Unchanged config: nothing to restart. A restart drops every connected
+	// Hysteria2 client, and Render runs this on every desired-state apply,
+	// most of which don't touch the user list.
+	if current, err := os.ReadFile(a.cfg.HysteriaConfigPath); err == nil && string(current) == yaml {
+		return nil
 	}
 	tmp := a.cfg.HysteriaConfigPath + ".tmp"
 	if err := os.WriteFile(tmp, []byte(yaml), 0o644); err != nil {
