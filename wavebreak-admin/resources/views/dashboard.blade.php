@@ -16,7 +16,6 @@
         'users' => 'Users',
         'subscriptions' => 'Subscriptions',
         'grants' => 'Access Grants',
-        'devices' => 'Devices',
         'traffic' => 'Traffic',
         'audit' => 'Audit',
     ];
@@ -188,9 +187,8 @@
                             <th>Name</th>
                             <th>Price</th>
                             <th>Interval</th>
-                            <th>Devices</th>
+                            <th>Кол-во клиентов</th>
                             <th>Traffic</th>
-                            <th>Active</th>
                             <th data-sortable="false"></th>
                         </tr>
                     </thead>
@@ -203,7 +201,6 @@
                             <td>{{ $plan['interval'] ?? 'month' }}</td>
                             <td class="num-cell" data-sort="{{ $plan['device_limit'] ?? 0 }}">{{ $plan['device_limit'] ?? '-' }}</td>
                             <td>{{ isset($plan['traffic_limit_bytes']) && $plan['traffic_limit_bytes'] ? number_format($plan['traffic_limit_bytes'] / 1073741824, 0).' GB' : 'unlimited' }}</td>
-                            <td><span class="node-chip {{ ($plan['is_active'] ?? true) ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ ($plan['is_active'] ?? true) ? 'active' : 'inactive' }}</span></td>
                             <td>
                                 <div class="adm-row-actions">
                                     <button type="button" class="adm-icon-btn" title="Редактировать" onclick='admOpenPlanModal(@json($plan))'>
@@ -219,7 +216,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8">Core пока не вернул тарифы.</td></tr>
+                        <tr><td colspan="7">Core пока не вернул тарифы.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
@@ -257,7 +254,7 @@
                         <label>Price (cents)
                             <input name="price_minor" id="pf-price" type="number" min="0" class="adm-input" required>
                         </label>
-                        <label>Device limit
+                        <label>Кол-во клиентов
                             <input name="device_limit" id="pf-devices" type="number" min="1" class="adm-input" required>
                         </label>
                     </div>
@@ -399,7 +396,14 @@
                             <td>
                                 @if(!empty($user['subscription']))
                                     <strong>{{ $user['subscription']['plan_name'] ?? $user['subscription']['plan_id'] }}</strong><br>
-                                    <span class="node-chip {{ ($user['subscription']['status'] ?? '') === 'active' ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ $user['subscription']['status'] }}</span>
+                                    {{-- The "Статус" column already shows the account's own active/
+                                         disabled pill — repeating an "active" subscription pill next to
+                                         it here just doubled the same word down every row. Only the
+                                         non-default subscription states (suspended/expired/etc.) are
+                                         worth a pill; "active" is the expected case and needs no badge. --}}
+                                    @if(($user['subscription']['status'] ?? '') !== 'active')
+                                        <span class="node-chip dead"><span class="node-chip__dot"></span>{{ $user['subscription']['status'] }}</span>
+                                    @endif
                                     <small class="adm-muted">до {{ $user['subscription']['current_period_end'] ?? '-' }}</small>
                                 @else
                                     <span class="adm-muted">Нет подписки</span>
@@ -495,6 +499,12 @@
             $wvbLabel = fn ($grantId) => 'WVB-' . strtoupper(substr(str_replace('-', '', $grantId), 0, 8));
             $grantsBySub = collect($grants ?? [])->where('status', 'active')->keyBy('subscription_id');
             $trafficBySub = collect($traffic ?? [])->keyBy('subscription_id');
+            // Always the current name/price from Core's live plans list, never a
+            // value captured at subscription-creation time — so renaming or
+            // repricing a plan shows up here immediately, the same way it
+            // already does on the Users tab (Core joins plans live there too).
+            $planById = collect($plans ?? [])->keyBy('id');
+            $planLabel = fn ($planId) => $planById->get($planId)['name'] ?? $planId;
             $onlineNodeOptions = collect($nodes ?? [])->map(fn ($n) => ['id' => $n['id'], 'label' => $n['code'] ?? $n['id']]);
         @endphp
         <section class="adm-card" id="subscriptions-admin">
@@ -545,10 +555,10 @@
                             $usage = $trafficBySub->get($subscription['id']);
                             $limitBytes = $subscription['traffic_limit_override_bytes'] ?? $subscription['traffic_limit_bytes_snapshot'] ?? null;
                         @endphp
-                        <tr data-row data-search="{{ $userLabel($subscription['user_id']) }} {{ $subscription['plan_id'] }} {{ $subscription['status'] }}">
+                        <tr data-row data-search="{{ $userLabel($subscription['user_id']) }} {{ $planLabel($subscription['plan_id']) }} {{ $subscription['status'] }}">
                             <td>{{ $grant ? $wvbLabel($grant['id']) : '—' }}</td>
                             <td>{{ $userLabel($subscription['user_id']) }}</td>
-                            <td>{{ $subscription['plan_id'] === 'admin-custom' || ($subscription['source'] ?? '') === 'admin_manual' ? 'Custom' : $subscription['plan_id'] }}</td>
+                            <td>{{ $subscription['plan_id'] === 'admin-custom' || ($subscription['source'] ?? '') === 'admin_manual' ? 'Custom' : $planLabel($subscription['plan_id']) }}</td>
                             <td><span class="node-chip {{ $subscription['status'] === 'active' ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ $subscription['status'] }}</span></td>
                             <td>{{ $limitBytes ? number_format($limitBytes / 1073741824, 1) . ' GB' : 'unlimited' }}</td>
                             <td class="num-cell">
@@ -667,7 +677,7 @@
                         </label>
                         <label class="adm-form-check"><input type="checkbox" name="traffic_unlimited" id="se-unlimited" value="1" onchange="document.getElementById('se-traffic').disabled=this.checked"> Unlimited</label>
                     </div>
-                    <label>Device limit
+                    <label>Кол-во клиентов
                         <input name="device_limit" id="se-devices" type="number" min="1" class="adm-input">
                     </label>
                     <label>Тариф
@@ -763,49 +773,6 @@
                         </tr>
                     @empty
                         <tr><td colspan="6">No grants returned by Core.</td></tr>
-                    @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    @endif
-
-    @if($section === 'devices')
-        <section class="adm-card">
-            <div class="adm-card-head">
-                <div>
-                    <h6>Devices</h6>
-                    <p>Registered and revoked devices from Core.</p>
-                </div>
-            </div>
-            <div class="adm-table-toolbar">
-                <div class="adm-table-search">
-                    <input type="search" data-table-search placeholder="Поиск по user/name/platform...">
-                </div>
-                <span class="adm-table-count" data-table-count></span>
-            </div>
-            <div class="adm-table-wrap" data-enhance>
-                <table class="adm-table">
-                    <thead><tr><th>User</th><th>Name</th><th>Platform</th><th>Status</th><th>Last seen</th><th></th></tr></thead>
-                    <tbody>
-                    @forelse($devices ?? [] as $device)
-                        <tr data-row data-search="{{ $userLabel($device['user_id']) }} {{ $device['name'] }} {{ $device['platform'] ?? '' }}">
-                            <td>{{ $userLabel($device['user_id']) }}</td>
-                            <td>{{ $device['name'] }}</td>
-                            <td>{{ $device['platform'] ?? '-' }}</td>
-                            <td><span class="node-chip {{ empty($device['revoked_at']) ? 'alive' : 'dead' }}"><span class="node-chip__dot"></span>{{ empty($device['revoked_at']) ? 'active' : 'revoked' }}</span></td>
-                            <td class="date-cell" data-sort="{{ $device['last_seen_at'] ?? '' }}">{{ $device['last_seen_at'] ?? '-' }}</td>
-                            <td>
-                                @if(empty($device['revoked_at']))
-                                    <form method="post" action="/devices/{{ $device['id'] }}/revoke" class="adm-inline-form" onsubmit="return confirm('Отозвать устройство {{ $device['name'] }}?')">
-                                        @csrf
-                                        <button type="submit" class="adm-link-button">Revoke</button>
-                                    </form>
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="6">No devices returned by Core.</td></tr>
                     @endforelse
                     </tbody>
                 </table>

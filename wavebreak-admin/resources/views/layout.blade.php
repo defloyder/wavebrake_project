@@ -69,10 +69,6 @@
                 <svg viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
                 <span>Grants</span>
             </a>
-            <a href="/devices" class="adm-link {{ $activeSection === 'devices' ? 'active' : '' }}">
-                <svg viewBox="0 0 24 24" fill="none"><rect x="6" y="3" width="12" height="18" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M10 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                <span>Devices</span>
-            </a>
             <a href="/traffic" class="adm-link {{ $activeSection === 'traffic' ? 'active' : '' }}">
                 <svg viewBox="0 0 24 24" fill="none"><path d="M4 17h4l3-10 4 14 3-8h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span>Traffic</span>

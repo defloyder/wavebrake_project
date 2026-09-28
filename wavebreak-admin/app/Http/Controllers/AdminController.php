@@ -68,11 +68,6 @@ class AdminController extends Controller
         return $this->renderAdminPage($request, 'grants');
     }
 
-    public function devices(Request $request): View|RedirectResponse
-    {
-        return $this->renderAdminPage($request, 'devices');
-    }
-
     public function traffic(Request $request): View|RedirectResponse
     {
         return $this->renderAdminPage($request, 'traffic');
@@ -225,7 +220,6 @@ class AdminController extends Controller
                 'users' => $this->core->users($token),
                 'subscriptions' => $this->core->subscriptions($token),
                 'grants' => $this->core->grants($token),
-                'devices' => $this->core->devices($token),
                 'traffic' => $this->core->traffic($token),
                 'trafficHistory' => $needsTraffic ? $this->core->trafficHistory($token, 30) : [],
                 'auditEvents' => $this->core->audit($token),
@@ -327,11 +321,6 @@ class AdminController extends Controller
     public function deletePlan(Request $request, string $planId): RedirectResponse
     {
         return $this->coreAction($request, '/plans', 'Тариф удалён.', fn ($token) => $this->core->deletePlan($token, $planId));
-    }
-
-    public function revokeDevice(Request $request, string $deviceId): RedirectResponse
-    {
-        return $this->coreAction($request, '/devices', 'Устройство отозвано.', fn ($token) => $this->core->revokeDevice($token, $deviceId));
     }
 
     private function validatedPlan(Request $request): array

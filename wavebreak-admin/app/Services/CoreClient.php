@@ -141,11 +141,6 @@ class CoreClient
         return $this->auth($token)->post("/v1/admin/subscriptions/{$subscriptionId}/delete", ['confirm' => true])->throw()->json();
     }
 
-    public function devices(string $token): array
-    {
-        return $this->auth($token, true)->get('/v1/admin/devices')->throw()->json('devices') ?? [];
-    }
-
     public function traffic(string $token): array
     {
         return $this->auth($token, true)->get('/v1/admin/traffic')->throw()->json('traffic') ?? [];
