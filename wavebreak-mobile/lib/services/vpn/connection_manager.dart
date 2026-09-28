@@ -10,7 +10,6 @@ import '../../core/env/app_env.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/logging/app_logger.dart';
-import '../../core/network/connectivity_provider.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../core/storage/secure_store.dart';
 import '../../features/shared/data_providers.dart';
@@ -217,8 +216,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     // fd for the new one within the same process) already handle
     // switching the live engine over — no process restart needed, so
     // there's no socket to lose in the first place.
-    await connect(
-        subscriptionActive: subscriptionActive, preferRemembered: false);
+    await connect(subscriptionActive: subscriptionActive);
   }
 
   void hydrateLocations(List<LocationItem> locations) {
@@ -275,13 +273,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     );
   }
 
-  /// [preferRemembered]: for one of WAVEBREAK's locations, start with the
-  /// transport that last worked on this kind of network. A location the
-  /// user just picked by hand ([selectLocation]) is tried first instead.
-  Future<void> connect({
-    required bool subscriptionActive,
-    bool preferRemembered = true,
-  }) async {
+  Future<void> connect({required bool subscriptionActive}) async {
     _cancelPendingPoll();
     final generation = ++_connectGeneration;
     final location = state.location;
@@ -323,16 +315,12 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       // [NativeVpnAdapter.connect]'s own 20s timeout already tears itself
       // down cleanly on failure — silently try the next-best candidate
       // instead of leaving the user connected to nothing.
-      var candidates = await _rankCandidates(location);
-      // One of WAVEBREAK's own locations: its other transports are the
-      // fallbacks when this one can't get through on this network.
-      if (!location.isAuto &&
-          candidates.length == 1 &&
-          candidates.first.id == location.id &&
-          _isWavebreakLocation(location)) {
-        candidates =
-            _transportCandidates(location, preferRemembered: preferRemembered);
-      }
+      // Only the location the user picked (or Auto's own ranking): the app
+      // never swaps to another transport by itself. The automatic
+      // transport fallback (1.1.9) was removed at the owner's request: on a
+      // flaky network it hopped between locations on its own and the
+      // whole home screen jumped with it.
+      final candidates = await _rankCandidates(location);
       Object lastError = AppException(AppErrorKind.locationUnavailable);
       // Only Auto with more than one candidate to actually pick between
       // goes on to the throughput probe below — a manual pick (or an Auto
@@ -348,7 +336,6 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         } catch (error) {
           if (generation != _connectGeneration) return;
           lastError = error;
-          _failedTransports.add(candidates[i].id);
           final isLastCandidate = i == candidates.length - 1;
           if (isLastCandidate) {
             // A later, higher-ranked-by-latency candidate failed outright,
@@ -380,15 +367,11 @@ class ConnectionManager extends Notifier<WbConnectionState> {
           continue;
         }
 
-        // A WAVEBREAK location: show the transport that actually got
-        // through, and check it really passes traffic.
+        // A WAVEBREAK location: note in the diagnostic log whether traffic
+        // really passes (no action is taken on the result).
         final used = candidates[i];
         if (!location.isAuto && _isWavebreakLocation(used)) {
-          if (used.id != location.id) {
-            state = state.copyWith(location: used);
-            unawaited(PrefsStore.setString(PrefsStore.lastLocationId, used.id));
-          }
-          unawaited(_verifyTraffic(used, generation));
+          unawaited(_logTrafficCheck(used, generation));
         }
 
         // A real handshake just succeeded. For a manual pick (or a
@@ -474,26 +457,6 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     }
   }
 
-  // --- Transport fallback (bugs 1/5: carriers differ in which transport
-  // gets through — Hysteria2 on one, Direct-TLS on another) ---
-
-  /// Transports that failed (no handshake, or no traffic) this session;
-  /// cleared on a user disconnect.
-  final Set<String> _failedTransports = {};
-
-  /// The other transports of [target]'s own location: the personal list,
-  /// or the shared section it belongs to. Empty for a user's own server.
-  List<LocationItem> _transportGroup(LocationItem target) {
-    final own = ref.read(locationsProvider).asData?.value ?? const <LocationItem>[];
-    if (own.any((l) => l.id == target.id)) return own;
-    for (final g in ref.read(customServersProvider)) {
-      if (g.sharedWithMe && g.servers.any((s) => s.id == target.id)) {
-        return g.servers;
-      }
-    }
-    return const [];
-  }
-
   /// "hysteria2", "vless-reality-tcp", "vless-tls-ws", ... — what a
   /// location's link actually is, independent of its label.
   static String _transportKey(LocationItem l) {
@@ -505,89 +468,26 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         .join('-');
   }
 
-  /// Prefs key of the transport that last passed traffic on this kind of
-  /// network (mobile / Wi-Fi / ethernet).
-  String get _workingTransportKey {
-    final network = ref.read(connectivityTypeProvider).asData?.value.name;
-    return 'working_transport_${network ?? 'unknown'}';
-  }
-
-  /// The order to try [location]'s transports in: the one that last worked
-  /// on this kind of network (when [preferRemembered]), then the user's
-  /// pick, then the rest of its location; ones that failed this session go
-  /// last.
-  List<LocationItem> _transportCandidates(LocationItem location,
-      {required bool preferRemembered}) {
-    final group = _transportGroup(location);
-    if (group.length < 2) return [location];
-    final remembered = PrefsStore.getString(_workingTransportKey);
-    final seen = <String>{};
-    final ordered = [
-      if (preferRemembered && remembered != null)
-        ...group.where((l) => _transportKey(l) == remembered),
-      location,
-      ...group,
-    ].where((l) => l.available && seen.add(l.id)).toList();
-    return [
-      ...ordered.where((l) => !_failedTransports.contains(l.id)),
-      ...ordered.where((l) => _failedTransports.contains(l.id)),
-    ];
-  }
-
-  /// A transport can finish its handshake and still pass nothing (a
-  /// carrier dropping it right after). Checks real traffic through the
-  /// tunnel a few times; on success remembers the transport for this kind
-  /// of network, otherwise moves on to the next transport of the location.
-  Future<void> _verifyTraffic(LocationItem used, int generation) async {
+  /// Diagnostics only: one real request through the tunnel ~2 s after
+  /// connecting, written to the diagnostic log ("Traffic check via
+  /// hysteria2: 356 ms" / "no answer") so a field report shows whether
+  /// the transport passed traffic on that network. Nothing is done with
+  /// the result — the app no longer switches transports by itself.
+  Future<void> _logTrafficCheck(LocationItem used, int generation) async {
     // The through-the-tunnel probe is the Android engine's (see
-    // ConnectionTestService.measureTunnelLatency); elsewhere there is
-    // nothing to measure with, so no verdict either way.
+    // ConnectionTestService.measureTunnelLatency).
     if (!Platform.isAndroid) return;
-    // Short: a transport the carrier drops "connects" in a fraction of a
-    // second (only the local tunnel comes up), and people switch by hand
-    // long before a slow check gives up. Worst case ~12 s to the swap.
-    var attempt = 0;
-    for (final wait in const [
-      Duration(milliseconds: 1500),
-      Duration(seconds: 2),
-      Duration(seconds: 2),
-    ]) {
-      await Future<void>.delayed(wait);
-      if (generation != _connectGeneration ||
-          state.status != ConnectionStatus.connected ||
-          state.location.id != used.id) {
-        return;
-      }
-      attempt++;
-      final ms = await const ConnectionTestService()
-          .measureTunnelLatency(timeout: const Duration(seconds: 4));
-      AppLogger.info('Traffic check $attempt via ${_transportKey(used)}: '
-          '${ms == null ? 'no answer' : '$ms ms'}');
-      if (ms != null) {
-        _failedTransports.remove(used.id);
-        final key = _transportKey(used);
-        if (key.isNotEmpty) {
-          unawaited(PrefsStore.setString(_workingTransportKey, key));
-        }
-        return;
-      }
-    }
-    if (generation != _connectGeneration || state.location.id != used.id) {
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (generation != _connectGeneration ||
+        state.status != ConnectionStatus.connected ||
+        state.location.id != used.id) {
       return;
     }
-    _failedTransports.add(used.id);
-    LocationItem? next;
-    for (final l in _transportCandidates(used, preferRemembered: false)) {
-      if (l.id != used.id && !_failedTransports.contains(l.id)) {
-        next = l;
-        break;
-      }
-    }
-    if (next == null) return;
-    AppLogger.warn('No traffic through ${_transportKey(used)}, '
-        'switching to ${_transportKey(next)}');
-    _analytics.event('transport_fallback');
-    await selectLocation(next, subscriptionActive: true);
+    final ms = await const ConnectionTestService()
+        .measureTunnelLatency(timeout: const Duration(seconds: 6));
+    if (generation != _connectGeneration) return;
+    AppLogger.info('Traffic check via ${_transportKey(used)}: '
+        '${ms == null ? 'no answer' : '$ms ms'}');
   }
 
   /// WAVEBREAK's own locations — the account's personal ones and those
@@ -906,8 +806,6 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   }
 
   Future<void> disconnect() async {
-    // A new session gives every transport a fresh chance.
-    _failedTransports.clear();
     unawaited(HapticFeedback.lightImpact());
     state = state.copyWith(status: ConnectionStatus.disconnecting);
     final grantId = state.grantId;

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:wavebreak/core/storage/prefs_store.dart';
 import 'package:wavebreak/features/shared/data_providers.dart';
 import 'package:wavebreak/services/core_api/models.dart';
 import 'package:wavebreak/services/custom_servers/share_link_parsing.dart';
@@ -60,7 +59,10 @@ void main() {
     return c;
   }
 
-  test('a transport this network blocks falls through to the next one of the location', () async {
+  // The automatic transport fallback was removed at the owner's request:
+  // on a flaky network it hopped between locations by itself and the
+  // home screen jumped with it. The app stays on what the user picked.
+  test('a transport this network blocks is an error; no other transport is tried', () async {
     final adapter = _CarrierAdapter({'hysteria2://'});
     final c = containerWith(adapter);
     final personal = await c.read(locationsProvider.future);
@@ -70,21 +72,24 @@ void main() {
     await c.read(connectionManagerProvider.notifier).connect(subscriptionActive: true);
 
     final state = c.read(connectionManagerProvider);
-    expect(state.status, ConnectionStatus.connected);
-    expect(adapter.attempts.first, 'hysteria2', reason: 'the user pick is tried first');
-    expect(state.location.rawLink, isNot(_hysteria), reason: 'shows the transport that got through');
-    expect(PrefsStore.getString(PrefsStore.lastLocationId), state.location.id);
+    expect(state.status, ConnectionStatus.error);
+    expect(adapter.attempts, ['hysteria2']);
+    expect(state.location.rawLink, _hysteria, reason: 'the pick stays selected');
   });
 
-  test('every transport blocked: an error, not a hang', () async {
-    final adapter = _CarrierAdapter({'hysteria2://', 'vless://'});
+  test('a working pick stays the pick', () async {
+    final adapter = _CarrierAdapter({});
     final c = containerWith(adapter);
     final personal = await c.read(locationsProvider.future);
-    await c.read(connectionManagerProvider.notifier).selectLocation(personal.first);
+    final direct = personal.firstWhere((l) => l.rawLink == _direct);
+
+    await c.read(connectionManagerProvider.notifier).selectLocation(direct);
     await c.read(connectionManagerProvider.notifier).connect(subscriptionActive: true);
 
-    expect(c.read(connectionManagerProvider).status, ConnectionStatus.error);
-    expect(adapter.attempts.length, 3);
+    final state = c.read(connectionManagerProvider);
+    expect(state.status, ConnectionStatus.connected);
+    expect(adapter.attempts, ['vless']);
+    expect(state.location.rawLink, _direct);
   });
 
   test("a user's own server is never swapped for another", () async {
