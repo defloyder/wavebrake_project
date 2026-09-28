@@ -21,30 +21,51 @@
             @if ($plans === [])
                 <div class="plans-unavailable" role="status"><span class="section-number">ТАРИФЫ</span><h2>Сейчас не удалось<br><em>загрузить цены.</em></h2><p>Попробуйте обновить страницу немного позже. Ваши действующие подписки от этого не меняются.</p><a href="/pricing" class="text-link">Обновить страницу <span aria-hidden="true">↻</span></a></div>
             @else
-                <div class="plan-grid">
-                    @foreach ($plans as $plan)
-                        @php
-                            $price = ($plan['price_minor'] ?? $plan['price_cents'] ?? 0) / 100;
-                            $currency = strtoupper($plan['currency'] ?? 'USD');
-                            $currencyLabel = ['RUB' => '₽', 'USD' => '$', 'EUR' => '€', 'TRY' => '₺'][$currency] ?? $currency;
-                            $period = isset($plan['duration_days']) ? $plan['duration_days'].' дней' : (['month' => 'месяц', 'year' => 'год', 'week' => 'неделю'][$plan['interval'] ?? ''] ?? ($plan['interval'] ?? 'период'));
-                            $traffic = $plan['traffic_limit_bytes'] ?? null;
-                        @endphp
-                        <article class="plan" data-reveal>
-                            <span class="section-number">{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }} / ПОДПИСКА</span>
-                            <h2>{{ $plan['name'] }}</h2>
-                            <p class="plan-price">{{ number_format($price, $price == floor($price) ? 0 : 2, ',', ' ') }} <span>{{ $currencyLabel }}</span></p>
-                            <p class="plan-period">за {{ $period }}</p>
-                            <dl>
-                                <div><dt>Устройства</dt><dd>{{ $plan['device_limit'] ?? 'По условиям тарифа' }}</dd></div>
-                                <div><dt>Трафик</dt><dd>{{ $traffic === null || $traffic === 0 ? 'Без лимита' : number_format($traffic / 1073741824, 1, ',', ' ').' ГБ' }}</dd></div>
-                                @if (isset($plan['concurrent_connection_limit']))
-                                    <div><dt>Одновременно</dt><dd>{{ $plan['concurrent_connection_limit'] }}</dd></div>
-                                @endif
-                            </dl>
-                            <a href="/download" class="wb-btn wb-btn--outline">К приложению <span aria-hidden="true">↗</span><span class="sr-only">: {{ $plan['name'] }}</span></a>
-                        </article>
-                    @endforeach
+                @php
+                    $money = fn (float $v) => number_format($v, $v == floor($v) ? 0 : 2, ',', ' ');
+                    $switchable = $hasYearly && $hasMonthly;
+                @endphp
+                <div class="plan-catalog{{ $switchable ? ' plan-catalog--switch' : '' }}">
+                    @if ($switchable)
+                        <input class="period-radio" type="radio" name="billing-period" id="period-month" value="month" checked>
+                        <input class="period-radio" type="radio" name="billing-period" id="period-year" value="year">
+                        <div class="period-switch" aria-label="Период оплаты">
+                            <label for="period-month">Месяц</label>
+                            <label for="period-year">Год @if ($maxDiscount)<span class="period-badge">−{{ $maxDiscount }}%</span>@endif</label>
+                        </div>
+                    @endif
+                    <div class="plan-grid">
+                        @foreach ($tiers as $tier)
+                            <article class="plan" data-reveal>
+                                <span class="section-number">{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }} / ПОДПИСКА</span>
+                                <h2>{{ $tier['name'] }}</h2>
+                                @foreach (['month', 'year'] as $kind)
+                                    @php $offer = $tier[$kind]; @endphp
+                                    @continue(! $switchable && $offer === null)
+                                    <div class="plan-offer{{ $switchable ? ' plan-offer--'.$kind : '' }}">
+                                        @if ($offer === null)
+                                            <p class="plan-price plan-price--none">—</p>
+                                            <p class="plan-period">{{ $kind === 'year' ? 'Только помесячная оплата' : 'Только годовая оплата' }}</p>
+                                        @else
+                                            <p class="plan-price">{{ $money($offer['price']) }} <span>{{ $offer['currency_label'] }}</span></p>
+                                            <p class="plan-period">за {{ $offer['period'] }}</p>
+                                            @if ($offer['per_month'] !== null)
+                                                <p class="plan-equiv">≈ {{ $money(round($offer['per_month'])) }} {{ $offer['currency_label'] }} в месяц@if ($offer['saving']) · <b>выгода {{ $money($offer['saving']) }} {{ $offer['currency_label'] }}</b>@endif</p>
+                                            @endif
+                                            <dl>
+                                                <div><dt>Устройства</dt><dd>{{ $offer['devices'] ?? 'По условиям тарифа' }}</dd></div>
+                                                <div><dt>Трафик</dt><dd>{{ $offer['traffic'] === null || $offer['traffic'] === 0 ? 'Без лимита' : number_format($offer['traffic'] / 1073741824, 1, ',', ' ').' ГБ' }}</dd></div>
+                                                @if ($offer['concurrent'] !== null)
+                                                    <div><dt>Одновременно</dt><dd>{{ $offer['concurrent'] }}</dd></div>
+                                                @endif
+                                            </dl>
+                                        @endif
+                                        <a href="/download" class="wb-btn wb-btn--outline">К приложению <span aria-hidden="true">↗</span><span class="sr-only">: {{ $tier['name'] }}</span></a>
+                                    </div>
+                                @endforeach
+                            </article>
+                        @endforeach
+                    </div>
                 </div>
                 <p class="price-note">Перед оформлением проверьте срок и условия подписки в приложении.</p>
             @endif

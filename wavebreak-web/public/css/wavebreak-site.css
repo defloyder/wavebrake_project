@@ -94,6 +94,22 @@ img { display: block; max-width: 100%; }
 .plan dt { color: var(--muted); }
 .plan dd { margin: 0; text-align: right; }
 .plan .wb-btn { margin-top: auto; }
+.plan-offer { display: flex; flex-direction: column; flex: 1; }
+.plan-equiv { font-size: 13px; color: var(--cyan); margin-top: 6px; }
+.plan-equiv b { font-weight: 600; }
+.plan-price--none { color: var(--muted); }
+/* Month/year switch: CSS-only (radio + :checked), month is the no-JS default. */
+.period-radio { position: absolute; opacity: 0; pointer-events: none; }
+.period-switch { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 28px; border: 1px solid #283b40; border-radius: 999px; background: #060d10; }
+.period-switch label { display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; border-radius: 999px; font-size: 14px; color: var(--muted); cursor: pointer; transition: background .2s, color .2s; }
+.period-badge { font-size: 11px; line-height: 1; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--cyan); color: var(--cyan); }
+#period-month:checked ~ .period-switch label[for="period-month"],
+#period-year:checked ~ .period-switch label[for="period-year"] { background: #12252b; color: #fff; }
+#period-month:focus-visible ~ .period-switch label[for="period-month"],
+#period-year:focus-visible ~ .period-switch label[for="period-year"] { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.plan-catalog--switch .plan-offer--year { display: none; }
+#period-year:checked ~ .plan-grid .plan-offer--year { display: flex; }
+#period-year:checked ~ .plan-grid .plan-offer--month { display: none; }
 .price-note { font-size: 13px; color: var(--muted); margin-top: 24px; }
 .plans-unavailable { padding-block: 20px; }
 .plans-unavailable h2 { margin-top: 20px; }
