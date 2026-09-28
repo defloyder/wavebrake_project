@@ -807,9 +807,13 @@ class ClientConfig {
     // Bug 13: Core has no client-config endpoint, so this fallback is what
     // "About > Website" (and the share sheet) always use.
     websiteUrl: 'https://wavebreak.com.tr',
-    supportEmail: 'support@wavebreak.app',
+    // Where the Support screen's requests go.
+    supportEmail: kSupportEmail,
   );
 }
+
+/// The support mailbox (Support screen: direct email and ready-made requests).
+const kSupportEmail = 'wavebreak.support@gmail.com';
 
 /// `GET /v1/client/bootstrap` — one call that hydrates the whole cabinet
 /// after login. Individual screens still use their own focused endpoints
