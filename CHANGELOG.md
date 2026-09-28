@@ -1,5 +1,10 @@
 # Changelog
 
+## Android 1.2.1 (versionCode 34) · Windows 1.0.4 (build 9)
+
+- «Забыли пароль?» отправляет письмо со ссылкой на страницу wavebreak.com.tr/reset-password: новый пароль задаётся там, ссылка одноразовая и действует час, все входы на других устройствах сбрасываются.
+- Откат — Android на 1.2.0 (versionCode 35), Windows на 1.0.3 (build 10).
+
 ## Android 1.2.0 (versionCode 32) · Windows 1.0.3 (build 7)
 
 ### Подтверждение почты

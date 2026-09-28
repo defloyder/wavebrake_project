@@ -18,7 +18,7 @@
 ; only changes on a deliberate release. Bump it by hand alongside
 ; pubspec.yaml's own version when cutting a new release.
 #define MyAppName "WAVEBREAK"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "WAVEBREAK"
 #define MyAppURL "https://wavebreak.com.tr"
 #define MyAppExeName "wavebreak.exe"
