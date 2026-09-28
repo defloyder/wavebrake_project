@@ -135,6 +135,8 @@ class AppStrings {
     required this.onUntrustedWifi,
     required this.connectionMode,
     required this.automatic,
+    required this.smartRoutingTitle,
+    required this.smartRoutingHint,
     required this.thisDevice,
     required this.noDevicesYet,
     required this.connectionNotifications,
@@ -364,6 +366,8 @@ class AppStrings {
   final String onUntrustedWifi;
   final String connectionMode;
   final String automatic;
+  final String smartRoutingTitle;
+  final String smartRoutingHint;
   final String thisDevice;
   final String noDevicesYet;
   final String connectionNotifications;
@@ -598,6 +602,8 @@ const kEnglishStrings = AppStrings(
   onUntrustedWifi: 'On untrusted Wi-Fi',
   connectionMode: 'Connection mode',
   automatic: 'Automatic',
+  smartRoutingTitle: 'Russian sites directly',
+  smartRoutingHint: 'Russian services open without the VPN — faster, and no blocks on foreign IPs. Blocked sites and DNS still go through the VPN.',
   thisDevice: 'This device',
   noDevicesYet: 'No devices yet',
   connectionNotifications: 'Connection notifications',
@@ -836,6 +842,8 @@ const kRussianStrings = AppStrings(
   onUntrustedWifi: 'В недоверенных Wi-Fi сетях',
   connectionMode: 'Режим подключения',
   automatic: 'Автоматический',
+  smartRoutingTitle: 'Российские сайты напрямую',
+  smartRoutingHint: 'Российские сервисы открываются без VPN — быстрее и без блокировок по зарубежному IP. Заблокированные сайты и DNS идут через VPN.',
   thisDevice: 'Это устройство',
   noDevicesYet: 'Пока нет устройств',
   connectionNotifications: 'Уведомления о подключении',
@@ -1077,6 +1085,8 @@ const kSpanishStrings = AppStrings(
   onUntrustedWifi: 'En Wi-Fi no confiable',
   connectionMode: 'Modo de conexión',
   automatic: 'Automático',
+  smartRoutingTitle: 'Sitios rusos directamente',
+  smartRoutingHint: 'Los servicios rusos se abren sin VPN: más rápido y sin bloqueos por IP extranjera. Los sitios bloqueados y el DNS siguen pasando por la VPN.',
   thisDevice: 'Este dispositivo',
   noDevicesYet: 'Aún no hay dispositivos',
   connectionNotifications: 'Notificaciones de conexión',
@@ -1321,6 +1331,8 @@ const kGermanStrings = AppStrings(
   onUntrustedWifi: 'Bei nicht vertrauenswürdigem WLAN',
   connectionMode: 'Verbindungsmodus',
   automatic: 'Automatisch',
+  smartRoutingTitle: 'Russische Seiten direkt',
+  smartRoutingHint: 'Russische Dienste öffnen ohne VPN – schneller und ohne Sperren für ausländische IPs. Gesperrte Seiten und DNS laufen weiter über das VPN.',
   thisDevice: 'Dieses Gerät',
   noDevicesYet: 'Noch keine Geräte',
   connectionNotifications: 'Verbindungsbenachrichtigungen',
@@ -1567,6 +1579,8 @@ const kFrenchStrings = AppStrings(
   onUntrustedWifi: 'Sur un Wi-Fi non fiable',
   connectionMode: 'Mode de connexion',
   automatic: 'Automatique',
+  smartRoutingTitle: 'Sites russes en direct',
+  smartRoutingHint: 'Les services russes s’ouvrent sans VPN : plus rapide et sans blocage des IP étrangères. Les sites bloqués et le DNS passent toujours par le VPN.',
   thisDevice: 'Cet appareil',
   noDevicesYet: 'Aucun appareil pour le moment',
   connectionNotifications: 'Notifications de connexion',
@@ -1810,6 +1824,8 @@ const kPortugueseStrings = AppStrings(
   onUntrustedWifi: 'Em Wi-Fi não confiável',
   connectionMode: 'Modo de conexão',
   automatic: 'Automático',
+  smartRoutingTitle: 'Sites russos diretamente',
+  smartRoutingHint: 'Os serviços russos abrem sem VPN — mais rápido e sem bloqueio de IP estrangeiro. Sites bloqueados e o DNS continuam passando pela VPN.',
   thisDevice: 'Este dispositivo',
   noDevicesYet: 'Ainda não há dispositivos',
   connectionNotifications: 'Notificações de conexão',
@@ -2050,6 +2066,8 @@ const kTurkishStrings = AppStrings(
   onUntrustedWifi: 'Güvenilmeyen Wi-Fi\'de',
   connectionMode: 'Bağlantı modu',
   automatic: 'Otomatik',
+  smartRoutingTitle: 'Rus sitelerine doğrudan',
+  smartRoutingHint: 'Rus hizmetleri VPN olmadan açılır — daha hızlı ve yabancı IP engeli olmadan. Engelli siteler ve DNS yine VPN üzerinden gider.',
   thisDevice: 'Bu cihaz',
   noDevicesYet: 'Henüz cihaz yok',
   connectionNotifications: 'Bağlantı bildirimleri',

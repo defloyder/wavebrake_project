@@ -18,6 +18,71 @@ const _hysteria = 'hysteria2://$_grant:$_grant@45.15.41.3:443/'
     '?alpn=h3&sni=hy2.wavebreak.com.tr#Turkey,%20Istanbul%20%28Hysteria2%29';
 
 void main() {
+  group('smart routing (WAVEBREAK locations)', () {
+    Map<String, dynamic> routed(String link, Map<String, dynamic>? policy) {
+      final parsed = parseShareLink(link);
+      applySmartRoutingPolicy(parsed, policy);
+      return jsonDecode(parsed.getFullConfiguration()) as Map<String, dynamic>;
+    }
+
+    test('apps DNS goes to Xray DNS; Russian names via Yandex directly, the rest through the tunnel', () {
+      final c = routed(_hysteria, kClientSmartRoutingPolicy);
+      final outbounds = (c['outbounds'] as List).cast<Map>();
+      expect(outbounds.map((o) => o['tag']), ['proxy', 'direct', 'blackhole', 'dns-out']);
+      expect(outbounds.last['protocol'], 'dns');
+      final dns = c['dns'] as Map;
+      expect(dns['tag'], 'dns-internal');
+      expect(dns['queryStrategy'], 'UseIPv4');
+      final servers = dns['servers'] as List;
+      expect((servers.first as Map)['address'], '77.88.8.8');
+      expect((servers.first as Map)['domains'], contains('domain:xn--p1ai'));
+      expect(servers.sublist(1), ['1.1.1.1', '8.8.8.8']);
+
+      final rules = ((c['routing'] as Map)['rules'] as List).cast<Map>();
+      expect(rules[0], {'type': 'field', 'inboundTag': ['in_proxy'], 'port': '53', 'outboundTag': 'dns-out'});
+      expect(rules[1], {'type': 'field', 'inboundTag': ['dns-internal'], 'ip': ['77.88.8.8'], 'outboundTag': 'direct'});
+      expect(rules[2], {'type': 'field', 'inboundTag': ['dns-internal'], 'outboundTag': 'proxy'});
+      expect((c['routing'] as Map)['domainStrategy'], 'IPIfNonMatch');
+    });
+
+    test('blocked-in-Russia goes through the tunnel before the direct Russian rules', () {
+      final rules = ((routed(_reality, kClientSmartRoutingPolicy)['routing'] as Map)['rules'] as List).cast<Map>();
+      final blocked = rules.indexWhere((r) => (r['domain'] as List?)?.contains('geosite:category-media-ru-blocked') ?? false);
+      final ru = rules.indexWhere((r) => (r['domain'] as List?)?.contains('domain:ru') ?? false);
+      final geoip = rules.indexWhere((r) => (r['ip'] as List?)?.contains('geoip:ru') ?? false);
+      expect(blocked, greaterThan(-1));
+      expect(rules[blocked]['outboundTag'], 'proxy');
+      expect(blocked, lessThan(ru));
+      expect(rules[ru]['outboundTag'], 'direct');
+      expect(rules[ru]['domain'], containsAll(['domain:ru', 'domain:su', 'domain:xn--p1ai', 'geosite:category-ru']));
+      expect(geoip, greaterThan(ru));
+    });
+
+    test('domains are sniffed for routing only', () {
+      final inbound = (routed(_directTls, kClientSmartRoutingPolicy)['inbounds'] as List).first as Map;
+      expect(inbound['sniffing'], {'enabled': true, 'destOverride': ['http', 'tls', 'quic'], 'routeOnly': true});
+    });
+
+    test("Core's own policy: geosite 'ru' becomes category-ru, no DNS change", () {
+      final c = routed(_reality, {
+        'mode': 'smart_split',
+        'direct': {'private_networks': true, 'domain_suffixes': ['.ru', '.рф'], 'geosite': ['ru'], 'geoip': ['ru']},
+      });
+      final rules = ((c['routing'] as Map)['rules'] as List).cast<Map>();
+      expect(rules.any((r) => (r['domain'] as List?)?.contains('geosite:category-ru') ?? false), isTrue);
+      expect(rules.any((r) => (r['domain'] as List?)?.contains('geosite:ru') ?? false), isFalse);
+      expect(c['dns'], {'servers': ['1.1.1.1', '8.8.8.8']});
+      expect((c['outbounds'] as List).length, 3);
+    });
+
+    test('no policy: config unchanged (users own servers)', () {
+      final c = routed(_hysteria, null);
+      expect((c['outbounds'] as List).length, 3);
+      expect(((c['routing'] as Map)['rules'] as List).length, 1);
+      expect(((c['inbounds'] as List).first as Map)['sniffing']['enabled'], false);
+    });
+  });
+
   group('ShareLink.parse — protocols in production use', () {
     test('VLESS REALITY', () {
       final l = ShareLink.parse(_reality);
@@ -198,6 +263,17 @@ void main() {
         'security': 'tls',
         'tlsSettings': {'serverName': 'hy2.wavebreak.com.tr', 'alpn': ['h3']},
         'hysteriaSettings': {'version': 2, 'auth': '$_grant:$_grant'},
+        'finalmask': {
+          'quicParams': {
+            'congestion': 'bbr',
+            'initStreamReceiveWindow': 8388608,
+            'maxStreamReceiveWindow': 16777216,
+            'initConnectionReceiveWindow': 20971520,
+            'maxConnectionReceiveWindow': 41943040,
+            'keepAlivePeriod': 10,
+            'maxIdleTimeout': 30,
+          },
+        },
       });
       final inbound = (config(_hysteria)['inbounds'] as List).first as Map;
       expect(inbound['port'], 1080);

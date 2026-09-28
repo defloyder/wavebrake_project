@@ -20,6 +20,9 @@ class PrefsStore {
   static const autoConnect = 'auto_connect';
   static const autoConnectOnLaunch = 'auto_connect_on_launch';
   static const autoConnectUntrustedWifi = 'auto_connect_untrusted_wifi';
+  // WAVEBREAK locations: Russian sites directly, DNS through the tunnel
+  // (see kClientSmartRoutingPolicy). On by default.
+  static const smartRouting = 'smart_routing';
   static const notifyConnection = 'notify_connection';
   static const notifySubscription = 'notify_subscription';
   static const biometricPromptShown = 'biometric_prompt_shown';

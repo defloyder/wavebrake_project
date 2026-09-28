@@ -25,6 +25,8 @@ class _ConnectionSettingsScreenState
   late bool _onLaunch = PrefsStore.getBool(PrefsStore.autoConnectOnLaunch);
   late bool _onUntrustedWifi =
       PrefsStore.getBool(PrefsStore.autoConnectUntrustedWifi);
+  late bool _smartRouting =
+      PrefsStore.getBool(PrefsStore.smartRouting, fallback: true);
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +95,27 @@ class _ConnectionSettingsScreenState
               ],
             ),
           ),
+          // WAVEBREAK locations only; applies on the next connect. Android
+          // for now — the Windows engine doesn't read the policy yet.
+          if (Platform.isAndroid) ...[
+            const SizedBox(height: 12),
+            WbCard(
+              child: SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                activeTrackColor: WbColors.waveCyan,
+                title: Text(s.smartRoutingTitle),
+                subtitle: Text(
+                  s.smartRoutingHint,
+                  style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                ),
+                value: _smartRouting,
+                onChanged: (value) async {
+                  await PrefsStore.setBool(PrefsStore.smartRouting, value);
+                  setState(() => _smartRouting = value);
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Text(
             s.connectionMode,

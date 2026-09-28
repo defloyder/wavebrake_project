@@ -139,10 +139,14 @@ abstract class V2RayURL {
     "balancers": []
   };
 
+  /// Outbounds beyond proxy/direct/blackhole — the smart-routing policy's
+  /// `dns-out` (see [applySmartRoutingPolicy]).
+  List<Map<String, dynamic>> extraOutbounds = [];
+
   Map<String, dynamic> get fullConfiguration => {
         "log": log,
         "inbounds": [inbound],
-        "outbounds": [outbound1, outbound2, outbound3],
+        "outbounds": [outbound1, outbound2, outbound3, ...extraOutbounds],
         "dns": dns,
         "routing": routing,
       };
@@ -819,6 +823,21 @@ class Hysteria2URL extends V2RayURL {
         "version": 2,
         "auth": l.credential,
       },
+      // BBR for uploads (the server ignores client bandwidth and runs its
+      // own BBR for downloads), receive windows sized for one long
+      // download over a 100–300 ms mobile path, and keep-alives often
+      // enough that a carrier NAT doesn't drop an idle session.
+      "finalmask": {
+        "quicParams": {
+          "congestion": "bbr",
+          "initStreamReceiveWindow": 8388608,
+          "maxStreamReceiveWindow": 16777216,
+          "initConnectionReceiveWindow": 20971520,
+          "maxConnectionReceiveWindow": 41943040,
+          "keepAlivePeriod": 10,
+          "maxIdleTimeout": 30,
+        },
+      },
     };
   }
 
@@ -927,52 +946,159 @@ V2RayURL parseShareLink(String url) {
 /// A plain share link handed to a third-party client (Happ, etc.) never
 /// carries this — Core's own comment on the field is explicit that it's
 /// WAVEBREAK-client-only, not encodable into the link itself.
+///
+/// Also used by the apps themselves for WAVEBREAK's own locations
+/// ([kClientSmartRoutingPolicy]), which additionally carry:
+///   * `proxy.geosite` — lists that must go through the tunnel even when a
+///     `direct` rule would match (blocked Russian media and trackers that
+///     sit in `.ru` or on Russian IPs);
+///   * `dns.via_tunnel` — apps' DNS goes to Xray's own resolver
+///     (`dns-out`) instead of straight out through the carrier, which
+///     often intercepts or rewrites it; `direct_resolver` answers the
+///     direct domains (a Russian resolver, so Russian CDNs pick Russian
+///     servers), the `tunnel_resolvers` everything else, through the
+///     tunnel.
 void applySmartRoutingPolicy(V2RayURL parsed, Map<String, dynamic>? policy) {
   if (policy == null) return;
   if (policy['mode'] != 'smart_split') return;
   final direct = policy['direct'];
   if (direct is! Map) return;
 
-  final rules = (parsed.routing['rules'] as List).toList();
+  // Domain rules match the domain sniffed from the TLS/HTTP/QUIC
+  // handshake; routeOnly keeps the connection on the IP the app dialed.
+  parsed.inbound = {
+    ...parsed.inbound,
+    'sniffing': {
+      'enabled': true,
+      'destOverride': ['http', 'tls', 'quic'],
+      'routeOnly': true,
+    },
+  };
 
-  if (direct['private_networks'] == true) {
-    rules.add({
-      'type': 'field',
-      'ip': ['geoip:private'],
-      'outboundTag': 'direct',
-    });
-  }
-  final suffixes = direct['domain_suffixes'];
-  if (suffixes is List && suffixes.isNotEmpty) {
-    rules.add({
-      'type': 'field',
-      // Xray's `domain:` prefix is a label-boundary suffix match (matches
-      // "example.ru" and "www.example.ru", not merely any string ending
-      // in "ru") — exactly what a leading-dot suffix like ".ru" means here,
-      // just without Xray's own leading-dot spelling.
-      'domain': [
-        for (final s in suffixes)
-          'domain:${s.toString().startsWith('.') ? s.toString().substring(1) : s}',
+  final directDomains = <String>[
+    for (final s in (direct['domain_suffixes'] as List? ?? const []))
+      'domain:${_asciiSuffix(s.toString())}',
+    for (final g in (direct['geosite'] as List? ?? const []))
+      'geosite:${_geositeTag(g.toString())}',
+  ];
+  final directIps = [
+    for (final g in (direct['geoip'] as List? ?? const [])) 'geoip:$g',
+  ];
+  final proxyPolicy = policy['proxy'];
+  final proxyDomains = [
+    if (proxyPolicy is Map)
+      for (final g in (proxyPolicy['geosite'] as List? ?? const []))
+        'geosite:${_geositeTag(g.toString())}',
+  ];
+
+  final existing = (parsed.routing['rules'] as List).toList();
+  final dnsRules = <Map<String, dynamic>>[];
+  final dnsPolicy = policy['dns'];
+  if (dnsPolicy is Map && dnsPolicy['via_tunnel'] == true) {
+    final directResolver = dnsPolicy['direct_resolver']?.toString();
+    final tunnelResolvers = [
+      for (final r in (dnsPolicy['tunnel_resolvers'] as List? ?? const ['1.1.1.1']))
+        r.toString(),
+    ];
+    parsed.dns = {
+      'tag': 'dns-internal',
+      'queryStrategy': 'UseIPv4',
+      'servers': [
+        if (directResolver != null && directDomains.isNotEmpty)
+          {
+            'address': directResolver,
+            'domains': directDomains,
+            'skipFallback': true,
+          },
+        ...tunnelResolvers,
       ],
-      'outboundTag': 'direct',
-    });
-  }
-  final geosite = direct['geosite'];
-  if (geosite is List && geosite.isNotEmpty) {
-    rules.add({
-      'type': 'field',
-      'domain': [for (final g in geosite) 'geosite:$g'],
-      'outboundTag': 'direct',
-    });
-  }
-  final geoip = direct['geoip'];
-  if (geoip is List && geoip.isNotEmpty) {
-    rules.add({
-      'type': 'field',
-      'ip': [for (final g in geoip) 'geoip:$g'],
-      'outboundTag': 'direct',
-    });
+    };
+    parsed.extraOutbounds = [
+      ...parsed.extraOutbounds.where((o) => o['tag'] != 'dns-out'),
+      {'tag': 'dns-out', 'protocol': 'dns'},
+    ];
+    dnsRules.addAll([
+      // Apps' DNS (through the TUN into the SOCKS inbound) -> Xray's DNS.
+      {
+        'type': 'field',
+        'inboundTag': [parsed.inbound['tag']],
+        'port': '53',
+        'outboundTag': 'dns-out',
+      },
+      // Xray's own queries: the Russian resolver directly, the rest
+      // through the tunnel.
+      if (directResolver != null)
+        {
+          'type': 'field',
+          'inboundTag': ['dns-internal'],
+          'ip': [directResolver],
+          'outboundTag': 'direct',
+        },
+      {
+        'type': 'field',
+        'inboundTag': ['dns-internal'],
+        'outboundTag': 'proxy',
+      },
+    ]);
   }
 
-  parsed.routing = {...parsed.routing, 'rules': rules};
+  final rules = <Map<String, dynamic>>[
+    ...dnsRules,
+    ...existing.cast<Map<String, dynamic>>(),
+    if (direct['private_networks'] == true)
+      {'type': 'field', 'ip': ['geoip:private'], 'outboundTag': 'direct'},
+    // Before the direct rules: a blocked site in .ru must still go
+    // through the tunnel.
+    if (proxyDomains.isNotEmpty)
+      {'type': 'field', 'domain': proxyDomains, 'outboundTag': 'proxy'},
+    if (directDomains.isNotEmpty)
+      {'type': 'field', 'domain': directDomains, 'outboundTag': 'direct'},
+    if (directIps.isNotEmpty)
+      {'type': 'field', 'ip': directIps, 'outboundTag': 'direct'},
+  ];
+
+  // Match domain rules first and resolve only when none did (for the
+  // geoip ones), rather than resolving every destination up front.
+  parsed.routing = {
+    ...parsed.routing,
+    'domainStrategy': 'IPIfNonMatch',
+    'rules': rules,
+  };
 }
+
+/// The policy WAVEBREAK's apps apply to their own locations (personal and
+/// shared ones — never a user's own server): Russian sites straight from
+/// the device (sites that block foreign IPs, faster), sites blocked in
+/// Russia and everything else through the tunnel, and DNS through the
+/// tunnel so the carrier can't rewrite answers.
+const Map<String, dynamic> kClientSmartRoutingPolicy = {
+  'mode': 'smart_split',
+  'direct': {
+    'private_networks': true,
+    'domain_suffixes': ['.ru', '.su', '.рф'],
+    'geosite': ['category-ru'],
+    'geoip': ['ru'],
+  },
+  'proxy': {
+    // Lists present in the bundled geosite.dat (an unknown tag makes Xray
+    // reject the whole config): blocked Russian media and trackers.
+    'geosite': ['category-media-ru-blocked', 'rutracker'],
+  },
+  'dns': {
+    'via_tunnel': true,
+    'direct_resolver': '77.88.8.8',
+    'tunnel_resolvers': ['1.1.1.1', '8.8.8.8'],
+  },
+};
+
+/// ".ru" -> "ru"; ".рф" -> "xn--p1ai" (domains travel as punycode in
+/// SNI and DNS, so a Cyrillic suffix would never match).
+String _asciiSuffix(String suffix) {
+  final bare = suffix.startsWith('.') ? suffix.substring(1) : suffix;
+  return const {'рф': 'xn--p1ai'}[bare] ?? bare;
+}
+
+/// The bundled geosite.dat has no "ru" list; Core's policy says "ru" for
+/// what the file calls "category-ru" (an unknown tag makes Xray refuse
+/// the whole config).
+String _geositeTag(String tag) => tag.toLowerCase() == 'ru' ? 'category-ru' : tag;
