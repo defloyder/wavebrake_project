@@ -1,39 +1,43 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\UserDetailsController;
 use Illuminate\Support\Facades\Route;
+
+// The user card: opened by clicking a user anywhere; every per-user action
+// lives here and answers with the re-rendered card.
+Route::prefix('/users/{userId}')->controller(UserDetailsController::class)->group(function () {
+    Route::get('/details', 'show');
+    Route::post('/profile', 'updateProfile');
+    Route::post('/block', 'block');
+    Route::post('/unblock', 'unblock');
+    Route::post('/remove', 'destroy');
+    Route::post('/password-reset', 'requestPasswordReset');
+    Route::post('/subscription', 'issueSubscription');
+    Route::post('/access', 'issueAccess');
+    Route::post('/subscriptions/{subscriptionId}/edit', 'editSubscription');
+    Route::post('/subscriptions/{subscriptionId}/reset-traffic', 'resetTraffic');
+    Route::post('/subscriptions/{subscriptionId}/reissue', 'reissueAccess');
+    Route::post('/subscriptions/{subscriptionId}/cancel', 'cancelSubscription');
+    Route::post('/devices/{deviceId}/revoke', 'revokeDevice');
+    Route::post('/grants/{grantId}/revoke', 'revokeGrant');
+});
 
 Route::get('/', [AdminController::class, 'index']);
 Route::get('/login', [AdminController::class, 'loginPage']);
-Route::get('/dashboard', [AdminController::class, 'dashboard']);
-Route::get('/nodes', [AdminController::class, 'nodes']);
-Route::get('/plans', [AdminController::class, 'plans']);
-Route::get('/enroll', [AdminController::class, 'enroll']);
-Route::get('/users', [AdminController::class, 'users']);
-Route::get('/subscriptions', [AdminController::class, 'subscriptions']);
-Route::get('/grants', [AdminController::class, 'grants']);
-Route::get('/devices', [AdminController::class, 'devices']);
-Route::get('/traffic', [AdminController::class, 'traffic']);
+Route::post('/login', [AdminController::class, 'login']);
+Route::post('/logout', [AdminController::class, 'logout']);
+
 Route::get('/traffic/live', [AdminController::class, 'trafficLive']);
 Route::get('/traffic/health', [AdminController::class, 'trafficHealth']);
 Route::post('/assistant/message', [AdminController::class, 'assistantMessage']);
 Route::post('/assistant/confirm', [AdminController::class, 'assistantConfirm']);
-Route::get('/audit', [AdminController::class, 'audit']);
-Route::post('/login', [AdminController::class, 'login']);
-Route::post('/logout', [AdminController::class, 'logout']);
-Route::post('/nodes/enroll', [AdminController::class, 'enrollNode']);
-Route::post('/grants/{grantId}/revoke', [AdminController::class, 'revokeGrant']);
-Route::post('/subscriptions/{subscriptionId}/status', [AdminController::class, 'updateSubscriptionStatus']);
-Route::post('/subscriptions/manual', [AdminController::class, 'createManualSubscription']);
-Route::post('/subscriptions/{subscriptionId}/edit', [AdminController::class, 'editSubscription']);
-Route::post('/subscriptions/{subscriptionId}/reset-usage', [AdminController::class, 'resetSubscriptionUsage']);
-Route::post('/subscriptions/{subscriptionId}/reissue', [AdminController::class, 'reissueSubscription']);
-Route::post('/subscriptions/{subscriptionId}/delete', [AdminController::class, 'deleteSubscription']);
-Route::post('/users/{userId}/role', [AdminController::class, 'updateUserRole']);
-Route::post('/users/{userId}/disable', [AdminController::class, 'disableUser']);
-Route::post('/users/{userId}/enable', [AdminController::class, 'enableUser']);
-Route::post('/users/{userId}/delete', [AdminController::class, 'deleteUser']);
+
+Route::post('/users', [AdminController::class, 'createUser']);
 Route::post('/plans', [AdminController::class, 'createPlan']);
 Route::post('/plans/{planId}', [AdminController::class, 'updatePlan']);
 Route::post('/plans/{planId}/delete', [AdminController::class, 'deletePlan']);
-Route::post('/devices/{deviceId}/revoke', [AdminController::class, 'revokeDevice']);
+Route::post('/nodes/enroll', [AdminController::class, 'enrollNode']);
+
+Route::get('/{section}', [AdminController::class, 'section'])
+    ->whereIn('section', ['dashboard', 'users', 'subscriptions', 'plans', 'nodes', 'grants', 'devices', 'traffic', 'audit', 'enroll']);

@@ -63,6 +63,16 @@ class CoreClient
         return $this->auth($token, true)->get('/v1/admin/users')->throw()->json('users') ?? [];
     }
 
+    public function createUser(string $token, array $data): array
+    {
+        return $this->auth($token)->post('/v1/admin/users', $data)->throw()->json();
+    }
+
+    public function updateUser(string $token, string $userId, array $data): array
+    {
+        return $this->auth($token)->patch("/v1/admin/users/{$userId}", $data)->throw()->json();
+    }
+
     public function updateUserRole(string $token, string $userId, string $role): array
     {
         return $this->auth($token)->patch("/v1/admin/users/{$userId}/role", compact('role'))->throw()->json();
@@ -99,6 +109,11 @@ class CoreClient
             'user_id' => $userId,
             'plan_id' => $planId,
         ])->throw()->json();
+    }
+
+    public function createSubscription(string $token, array $data): array
+    {
+        return $this->auth($token)->post('/v1/admin/subscriptions', $data)->throw()->json();
     }
 
     public function createManualSubscription(string $token, array $data): array
@@ -169,6 +184,34 @@ class CoreClient
     public function enrollNode(string $token, string $code, string $region): array
     {
         return $this->auth($token)->post('/v1/nodes/enroll', compact('code', 'region'))->throw()->json();
+    }
+
+    /** Normalized user view: user, subscription, access, traffic, devices. */
+    public function userDetails(string $token, string $userId): array
+    {
+        return $this->auth($token, true)->get('/v1/admin/users/'.rawurlencode($userId))->throw()->json();
+    }
+
+    public function userDevices(string $token, string $userId): array
+    {
+        return $this->auth($token, true)->get('/v1/admin/users/'.rawurlencode($userId).'/devices')->throw()->json();
+    }
+
+    /** Forced assignment; returns the refreshed user details. */
+    public function issueUserSubscription(string $token, string $userId, string $planId): array
+    {
+        return $this->auth($token)->post('/v1/admin/users/'.rawurlencode($userId).'/subscriptions', ['plan_id' => $planId])->throw()->json();
+    }
+
+    /** Issues the missing credential of the live subscription; returns the refreshed details. */
+    public function issueUserAccess(string $token, string $userId): array
+    {
+        return $this->auth($token)->post('/v1/admin/users/'.rawurlencode($userId).'/access')->throw()->json();
+    }
+
+    public function requestPasswordReset(string $token, string $userId): array
+    {
+        return $this->auth($token)->post('/v1/admin/users/'.rawurlencode($userId).'/password-reset')->throw()->json();
     }
 
     private function base(): PendingRequest
