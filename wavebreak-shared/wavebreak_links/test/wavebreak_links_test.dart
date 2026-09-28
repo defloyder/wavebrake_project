@@ -58,6 +58,24 @@ void main() {
       expect(geoip, greaterThan(ru));
     });
 
+    test('Direct-TLS (WebSocket) is multiplexed; REALITY Vision and Hysteria are not', () {
+      Map outbound(String link) =>
+          (routed(link, kClientSmartRoutingPolicy)['outbounds'] as List).first as Map;
+      expect(outbound(_directTls)['mux'],
+          {'enabled': true, 'concurrency': 8, 'xudpConcurrency': 16, 'xudpProxyUDP443': 'reject'});
+      expect((outbound(_reality)['mux'] as Map)['enabled'], false);
+      expect(outbound(_hysteria).containsKey('mux'), isFalse);
+      // A user's own server keeps mux off.
+      final own = jsonDecode(parseShareLink(_directTls).getFullConfiguration()) as Map;
+      expect((((own['outbounds'] as List).first as Map)['mux'] as Map)['enabled'], false);
+    });
+
+    test('known names are answered from cache while refreshed', () {
+      final dns = routed(_hysteria, kClientSmartRoutingPolicy)['dns'] as Map;
+      expect(dns['serveStale'], true);
+      expect(dns['serveExpiredTTL'], 86400);
+    });
+
     test('domains are sniffed for routing only', () {
       final inbound = (routed(_directTls, kClientSmartRoutingPolicy)['inbounds'] as List).first as Map;
       expect(inbound['sniffing'], {'enabled': true, 'destOverride': ['http', 'tls', 'quic'], 'routeOnly': true});

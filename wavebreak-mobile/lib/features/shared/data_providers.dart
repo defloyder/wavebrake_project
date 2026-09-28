@@ -207,12 +207,60 @@ final canConnectProvider = Provider<bool>((ref) {
   return sub != null && sub.isActive && !sub.isExpired;
 });
 
+/// When [locationsProvider] last started a full network pass.
+DateTime? _locationsFetchedAt;
+
+/// The location list. A returning subscriber gets what was saved last time
+/// at once and the network pass runs behind it: that pass is up to three
+/// sequential Core calls (nodes, subscription, personal access), each with
+/// its own retries, which on a slow mobile path kept the location sections
+/// spinning for many seconds on every start. When the fresh list differs
+/// from the saved one (a new link, an expired subscription), the provider
+/// rebuilds with it.
 final locationsProvider = FutureProvider<List<LocationItem>>((ref) async {
   if (!_canQueryCore(ref)) return const [];
+  final cachedSub =
+      _readCachedOne(PrefsStore.cachedSubscription, SubscriptionInfo.fromJson);
+  final savedPersonal = await PersonalLocations.saved();
+  if (cachedSub != null &&
+      cachedSub.isActive &&
+      !cachedSub.isExpired &&
+      savedPersonal.isNotEmpty) {
+    final fast = [
+      ..._readCachedList(PrefsStore.cachedLocations, LocationItem.fromJson),
+      ...savedPersonal,
+    ];
+    final last = _locationsFetchedAt;
+    if (last == null ||
+        DateTime.now().difference(last) > const Duration(seconds: 30)) {
+      _locationsFetchedAt = DateTime.now();
+      unawaited(() async {
+        try {
+          final fresh = await _fetchLocations(ref, watch: false);
+          final same = fresh.length == fast.length &&
+              Iterable<int>.generate(fresh.length)
+                  .every((i) => fresh[i].id == fast[i].id);
+          if (!same) ref.invalidateSelf();
+        } catch (_) {
+          // Offline or Core unreachable: the saved list stays.
+        }
+      }());
+    }
+    return fast;
+  }
+  _locationsFetchedAt = DateTime.now();
+  return _fetchLocations(ref, watch: true);
+});
+
+/// The full network pass behind [locationsProvider]. [watch] = false when
+/// it runs after the provider already returned (reads only, no
+/// dependencies registered that late).
+Future<List<LocationItem>> _fetchLocations(Ref ref, {required bool watch}) async {
+  final gateway =
+      watch ? ref.watch(coreGatewayProvider) : ref.read(coreGatewayProvider);
   List<LocationItem> coreLocations;
   try {
-    final rawCoreLocations =
-        await _withTimeout(ref.watch(coreGatewayProvider).locations());
+    final rawCoreLocations = await _withTimeout(gateway.locations());
     // Core's pilot node currently only publishes a VLESS+REALITY transport,
     // which was never confirmed working end-to-end from the unified
     // Xray-core engine this session (unlike Direct-TLS/WS and Hysteria2,
@@ -236,17 +284,18 @@ final locationsProvider = FutureProvider<List<LocationItem>>((ref) async {
   // real account without an active subscription (never bought, or
   // past_due: VPN blocked until renewal) sees the same upgrade prompt a
   // guest does, not free servers.
-  final sub = await ref.watch(subscriptionProvider.future);
+  final sub = watch
+      ? await ref.watch(subscriptionProvider.future)
+      : await ref.read(subscriptionProvider.future);
   if (!sub.isActive || sub.isExpired) {
     await PersonalLocations.forget();
     return coreLocations;
   }
   // See personal_locations.dart: from Core, with the last one saved for
   // when Core is unreachable, so it's not behind the try/catch above.
-  final personal =
-      await PersonalLocations.load(ref.watch(coreGatewayProvider));
+  final personal = await PersonalLocations.load(gateway);
   return [...coreLocations, ...personal];
-});
+}
 
 final devicesProvider = FutureProvider<List<DeviceItem>>((ref) async {
   if (!_canQueryCore(ref)) return const [];

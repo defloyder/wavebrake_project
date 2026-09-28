@@ -50,6 +50,13 @@ class PersonalLocations {
     return _parse(access);
   }
 
+  /// The locations from the last access Core returned, without asking
+  /// Core — empty when nothing is saved.
+  static Future<List<LocationItem>> saved() async {
+    final access = await _saved();
+    return access == null ? const [] : _parse(access);
+  }
+
   /// Drops the saved access (no active subscription any more).
   static Future<void> forget() => SecureStore.delete(SecureStore.personalAccess);
 

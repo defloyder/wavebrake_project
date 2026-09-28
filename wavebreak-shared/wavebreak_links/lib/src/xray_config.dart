@@ -402,6 +402,12 @@ class VlessURL extends V2RayURL {
 
   late final Uri uri;
 
+  /// Off unless a policy turns it on (see [applySmartRoutingPolicy]).
+  Map<String, dynamic> mux = {"enabled": false, "concurrency": 8};
+
+  /// The link's `flow` (Vision can't be multiplexed).
+  String get flow => uri.queryParameters["flow"] ?? "";
+
   @override
   Map<String, dynamic> get outbound1 => {
         "tag": "proxy",
@@ -438,10 +444,7 @@ class VlessURL extends V2RayURL {
         "streamSettings": streamSetting,
         "proxySettings": null,
         "sendThrough": null,
-        "mux": {
-          "enabled": false,
-          "concurrency": 8,
-        },
+        "mux": mux,
       };
 }
 
@@ -1003,6 +1006,11 @@ void applySmartRoutingPolicy(V2RayURL parsed, Map<String, dynamic>? policy) {
     parsed.dns = {
       'tag': 'dns-internal',
       'queryStrategy': 'UseIPv4',
+      // A known name is answered from cache at once, even past its TTL,
+      // and refreshed in the background: a lookup through the tunnel
+      // costs a round trip, which every page load used to wait for.
+      'serveStale': true,
+      'serveExpiredTTL': 86400,
       'servers': [
         if (directResolver != null && directDomains.isNotEmpty)
           {
@@ -1057,6 +1065,26 @@ void applySmartRoutingPolicy(V2RayURL parsed, Map<String, dynamic>? policy) {
       {'type': 'field', 'ip': directIps, 'outboundTag': 'direct'},
   ];
 
+  // `transport.mux_websocket`: VLESS over WebSocket (Direct-TLS) opens a
+  // TLS + WebSocket handshake per connection — 2–3 round trips before the
+  // first byte, for every one of the many connections a page or
+  // Telegram's media downloads open. Multiplexed, they share already-open
+  // connections. Not with Vision (REALITY), which can't be muxed; QUIC
+  // (UDP/443) over mux is rejected so apps fall back to TCP.
+  final transport = policy['transport'];
+  if (transport is Map &&
+      transport['mux_websocket'] == true &&
+      parsed is VlessURL &&
+      parsed.streamSetting['network'] == 'ws' &&
+      parsed.flow.isEmpty) {
+    parsed.mux = {
+      'enabled': true,
+      'concurrency': 8,
+      'xudpConcurrency': 16,
+      'xudpProxyUDP443': 'reject',
+    };
+  }
+
   // Match domain rules first and resolve only when none did (for the
   // geoip ones), rather than resolving every destination up front.
   parsed.routing = {
@@ -1088,6 +1116,9 @@ const Map<String, dynamic> kClientSmartRoutingPolicy = {
     'via_tunnel': true,
     'direct_resolver': '77.88.8.8',
     'tunnel_resolvers': ['1.1.1.1', '8.8.8.8'],
+  },
+  'transport': {
+    'mux_websocket': true,
   },
 };
 
