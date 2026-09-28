@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Exposes only this app's own external-files dir (getExternalFilesDir),
+    Exposes this app's own external-files dir (getExternalFilesDir),
     where the downloaded update APK is staged — never public/shared
     storage. Matches "external-files" path type to
     Context.getExternalFilesDir(null) exactly, per FileProvider's own
@@ -8,4 +8,6 @@
 -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-files-path name="updates" path="updates/" />
+    <!-- Files handed to the share sheet (the diagnostic log), see FileSharer.kt. -->
+    <cache-path name="shared" path="shared/" />
 </paths>

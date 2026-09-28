@@ -109,6 +109,21 @@ android {
     packagingOptions {
         jniLibs {
             useLegacyPackaging = true
+            // Per-architecture APKs (`flutter build apk --target-platform
+            // android-arm64`): Flutter then packages only its own libraries
+            // for that ABI, but the bridge .aar still brought all of its
+            // (~20 MB compressed each), so an "arm64" APK was 86 MB instead
+            // of ~40. Leave out every other ABI's native libraries.
+            val singleAbi = mapOf(
+                "android-arm64" to "arm64-v8a",
+                "android-arm" to "armeabi-v7a",
+                "android-x64" to "x86_64",
+            )[project.findProperty("target-platform")?.toString()]
+            if (singleAbi != null) {
+                listOf("arm64-v8a", "armeabi-v7a", "armeabi", "x86", "x86_64")
+                    .filter { it != singleAbi }
+                    .forEach { excludes += "lib/$it/**" }
+            }
         }
     }
 }

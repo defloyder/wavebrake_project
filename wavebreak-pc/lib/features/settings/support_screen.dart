@@ -181,6 +181,22 @@ class SupportScreen extends ConsumerWidget {
   Future<void> _exportLogs(BuildContext context) async {
     final file = await AppLogger.exportToFile();
     if (!context.mounted) return;
+    if (Platform.isAndroid) {
+      // Own share on Android: the receiving app (Telegram) opens in its own
+      // task, not inside WAVEBREAK's — see FileSharer.kt.
+      try {
+        final shared = await const MethodChannel('app.wavebreak/share')
+            .invokeMethod<bool>('shareFile', {
+          'path': file.path,
+          'mimeType': 'text/plain',
+          'text': 'WAVEBREAK diagnostic log',
+        });
+        if (shared == true) return;
+      } catch (_) {
+        // Fall back to share_plus below.
+      }
+      if (!context.mounted) return;
+    }
     await Share.shareXFiles(
       [XFile(file.path)],
       text: 'WAVEBREAK diagnostic log',

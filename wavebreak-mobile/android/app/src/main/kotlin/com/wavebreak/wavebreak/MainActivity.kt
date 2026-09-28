@@ -115,6 +115,32 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/share")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "shareFile" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("bad_args", "path is required", null)
+                        } else {
+                            try {
+                                result.success(
+                                    FileSharer.share(
+                                        this,
+                                        path,
+                                        call.argument<String>("mimeType") ?: "text/plain",
+                                        call.argument<String>("text"),
+                                    ),
+                                )
+                            } catch (t: Throwable) {
+                                result.error("share_failed", t.message, null)
+                            }
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/updater")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
