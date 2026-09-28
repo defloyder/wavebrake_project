@@ -24,6 +24,10 @@ const _curatedFlags = <String, ({List<Color> colors, Color accent})>{
     colors: [Color(0xFFAE1C28), Colors.white, Color(0xFF21468B)],
     accent: Color(0xFF21468B)
   ),
+  'RU': (
+    colors: [Colors.white, Color(0xFF0039A6), Color(0xFFD52B1E)],
+    accent: Color(0xFF0039A6)
+  ),
   'FI': (
     colors: [Color(0xFF002F6C), Colors.white, Color(0xFF002F6C)],
     accent: Color(0xFF002F6C)

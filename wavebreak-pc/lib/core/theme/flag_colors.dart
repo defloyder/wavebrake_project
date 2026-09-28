@@ -18,6 +18,7 @@ import 'wb_colors.dart';
 const _curatedFlags = <String, ({List<Color> colors, Color accent})>{
   'TR': (colors: [Color(0xFFE30A17), Colors.white, Color(0xFFE30A17)], accent: Color(0xFFE30A17)),
   'NL': (colors: [Color(0xFFAE1C28), Colors.white, Color(0xFF21468B)], accent: Color(0xFF21468B)),
+  'RU': (colors: [Colors.white, Color(0xFF0039A6), Color(0xFFD52B1E)], accent: Color(0xFF0039A6)),
   'FI': (colors: [Color(0xFF002F6C), Colors.white, Color(0xFF002F6C)], accent: Color(0xFF002F6C)),
   'US': (colors: [Color(0xFFB22234), Colors.white, Color(0xFF3C3B6E)], accent: Color(0xFF3C3B6E)),
   'GB': (colors: [Color(0xFF012169), Colors.white, Color(0xFFC8102E)], accent: Color(0xFF012169)),

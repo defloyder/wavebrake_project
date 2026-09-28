@@ -47,6 +47,13 @@ class _FlagPainter extends CustomPainter {
       case 'FI':
         _nordicCross(canvas, size, Colors.white, const Color(0xFF002F6C));
         return;
+      case 'RU':
+        _stripesHorizontal(canvas, size, [
+          Colors.white,
+          const Color(0xFF0039A6),
+          const Color(0xFFD52B1E),
+        ]);
+        return;
       case 'TR':
         _turkey(canvas, size);
         return;
