@@ -16,3 +16,6 @@ wavebreak-infrastructure/runtime/
 
 # Local device-testing screenshots/UI dumps (not source)
 vmtest/
+
+# Local release artifacts (APK/EXE), never committed
+/release/
