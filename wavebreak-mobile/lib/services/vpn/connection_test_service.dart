@@ -1,10 +1,100 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/services.dart';
 
 import '../core_api/models.dart';
+
+/// Where to send a [quicPing] for a Hysteria2 location, or null for
+/// every other transport — and for a salamander-obfuscated Hysteria2,
+/// whose listener doesn't answer plain QUIC at all.
+(String, int)? resolveQuicPingTarget(LocationItem location) {
+  final raw = (location.rawLink ?? '').trim();
+  final scheme = raw.split('://').first.toLowerCase();
+  if (scheme == 'hysteria2' || scheme == 'hy2') {
+    try {
+      final uri = Uri.parse(raw);
+      if (uri.host.isEmpty) return null;
+      if ((uri.queryParameters['obfs'] ?? '').isNotEmpty) return null;
+      return (uri.host, uri.hasPort ? uri.port : 443);
+    } catch (_) {
+      return null;
+    }
+  }
+  final test = location.connectionTest;
+  if (test != null &&
+      test.protocol?.toLowerCase() == 'hysteria2' &&
+      test.host.isNotEmpty &&
+      test.port > 0) {
+    return (test.host, test.port);
+  }
+  return null;
+}
+
+/// A real UDP round trip to a QUIC (Hysteria2) listener, in ms, or null
+/// when nothing answered within [timeout]. Sends one Initial-sized packet
+/// with a version no server supports; RFC 9000 §6 obliges the server to
+/// answer with a Version Negotiation packet echoing our connection IDs —
+/// before any handshake, auth or crypto. Measured against the pilot from
+/// Moscow: 73-74 ms, the same as the path's RTT. Also tells whether UDP to
+/// the server gets through at all, which a TCP probe can't.
+Future<int?> quicPing(String host, int port,
+    {Duration timeout = const Duration(seconds: 3)}) async {
+  RawDatagramSocket? socket;
+  try {
+    final addresses = await InternetAddress.lookup(host).timeout(timeout);
+    final address = addresses.firstWhere(
+        (a) => a.type == InternetAddressType.IPv4,
+        orElse: () => addresses.first);
+    socket = await RawDatagramSocket.bind(
+        address.type == InternetAddressType.IPv6
+            ? InternetAddress.anyIPv6
+            : InternetAddress.anyIPv4,
+        0);
+    final random = Random.secure();
+    final dcid = List<int>.generate(8, (_) => random.nextInt(256));
+    final scid = List<int>.generate(8, (_) => random.nextInt(256));
+    final packet = Uint8List(1200);
+    final header = <int>[
+      0xc0, // long header, fixed bit
+      0x1a, 0x2a, 0x3a, 0x4a, // a reserved version (RFC 9000 §15)
+      8, ...dcid,
+      8, ...scid,
+    ];
+    packet.setAll(0, header);
+    for (var i = header.length; i < packet.length; i++) {
+      packet[i] = random.nextInt(256);
+    }
+    final reply = Completer<int?>();
+    final stopwatch = Stopwatch()..start();
+    socket.listen((event) {
+      if (event != RawSocketEvent.read || reply.isCompleted) return;
+      final dg = socket!.receive();
+      if (dg == null || dg.data.length < 7) return;
+      final d = dg.data;
+      final isVersionNegotiation = (d[0] & 0x80) != 0 &&
+          d[1] == 0 &&
+          d[2] == 0 &&
+          d[3] == 0 &&
+          d[4] == 0;
+      // The server's DCID is our SCID.
+      final echoesUs = d[5] == 8 &&
+          d.length >= 14 &&
+          List.generate(8, (i) => d[6 + i]).join(',') == scid.join(',');
+      if (isVersionNegotiation && echoesUs) {
+        reply.complete(stopwatch.elapsedMilliseconds);
+      }
+    });
+    socket.send(packet, address, port);
+    return await reply.future.timeout(timeout, onTimeout: () => null);
+  } catch (_) {
+    return null;
+  } finally {
+    socket?.close();
+  }
+}
 
 /// Resolves the `host:port` a raw TCP reachability probe should dial for
 /// [location], or null when there's nothing to dial — no address could be
@@ -51,6 +141,8 @@ class ConnectionTestService {
   /// still a real reachability check, just without a Core-picked target
   /// domain or timeout.
   Future<int?> testLocation(LocationItem location) async {
+    final quic = resolveQuicPingTarget(location);
+    if (quic != null) return quicPing(quic.$1, quic.$2);
     final target = resolvePingTarget(location);
     if (target == null) return null;
     final host = target.$1;
@@ -69,7 +161,8 @@ class ConnectionTestService {
     // internet" for whatever tries to connect next. A short, hard cap
     // keeps a stuck attempt from ever running that long regardless of
     // what Core reports.
-    final timeoutMs = (location.connectionTest?.timeoutMs ?? 4000).clamp(1000, 4000);
+    final timeoutMs =
+        (location.connectionTest?.timeoutMs ?? 4000).clamp(1000, 4000);
 
     // On Android, while a tunnel is up, a plain dart:io socket to the
     // node's own host:port gets captured into that SAME tunnel (Android's
@@ -102,7 +195,8 @@ class ConnectionTestService {
     final stopwatch = Stopwatch()..start();
     Socket? socket;
     try {
-      socket = await Socket.connect(host, port, timeout: Duration(milliseconds: timeoutMs));
+      socket = await Socket.connect(host, port,
+          timeout: Duration(milliseconds: timeoutMs));
       stopwatch.stop();
       return stopwatch.elapsedMilliseconds;
     } catch (_) {
@@ -153,10 +247,13 @@ class ConnectionTestService {
   try {
     if (scheme == 'vmess') {
       final b64 = trimmed.substring('vmess://'.length).split('#').first;
-      final json = jsonDecode(utf8.decode(base64.decode(base64.normalize(b64)))) as Map<String, dynamic>;
+      final json = jsonDecode(utf8.decode(base64.decode(base64.normalize(b64))))
+          as Map<String, dynamic>;
       final host = json['add'] as String?;
       final port = int.tryParse('${json['port']}');
-      if (host == null || host.isEmpty || port == null || port <= 0) return null;
+      if (host == null || host.isEmpty || port == null || port <= 0) {
+        return null;
+      }
       return (host, port);
     }
     final uri = Uri.parse(trimmed);

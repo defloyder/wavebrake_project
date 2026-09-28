@@ -45,9 +45,10 @@ class AppEnv {
   /// being wired up per platform. Defaults to following [useMockApi] so a
   /// single `--dart-define=USE_MOCK_API=false` still turns both on unless
   /// this is set explicitly.
-  static bool get useSimulatedVpn => const bool.hasEnvironment('USE_SIMULATED_VPN')
-      ? const bool.fromEnvironment('USE_SIMULATED_VPN')
-      : useMockApi;
+  static bool get useSimulatedVpn =>
+      const bool.hasEnvironment('USE_SIMULATED_VPN')
+          ? const bool.fromEnvironment('USE_SIMULATED_VPN')
+          : useMockApi;
 
   static bool get isProduction => flavor == 'production';
   static bool get isStaging => flavor == 'staging';
@@ -56,4 +57,22 @@ class AppEnv {
   /// WAVEBREAK Core's API is versioned under `/v1` (not `/api/v1` — Core
   /// is a standalone Go service, not behind the Laravel Web/Admin apps).
   static const apiPrefix = '/v1';
+
+  static const _productionCore = 'https://core.wavebreak.com.tr';
+  static const _coreRelayOverride =
+      String.fromEnvironment('CORE_RELAY_URL', defaultValue: '-');
+
+  /// The same Core reached through the Moscow relay (nginx on the mirror
+  /// host, proxying to [coreBaseUrl]). Russian carriers throttle the app's
+  /// direct requests to the Turkish server (it is excluded from its own
+  /// tunnel), so the relay is tried first and [coreBaseUrl] is the
+  /// fallback — see ApiClient. Only VPN-less service requests go this way;
+  /// the tunnel itself never does. On by default for the production Core
+  /// only; `--dart-define=CORE_RELAY_URL=` (empty) turns it off.
+  static String get coreRelayUrl {
+    if (_coreRelayOverride != '-') return _coreRelayOverride;
+    return coreBaseUrl == _productionCore
+        ? 'https://dl.wavebreak.com.tr/core'
+        : '';
+  }
 }

@@ -73,7 +73,8 @@ class WbTheme {
         filled: true,
         fillColor: WbColors.card,
         hintStyle: const TextStyle(color: WbColors.ice60),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: WbColors.ice08),

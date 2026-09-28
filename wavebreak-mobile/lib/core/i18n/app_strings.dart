@@ -346,12 +346,15 @@ class AppStrings {
   final String traffic;
   final String trafficUnlimited;
   final String subscriptionPastDueTitle;
+
   /// Followed by the date: "Renew before 04.10.2026".
   final String renewBefore;
   final String renewResetNote;
   final String statusPastDue;
+
   /// Traffic unit; binary (1024^3 bytes) everywhere.
   final String unitGb;
+
   /// Traffic below 1 ГБ, binary (1024^2 bytes).
   final String unitMb;
   final String logOut;
@@ -528,7 +531,8 @@ const kEnglishStrings = AppStrings(
   updateInstall: 'Install',
   rollbackAction: 'Roll back to version {v}',
   rollbackConfirmTitle: 'Roll back the update?',
-  rollbackConfirmBody: 'Version {v} will be installed. Your sign-in and settings stay. You can roll back again only after the next update.',
+  rollbackConfirmBody:
+      'Version {v} will be installed. Your sign-in and settings stay. You can roll back again only after the next update.',
   rollbackConfirm: 'Roll back',
   updateAllowInstalls: 'Allow installs',
   checkForUpdates: 'Check for updates',
@@ -586,7 +590,8 @@ const kEnglishStrings = AppStrings(
   trafficUnlimited: 'Unlimited',
   subscriptionPastDueTitle: 'Subscription ended',
   renewBefore: 'Renew before',
-  renewResetNote: 'VPN is paused. Without renewal the subscription and its devices will be reset.',
+  renewResetNote:
+      'VPN is paused. Without renewal the subscription and its devices will be reset.',
   statusPastDue: 'Awaiting renewal',
   unitGb: 'GB',
   unitMb: 'MB',
@@ -603,7 +608,8 @@ const kEnglishStrings = AppStrings(
   connectionMode: 'Connection mode',
   automatic: 'Automatic',
   smartRoutingTitle: 'Russian sites directly',
-  smartRoutingHint: 'Russian services open without the VPN — faster, and no blocks on foreign IPs. Blocked sites and DNS still go through the VPN.',
+  smartRoutingHint:
+      'Russian services open without the VPN — faster, and no blocks on foreign IPs. Blocked sites and DNS still go through the VPN.',
   thisDevice: 'This device',
   noDevicesYet: 'No devices yet',
   connectionNotifications: 'Connection notifications',
@@ -619,7 +625,8 @@ const kEnglishStrings = AppStrings(
   tplSlow: 'Slow speed',
   tplSlowHint: 'What is the speed with and without VPN (the Speed test works)?',
   tplSubscription: 'Subscription and payment',
-  tplSubscriptionHint: 'What happened with the subscription or payment? Date and amount if you paid.',
+  tplSubscriptionHint:
+      'What happened with the subscription or payment? Date and amount if you paid.',
   tplDevices: 'Devices and Share',
   tplDevicesHint: 'What message do you see? How many devices are connected?',
   tplLogin: 'I can’t sign in',
@@ -683,7 +690,8 @@ const kEnglishStrings = AppStrings(
   shareDevices: 'Devices: {used} of {limit}',
   shareTraffic: 'Shared traffic: {used} of {limit}',
   shareTrafficUnlimited: 'Traffic: unlimited',
-  shareAllSlotsTaken: 'All device slots are taken — free one in Devices to share',
+  shareAllSlotsTaken:
+      'All device slots are taken — free one in Devices to share',
   shareNoSubscription: 'No active subscription to share',
   shareDeviceLimitReached: 'Device limit reached',
   shareInvalid: 'This code is invalid or has expired',
@@ -740,7 +748,8 @@ const kRussianStrings = AppStrings(
   confirmPin: 'Подтвердите PIN',
   pinsDontMatch: 'PIN-коды не совпадают — попробуйте снова',
   incorrectPin: 'Неверный PIN',
-  pinCheckFailed: 'Не удалось проверить PIN. Повторите или выйдите из аккаунта ниже',
+  pinCheckFailed:
+      'Не удалось проверить PIN. Повторите или выйдите из аккаунта ниже',
   unlockWavebreak: 'Разблокировать WAVEBREAK',
   pinRequiredForBiometric: 'Задайте PIN на случай, если биометрия не сработает',
   troubleUnlockingLogOut: 'Проблемы со входом? Выйти',
@@ -767,7 +776,8 @@ const kRussianStrings = AppStrings(
   updateInstall: 'Установить',
   rollbackAction: 'Откатить на версию {v}',
   rollbackConfirmTitle: 'Откатить обновление?',
-  rollbackConfirmBody: 'Будет установлена версия {v}. Вход и настройки сохранятся. Повторный откат станет доступен только после следующего обновления.',
+  rollbackConfirmBody:
+      'Будет установлена версия {v}. Вход и настройки сохранятся. Повторный откат станет доступен только после следующего обновления.',
   rollbackConfirm: 'Откатить',
   updateAllowInstalls: 'Разрешить установку',
   checkForUpdates: 'Проверить обновления',
@@ -826,7 +836,8 @@ const kRussianStrings = AppStrings(
   trafficUnlimited: 'Безлимитно',
   subscriptionPastDueTitle: 'Подписка закончилась',
   renewBefore: 'Продлите до',
-  renewResetNote: 'VPN приостановлен. Без продления подписка и её устройства будут сброшены.',
+  renewResetNote:
+      'VPN приостановлен. Без продления подписка и её устройства будут сброшены.',
   statusPastDue: 'Ожидает продления',
   unitGb: 'ГБ',
   unitMb: 'МБ',
@@ -843,7 +854,8 @@ const kRussianStrings = AppStrings(
   connectionMode: 'Режим подключения',
   automatic: 'Автоматический',
   smartRoutingTitle: 'Российские сайты напрямую',
-  smartRoutingHint: 'Российские сервисы открываются без VPN — быстрее и без блокировок по зарубежному IP. Заблокированные сайты и DNS идут через VPN.',
+  smartRoutingHint:
+      'Российские сервисы открываются без VPN — быстрее и без блокировок по зарубежному IP. Заблокированные сайты и DNS идут через VPN.',
   thisDevice: 'Это устройство',
   noDevicesYet: 'Пока нет устройств',
   connectionNotifications: 'Уведомления о подключении',
@@ -855,11 +867,13 @@ const kRussianStrings = AppStrings(
   reportAProblem: 'Сообщить о проблеме',
   supportTemplatesTitle: 'Готовые обращения',
   tplNoConnect: 'Не подключается или не открываются сайты',
-  tplNoConnectHint: 'Какие сайты или приложения не открываются? Что показывает WAVEBREAK?',
+  tplNoConnectHint:
+      'Какие сайты или приложения не открываются? Что показывает WAVEBREAK?',
   tplSlow: 'Низкая скорость',
   tplSlowHint: 'Какая скорость с VPN и без него (можно из «Теста скорости»)?',
   tplSubscription: 'Подписка и оплата',
-  tplSubscriptionHint: 'Что случилось с подпиской или оплатой? Дата и сумма платежа, если был.',
+  tplSubscriptionHint:
+      'Что случилось с подпиской или оплатой? Дата и сумма платежа, если был.',
   tplDevices: 'Устройства и «Поделиться»',
   tplDevicesHint: 'Какое сообщение видите? Сколько устройств подключено?',
   tplLogin: 'Не могу войти в аккаунт',
@@ -920,11 +934,13 @@ const kRussianStrings = AppStrings(
   shareSubscription: 'Поделиться',
   copyLink: 'Скопировать ссылку',
   linkCopied: 'Ссылка скопирована',
-  shareScanHint: 'Отсканируйте в приложении WAVEBREAK: «Добавить свою VPN-ссылку» → QR',
+  shareScanHint:
+      'Отсканируйте в приложении WAVEBREAK: «Добавить свою VPN-ссылку» → QR',
   shareDevices: 'Устройств: {used} из {limit}',
   shareTraffic: 'Общий трафик: {used} из {limit}',
   shareTrafficUnlimited: 'Трафик: без ограничений',
-  shareAllSlotsTaken: 'Все места для устройств заняты — освободите одно в «Устройствах»',
+  shareAllSlotsTaken:
+      'Все места для устройств заняты — освободите одно в «Устройствах»',
   shareNoSubscription: 'Нет активной подписки, чтобы поделиться',
   shareDeviceLimitReached: 'Достигнут лимит устройств',
   shareInvalid: 'Код недействителен или устарел',
@@ -983,7 +999,8 @@ const kSpanishStrings = AppStrings(
   confirmPin: 'Confirma tu PIN',
   pinsDontMatch: 'Los PIN no coinciden — inténtalo de nuevo',
   incorrectPin: 'PIN incorrecto',
-  pinCheckFailed: 'No se pudo comprobar el PIN. Inténtalo de nuevo o cierra sesión abajo',
+  pinCheckFailed:
+      'No se pudo comprobar el PIN. Inténtalo de nuevo o cierra sesión abajo',
   unlockWavebreak: 'Desbloquear WAVEBREAK',
   pinRequiredForBiometric:
       'Configura un PIN de respaldo por si falla el desbloqueo biométrico',
@@ -1011,7 +1028,8 @@ const kSpanishStrings = AppStrings(
   updateInstall: 'Instalar',
   rollbackAction: 'Volver a la versión {v}',
   rollbackConfirmTitle: '¿Revertir la actualización?',
-  rollbackConfirmBody: 'Se instalará la versión {v}. Tu sesión y ajustes se conservan. Podrás volver a revertir solo tras la próxima actualización.',
+  rollbackConfirmBody:
+      'Se instalará la versión {v}. Tu sesión y ajustes se conservan. Podrás volver a revertir solo tras la próxima actualización.',
   rollbackConfirm: 'Revertir',
   updateAllowInstalls: 'Permitir instalación',
   checkForUpdates: 'Buscar actualizaciones',
@@ -1069,7 +1087,8 @@ const kSpanishStrings = AppStrings(
   trafficUnlimited: 'Ilimitado',
   subscriptionPastDueTitle: 'Suscripción finalizada',
   renewBefore: 'Renueve antes del',
-  renewResetNote: 'La VPN está en pausa. Sin renovación, la suscripción y sus dispositivos se restablecerán.',
+  renewResetNote:
+      'La VPN está en pausa. Sin renovación, la suscripción y sus dispositivos se restablecerán.',
   statusPastDue: 'Pendiente de renovación',
   unitGb: 'GB',
   unitMb: 'MB',
@@ -1086,7 +1105,8 @@ const kSpanishStrings = AppStrings(
   connectionMode: 'Modo de conexión',
   automatic: 'Automático',
   smartRoutingTitle: 'Sitios rusos directamente',
-  smartRoutingHint: 'Los servicios rusos se abren sin VPN: más rápido y sin bloqueos por IP extranjera. Los sitios bloqueados y el DNS siguen pasando por la VPN.',
+  smartRoutingHint:
+      'Los servicios rusos se abren sin VPN: más rápido y sin bloqueos por IP extranjera. Los sitios bloqueados y el DNS siguen pasando por la VPN.',
   thisDevice: 'Este dispositivo',
   noDevicesYet: 'Aún no hay dispositivos',
   connectionNotifications: 'Notificaciones de conexión',
@@ -1100,9 +1120,11 @@ const kSpanishStrings = AppStrings(
   tplNoConnect: 'No conecta o no abren los sitios',
   tplNoConnectHint: '¿Qué sitios o apps no abren? ¿Qué muestra WAVEBREAK?',
   tplSlow: 'Velocidad baja',
-  tplSlowHint: '¿Qué velocidad hay con y sin VPN (sirve la Prueba de velocidad)?',
+  tplSlowHint:
+      '¿Qué velocidad hay con y sin VPN (sirve la Prueba de velocidad)?',
   tplSubscription: 'Suscripción y pago',
-  tplSubscriptionHint: '¿Qué pasó con la suscripción o el pago? Fecha e importe si pagaste.',
+  tplSubscriptionHint:
+      '¿Qué pasó con la suscripción o el pago? Fecha e importe si pagaste.',
   tplDevices: 'Dispositivos y Compartir',
   tplDevicesHint: '¿Qué mensaje ves? ¿Cuántos dispositivos hay conectados?',
   tplLogin: 'No puedo iniciar sesión',
@@ -1163,11 +1185,13 @@ const kSpanishStrings = AppStrings(
   shareSubscription: 'Compartir',
   copyLink: 'Copiar enlace',
   linkCopied: 'Enlace copiado',
-  shareScanHint: 'Escanéalo en la app WAVEBREAK: Agregar tu propio enlace VPN → QR',
+  shareScanHint:
+      'Escanéalo en la app WAVEBREAK: Agregar tu propio enlace VPN → QR',
   shareDevices: 'Dispositivos: {used} de {limit}',
   shareTraffic: 'Tráfico compartido: {used} de {limit}',
   shareTrafficUnlimited: 'Tráfico: ilimitado',
-  shareAllSlotsTaken: 'Todos los dispositivos están ocupados: libera uno en Dispositivos',
+  shareAllSlotsTaken:
+      'Todos los dispositivos están ocupados: libera uno en Dispositivos',
   shareNoSubscription: 'No hay una suscripción activa para compartir',
   shareDeviceLimitReached: 'Se alcanzó el límite de dispositivos',
   shareInvalid: 'El código no es válido o ha caducado',
@@ -1181,7 +1205,8 @@ const kSpanishStrings = AppStrings(
       'Solo https:// — direcciones locales/privadas no están permitidas',
   backOnlineBanner: 'De nuevo en línea',
   updates: 'Actualizaciones',
-  batteryOptPromptTitle: '¿Hacer que WAVEBREAK sea más fiable en segundo plano?',
+  batteryOptPromptTitle:
+      '¿Hacer que WAVEBREAK sea más fiable en segundo plano?',
   batteryOptPromptBody:
       'El ahorro de batería de Android puede pausar las apps VPN siempre activas durante períodos de inactividad prolongados, causando desconexiones. Permite el uso ilimitado de batería para una protección más fiable.',
   batteryOptSettingsRow: 'Uso de batería sin restricciones',
@@ -1227,7 +1252,8 @@ const kGermanStrings = AppStrings(
   confirmPin: 'PIN bestätigen',
   pinsDontMatch: 'PINs stimmen nicht überein — erneut versuchen',
   incorrectPin: 'Falscher PIN',
-  pinCheckFailed: 'PIN konnte nicht geprüft werden. Erneut versuchen oder unten abmelden',
+  pinCheckFailed:
+      'PIN konnte nicht geprüft werden. Erneut versuchen oder unten abmelden',
   unlockWavebreak: 'WAVEBREAK entsperren',
   pinRequiredForBiometric:
       'Lege eine PIN als Backup fest, falls die biometrische Entsperrung fehlschlägt',
@@ -1255,7 +1281,8 @@ const kGermanStrings = AppStrings(
   updateInstall: 'Installieren',
   rollbackAction: 'Zurück zu Version {v}',
   rollbackConfirmTitle: 'Update rückgängig machen?',
-  rollbackConfirmBody: 'Version {v} wird installiert. Anmeldung und Einstellungen bleiben erhalten. Ein weiteres Zurücksetzen ist erst nach dem nächsten Update möglich.',
+  rollbackConfirmBody:
+      'Version {v} wird installiert. Anmeldung und Einstellungen bleiben erhalten. Ein weiteres Zurücksetzen ist erst nach dem nächsten Update möglich.',
   rollbackConfirm: 'Zurücksetzen',
   updateAllowInstalls: 'Installationen erlauben',
   checkForUpdates: 'Nach Updates suchen',
@@ -1314,7 +1341,8 @@ const kGermanStrings = AppStrings(
   trafficUnlimited: 'Unbegrenzt',
   subscriptionPastDueTitle: 'Abo beendet',
   renewBefore: 'Verlängern bis',
-  renewResetNote: 'VPN pausiert. Ohne Verlängerung werden das Abo und seine Geräte zurückgesetzt.',
+  renewResetNote:
+      'VPN pausiert. Ohne Verlängerung werden das Abo und seine Geräte zurückgesetzt.',
   statusPastDue: 'Verlängerung ausstehend',
   unitGb: 'GB',
   unitMb: 'MB',
@@ -1332,7 +1360,8 @@ const kGermanStrings = AppStrings(
   connectionMode: 'Verbindungsmodus',
   automatic: 'Automatisch',
   smartRoutingTitle: 'Russische Seiten direkt',
-  smartRoutingHint: 'Russische Dienste öffnen ohne VPN – schneller und ohne Sperren für ausländische IPs. Gesperrte Seiten und DNS laufen weiter über das VPN.',
+  smartRoutingHint:
+      'Russische Dienste öffnen ohne VPN – schneller und ohne Sperren für ausländische IPs. Gesperrte Seiten und DNS laufen weiter über das VPN.',
   thisDevice: 'Dieses Gerät',
   noDevicesYet: 'Noch keine Geräte',
   connectionNotifications: 'Verbindungsbenachrichtigungen',
@@ -1344,11 +1373,13 @@ const kGermanStrings = AppStrings(
   reportAProblem: 'Problem melden',
   supportTemplatesTitle: 'Vorlagen für Anfragen',
   tplNoConnect: 'Keine Verbindung oder Seiten laden nicht',
-  tplNoConnectHint: 'Welche Seiten oder Apps öffnen nicht? Was zeigt WAVEBREAK an?',
+  tplNoConnectHint:
+      'Welche Seiten oder Apps öffnen nicht? Was zeigt WAVEBREAK an?',
   tplSlow: 'Langsame Geschwindigkeit',
   tplSlowHint: 'Wie schnell ist es mit und ohne VPN (Geschwindigkeitstest)?',
   tplSubscription: 'Abo und Zahlung',
-  tplSubscriptionHint: 'Was ist mit dem Abo oder der Zahlung passiert? Datum und Betrag, falls bezahlt.',
+  tplSubscriptionHint:
+      'Was ist mit dem Abo oder der Zahlung passiert? Datum und Betrag, falls bezahlt.',
   tplDevices: 'Geräte und Teilen',
   tplDevicesHint: 'Welche Meldung siehst du? Wie viele Geräte sind verbunden?',
   tplLogin: 'Ich kann mich nicht anmelden',
@@ -1411,11 +1442,13 @@ const kGermanStrings = AppStrings(
   shareSubscription: 'Teilen',
   copyLink: 'Link kopieren',
   linkCopied: 'Link kopiert',
-  shareScanHint: 'Scanne ihn in der WAVEBREAK-App: Eigenen VPN-Link hinzufügen → QR',
+  shareScanHint:
+      'Scanne ihn in der WAVEBREAK-App: Eigenen VPN-Link hinzufügen → QR',
   shareDevices: 'Geräte: {used} von {limit}',
   shareTraffic: 'Geteiltes Datenvolumen: {used} von {limit}',
   shareTrafficUnlimited: 'Datenvolumen: unbegrenzt',
-  shareAllSlotsTaken: 'Alle Geräteplätze sind belegt – gib unter Geräte einen frei',
+  shareAllSlotsTaken:
+      'Alle Geräteplätze sind belegt – gib unter Geräte einen frei',
   shareNoSubscription: 'Kein aktives Abo zum Teilen',
   shareDeviceLimitReached: 'Gerätelimit erreicht',
   shareInvalid: 'Der Code ist ungültig oder abgelaufen',
@@ -1474,7 +1507,8 @@ const kFrenchStrings = AppStrings(
   confirmPin: 'Confirmez votre PIN',
   pinsDontMatch: 'Les PIN ne correspondent pas — réessayez',
   incorrectPin: 'PIN incorrect',
-  pinCheckFailed: 'Impossible de vérifier le PIN. Réessayez ou déconnectez-vous ci-dessous',
+  pinCheckFailed:
+      'Impossible de vérifier le PIN. Réessayez ou déconnectez-vous ci-dessous',
   unlockWavebreak: 'Déverrouiller WAVEBREAK',
   pinRequiredForBiometric:
       'Définissez un code PIN de secours en cas d\'échec du déverrouillage biométrique',
@@ -1502,7 +1536,8 @@ const kFrenchStrings = AppStrings(
   updateInstall: 'Installer',
   rollbackAction: 'Revenir à la version {v}',
   rollbackConfirmTitle: 'Annuler la mise à jour ?',
-  rollbackConfirmBody: 'La version {v} sera installée. Votre connexion et vos réglages sont conservés. Un nouveau retour ne sera possible qu’après la prochaine mise à jour.',
+  rollbackConfirmBody:
+      'La version {v} sera installée. Votre connexion et vos réglages sont conservés. Un nouveau retour ne sera possible qu’après la prochaine mise à jour.',
   rollbackConfirm: 'Revenir',
   updateAllowInstalls: 'Autoriser les installations',
   checkForUpdates: 'Rechercher des mises à jour',
@@ -1561,7 +1596,8 @@ const kFrenchStrings = AppStrings(
   trafficUnlimited: 'Illimité',
   subscriptionPastDueTitle: 'Abonnement terminé',
   renewBefore: 'Renouvelez avant le',
-  renewResetNote: "Le VPN est en pause. Sans renouvellement, l'abonnement et ses appareils seront réinitialisés.",
+  renewResetNote:
+      "Le VPN est en pause. Sans renouvellement, l'abonnement et ses appareils seront réinitialisés.",
   statusPastDue: 'En attente de renouvellement',
   unitGb: 'Go',
   unitMb: 'Mo',
@@ -1580,7 +1616,8 @@ const kFrenchStrings = AppStrings(
   connectionMode: 'Mode de connexion',
   automatic: 'Automatique',
   smartRoutingTitle: 'Sites russes en direct',
-  smartRoutingHint: 'Les services russes s’ouvrent sans VPN : plus rapide et sans blocage des IP étrangères. Les sites bloqués et le DNS passent toujours par le VPN.',
+  smartRoutingHint:
+      'Les services russes s’ouvrent sans VPN : plus rapide et sans blocage des IP étrangères. Les sites bloqués et le DNS passent toujours par le VPN.',
   thisDevice: 'Cet appareil',
   noDevicesYet: 'Aucun appareil pour le moment',
   connectionNotifications: 'Notifications de connexion',
@@ -1592,13 +1629,16 @@ const kFrenchStrings = AppStrings(
   reportAProblem: 'Signaler un problème',
   supportTemplatesTitle: 'Demandes prêtes à l’emploi',
   tplNoConnect: 'Pas de connexion ou sites inaccessibles',
-  tplNoConnectHint: 'Quels sites ou applis ne s’ouvrent pas ? Que montre WAVEBREAK ?',
+  tplNoConnectHint:
+      'Quels sites ou applis ne s’ouvrent pas ? Que montre WAVEBREAK ?',
   tplSlow: 'Vitesse lente',
   tplSlowHint: 'Quelle vitesse avec et sans VPN (le Test de vitesse suffit) ?',
   tplSubscription: 'Abonnement et paiement',
-  tplSubscriptionHint: 'Que s’est-il passé avec l’abonnement ou le paiement ? Date et montant si payé.',
+  tplSubscriptionHint:
+      'Que s’est-il passé avec l’abonnement ou le paiement ? Date et montant si payé.',
   tplDevices: 'Appareils et Partager',
-  tplDevicesHint: 'Quel message voyez-vous ? Combien d’appareils sont connectés ?',
+  tplDevicesHint:
+      'Quel message voyez-vous ? Combien d’appareils sont connectés ?',
   tplLogin: 'Je ne peux pas me connecter',
   tplLoginHint: 'Quelle erreur affiche l’écran de connexion ?',
   tplOtherHint: 'Décrivez votre question ou problème.',
@@ -1658,11 +1698,13 @@ const kFrenchStrings = AppStrings(
   shareSubscription: 'Partager',
   copyLink: 'Copier le lien',
   linkCopied: 'Lien copié',
-  shareScanHint: 'Scannez-le dans l\'app WAVEBREAK : Ajouter votre propre lien VPN → QR',
+  shareScanHint:
+      'Scannez-le dans l\'app WAVEBREAK : Ajouter votre propre lien VPN → QR',
   shareDevices: 'Appareils : {used} sur {limit}',
   shareTraffic: 'Trafic partagé : {used} sur {limit}',
   shareTrafficUnlimited: 'Trafic : illimité',
-  shareAllSlotsTaken: 'Tous les emplacements d\'appareils sont pris — libérez-en un dans Appareils',
+  shareAllSlotsTaken:
+      'Tous les emplacements d\'appareils sont pris — libérez-en un dans Appareils',
   shareNoSubscription: 'Aucun abonnement actif à partager',
   shareDeviceLimitReached: 'Limite d\'appareils atteinte',
   shareInvalid: 'Ce code est invalide ou a expiré',
@@ -1721,7 +1763,8 @@ const kPortugueseStrings = AppStrings(
   confirmPin: 'Confirme seu PIN',
   pinsDontMatch: 'Os PINs não coincidem — tente novamente',
   incorrectPin: 'PIN incorreto',
-  pinCheckFailed: 'Não foi possível verificar o PIN. Tente de novo ou saia abaixo',
+  pinCheckFailed:
+      'Não foi possível verificar o PIN. Tente de novo ou saia abaixo',
   unlockWavebreak: 'Desbloquear o WAVEBREAK',
   pinRequiredForBiometric:
       'Defina um PIN de backup caso o desbloqueio biométrico falhe',
@@ -1749,7 +1792,8 @@ const kPortugueseStrings = AppStrings(
   updateInstall: 'Instalar',
   rollbackAction: 'Voltar para a versão {v}',
   rollbackConfirmTitle: 'Reverter a atualização?',
-  rollbackConfirmBody: 'A versão {v} será instalada. Seu login e configurações são mantidos. Só será possível reverter de novo após a próxima atualização.',
+  rollbackConfirmBody:
+      'A versão {v} será instalada. Seu login e configurações são mantidos. Só será possível reverter de novo após a próxima atualização.',
   rollbackConfirm: 'Reverter',
   updateAllowInstalls: 'Permitir instalação',
   checkForUpdates: 'Verificar atualizações',
@@ -1808,7 +1852,8 @@ const kPortugueseStrings = AppStrings(
   trafficUnlimited: 'Ilimitado',
   subscriptionPastDueTitle: 'Assinatura encerrada',
   renewBefore: 'Renove até',
-  renewResetNote: 'A VPN está pausada. Sem renovação, a assinatura e seus dispositivos serão redefinidos.',
+  renewResetNote:
+      'A VPN está pausada. Sem renovação, a assinatura e seus dispositivos serão redefinidos.',
   statusPastDue: 'Aguardando renovação',
   unitGb: 'GB',
   unitMb: 'MB',
@@ -1825,7 +1870,8 @@ const kPortugueseStrings = AppStrings(
   connectionMode: 'Modo de conexão',
   automatic: 'Automático',
   smartRoutingTitle: 'Sites russos diretamente',
-  smartRoutingHint: 'Os serviços russos abrem sem VPN — mais rápido e sem bloqueio de IP estrangeiro. Sites bloqueados e o DNS continuam passando pela VPN.',
+  smartRoutingHint:
+      'Os serviços russos abrem sem VPN — mais rápido e sem bloqueio de IP estrangeiro. Sites bloqueados e o DNS continuam passando pela VPN.',
   thisDevice: 'Este dispositivo',
   noDevicesYet: 'Ainda não há dispositivos',
   connectionNotifications: 'Notificações de conexão',
@@ -1841,9 +1887,11 @@ const kPortugueseStrings = AppStrings(
   tplSlow: 'Velocidade baixa',
   tplSlowHint: 'Qual a velocidade com e sem VPN (use o Teste de velocidade)?',
   tplSubscription: 'Assinatura e pagamento',
-  tplSubscriptionHint: 'O que aconteceu com a assinatura ou o pagamento? Data e valor, se pagou.',
+  tplSubscriptionHint:
+      'O que aconteceu com a assinatura ou o pagamento? Data e valor, se pagou.',
   tplDevices: 'Dispositivos e Compartilhar',
-  tplDevicesHint: 'Qual mensagem aparece? Quantos dispositivos estão conectados?',
+  tplDevicesHint:
+      'Qual mensagem aparece? Quantos dispositivos estão conectados?',
   tplLogin: 'Não consigo entrar',
   tplLoginHint: 'Qual erro aparece na tela de login?',
   tplOtherHint: 'Descreva sua dúvida ou problema.',
@@ -1902,11 +1950,13 @@ const kPortugueseStrings = AppStrings(
   shareSubscription: 'Compartilhar',
   copyLink: 'Copiar link',
   linkCopied: 'Link copiado',
-  shareScanHint: 'Escaneie no app WAVEBREAK: Adicionar seu próprio link VPN → QR',
+  shareScanHint:
+      'Escaneie no app WAVEBREAK: Adicionar seu próprio link VPN → QR',
   shareDevices: 'Dispositivos: {used} de {limit}',
   shareTraffic: 'Tráfego compartilhado: {used} de {limit}',
   shareTrafficUnlimited: 'Tráfego: ilimitado',
-  shareAllSlotsTaken: 'Todos os dispositivos estão ocupados — libere um em Dispositivos',
+  shareAllSlotsTaken:
+      'Todos os dispositivos estão ocupados — libere um em Dispositivos',
   shareNoSubscription: 'Nenhuma assinatura ativa para compartilhar',
   shareDeviceLimitReached: 'Limite de dispositivos atingido',
   shareInvalid: 'Código inválido ou expirado',
@@ -1992,7 +2042,8 @@ const kTurkishStrings = AppStrings(
   updateInstall: 'Yükle',
   rollbackAction: '{v} sürümüne geri dön',
   rollbackConfirmTitle: 'Güncelleme geri alınsın mı?',
-  rollbackConfirmBody: '{v} sürümü yüklenecek. Oturumunuz ve ayarlarınız korunur. Tekrar geri alma yalnızca bir sonraki güncellemeden sonra mümkün olur.',
+  rollbackConfirmBody:
+      '{v} sürümü yüklenecek. Oturumunuz ve ayarlarınız korunur. Tekrar geri alma yalnızca bir sonraki güncellemeden sonra mümkün olur.',
   rollbackConfirm: 'Geri al',
   updateAllowInstalls: 'Yüklemelere izin ver',
   checkForUpdates: 'Güncellemeleri denetle',
@@ -2050,7 +2101,8 @@ const kTurkishStrings = AppStrings(
   trafficUnlimited: 'Sınırsız',
   subscriptionPastDueTitle: 'Abonelik sona erdi',
   renewBefore: 'Şu tarihe kadar yenileyin:',
-  renewResetNote: 'VPN duraklatıldı. Yenilenmezse abonelik ve cihazları sıfırlanır.',
+  renewResetNote:
+      'VPN duraklatıldı. Yenilenmezse abonelik ve cihazları sıfırlanır.',
   statusPastDue: 'Yenileme bekleniyor',
   unitGb: 'GB',
   unitMb: 'MB',
@@ -2067,7 +2119,8 @@ const kTurkishStrings = AppStrings(
   connectionMode: 'Bağlantı modu',
   automatic: 'Otomatik',
   smartRoutingTitle: 'Rus sitelerine doğrudan',
-  smartRoutingHint: 'Rus hizmetleri VPN olmadan açılır — daha hızlı ve yabancı IP engeli olmadan. Engelli siteler ve DNS yine VPN üzerinden gider.',
+  smartRoutingHint:
+      'Rus hizmetleri VPN olmadan açılır — daha hızlı ve yabancı IP engeli olmadan. Engelli siteler ve DNS yine VPN üzerinden gider.',
   thisDevice: 'Bu cihaz',
   noDevicesYet: 'Henüz cihaz yok',
   connectionNotifications: 'Bağlantı bildirimleri',
@@ -2079,11 +2132,13 @@ const kTurkishStrings = AppStrings(
   reportAProblem: 'Sorun bildir',
   supportTemplatesTitle: 'Hazır talepler',
   tplNoConnect: 'Bağlanmıyor veya siteler açılmıyor',
-  tplNoConnectHint: 'Hangi siteler veya uygulamalar açılmıyor? WAVEBREAK ne gösteriyor?',
+  tplNoConnectHint:
+      'Hangi siteler veya uygulamalar açılmıyor? WAVEBREAK ne gösteriyor?',
   tplSlow: 'Düşük hız',
   tplSlowHint: 'VPN ile ve VPN olmadan hız ne (Hız testi kullanılabilir)?',
   tplSubscription: 'Abonelik ve ödeme',
-  tplSubscriptionHint: 'Abonelik veya ödemeyle ne oldu? Ödeme yaptıysanız tarih ve tutar.',
+  tplSubscriptionHint:
+      'Abonelik veya ödemeyle ne oldu? Ödeme yaptıysanız tarih ve tutar.',
   tplDevices: 'Cihazlar ve Paylaş',
   tplDevicesHint: 'Hangi mesajı görüyorsunuz? Kaç cihaz bağlı?',
   tplLogin: 'Hesaba giriş yapamıyorum',
@@ -2145,11 +2200,13 @@ const kTurkishStrings = AppStrings(
   shareSubscription: 'Paylaş',
   copyLink: 'Bağlantıyı kopyala',
   linkCopied: 'Bağlantı kopyalandı',
-  shareScanHint: 'WAVEBREAK uygulamasında tarayın: Kendi VPN bağlantınızı ekleyin → QR',
+  shareScanHint:
+      'WAVEBREAK uygulamasında tarayın: Kendi VPN bağlantınızı ekleyin → QR',
   shareDevices: 'Cihazlar: {used} / {limit}',
   shareTraffic: 'Ortak trafik: {used} / {limit}',
   shareTrafficUnlimited: 'Trafik: sınırsız',
-  shareAllSlotsTaken: 'Tüm cihaz yerleri dolu — Cihazlar bölümünden birini boşaltın',
+  shareAllSlotsTaken:
+      'Tüm cihaz yerleri dolu — Cihazlar bölümünden birini boşaltın',
   shareNoSubscription: 'Paylaşılacak aktif abonelik yok',
   shareDeviceLimitReached: 'Cihaz sınırına ulaşıldı',
   shareInvalid: 'Kod geçersiz veya süresi dolmuş',

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:uuid/uuid.dart';
 
 import '../env/app_env.dart';
@@ -21,7 +22,7 @@ class ApiClient {
     ErrorMapper? mapper,
   }) : mapper = mapper ?? const ErrorMapper() {
     final options = BaseOptions(
-      baseUrl: '${AppEnv.coreBaseUrl}${AppEnv.apiPrefix}',
+      baseUrl: currentBaseUrl,
       connectTimeout: const Duration(seconds: 12),
       receiveTimeout: const Duration(seconds: 20),
       sendTimeout: const Duration(seconds: 12),
@@ -66,6 +67,71 @@ class ApiClient {
           handler.next(error);
         },
       );
+
+  /// Where Core is reached, best first: the Moscow relay (when configured,
+  /// see [AppEnv.coreRelayUrl]), then Core directly. Shared by every
+  /// ApiClient in the process.
+  static List<String> _baseUrls = [
+    if (AppEnv.coreRelayUrl.isNotEmpty)
+      '${AppEnv.coreRelayUrl}${AppEnv.apiPrefix}',
+    '${AppEnv.coreBaseUrl}${AppEnv.apiPrefix}',
+  ];
+  static int _activeBase = 0;
+  static DateTime? _fellBackAt;
+
+  @visibleForTesting
+  static void debugSetBaseUrls(List<String> urls) {
+    _baseUrls = urls;
+    _activeBase = 0;
+    _fellBackAt = null;
+  }
+
+  /// After this long on a fallback, the preferred route is tried again
+  /// (the relay may have been down only briefly).
+  static const _fallbackHold = Duration(minutes: 10);
+
+  static String get currentBaseUrl {
+    final since = _fellBackAt;
+    if (_activeBase != 0 &&
+        since != null &&
+        DateTime.now().difference(since) > _fallbackHold) {
+      _activeBase = 0;
+      _fellBackAt = null;
+    }
+    return _baseUrls[_activeBase];
+  }
+
+  /// Moves every later request (and this request's own retries) off
+  /// [failedBase] to the next route. Called when it gave no answer, or its
+  /// relay couldn't reach Core. A no-op when another request already moved
+  /// off it — parallel failures (Home loads four things at once) must not
+  /// each switch and so flip the route back.
+  void _switchBase(String failedBase) {
+    if (_baseUrls.length < 2 || _baseUrls[_activeBase] != failedBase) {
+      _syncBase();
+      return;
+    }
+    _activeBase = (_activeBase + 1) % _baseUrls.length;
+    _fellBackAt = _activeBase == 0 ? null : DateTime.now();
+    _dio.options.baseUrl = _baseUrls[_activeBase];
+    _authDio.options.baseUrl = _baseUrls[_activeBase];
+    AppLogger.warn('Core route switched to ${_baseUrls[_activeBase]}');
+  }
+
+  void _syncBase() {
+    final url = currentBaseUrl;
+    if (_dio.options.baseUrl != url) _dio.options.baseUrl = url;
+    if (_authDio.options.baseUrl != url) _authDio.options.baseUrl = url;
+  }
+
+  /// The relay answered but couldn't reach Core behind it. 502/503 mean the
+  /// request never got to Core, so it is safe to resend
+  /// even a POST; 504 (Core too slow) may have been processed.
+  static int? _gatewayStatus(Object error, String base) {
+    if (error is! DioException || base == _baseUrls.last) return null;
+    final code = error.response?.statusCode;
+    return (code == 502 || code == 503 || code == 504) ? code : null;
+  }
 
   late final Dio _dio;
   late final Dio _authDio;
@@ -189,7 +255,10 @@ class ApiClient {
     int retries = 0,
   }) async {
     var attempt = 0;
+    var resent = false;
     while (true) {
+      _syncBase();
+      final base = _dio.options.baseUrl;
       try {
         final response = retries > 0
             ? await request().timeout(_retryAttemptTimeout)
@@ -198,6 +267,16 @@ class ApiClient {
         if (parse != null) return parse(data);
         return data as T;
       } catch (error) {
+        // No answer on this route (or the relay couldn't reach Core): the
+        // next attempt — and every later request — takes the other one.
+        final gateway = _gatewayStatus(error, base);
+        if (gateway != null || _isRetryableConnectionError(error)) {
+          _switchBase(base);
+        }
+        if ((gateway == 502 || gateway == 503) && !resent) {
+          resent = true;
+          continue;
+        }
         if (attempt < retries && _isRetryableConnectionError(error)) {
           attempt++;
           AppLogger.warn(
