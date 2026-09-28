@@ -13,7 +13,7 @@
                     <th>Цена</th>
                     <th>Период</th>
                     <th>Трафик</th>
-                    <th>Устройств</th>
+                    <th>Кол-во клиентов</th>
                     <th>Статус</th>
                 </tr>
             </thead>
@@ -27,10 +27,10 @@
                     <td data-label="Цена" class="num-cell" data-sort="{{ $row->priceSort }}">{{ $row->price }}</td>
                     <td data-label="Период">{{ $row->term }}</td>
                     <td data-label="Трафик">{{ $row->traffic }}</td>
-                    <td data-label="Устройств" class="num-cell">{{ $row->devices }}</td>
+                    <td data-label="Кол-во клиентов" class="num-cell">{{ $row->devices }}</td>
                     <td data-label="Статус">
                         <div class="adm-cell-stack">
-                            <x-adm.badge :badge="$row->status" />
+                            @if($row->status->tone !== 'ok')<x-adm.badge :badge="$row->status" />@endif
                             @unless($row->public)<span class="adm-cell-sub">не показывается в приложении</span>@endunless
                         </div>
                     </td>
@@ -67,7 +67,7 @@
         </div>
         <div class="adm-form-row">
             <label>Трафик, ГБ<input name="traffic_limit_gb" data-plan-field="traffic_limit_gb" type="number" step="0.01" min="0.01" class="adm-input" placeholder="безлимит"><small class="adm-hint">Пусто — без лимита. 1 ГБ = 1024³ байт.</small></label>
-            <label>Устройств<input name="device_limit" data-plan-field="device_limit" type="number" min="1" max="100" class="adm-input" required></label>
+            <label>Кол-во клиентов<input name="device_limit" data-plan-field="device_limit" type="number" min="1" max="100" class="adm-input" required></label>
         </div>
         <label>Срок, дней <span class="adm-optional">необязательно</span><input name="duration_days" data-plan-field="duration_days" type="number" min="1" max="3650" class="adm-input" placeholder="по периоду"></label>
         <div class="adm-form-checks">

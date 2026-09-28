@@ -49,7 +49,6 @@ class AdminPagesTest extends TestCase
             '*/v1/admin/access/grants' => Http::response(['grants' => [['id' => self::GRANT_ID, 'user_id' => self::USER_ID, 'subscription_id' => self::SUB_ID, 'node_id' => self::NODE_ID, 'protocol' => 'vless', 'status' => 'active', 'expires_at' => '2026-10-27T00:00:00Z', 'created_at' => '2026-09-27T00:00:00Z']]]),
             '*/v1/admin/traffic' => Http::response(['traffic' => [['subscription_id' => self::SUB_ID, 'user_id' => self::USER_ID, 'status' => 'active', 'bytes_up' => 1073741824, 'bytes_down' => 4294967296, 'bytes_total' => 5368709120, 'limit_bytes' => 107374182400]]]),
             '*/v1/admin/traffic/history*' => Http::response(['history' => []]),
-            '*/v1/admin/devices' => Http::response(['devices' => [['id' => 'd1', 'user_id' => self::USER_ID, 'name' => 'Pixel 9', 'platform' => 'android', 'created_at' => '2026-09-20T00:00:00Z', 'last_seen_at' => null]]]),
             '*/v1/admin/audit' => Http::response(['events' => [['id' => 'e1', 'actor_user_id' => 'admin-1', 'action' => 'user.disabled', 'target_type' => 'user', 'target_id' => self::USER_ID, 'metadata' => [], 'created_at' => '2026-09-27T09:15:00Z']]]),
             '*' => Http::response([], 404),
         ]);
@@ -118,16 +117,13 @@ class AdminPagesTest extends TestCase
             ->assertDontSee('Price (cents)');
     }
 
-    public function test_grants_devices_traffic_and_audit_resolve_ids(): void
+    public function test_grants_traffic_and_audit_resolve_ids(): void
     {
         $this->fakeCore();
 
         $this->asAdmin()->get('/grants')->assertOk()
             ->assertSee('WVB-9C1D2E3F')->assertSee('TR-PILOT-01')->assertSee('user@example.com')
-            ->assertDontSee('>'.self::NODE_ID.'<', false);
-        $this->asAdmin()->get('/devices')->assertOk()
-            ->assertSee('Pixel 9')->assertSee('Android')->assertSee('user@example.com')->assertSee('нет данных');
-        $this->asAdmin()->get('/traffic')->assertOk()
+            ->assertDontSee('>'.self::NODE_ID.'<', false);        $this->asAdmin()->get('/traffic')->assertOk()
             ->assertSee('Plus')->assertSee('4 ГБ')->assertSee('1 ГБ')->assertSee('5 ГБ');
         $this->asAdmin()->get('/audit')->assertOk()
             ->assertSee('Пользователь заблокирован')->assertSee('Пользователь · user@example.com')->assertSee('admin@example.com')->assertSee('27.09.2026 12:15')
@@ -138,7 +134,7 @@ class AdminPagesTest extends TestCase
     {
         $this->fakeCore();
 
-        foreach (['dashboard', 'users', 'subscriptions', 'plans', 'nodes', 'grants', 'devices', 'traffic', 'audit', 'enroll'] as $section) {
+        foreach (['dashboard', 'users', 'subscriptions', 'plans', 'nodes', 'grants', 'traffic', 'audit', 'enroll'] as $section) {
             $this->asAdmin()->get('/'.$section)->assertOk()->assertSee('adm-section-title', false);
         }
     }

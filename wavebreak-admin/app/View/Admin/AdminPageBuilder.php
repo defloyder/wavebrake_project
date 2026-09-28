@@ -28,7 +28,6 @@ final class AdminPageBuilder
         'plans' => ['title' => 'Тарифы', 'subtitle' => 'Нажмите на тариф, чтобы изменить его.', 'data' => ['plans']],
         'nodes' => ['title' => 'Ноды', 'subtitle' => 'Heartbeat и применённая ревизия конфигурации.', 'data' => []],
         'grants' => ['title' => 'Ключи доступа', 'subtitle' => 'Выданные учётные данные VPN. Управление — в карточке пользователя.', 'data' => ['grants', 'users']],
-        'devices' => ['title' => 'Устройства', 'subtitle' => 'Зарегистрированные устройства пользователей.', 'data' => ['devices', 'users']],
         'traffic' => ['title' => 'Трафик', 'subtitle' => 'Использование по подпискам (1 ГБ = 1024³ байт).', 'data' => ['traffic', 'trafficHistory', 'users', 'subscriptions', 'plans']],
         'audit' => ['title' => 'Аудит', 'subtitle' => 'Кто, что и когда изменил.', 'data' => ['audit', 'users']],
         'enroll' => ['title' => 'Подключить ноду', 'subtitle' => 'Регистрация новой ноды через Core.', 'data' => []],
@@ -67,7 +66,6 @@ final class AdminPageBuilder
             'nodeRows' => array_map(NodeRow::fromCore(...), $nodes),
             'subscriptionRows' => $section === 'subscriptions' ? $this->subscriptionRows($data, $directory) : [],
             'grantRows' => array_map(fn ($g) => GrantRow::fromCore($g, $directory), $data['grants'] ?? []),
-            'deviceRows' => array_map(fn ($d) => DeviceRow::fromCore($d, $directory), $data['devices'] ?? []),
             'trafficRows' => array_map(fn ($t) => TrafficRow::fromCore($t, $directory), $data['traffic'] ?? []),
             'auditRows' => array_map(fn ($e) => AuditRow::fromCore($e, $directory), $section === 'dashboard' ? array_slice($data['audit'] ?? [], 0, 8) : ($data['audit'] ?? [])),
         ];
@@ -108,7 +106,6 @@ final class AdminPageBuilder
             'plans' => fn () => $this->core->adminPlans($token),
             'subscriptions' => fn () => $this->core->subscriptions($token),
             'grants' => fn () => $this->core->grants($token),
-            'devices' => fn () => $this->core->devices($token),
             'traffic' => fn () => $this->core->traffic($token),
             'trafficHistory' => fn () => $this->core->trafficHistory($token, 30),
             'audit' => fn () => $this->core->audit($token),

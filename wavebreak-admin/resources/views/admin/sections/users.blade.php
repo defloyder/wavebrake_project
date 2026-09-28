@@ -29,7 +29,7 @@
                     <td data-label="Подписка" data-sort="{{ $row->planName ?? '' }}">
                         @if($row->planName)
                             <div class="adm-cell-stack">
-                                <span class="adm-cell-inline"><strong>{{ $row->planName }}</strong> <x-adm.badge :badge="$row->subscription" /></span>
+                                <span class="adm-cell-inline"><strong>{{ $row->planName }}</strong>@if($row->subscription->tone !== 'ok') <x-adm.badge :badge="$row->subscription" />@endif</span>
                                 <span class="adm-cell-sub">до {{ $row->subscriptionEnds }}</span>
                             </div>
                         @else

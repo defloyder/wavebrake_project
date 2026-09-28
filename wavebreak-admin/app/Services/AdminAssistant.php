@@ -451,7 +451,7 @@ class AdminAssistant
     private function executeDeviceRevoke(string $token, array $action): array
     {
         $this->core->revokeDevice($token, $action['id']);
-        return ['text' => 'Устройство отозвано.', 'link' => ['label' => 'Открыть устройства', 'href' => '/devices']];
+        return ['text' => 'Устройство отозвано.'];
     }
 
     private function searchTerm(string $message): string

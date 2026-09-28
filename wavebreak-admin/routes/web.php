@@ -40,4 +40,4 @@ Route::post('/plans/{planId}/delete', [AdminController::class, 'deletePlan']);
 Route::post('/nodes/enroll', [AdminController::class, 'enrollNode']);
 
 Route::get('/{section}', [AdminController::class, 'section'])
-    ->whereIn('section', ['dashboard', 'users', 'subscriptions', 'plans', 'nodes', 'grants', 'devices', 'traffic', 'audit', 'enroll']);
+    ->whereIn('section', ['dashboard', 'users', 'subscriptions', 'plans', 'nodes', 'grants', 'traffic', 'audit', 'enroll']);

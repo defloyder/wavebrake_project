@@ -51,7 +51,6 @@
                 ['subscriptions', 'Подписки', '<path d="M4 6h16M6 10h12M8 14h8M10 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
                 ['plans', 'Тарифы', '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
                 ['traffic', 'Трафик', '<path d="M4 17h4l3-10 4 14 3-8h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'],
-                ['devices', 'Устройства', '<rect x="6" y="3" width="12" height="18" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M10 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
                 ['grants', 'Ключи доступа', '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
                 ['nodes', 'Ноды', '<circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3m-3.5-7.5-2.1 2.1M6.6 17.4l-2.1 2.1m0-13.1 2.1 2.1m8.7 8.7 2.1 2.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
                 ['audit', 'Аудит', '<path d="M6 3h9l3 3v15H6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 10h6M9 14h6M9 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],

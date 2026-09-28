@@ -9,7 +9,6 @@
     $links = [
         ['href' => '/plans', 'title' => 'Тарифы', 'text' => 'Цены, лимиты трафика и устройств.', 'count' => $dashboard['plans'] ?? null],
         ['href' => '/grants', 'title' => 'Ключи доступа', 'text' => 'Выданные учётные данные VPN.', 'count' => $dashboard['access_grants'] ?? null],
-        ['href' => '/devices', 'title' => 'Устройства', 'text' => 'Зарегистрированные устройства.', 'count' => null],
         ['href' => '/enroll', 'title' => 'Подключить ноду', 'text' => 'Регистрация новой ноды через Core.', 'count' => null],
     ];
 @endphp

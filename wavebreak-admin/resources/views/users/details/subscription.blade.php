@@ -97,7 +97,7 @@
                     <input name="expires_on" type="date" class="adm-input">
                     <small class="adm-hint">Сейчас: {{ $details->expiresAt() }}</small>
                 </label>
-                <label>Устройств
+                <label>Кол-во клиентов
                     <input name="device_limit" type="number" min="1" max="100" class="adm-input" placeholder="{{ $details->deviceLimitInput() }}">
                     <small class="adm-hint">Сейчас: {{ $details->deviceLimitInput() ?: '—' }}</small>
                 </label>
