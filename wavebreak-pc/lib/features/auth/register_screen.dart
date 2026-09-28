@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/auth/session_controller.dart';
 import '../../core/errors/app_exception.dart';
@@ -46,17 +49,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           .register(
             email: _email.text.trim(),
             password: _password.text,
+            language: ref.read(languageProvider).name,
             cancelToken: cancelToken,
           )
           .timeout(
-            const Duration(seconds: 30),
-            onTimeout: () {
-              cancelToken.cancel('register UI timeout');
-              throw AppException(AppErrorKind.noInternet);
-            },
-          );
-      await ref.read(sessionControllerProvider.notifier).onAuthenticated(tokens);
+        const Duration(seconds: 30),
+        onTimeout: () {
+          cancelToken.cancel('register UI timeout');
+          throw AppException(AppErrorKind.noInternet);
+        },
+      );
+      await ref
+          .read(sessionControllerProvider.notifier)
+          .onAuthenticated(tokens);
     } on AppException catch (error) {
+      // The account exists; Core emailed a code to confirm it first.
+      if (error.kind == AppErrorKind.emailNotVerified) {
+        if (mounted) {
+          unawaited(context.push('/verify-email', extra: {
+            'email': _email.text.trim(),
+            'sent': error.message != 'not_sent',
+          }));
+        }
+        return;
+      }
       if (mounted) setState(() => _error = error.localized(s));
     } catch (_) {
       if (mounted) setState(() => _error = s.errUnavailable);
@@ -103,7 +119,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const SizedBox(height: 16),
                 Text(
                   s.createAccount,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 28),
                 TextField(

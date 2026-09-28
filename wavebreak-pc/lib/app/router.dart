@@ -7,6 +7,7 @@ import '../core/storage/prefs_store.dart';
 import '../features/auth/forgot_password_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
+import '../features/auth/verify_email_screen.dart';
 import '../features/auth/welcome_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/locations/locations_screen.dart';
@@ -47,7 +48,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final isSplash = loc == '/splash';
       final isWelcome = loc == '/welcome';
-      final isAuth = loc == '/login' || loc == '/register' || loc == '/forgot';
+      final isAuth = loc == '/login' ||
+          loc == '/register' ||
+          loc == '/forgot' ||
+          loc == '/verify-email';
       final isUpdate = loc == '/update-required';
       final isMaintenance = loc == '/maintenance';
 
@@ -92,6 +96,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/register',
         pageBuilder: (_, state) =>
             fadeThroughPage(state, const RegisterScreen()),
+      ),
+      GoRoute(
+        path: '/verify-email',
+        pageBuilder: (_, state) {
+          final extra = state.extra is Map ? state.extra as Map : const {};
+          return fadeThroughPage(
+            state,
+            VerifyEmailScreen(
+              email: (extra['email'] ?? '').toString(),
+              codeSent: extra['sent'] != false,
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/forgot',

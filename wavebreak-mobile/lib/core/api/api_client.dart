@@ -31,7 +31,7 @@ class ApiClient {
         'Content-Type': 'application/json',
         // What this build's engines can run; Core only hands out links a
         // client declares here (e.g. the obfuscated Hysteria2 listener).
-        'X-Wavebreak-Features': 'hysteria-obfs',
+        'X-Wavebreak-Features': 'hysteria-obfs,email-verification',
       },
     );
     _dio = dio ?? Dio(options);

@@ -96,12 +96,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             cancelToken: cancelToken,
           )
           .timeout(
-            const Duration(seconds: 30),
-            onTimeout: () {
-              cancelToken.cancel('login UI timeout');
-              throw AppException(AppErrorKind.noInternet);
-            },
-          );
+        const Duration(seconds: 30),
+        onTimeout: () {
+          cancelToken.cancel('login UI timeout');
+          throw AppException(AppErrorKind.noInternet);
+        },
+      );
       await ref
           .read(sessionControllerProvider.notifier)
           .onAuthenticated(tokens);
@@ -109,6 +109,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       await _offerBiometric();
     } on AppException catch (error) {
+      // Signed up but never confirmed the address: Core just emailed a
+      // fresh code (or one is still valid) — go enter it.
+      if (error.kind == AppErrorKind.emailNotVerified) {
+        if (mounted) {
+          unawaited(context.push('/verify-email',
+              extra: {'email': _email.text.trim(), 'sent': true}));
+        }
+        return;
+      }
       if (mounted) setState(() => _error = error.localized(s));
     } catch (_) {
       if (mounted) setState(() => _error = s.errUnavailable);

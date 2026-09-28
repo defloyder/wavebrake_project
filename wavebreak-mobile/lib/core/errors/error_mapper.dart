@@ -74,6 +74,22 @@ class ErrorMapper {
           return AppException(AppErrorKind.weakPassword, statusCode: status);
         }
       }
+      // Email verification (Core's email_verification.go codes). Before
+      // the generic 403 below: email_not_verified is a 403.
+      const emailCodes = {
+        'email_not_verified': AppErrorKind.emailNotVerified,
+        'invalid_code': AppErrorKind.codeInvalid,
+        'code_expired': AppErrorKind.codeExpired,
+        'too_many_attempts': AppErrorKind.codeTooManyAttempts,
+        'resend_too_soon': AppErrorKind.resendTooSoon,
+        'email_send_failed': AppErrorKind.emailSendFailed,
+        'email_unavailable': AppErrorKind.emailSendFailed,
+      };
+      for (final entry in emailCodes.entries) {
+        if (text.contains(entry.key)) {
+          return AppException(entry.value, statusCode: status);
+        }
+      }
       if (text.contains('share_invalid') || text.contains('share_expired')) {
         return AppException(AppErrorKind.shareInvalid, statusCode: status);
       }

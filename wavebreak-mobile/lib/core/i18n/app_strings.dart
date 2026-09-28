@@ -173,6 +173,22 @@ class AppStrings {
     required this.updateRequiredTitle,
     required this.updateRequiredBody,
     required this.updateNow,
+    required this.verifyEmailTitle,
+    required this.verifyEmailBody,
+    required this.verifyEmailCodeHint,
+    required this.verifyEmailConfirm,
+    required this.verifyEmailResend,
+    required this.verifyEmailResendIn,
+    required this.verifyEmailSent,
+    required this.verifyEmailCheckSpam,
+    required this.emailNotVerifiedRow,
+    required this.emailVerifiedRow,
+    required this.errEmailNotVerified,
+    required this.errCodeInvalid,
+    required this.errCodeExpired,
+    required this.errCodeTooManyAttempts,
+    required this.errResendTooSoon,
+    required this.errEmailSendFailed,
     required this.errNoInternet,
     required this.errUnavailable,
     required this.errSessionExpired,
@@ -407,6 +423,22 @@ class AppStrings {
   final String updateRequiredTitle;
   final String updateRequiredBody;
   final String updateNow;
+  final String verifyEmailTitle;
+  final String verifyEmailBody;
+  final String verifyEmailCodeHint;
+  final String verifyEmailConfirm;
+  final String verifyEmailResend;
+  final String verifyEmailResendIn;
+  final String verifyEmailSent;
+  final String verifyEmailCheckSpam;
+  final String emailNotVerifiedRow;
+  final String emailVerifiedRow;
+  final String errEmailNotVerified;
+  final String errCodeInvalid;
+  final String errCodeExpired;
+  final String errCodeTooManyAttempts;
+  final String errResendTooSoon;
+  final String errEmailSendFailed;
   final String errNoInternet;
   final String errUnavailable;
   final String errSessionExpired;
@@ -647,6 +679,22 @@ const kEnglishStrings = AppStrings(
   updateRequiredTitle: 'Update required',
   updateRequiredBody: 'A new version of WAVEBREAK is required to continue.',
   updateNow: 'Update now',
+  verifyEmailTitle: 'Confirm your email',
+  verifyEmailBody: 'We sent a 6-digit code to {email}. Enter it below.',
+  verifyEmailCodeHint: 'Code from the email',
+  verifyEmailConfirm: 'Confirm',
+  verifyEmailResend: 'Send the code again',
+  verifyEmailResendIn: 'Send again in {s} s',
+  verifyEmailSent: 'Code sent to {email}',
+  verifyEmailCheckSpam: 'No email? Check your Spam folder.',
+  emailNotVerifiedRow: 'Email not confirmed',
+  emailVerifiedRow: 'Email confirmed',
+  errEmailNotVerified: 'Confirm your email to sign in — we\'ve sent you a code.',
+  errCodeInvalid: 'Wrong code',
+  errCodeExpired: 'The code has expired — request a new one',
+  errCodeTooManyAttempts: 'Too many attempts — request a new code',
+  errResendTooSoon: 'Wait a minute before sending again',
+  errEmailSendFailed: 'Couldn\'t send the email. Try again later.',
   errNoInternet: 'No internet connection',
   errUnavailable:
       'WAVEBREAK temporarily unavailable.\nCheck your connection and try again.',
@@ -895,6 +943,22 @@ const kRussianStrings = AppStrings(
   updateRequiredBody:
       'Для продолжения работы обновите WAVEBREAK до новой версии.',
   updateNow: 'Обновить',
+  verifyEmailTitle: 'Подтвердите почту',
+  verifyEmailBody: 'Мы отправили 6-значный код на {email}. Введите его ниже.',
+  verifyEmailCodeHint: 'Код из письма',
+  verifyEmailConfirm: 'Подтвердить',
+  verifyEmailResend: 'Отправить код ещё раз',
+  verifyEmailResendIn: 'Отправить ещё раз через {s} с',
+  verifyEmailSent: 'Код отправлен на {email}',
+  verifyEmailCheckSpam: 'Не пришло письмо? Проверьте папку «Спам».',
+  emailNotVerifiedRow: 'Почта не подтверждена',
+  emailVerifiedRow: 'Почта подтверждена',
+  errEmailNotVerified: 'Подтвердите почту, чтобы войти, — мы отправили вам код.',
+  errCodeInvalid: 'Неверный код',
+  errCodeExpired: 'Код устарел — запросите новый',
+  errCodeTooManyAttempts: 'Слишком много попыток — запросите новый код',
+  errResendTooSoon: 'Подождите минуту перед повторной отправкой',
+  errEmailSendFailed: 'Не удалось отправить письмо. Попробуйте позже.',
   errNoInternet: 'Нет подключения к интернету',
   errUnavailable:
       'WAVEBREAK временно недоступен.\nПроверьте соединение и попробуйте снова.',
@@ -1146,6 +1210,22 @@ const kSpanishStrings = AppStrings(
   updateRequiredBody:
       'Se requiere una nueva versión de WAVEBREAK para continuar.',
   updateNow: 'Actualizar ahora',
+  verifyEmailTitle: 'Confirma tu correo',
+  verifyEmailBody: 'Enviamos un código de 6 dígitos a {email}. Introdúcelo abajo.',
+  verifyEmailCodeHint: 'Código del correo',
+  verifyEmailConfirm: 'Confirmar',
+  verifyEmailResend: 'Enviar el código de nuevo',
+  verifyEmailResendIn: 'Reenviar en {s} s',
+  verifyEmailSent: 'Código enviado a {email}',
+  verifyEmailCheckSpam: '¿No llegó? Revisa la carpeta de spam.',
+  emailNotVerifiedRow: 'Correo no confirmado',
+  emailVerifiedRow: 'Correo confirmado',
+  errEmailNotVerified: 'Confirma tu correo para entrar: te enviamos un código.',
+  errCodeInvalid: 'Código incorrecto',
+  errCodeExpired: 'El código caducó: solicita uno nuevo',
+  errCodeTooManyAttempts: 'Demasiados intentos: solicita un código nuevo',
+  errResendTooSoon: 'Espera un minuto antes de reenviar',
+  errEmailSendFailed: 'No se pudo enviar el correo. Inténtalo más tarde.',
   errNoInternet: 'Sin conexión a internet',
   errUnavailable:
       'WAVEBREAK no disponible temporalmente.\nRevisa tu conexión e inténtalo de nuevo.',
@@ -1401,6 +1481,22 @@ const kGermanStrings = AppStrings(
   updateRequiredBody:
       'Eine neue Version von WAVEBREAK wird benötigt, um fortzufahren.',
   updateNow: 'Jetzt aktualisieren',
+  verifyEmailTitle: 'Bestätige deine E-Mail',
+  verifyEmailBody: 'Wir haben einen 6-stelligen Code an {email} gesendet. Gib ihn unten ein.',
+  verifyEmailCodeHint: 'Code aus der E-Mail',
+  verifyEmailConfirm: 'Bestätigen',
+  verifyEmailResend: 'Code erneut senden',
+  verifyEmailResendIn: 'Erneut senden in {s} s',
+  verifyEmailSent: 'Code an {email} gesendet',
+  verifyEmailCheckSpam: 'Keine E-Mail? Sieh im Spam-Ordner nach.',
+  emailNotVerifiedRow: 'E-Mail nicht bestätigt',
+  emailVerifiedRow: 'E-Mail bestätigt',
+  errEmailNotVerified: 'Bestätige deine E-Mail, um dich anzumelden – wir haben dir einen Code gesendet.',
+  errCodeInvalid: 'Falscher Code',
+  errCodeExpired: 'Der Code ist abgelaufen – fordere einen neuen an',
+  errCodeTooManyAttempts: 'Zu viele Versuche – fordere einen neuen Code an',
+  errResendTooSoon: 'Warte eine Minute, bevor du erneut sendest',
+  errEmailSendFailed: 'E-Mail konnte nicht gesendet werden. Versuche es später erneut.',
   errNoInternet: 'Keine Internetverbindung',
   errUnavailable:
       'WAVEBREAK vorübergehend nicht verfügbar.\nPrüfe deine Verbindung und versuche es erneut.',
@@ -1658,6 +1754,22 @@ const kFrenchStrings = AppStrings(
   updateRequiredBody:
       'Une nouvelle version de WAVEBREAK est nécessaire pour continuer.',
   updateNow: 'Mettre à jour',
+  verifyEmailTitle: 'Confirmez votre e-mail',
+  verifyEmailBody: 'Nous avons envoyé un code à 6 chiffres à {email}. Saisissez-le ci-dessous.',
+  verifyEmailCodeHint: 'Code reçu par e-mail',
+  verifyEmailConfirm: 'Confirmer',
+  verifyEmailResend: 'Renvoyer le code',
+  verifyEmailResendIn: 'Renvoyer dans {s} s',
+  verifyEmailSent: 'Code envoyé à {email}',
+  verifyEmailCheckSpam: 'Pas d\'e-mail ? Vérifiez vos spams.',
+  emailNotVerifiedRow: 'E-mail non confirmé',
+  emailVerifiedRow: 'E-mail confirmé',
+  errEmailNotVerified: 'Confirmez votre e-mail pour vous connecter : nous vous avons envoyé un code.',
+  errCodeInvalid: 'Code incorrect',
+  errCodeExpired: 'Le code a expiré : demandez-en un nouveau',
+  errCodeTooManyAttempts: 'Trop de tentatives : demandez un nouveau code',
+  errResendTooSoon: 'Patientez une minute avant de renvoyer',
+  errEmailSendFailed: 'Impossible d\'envoyer l\'e-mail. Réessayez plus tard.',
   errNoInternet: 'Pas de connexion internet',
   errUnavailable:
       'WAVEBREAK temporairement indisponible.\nVérifiez votre connexion et réessayez.',
@@ -1911,6 +2023,22 @@ const kPortugueseStrings = AppStrings(
   updateRequiredBody:
       'Uma nova versão do WAVEBREAK é necessária para continuar.',
   updateNow: 'Atualizar agora',
+  verifyEmailTitle: 'Confirme seu e-mail',
+  verifyEmailBody: 'Enviamos um código de 6 dígitos para {email}. Digite-o abaixo.',
+  verifyEmailCodeHint: 'Código do e-mail',
+  verifyEmailConfirm: 'Confirmar',
+  verifyEmailResend: 'Enviar o código novamente',
+  verifyEmailResendIn: 'Reenviar em {s} s',
+  verifyEmailSent: 'Código enviado para {email}',
+  verifyEmailCheckSpam: 'Não chegou? Verifique a pasta de spam.',
+  emailNotVerifiedRow: 'E-mail não confirmado',
+  emailVerifiedRow: 'E-mail confirmado',
+  errEmailNotVerified: 'Confirme seu e-mail para entrar — enviamos um código.',
+  errCodeInvalid: 'Código incorreto',
+  errCodeExpired: 'O código expirou — solicite um novo',
+  errCodeTooManyAttempts: 'Tentativas demais — solicite um novo código',
+  errResendTooSoon: 'Aguarde um minuto antes de reenviar',
+  errEmailSendFailed: 'Não foi possível enviar o e-mail. Tente mais tarde.',
   errNoInternet: 'Sem conexão à internet',
   errUnavailable:
       'WAVEBREAK temporariamente indisponível.\nVerifique sua conexão e tente novamente.',
@@ -2160,6 +2288,22 @@ const kTurkishStrings = AppStrings(
   updateRequiredBody:
       'Devam etmek için WAVEBREAK\'in yeni bir sürümü gerekiyor.',
   updateNow: 'Şimdi güncelle',
+  verifyEmailTitle: 'E-postanızı doğrulayın',
+  verifyEmailBody: '{email} adresine 6 haneli bir kod gönderdik. Aşağıya girin.',
+  verifyEmailCodeHint: 'E-postadaki kod',
+  verifyEmailConfirm: 'Doğrula',
+  verifyEmailResend: 'Kodu tekrar gönder',
+  verifyEmailResendIn: '{s} sn sonra tekrar gönder',
+  verifyEmailSent: 'Kod {email} adresine gönderildi',
+  verifyEmailCheckSpam: 'E-posta gelmedi mi? Spam klasörünü kontrol edin.',
+  emailNotVerifiedRow: 'E-posta doğrulanmadı',
+  emailVerifiedRow: 'E-posta doğrulandı',
+  errEmailNotVerified: 'Giriş yapmak için e-postanızı doğrulayın — size bir kod gönderdik.',
+  errCodeInvalid: 'Yanlış kod',
+  errCodeExpired: 'Kodun süresi doldu — yeni bir kod isteyin',
+  errCodeTooManyAttempts: 'Çok fazla deneme — yeni bir kod isteyin',
+  errResendTooSoon: 'Tekrar göndermeden önce bir dakika bekleyin',
+  errEmailSendFailed: 'E-posta gönderilemedi. Daha sonra tekrar deneyin.',
   errNoInternet: 'İnternet bağlantısı yok',
   errUnavailable:
       'WAVEBREAK geçici olarak kullanılamıyor.\nBağlantınızı kontrol edip tekrar deneyin.',

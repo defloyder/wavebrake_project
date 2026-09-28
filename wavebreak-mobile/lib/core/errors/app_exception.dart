@@ -18,6 +18,13 @@ enum AppErrorKind {
   unsupportedProtocol,
   shareInvalid,
   shareOwnSubscription,
+  // Email verification (Core answers with these codes).
+  emailNotVerified,
+  codeInvalid,
+  codeExpired,
+  codeTooManyAttempts,
+  resendTooSoon,
+  emailSendFailed,
   unknown,
 }
 
@@ -66,6 +73,18 @@ class AppException implements Exception {
         return s.shareInvalid;
       case AppErrorKind.shareOwnSubscription:
         return s.shareOwnSubscription;
+      case AppErrorKind.emailNotVerified:
+        return s.errEmailNotVerified;
+      case AppErrorKind.codeInvalid:
+        return s.errCodeInvalid;
+      case AppErrorKind.codeExpired:
+        return s.errCodeExpired;
+      case AppErrorKind.codeTooManyAttempts:
+        return s.errCodeTooManyAttempts;
+      case AppErrorKind.resendTooSoon:
+        return s.errResendTooSoon;
+      case AppErrorKind.emailSendFailed:
+        return s.errEmailSendFailed;
       case AppErrorKind.unknown:
         return message ?? s.errUnknown;
     }

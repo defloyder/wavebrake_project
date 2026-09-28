@@ -34,11 +34,38 @@ class CoreGateway {
   Future<TokenPair> register({
     required String email,
     required String password,
+    String? language,
     CancelToken? cancelToken,
   }) {
     if (useMock) return mock.register(email, password);
     return live.register(
-        email: email, password: password, cancelToken: cancelToken);
+        email: email,
+        password: password,
+        language: language,
+        cancelToken: cancelToken);
+  }
+
+  // Email verification. The mock backend has none: sign-up there signs in
+  // directly, so these only ever run against Core.
+  Future<TokenPair> verifyEmail({required String email, required String code}) {
+    if (useMock) return mock.login(email, '');
+    return live.verifyEmail(email: email, code: code);
+  }
+
+  Future<void> resendEmailCode(
+      {required String email, String? language}) async {
+    if (useMock) return;
+    await live.resendEmailCode(email: email, language: language);
+  }
+
+  Future<void> sendMyEmailCode({String? language}) async {
+    if (useMock) return;
+    await live.sendMyEmailCode(language: language);
+  }
+
+  Future<void> verifyMyEmail(String code) async {
+    if (useMock) return;
+    await live.verifyMyEmail(code);
   }
 
   Future<TokenPair> refresh(String refreshToken) {
@@ -92,7 +119,9 @@ class CoreGateway {
       // temporarily unavailable" instead of the same "none" state a
       // guest sees, which otherwise-fixed data_providers.dart gating
       // still surfaced as a scary, wrong error for a plain free account.
-      if (error.statusCode == 404) return const SubscriptionInfo(status: 'none');
+      if (error.statusCode == 404) {
+        return const SubscriptionInfo(status: 'none');
+      }
       rethrow;
     }
   }
@@ -115,7 +144,8 @@ class CoreGateway {
   /// none to give.
   Future<ShareInfo> myShare() {
     if (useMock) {
-      return Future.error(AppException(AppErrorKind.subscriptionRequired, statusCode: 404));
+      return Future.error(
+          AppException(AppErrorKind.subscriptionRequired, statusCode: 404));
     }
     return live.myShare();
   }
@@ -131,7 +161,8 @@ class CoreGateway {
     required String platform,
   }) {
     if (useMock) return Future.error(AppException(AppErrorKind.unavailable));
-    return live.redeemShare(token: token, deviceName: deviceName, platform: platform);
+    return live.redeemShare(
+        token: token, deviceName: deviceName, platform: platform);
   }
 
   Future<UsageSummary?> usage() async {
@@ -219,9 +250,11 @@ class CoreGateway {
     String protocol = 'wireguard',
   }) {
     if (useMock) {
-      return mock.createAccessGrant(nodeId: nodeId, deviceId: deviceId, protocol: protocol);
+      return mock.createAccessGrant(
+          nodeId: nodeId, deviceId: deviceId, protocol: protocol);
     }
-    return live.createAccessGrant(nodeId: nodeId, deviceId: deviceId, protocol: protocol);
+    return live.createAccessGrant(
+        nodeId: nodeId, deviceId: deviceId, protocol: protocol);
   }
 
   Future<AccessGrant> revokeAccessGrant(String grantId) {

@@ -17,17 +17,68 @@ class CoreApi {
 
   // ---- Auth ----------------------------------------------------------
 
+  /// Throws [AppErrorKind.emailNotVerified] when Core wants the address
+  /// confirmed first (the account exists; a code was emailed) — the
+  /// screen then moves to entering the code, same as for a login.
   Future<TokenPair> register({
     required String email,
     required String password,
+    String? language,
     CancelToken? cancelToken,
   }) {
     return _client.post(
       '/auth/register',
-      body: {'email': email, 'password': password},
-      parse: _tokens,
+      body: {
+        'email': email,
+        'password': password,
+        if (language != null) 'language': language,
+      },
+      parse: (data) {
+        final map = _asMap(data);
+        if (map['verification_required'] == true) {
+          throw AppException(AppErrorKind.emailNotVerified,
+              message: map['code_sent'] == false ? 'not_sent' : 'sent');
+        }
+        return _tokens(map);
+      },
       cancelToken: cancelToken,
       retryOnConnectionError: true,
+    );
+  }
+
+  /// The emailed code -> a signed-in session (new accounts).
+  Future<TokenPair> verifyEmail({required String email, required String code}) {
+    return _client.post(
+      '/auth/email/verify',
+      body: {'email': email, 'code': code},
+      parse: _tokens,
+    );
+  }
+
+  /// A fresh code for an account that isn't confirmed yet.
+  Future<void> resendEmailCode({required String email, String? language}) {
+    return _client.post(
+      '/auth/email/resend',
+      body: {'email': email, if (language != null) 'language': language},
+      parse: (_) {},
+    );
+  }
+
+  /// Signed in: email a code to confirm the account's address.
+  Future<void> sendMyEmailCode({String? language}) {
+    return _client.post(
+      '/me/email/send-code',
+      body: {if (language != null) 'language': language},
+      parse: (_) {},
+    );
+  }
+
+  /// Signed in: confirm the address with the emailed code.
+  Future<void> verifyMyEmail(String code) {
+    return _client.post(
+      '/me/email/verify',
+      body: {'code': code},
+      parse: (_) {},
     );
   }
 
@@ -67,7 +118,8 @@ class CoreApi {
   // ---- Session / bootstrap --------------------------------------------
 
   Future<UserProfile> me() {
-    return _client.get('/me', parse: (data) => UserProfile.fromJson(_asMap(data)));
+    return _client.get('/me',
+        parse: (data) => UserProfile.fromJson(_asMap(data)));
   }
 
   Future<BootstrapResponse> bootstrap() {
@@ -262,7 +314,8 @@ class CoreApi {
   // ---- Usage ---------------------------------------------------------
 
   Future<UsageSummary> usage() {
-    return _client.get('/me/usage', parse: (data) => UsageSummary.fromJson(_asMap(data)));
+    return _client.get('/me/usage',
+        parse: (data) => UsageSummary.fromJson(_asMap(data)));
   }
 
   Future<Map<String, dynamic>> usageHistory({required String period}) {
@@ -281,7 +334,10 @@ class CoreApi {
       parse: (data) {
         final list = _asMap(data)['identities'];
         if (list is! List) return const <Map<String, dynamic>>[];
-        return list.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+        return list
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
       },
     );
   }

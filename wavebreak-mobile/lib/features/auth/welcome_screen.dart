@@ -18,7 +18,8 @@ import '../shared/wavebreak_mark.dart';
 class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
 
-  Future<void> _choose(BuildContext context, WidgetRef ref, String destination) async {
+  Future<void> _choose(
+      BuildContext context, WidgetRef ref, String destination) async {
     await PrefsStore.setBool(PrefsStore.onboardingChoiceMade, true);
     if (!context.mounted) return;
     context.go(destination);
@@ -43,7 +44,8 @@ class WelcomeScreen extends ConsumerWidget {
                 Text(
                   s.welcomeChooseTitle,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 28),
                 SizedBox(
@@ -60,7 +62,8 @@ class WelcomeScreen extends ConsumerWidget {
                     ),
                     child: Text(
                       s.createAccount,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 16),
                     ),
                   ),
                 ),
@@ -77,7 +80,8 @@ class WelcomeScreen extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: Text(s.iHaveAccount, style: const TextStyle(fontSize: 16)),
+                    child: Text(s.iHaveAccount,
+                        style: const TextStyle(fontSize: 16)),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -85,8 +89,11 @@ class WelcomeScreen extends ConsumerWidget {
                 // one path that must always work, network or no network.
                 TextButton(
                   onPressed: () async {
-                    await PrefsStore.setBool(PrefsStore.onboardingChoiceMade, true);
-                    await ref.read(sessionControllerProvider.notifier).continueAsGuest();
+                    await PrefsStore.setBool(
+                        PrefsStore.onboardingChoiceMade, true);
+                    await ref
+                        .read(sessionControllerProvider.notifier)
+                        .continueAsGuest();
                   },
                   child: Text(
                     s.continueWithOwnLink,

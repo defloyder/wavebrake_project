@@ -4,6 +4,8 @@ class UserProfile {
     required this.email,
     this.role = 'user',
     this.status = 'active',
+    this.emailVerified,
+    this.emailVerificationAvailable = false,
   });
 
   final String id;
@@ -11,14 +13,26 @@ class UserProfile {
   final String role;
   final String status;
 
+  /// Null when Core doesn't report it (before email verification existed).
+  final bool? emailVerified;
+
+  /// Core can send the confirmation code right now (email is configured).
+  final bool emailVerificationAvailable;
+
   factory UserProfile.fromJson(Map<String, dynamic> json) {
-    final nested =
-        json['user'] is Map<String, dynamic> ? json['user'] as Map<String, dynamic> : json;
+    final nested = json['user'] is Map<String, dynamic>
+        ? json['user'] as Map<String, dynamic>
+        : json;
     return UserProfile(
       id: (nested['id'] ?? nested['user_id'] ?? '').toString(),
       email: (nested['email'] ?? '').toString(),
       role: (nested['role'] ?? 'user').toString(),
       status: (nested['status'] ?? 'active').toString(),
+      emailVerified: nested['email_verified'] is bool
+          ? nested['email_verified'] as bool
+          : null,
+      emailVerificationAvailable:
+          nested['email_verification_available'] == true,
     );
   }
 
@@ -31,6 +45,8 @@ class UserProfile {
         'email': email,
         'role': role,
         'status': status,
+        if (emailVerified != null) 'email_verified': emailVerified,
+        'email_verification_available': emailVerificationAvailable,
       };
 }
 
@@ -54,10 +70,10 @@ class TokenPair {
         ? json['tokens'] as Map<String, dynamic>
         : json;
     return TokenPair(
-      accessToken: (nested['access_token'] ?? nested['accessToken'] ?? '')
-          .toString(),
-      refreshToken: (nested['refresh_token'] ?? nested['refreshToken'] ?? '')
-          .toString(),
+      accessToken:
+          (nested['access_token'] ?? nested['accessToken'] ?? '').toString(),
+      refreshToken:
+          (nested['refresh_token'] ?? nested['refreshToken'] ?? '').toString(),
       tokenType: (nested['token_type'] ?? 'Bearer').toString(),
       expiresIn: _asInt(nested['expires_in']),
     );
@@ -205,9 +221,11 @@ class SubscriptionInfo {
       planId: nested['plan_id']?.toString(),
       // A couple of non-Core-shaped keys are kept as a fallback so this
       // still reads sensibly against the mock backend's simpler shape.
-      planName:
-          (nested['plan_name'] ?? nested['plan'] ?? nested['name'] ?? 'WAVEBREAK')
-              .toString(),
+      planName: (nested['plan_name'] ??
+              nested['plan'] ??
+              nested['name'] ??
+              'WAVEBREAK')
+          .toString(),
       // Core sends `current_period_end`; the other keys are older/mock shapes.
       expiresAt: _parseDate(nested['current_period_end'] ??
           nested['current_period_ends_at'] ??
@@ -325,7 +343,8 @@ class ConnectionTest {
       sni: json['sni'] as String?,
       timeoutMs: _asInt(json['timeout_ms']),
       testTargets:
-          (json['test_targets'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+          (json['test_targets'] as List?)?.map((e) => e.toString()).toList() ??
+              const [],
     );
   }
 
@@ -400,7 +419,8 @@ class LocationItem {
         available: json['online'] == true ||
             (json['status'] ?? '').toString().toLowerCase() == 'online',
         connectionTest: json['connection_test'] is Map
-            ? ConnectionTest.fromJson((json['connection_test'] as Map).cast<String, dynamic>())
+            ? ConnectionTest.fromJson(
+                (json['connection_test'] as Map).cast<String, dynamic>())
             : null,
       );
     }
@@ -564,7 +584,8 @@ class WireguardInterfaceConfig {
     return WireguardInterfaceConfig(
       privateKey: json['private_key'] as String?,
       address: json['address'] as String?,
-      dns: (json['dns'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      dns:
+          (json['dns'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       mtu: _asInt(json['mtu']),
     );
   }
@@ -591,7 +612,8 @@ class WireguardPeerConfig {
       presharedKey: json['preshared_key'] as String?,
       endpoint: json['endpoint'] as String?,
       allowedIps:
-          (json['allowed_ips'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+          (json['allowed_ips'] as List?)?.map((e) => e.toString()).toList() ??
+              const [],
       persistentKeepalive: _asInt(json['persistent_keepalive']),
     );
   }
@@ -618,7 +640,9 @@ class WireguardConfig {
   /// present — Core's `pending_runtime_config` state leaves peer material
   /// null, so `config_status` alone isn't quite enough to trust this.
   bool get hasUsablePeer =>
-      peer.publicKey != null && peer.publicKey!.isNotEmpty && peer.endpoint != null;
+      peer.publicKey != null &&
+      peer.publicKey!.isNotEmpty &&
+      peer.endpoint != null;
 }
 
 /// The pilot Core's actual live protocol — a ready-to-use VLESS REALITY
@@ -695,6 +719,7 @@ class VpnConfigResponse {
   });
 
   final AccessGrant grant;
+
   /// Legacy flat node info — prefer [location] (richer: real country/
   /// city/online flag and a [ConnectionTest]) when it's present.
   final LocationItem? node;
@@ -738,15 +763,18 @@ class VpnConfigResponse {
           ? LocationItem.fromJson((json['node'] as Map).cast<String, dynamic>())
           : null,
       location: json['location'] is Map
-          ? LocationItem.fromJson((json['location'] as Map).cast<String, dynamic>())
+          ? LocationItem.fromJson(
+              (json['location'] as Map).cast<String, dynamic>())
           : null,
       device: json['device'] is Map
           ? DeviceItem.fromJson((json['device'] as Map).cast<String, dynamic>())
           : null,
-      configStatus: (json['config_status'] ?? 'pending_runtime_config').toString(),
+      configStatus:
+          (json['config_status'] ?? 'pending_runtime_config').toString(),
       configVersion: _asInt(json['config_version']),
       wireguard: json['wireguard'] is Map
-          ? WireguardConfig.fromJson((json['wireguard'] as Map).cast<String, dynamic>())
+          ? WireguardConfig.fromJson(
+              (json['wireguard'] as Map).cast<String, dynamic>())
           : null,
       connectionUrl: json['connection_url'] as String?,
       shareUrl: json['share_url'] as String?,
@@ -754,7 +782,9 @@ class VpnConfigResponse {
           ? VlessConfig.fromJson((json['vless'] as Map).cast<String, dynamic>())
           : null,
       rawConfig: json['raw_config'] as String?,
-      warnings: (json['warnings'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      warnings:
+          (json['warnings'] as List?)?.map((e) => e.toString()).toList() ??
+              const [],
       routingPolicy: json['routing_policy'] is Map
           ? (json['routing_policy'] as Map).cast<String, dynamic>()
           : null,
@@ -837,7 +867,8 @@ class BootstrapResponse {
   final List<AccessGrant> grants;
 
   factory BootstrapResponse.fromJson(Map<String, dynamic> json) {
-    final overview = (json['overview'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final overview =
+        (json['overview'] as Map?)?.cast<String, dynamic>() ?? const {};
     return BootstrapResponse(
       user: UserProfile.fromJson(
         (json['user'] as Map?)?.cast<String, dynamic>() ?? const {},
@@ -1015,7 +1046,8 @@ class SharedSubscription {
   final List<String> links;
 
   bool get isActive =>
-      status == 'active' && (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
+      status == 'active' &&
+      (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
 
   int? get daysRemaining {
     if (expiresAt == null) return null;
@@ -1068,11 +1100,14 @@ class SharingOverview {
     final own = json['own'];
     final received = json['received'];
     return SharingOverview(
-      own: own is Map ? SharedSubscription.fromJson(own.cast<String, dynamic>()) : null,
+      own: own is Map
+          ? SharedSubscription.fromJson(own.cast<String, dynamic>())
+          : null,
       received: received is List
           ? received
               .whereType<Map>()
-              .map((e) => SharedSubscription.fromJson(e.cast<String, dynamic>()))
+              .map(
+                  (e) => SharedSubscription.fromJson(e.cast<String, dynamic>()))
               .toList()
           : const [],
     );
