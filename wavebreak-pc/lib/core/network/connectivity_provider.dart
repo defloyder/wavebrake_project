@@ -23,6 +23,17 @@ bool _isOffline(List<ConnectivityResult> results) {
 // flicker while still catching a genuine, sustained loss of connection.
 const _debounce = Duration(seconds: 3);
 
+/// Last committed value of [isOfflineProvider], readable synchronously
+/// (ErrorMapper is sync). Bug 1: an API request that failed to connect was
+/// always reported as "no internet" even when the device was online and
+/// only Core was unreachable; the device's own connectivity (independent
+/// of the tunnel and of the API) now decides which message is true.
+class DeviceConnectivity {
+  DeviceConnectivity._();
+
+  static bool offline = false;
+}
+
 /// True when the device currently has no network connectivity at all.
 /// Doesn't guarantee WAVEBREAK Core is reachable — just a quick, honest
 /// signal for "you're offline" banners.
@@ -34,6 +45,7 @@ final isOfflineProvider = StreamProvider<bool>((ref) {
 
   void commit(bool value) {
     current = value;
+    DeviceConnectivity.offline = value;
     if (!controller.isClosed) controller.add(value);
   }
 

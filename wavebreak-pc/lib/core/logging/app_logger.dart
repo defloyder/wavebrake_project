@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../env/app_env.dart';
@@ -71,9 +72,16 @@ class AppLogger {
   static Future<File> exportToFile() async {
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/wavebreak-diagnostic-log.txt');
+    // Real version+build (bug 1): the flavor alone always read
+    // "production" and never said which release produced the log.
+    var version = 'unknown';
+    try {
+      final info = await PackageInfo.fromPlatform();
+      version = '${info.version}+${info.buildNumber}';
+    } catch (_) {}
     final header =
         'WAVEBREAK diagnostic log — exported ${DateTime.now().toIso8601String()}\n'
-        'App version: ${AppEnv.flavor}\n'
+        'App version: $version (${AppEnv.flavor})\n'
         '${'-' * 60}\n';
     await file.writeAsString(header + _buffer.join('\n'));
     return file;

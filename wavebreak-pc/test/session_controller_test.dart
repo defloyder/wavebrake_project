@@ -26,6 +26,7 @@ void main() {
       container.read(sessionControllerProvider).phase,
       SessionPhase.authenticated,
     );
+    await Future<void>.delayed(Duration.zero);
     expect(
       container.read(sessionControllerProvider).user?.email,
       'user@wavebreak.app',

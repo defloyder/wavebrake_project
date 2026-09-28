@@ -9,6 +9,7 @@ class CustomSubscriptionGroup {
     required this.name,
     required this.sourceLink,
     required this.servers,
+    this.sharedWithMe = false,
   });
 
   final String id;
@@ -18,6 +19,11 @@ class CustomSubscriptionGroup {
   /// can re-share or refresh it — never sent to WAVEBREAK Core.
   final String sourceLink;
   final List<LocationItem> servers;
+
+  /// Someone's WAVEBREAK subscription redeemed from their share QR. It
+  /// holds one of the owner's device slots, so it is never re-shared from
+  /// here: passing its link on would skip the owner's device limit.
+  final bool sharedWithMe;
 
   bool get isSubscriptionUrl =>
       sourceLink.startsWith('http://') || sourceLink.startsWith('https://');

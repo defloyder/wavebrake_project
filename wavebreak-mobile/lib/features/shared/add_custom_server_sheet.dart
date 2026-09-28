@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +11,11 @@ import 'data_providers.dart';
 import 'qr_scan_screen.dart';
 import 'wave_params.dart';
 
-Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async {
+/// Where mobile_scanner can open a camera.
+bool get _canScanQr => Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+
+Future<void> showAddCustomServerSheet(
+    BuildContext context, WidgetRef ref) async {
   final controller = TextEditingController();
   final s = ref.read(stringsProvider);
   final tint = ref.read(appWaveParamsProvider).tint;
@@ -37,8 +43,9 @@ Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async
               busy = true;
               error = null;
             });
-            final result =
-                await ref.read(customServersProvider.notifier).addFromLink(controller.text);
+            final result = await ref
+                .read(customServersProvider.notifier)
+                .addFromLink(controller.text);
             setState(() => busy = false);
             if (result == null) {
               // A redeemed share code: fetch its limits for the new section.
@@ -84,7 +91,8 @@ Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async
                 ),
                 Text(
                   s.addSubscriptionLink,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -95,41 +103,52 @@ Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async
                 // Scanning is the fastest path on a phone, so it leads and
                 // gets the filled/emphasized treatment; pasting a link is
                 // the secondary, outlined option next to it.
+                // The scanner (mobile_scanner) has no Windows/Linux camera
+                // support; there the share link is pasted instead (it is
+                // redeemed the same way).
                 Row(
                   children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            final scanned = await Navigator.of(context).push<String>(
-                              MaterialPageRoute(builder: (_) => QrScanScreen(s: s)),
-                            );
-                            // Bug 11: a scanned code is added right away —
-                            // on success the new section appears; if it
-                            // can't be added, the scanned URL stays in
-                            // the field next to the reason.
-                            if (scanned == null || !context.mounted) return;
-                            controller.text = scanned.trim();
-                            await submit();
-                          },
-                          style: FilledButton.styleFrom(
-                            backgroundColor: scanColor.withValues(alpha: 0.16),
-                            foregroundColor: scanColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              side: BorderSide(color: scanColor.withValues(alpha: 0.35)),
+                    if (_canScanQr) ...[
+                      Expanded(
+                        child: SizedBox(
+                          height: 52,
+                          child: FilledButton.icon(
+                            onPressed: () async {
+                              final scanned =
+                                  await Navigator.of(context).push<String>(
+                                MaterialPageRoute(
+                                    builder: (_) => QrScanScreen(s: s)),
+                              );
+                              // Bug 11: a scanned code is added right away —
+                              // on success the new section appears; if it
+                              // can't be added, the scanned URL stays in
+                              // the field next to the reason.
+                              if (scanned == null || !context.mounted) return;
+                              controller.text = scanned.trim();
+                              await submit();
+                            },
+                            style: FilledButton.styleFrom(
+                              backgroundColor:
+                                  scanColor.withValues(alpha: 0.16),
+                              foregroundColor: scanColor,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(
+                                    color: scanColor.withValues(alpha: 0.35)),
+                              ),
                             ),
-                          ),
-                          icon: const Icon(Icons.qr_code_scanner_rounded, size: 19),
-                          label: Text(
-                            s.qrCode,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            icon: const Icon(Icons.qr_code_scanner_rounded,
+                                size: 19),
+                            label: Text(
+                              s.qrCode,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
+                      const SizedBox(width: 10),
+                    ],
                     Expanded(
                       child: SizedBox(
                         height: 52,
@@ -147,7 +166,8 @@ Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          icon: const Icon(Icons.content_paste_rounded, size: 18),
+                          icon:
+                              const Icon(Icons.content_paste_rounded, size: 18),
                           label: Text(s.pasteFromClipboard),
                         ),
                       ),
@@ -164,7 +184,8 @@ Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async
                   decoration: InputDecoration(
                     hintText: 'https://... · vless:// · trojan://',
                     errorText: error,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -188,7 +209,8 @@ Future<void> showAddCustomServerSheet(BuildContext context, WidgetRef ref) async
                           )
                         : Text(
                             s.addSubscription,
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w600),
                           ),
                   ),
                 ),

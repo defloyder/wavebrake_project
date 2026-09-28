@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
+import '../network/connectivity_provider.dart';
 import 'app_exception.dart';
 
 /// Maps transport/HTTP failures onto [AppException]. Core's error body is
@@ -17,8 +18,14 @@ class ErrorMapper {
   AppException map(Object error) {
     if (error is AppException) return error;
 
+    // "No internet" only when the device itself is offline; otherwise the
+    // network is fine and it's Core that can't be reached (bug 1).
+    final unreachable = DeviceConnectivity.offline
+        ? AppErrorKind.noInternet
+        : AppErrorKind.unavailable;
+
     if (error is SocketException) {
-      return AppException(AppErrorKind.noInternet);
+      return AppException(unreachable);
     }
 
     if (error is DioException) {
@@ -26,7 +33,7 @@ class ErrorMapper {
       if (type == DioExceptionType.connectionError ||
           type == DioExceptionType.connectionTimeout ||
           error.error is SocketException) {
-        return AppException(AppErrorKind.noInternet);
+        return AppException(unreachable);
       }
       if (type == DioExceptionType.receiveTimeout ||
           type == DioExceptionType.sendTimeout) {
@@ -62,6 +69,12 @@ class ErrorMapper {
         if (status == 400 && (text.contains('password') || text.contains('characters'))) {
           return AppException(AppErrorKind.weakPassword, statusCode: status);
         }
+      }
+      if (text.contains('share_invalid') || text.contains('share_expired')) {
+        return AppException(AppErrorKind.shareInvalid, statusCode: status);
+      }
+      if (text.contains('share_own_subscription')) {
+        return AppException(AppErrorKind.shareOwnSubscription, statusCode: status);
       }
       if (text.contains('device_limit_reached')) {
         return AppException(AppErrorKind.deviceLimitReached, statusCode: status);

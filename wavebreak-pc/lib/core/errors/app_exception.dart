@@ -16,6 +16,8 @@ enum AppErrorKind {
   deviceLimitReached,
   trafficLimitReached,
   unsupportedProtocol,
+  shareInvalid,
+  shareOwnSubscription,
   unknown,
 }
 
@@ -60,6 +62,10 @@ class AppException implements Exception {
         return s.errTrafficLimitReached;
       case AppErrorKind.unsupportedProtocol:
         return s.errUnsupportedProtocol;
+      case AppErrorKind.shareInvalid:
+        return s.shareInvalid;
+      case AppErrorKind.shareOwnSubscription:
+        return s.shareOwnSubscription;
       case AppErrorKind.unknown:
         return message ?? s.errUnknown;
     }

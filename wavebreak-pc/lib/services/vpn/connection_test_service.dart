@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 
 import '../core_api/models.dart';
+import 'windows_vpn_adapter.dart' show clashTunnelLatency;
 
 /// Resolves the `host:port` a raw TCP reachability probe should dial for
 /// [location], or null when there's nothing to dial — no address could be
@@ -119,9 +120,24 @@ class ConnectionTestService {
     }
   }
 
-  /// Pulls `host`/`port` out of a pasted share link without pulling in the
-  /// full sing-box config generation from `windows_vpn_adapter.dart`'s
-  /// `ShareLink` — this only needs the address, not a runnable outbound.
+  /// Bug 12: latency of the CONNECTED tunnel — sing-box's Clash API delay
+  /// test through the active outbound (see [clashTunnelLatency]), so
+  /// Hysteria2 gets a number too and every protocol is measured the same
+  /// way. Null when no tunnel is up or the probe fails.
+  Future<int?> measureTunnelLatency() async {
+    if (!Platform.isWindows) return null;
+    return clashTunnelLatency();
+  }
+
+  /// Latency for [location]: through the tunnel when it is the connected
+  /// one, otherwise the pre-connect TCP reachability probe.
+  Future<int?> measure(LocationItem location, {required bool connected}) async {
+    if (connected) {
+      final viaTunnel = await measureTunnelLatency();
+      if (viaTunnel != null) return viaTunnel;
+    }
+    return testLocation(location);
+  }
 }
 
 /// Pulls `host`/`port` out of a pasted share link without pulling in the

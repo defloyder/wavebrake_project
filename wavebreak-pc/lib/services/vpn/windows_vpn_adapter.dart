@@ -20,6 +20,41 @@ import 'vpn_adapter.dart';
 /// generated config.
 const _kClashApiPort = 47983;
 
+/// Latency of a real request through the running sing-box's `proxy`
+/// outbound (its Clash API delay test), in ms; null when sing-box isn't
+/// listening or the tunnel doesn't pass traffic. Verified against the
+/// bundled sing-box 1.14.1: it ignores the Clash `url` parameter and always
+/// fetches https://www.gstatic.com/generate_204 through the outbound (so
+/// this includes a TLS handshake), honors `timeout`, and answers 504 when
+/// the fetch fails. The request to the controller is loopback and never
+/// enters the TUN. Also what the location list and speed test show for the
+/// connected location (bug 12), so every protocol, Hysteria2 included, is
+/// measured the same way.
+Future<int?> clashTunnelLatency() async {
+  final client = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 3)
+    ..findProxy = (_) => 'DIRECT';
+  try {
+    final uri = Uri.parse(
+        'http://127.0.0.1:$_kClashApiPort/proxies/proxy/delay?timeout=5000');
+    final request = await client.getUrl(uri);
+    final response = await request.close().timeout(const Duration(seconds: 8));
+    final body = await response.transform(utf8.decoder).join();
+    if (response.statusCode != 200) {
+      AppLogger.debug(
+          'Tunnel health probe failed: status ${response.statusCode} $body');
+      return null;
+    }
+    final delay = (jsonDecode(body) as Map<String, dynamic>)['delay'];
+    return delay is int && delay > 0 ? delay : null;
+  } catch (e) {
+    AppLogger.debug('Tunnel health probe failed: $e');
+    return null;
+  } finally {
+    client.close(force: true);
+  }
+}
+
 /// Real system-level VPN tunnel for Windows, via a bundled sing-box.exe
 /// (see windows/runtime_deps and windows/runner/CMakeLists.txt for how it
 /// and wintun.dll land next to the built exe) driven with a generated
@@ -418,29 +453,7 @@ class WindowsVpnAdapter implements VpnAdapter {
   /// `timeout`, and answers 504 when the fetch fails.
   Future<int?> measureTunnelLatency() async {
     if (_process == null) return null;
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 3)
-      ..findProxy = (_) => 'DIRECT';
-    try {
-      final uri = Uri.parse(
-          'http://127.0.0.1:$_kClashApiPort/proxies/proxy/delay?timeout=5000');
-      final request = await client.getUrl(uri);
-      final response =
-          await request.close().timeout(const Duration(seconds: 8));
-      final body = await response.transform(utf8.decoder).join();
-      if (response.statusCode != 200) {
-        AppLogger.debug(
-            'Tunnel health probe failed: status ${response.statusCode} $body');
-        return null;
-      }
-      final delay = (jsonDecode(body) as Map<String, dynamic>)['delay'];
-      return delay is int && delay > 0 ? delay : null;
-    } catch (e) {
-      AppLogger.debug('Tunnel health probe failed: $e');
-      return null;
-    } finally {
-      client.close(force: true);
-    }
+    return clashTunnelLatency();
   }
 
   Future<void> _runHealthCheck() async {

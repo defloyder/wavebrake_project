@@ -196,7 +196,18 @@ class _SectionCardState extends State<_SectionCard> {
         .where((s) => s.connectionTest != null || (s.isCustom && (s.rawLink ?? '').isNotEmpty))
         .toList();
     if (targets.isEmpty) return;
-    final results = await Future.wait(targets.map((s) => _pingService.testLocation(s)));
+    // Bug 12: the selected location is measured through the tunnel when
+    // one is up (works for Hysteria2 too); otherwise, and for every other
+    // row, the pre-connect TCP probe.
+    Future<int?> ping(LocationItem s) async {
+      if (s.id == widget.currentId) {
+        final viaTunnel = await _pingService.measureTunnelLatency();
+        if (viaTunnel != null) return viaTunnel;
+      }
+      return _pingService.testLocation(s);
+    }
+
+    final results = await Future.wait(targets.map(ping));
     if (!mounted) return;
     setState(() {
       for (var i = 0; i < targets.length; i++) {
@@ -272,6 +283,41 @@ class _SectionCardState extends State<_SectionCard> {
                             style: const TextStyle(color: WbColors.ice60, fontSize: 12),
                             overflow: TextOverflow.ellipsis,
                           ),
+                          // Traffic and devices of this subscription —
+                          // the owner's own limits for a shared one — or a
+                          // note (e.g. the owner's subscription is inactive).
+                          if (section.limitsNote != null)
+                            Text(
+                              section.limitsNote!,
+                              style: const TextStyle(color: WbColors.warning, fontSize: 12),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            )
+                          else if (section.limitsTraffic != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 1),
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      section.limitsTraffic!,
+                                      style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (section.limitsDevices != null) ...[
+                                    const SizedBox(width: 8),
+                                    const Icon(Icons.devices_rounded,
+                                        color: WbColors.ice60, size: 12),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      section.limitsDevices!,
+                                      style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -318,6 +364,7 @@ class _SectionCardState extends State<_SectionCard> {
                           onShare: widget.onShare == null
                               ? null
                               : (title, link) => widget.onShare!(title, link),
+                          shareable: section.shareable,
                         ),
                     ],
                   )
@@ -448,6 +495,7 @@ class _ServerRow extends StatelessWidget {
     required this.onTap,
     required this.onShare,
     this.livePingMs,
+    this.shareable = true,
   });
 
   final LocationItem server;
@@ -455,6 +503,9 @@ class _ServerRow extends StatelessWidget {
   final bool selected;
   final VoidCallback? onTap;
   final void Function(String title, String link)? onShare;
+
+  /// False for a section redeemed from someone else's share code.
+  final bool shareable;
 
   /// A real, just-measured reachability figure from _SectionCard's
   /// periodic sweep (see connection_test_service.dart) — real backend
@@ -516,7 +567,7 @@ class _ServerRow extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                 ],
-                if (server.isCustom && server.rawLink != null)
+                if (shareable && server.isCustom && server.rawLink != null)
                   _HeaderIcon(
                     icon: Icons.ios_share_rounded,
                     tooltip: s.shareSubscription,

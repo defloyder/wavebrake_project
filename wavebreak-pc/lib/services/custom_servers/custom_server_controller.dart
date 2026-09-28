@@ -1,11 +1,19 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:wavebreak_links/wavebreak_links.dart' show ShareLink;
 
+import '../../core/errors/app_exception.dart';
+import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
 import '../core_api/models.dart';
+import '../device/device_service.dart';
+import '../providers.dart';
+import '../vpn/connection_manager.dart';
+import '../vpn/personal_locations.dart';
 import 'custom_subscription.dart';
 import 'share_link_parsing.dart';
 
@@ -30,12 +38,19 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
   /// Adds either a single server link (vless://, trojan://, ...) or a
   /// subscription URL that expands into many servers. WAVEBREAK never
   /// inspects or forwards link contents anywhere but the local (simulated)
-  /// VPN adapter — nothing here is ever sent to WAVEBREAK Core.
+  /// VPN adapter — nothing here is ever sent to WAVEBREAK Core, except the
+  /// token of WAVEBREAK's own share code.
+  ///
+  /// A WAVEBREAK share code (the "Share" QR) is redeemed with Core instead:
+  /// that takes one of the owner's device slots, see [_addFromShareCode].
   ///
   /// Returns null on success, or an error code: 'invalid', 'blocked',
-  /// 'unreachable', 'empty'.
+  /// 'unreachable', 'empty', or for share codes 'share_limit',
+  /// 'share_invalid', 'share_own', 'share_inactive'.
   Future<String?> addFromLink(String link) async {
     final trimmed = link.trim();
+    final shareToken = wavebreakShareToken(trimmed);
+    if (shareToken != null) return _addFromShareCode(shareToken);
     if (!trimmed.contains('://')) return 'invalid';
     final uri = Uri.tryParse(trimmed);
     if (uri == null || uri.scheme.isEmpty) return 'invalid';
@@ -113,13 +128,124 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     return null;
   }
 
+  /// Redeems someone's share code with this app's own Core. Core checks
+  /// the owner's device limit and only then returns the owner's links;
+  /// they land here as one more section. Scanning the same code again
+  /// refreshes that section instead of adding a second one.
+  Future<String?> _addFromShareCode(String token) async {
+    final gateway = ref.read(coreGatewayProvider);
+    final SharedAccess access;
+    try {
+      final (platform, name) = await DeviceService(gateway).platformInfo();
+      access = await gateway.redeemShare(token: token, deviceName: name, platform: platform);
+    } on AppException catch (e) {
+      return switch (e.kind) {
+        AppErrorKind.deviceLimitReached => 'share_limit',
+        AppErrorKind.shareInvalid => 'share_invalid',
+        AppErrorKind.shareOwnSubscription => 'share_own',
+        _ when e.statusCode == 404 || e.statusCode == 422 => 'share_inactive',
+        _ => 'unreachable',
+      };
+    } catch (_) {
+      return 'unreachable';
+    }
+    // Only what this app's tunnel engine runs, as for our own locations.
+    final servers = _sharedServers(access.links);
+    if (servers.isEmpty) return 'empty';
+    final source = access.subscriptionUrl ?? '';
+    final existing = state.where((g) => g.sharedWithMe && g.sourceLink == source).toList();
+    final group = CustomSubscriptionGroup(
+      id: existing.isNotEmpty ? existing.first.id : const Uuid().v4(),
+      name: _sharedName(access.planName),
+      sourceLink: source,
+      servers: servers,
+      sharedWithMe: true,
+    );
+    _redeemedAt[source] = DateTime.now();
+    state = existing.isNotEmpty
+        ? [for (final g in state) g.id == group.id ? group : g]
+        : [...state, group];
+    await _persist();
+    return null;
+  }
+
   Future<void> removeGroup(String id) async {
     state = state.where((g) => g.id != id).toList();
     await _persist();
   }
 
+  final _redeemedAt = <String, DateTime>{};
+  static const _redeemGrace = Duration(minutes: 2);
+
+  @visibleForTesting
+  void forgetRecentRedeems() => _redeemedAt.clear();
+
+  /// Section title of a redeemed subscription: its plan, like our own
+  /// ("WAVEBREAK Fleet") — never the Core host its URL happens to name.
+  String _sharedName(String planName) {
+    final plan = planName.trim();
+    if (plan.isEmpty) return ref.read(stringsProvider).sharedAccessTitle;
+    return plan.toUpperCase().startsWith('WAVEBREAK') ? plan : 'WAVEBREAK $plan';
+  }
+
+  static List<LocationItem> _sharedServers(List<String> links) =>
+      parseSubscriptionBody(links
+          .where((l) => ShareLink.tryParse(l)?.supportedBy(PersonalLocations.engine) ?? false)
+          .join('\n'));
+
+  /// Brings redeemed sections in line with Core's GET /me/sharing: plan
+  /// name and the same app links as our own locations (no CDN). A section
+  /// whose slot the owner revoked is gone from [overview] and is removed
+  /// here — disconnecting first if the tunnel runs through it. While the
+  /// owner's subscription is inactive the links are kept as they were.
+  Future<void> syncShared(SharingOverview overview) async {
+    if (!state.any((g) => g.sharedWithMe)) return;
+    final connection = ref.read(connectionManagerProvider);
+    var disconnect = false;
+    final next = <CustomSubscriptionGroup>[];
+    for (final g in state) {
+      if (!g.sharedWithMe) {
+        next.add(g);
+        continue;
+      }
+      final entry = overview.receivedFor(g.sourceLink);
+      // An overview requested before a fresh redeem can arrive after it;
+      // it just doesn't know the new slot yet — not a revocation.
+      final redeemed = _redeemedAt[g.sourceLink];
+      if (entry == null && redeemed != null && DateTime.now().difference(redeemed) < _redeemGrace) {
+        next.add(g);
+        continue;
+      }
+      if (entry == null) {
+        disconnect = disconnect ||
+            (connection.status != ConnectionStatus.idle &&
+                g.servers.any((s) => s.id == connection.location.id));
+        continue;
+      }
+      final servers = entry.links.isEmpty ? g.servers : _sharedServers(entry.links);
+      next.add(CustomSubscriptionGroup(
+        id: g.id,
+        name: _sharedName(entry.planName),
+        sourceLink: g.sourceLink,
+        servers: servers.isEmpty ? g.servers : servers,
+        sharedWithMe: true,
+      ));
+    }
+    state = next;
+    await _persist();
+    if (disconnect) await ref.read(connectionManagerProvider.notifier).disconnect();
+  }
+
   Future<void> refreshGroup(String id) async {
     final group = state.firstWhere((g) => g.id == id, orElse: () => state.first);
+    if (group.sharedWithMe) {
+      // Through Core, not the raw subscription URL: that one carries every
+      // transport (CDN included) and would rename the section to its host.
+      try {
+        await syncShared(await ref.read(coreGatewayProvider).sharing());
+      } catch (_) {}
+      return;
+    }
     if (!group.isSubscriptionUrl) return;
     final uri = Uri.parse(group.sourceLink);
     String body;
@@ -145,6 +271,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
             name: uri.host,
             sourceLink: g.sourceLink,
             servers: servers,
+            sharedWithMe: g.sharedWithMe,
           )
         else
           g,
@@ -158,6 +285,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
               'id': g.id,
               'name': g.name,
               'link': g.sourceLink,
+              if (g.sharedWithMe) 'shared': true,
               'servers': g.servers
                   .map((s) => {
                         'id': s.id,
@@ -190,6 +318,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       name: (json['name'] ?? 'Custom').toString(),
       sourceLink: (json['link'] ?? '').toString(),
       servers: servers,
+      sharedWithMe: json['shared'] == true,
     );
   }
 }

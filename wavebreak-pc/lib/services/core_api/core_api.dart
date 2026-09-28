@@ -46,7 +46,7 @@ class CoreApi {
   }
 
   Future<TokenPair> refresh(String refreshToken) {
-    return _client.post(
+    return _client.postWithoutAuth(
       '/auth/refresh',
       body: {'refresh_token': refreshToken},
       parse: _tokens,
@@ -111,6 +111,38 @@ class CoreApi {
       // response on a flaky mobile path is safe to retry like a GET.
       retryOnConnectionError: true,
       parse: (data) => PersonalAccess.fromJson(_asMap(data)),
+    );
+  }
+
+  /// A fresh share code for the account's own subscription. 404/422
+  /// without an active subscription, like [myAccess].
+  Future<ShareInfo> myShare() {
+    return _client.post(
+      '/me/share',
+      body: const <String, dynamic>{},
+      parse: (data) => ShareInfo.fromJson(_asMap(data)),
+    );
+  }
+
+  /// The account's own subscription and the ones shared with it.
+  Future<SharingOverview> mySharing() {
+    return _client.get(
+      '/me/sharing',
+      parse: (data) => SharingOverview.fromJson(_asMap(data)),
+    );
+  }
+
+  /// Redeems someone's share code: takes one of their device slots for
+  /// this device (403 DEVICE_LIMIT_REACHED when none is left).
+  Future<SharedAccess> redeemShare({
+    required String token,
+    required String deviceName,
+    required String platform,
+  }) {
+    return _client.post(
+      '/share/redeem',
+      body: {'token': token, 'device_name': deviceName, 'platform': platform},
+      parse: (data) => SharedAccess.fromJson(_asMap(data)),
     );
   }
 

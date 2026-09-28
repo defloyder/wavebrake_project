@@ -125,3 +125,15 @@ int? _surrogatePair(int high, int low) {
   }
   return (label, null);
 }
+
+final _shareCodePath = RegExp(r'^/v1/share/([A-Za-z0-9_-]{48})$');
+
+/// The token of a WAVEBREAK share code (`https://<core>/v1/share/<token>`,
+/// what the "Share" QR holds), or null for any other link. The token is
+/// only ever redeemed with this app's own Core, whatever host the code
+/// names.
+String? wavebreakShareToken(String link) {
+  final uri = Uri.tryParse(link.trim());
+  if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) return null;
+  return _shareCodePath.firstMatch(uri.path)?.group(1);
+}

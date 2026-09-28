@@ -20,19 +20,25 @@ class ApiClient {
     Dio? dio,
     ErrorMapper? mapper,
   }) : mapper = mapper ?? const ErrorMapper() {
-    _dio = dio ??
-        Dio(
-          BaseOptions(
-            baseUrl: '${AppEnv.coreBaseUrl}${AppEnv.apiPrefix}',
-            connectTimeout: const Duration(seconds: 12),
-            receiveTimeout: const Duration(seconds: 20),
-            sendTimeout: const Duration(seconds: 12),
-            headers: const {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-          ),
-        );
+    final options = BaseOptions(
+      baseUrl: '${AppEnv.coreBaseUrl}${AppEnv.apiPrefix}',
+      connectTimeout: const Duration(seconds: 12),
+      receiveTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 12),
+      headers: const {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    );
+    _dio = dio ?? Dio(options);
+    // Bug 1: /auth/refresh must never pass through AuthInterceptor. The
+    // interceptor awaits the refresh from inside its own onError; when the
+    // refresh itself failed (e.g. 401 "reuse detected"), that failure was
+    // routed into the same interceptor and never delivered, wedging every
+    // later 401 for the rest of the process (confirmed: server answered
+    // 401 at 08:41:19, the app never logged the outcome).
+    _authDio = Dio(options);
+    _authDio.interceptors.add(_loggingInterceptor());
     _dio.interceptors.add(
       AuthInterceptor(
         dio: _dio,
@@ -41,8 +47,10 @@ class ApiClient {
         onAuthLost: onAuthLost,
       ),
     );
-    _dio.interceptors.add(
-      InterceptorsWrapper(
+    _dio.interceptors.add(_loggingInterceptor());
+  }
+
+  static Interceptor _loggingInterceptor() => InterceptorsWrapper(
         onRequest: (options, handler) {
           options.headers['X-Request-Id'] ??= const Uuid().v4();
           AppLogger.debug('${options.method} ${options.path}');
@@ -54,11 +62,10 @@ class ApiClient {
           );
           handler.next(error);
         },
-      ),
-    );
-  }
+      );
 
   late final Dio _dio;
+  late final Dio _authDio;
   final ErrorMapper mapper;
   final Future<String?> Function() readAccessToken;
   final TokenRefresh refreshSession;
@@ -104,6 +111,16 @@ class ApiClient {
         () => _dio.post<dynamic>(path, data: body, cancelToken: cancelToken),
         parse,
         retries: retryOnConnectionError ? _maxConnectionRetries : 0);
+  }
+
+  /// POST that bypasses [AuthInterceptor] entirely — only for
+  /// `/auth/refresh`, which the interceptor itself awaits.
+  Future<T> postWithoutAuth<T>(
+    String path, {
+    Object? body,
+    T Function(dynamic data)? parse,
+  }) {
+    return _run(() => _authDio.post<dynamic>(path, data: body), parse);
   }
 
   Future<T> patch<T>(

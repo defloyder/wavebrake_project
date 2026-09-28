@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:connectivity_plus/connectivity_plus.dart' show ConnectivityResult;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +41,8 @@ class WavebreakApp extends ConsumerStatefulWidget {
   @override
   ConsumerState<WavebreakApp> createState() => _WavebreakAppState();
 }
+
+final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 class _WavebreakAppState extends ConsumerState<WavebreakApp> {
   Timer? _pingTicker;
@@ -92,9 +95,13 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
   }
 
   Future<void> _refreshPing() async {
-    if (_usesNativeAndroidNotification) return;
+    if (_usesNativeAndroidNotification) {
+      return;
+    }
     if (ref.read(connectionManagerProvider).status !=
-        ConnectionStatus.connected) return;
+        ConnectionStatus.connected) {
+      return;
+    }
     final ms = await ref.read(vpnAdapterProvider).pingMs();
     if (!mounted ||
         ref.read(connectionManagerProvider).status !=
@@ -130,6 +137,7 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
     return MaterialApp.router(
       title: 'WAVEBREAK',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: _scaffoldMessengerKey,
       theme: WbTheme.dark,
       locale: Locale(language.name),
       supportedLocales: const [
@@ -158,91 +166,132 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
   }
 }
 
-class _OfflineBanner extends ConsumerWidget {
+// Real product feedback this replaces the old full-time pill for: it used
+// to camp permanently over the top of whatever screen was showing for as
+// long as the offline/cached-data condition lasted, and (being pinned to
+// the very top of the stack) could sit over screens' own tappable header
+// controls. Split into the two things it was actually trying to do at
+// once: a TRANSIENT notification for the moment the state changes (a
+// dismissible SnackBar — the standard toast primitive, already supports
+// swipe-to-dismiss and auto-hides on its own) and a small, permanent but
+// unobtrusive ICON (not a banner, not text, doesn't intercept taps) for as
+// long as the underlying condition is still true.
+class _OfflineBanner extends ConsumerStatefulWidget {
   const _OfflineBanner({required this.child});
 
   final Widget? child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(stringsProvider);
+  ConsumerState<_OfflineBanner> createState() => _OfflineBannerState();
+}
+
+class _OfflineBannerState extends ConsumerState<_OfflineBanner> {
+  bool? _wasOffline;
+
+  /// The real radio carrying traffic right now, not a generic signal
+  /// glyph — WiFi and mobile data fail/recover independently and for
+  /// different reasons, so telling them apart in the icon is what
+  /// actually tells the user something ("your WiFi's back" vs "your data
+  /// connection's back") rather than a one-size icon that's technically
+  /// truthful either way.
+  IconData _connectedIcon(ConnectivityResult type) => switch (type) {
+        ConnectivityResult.wifi => Icons.wifi_rounded,
+        ConnectivityResult.ethernet => Icons.lan_rounded,
+        ConnectivityResult.mobile => Icons.signal_cellular_alt_rounded,
+        _ => Icons.wifi_rounded,
+      };
+
+  void _showToast(
+      bool offline, bool deviceOffline, ConnectivityResult connType) {
+    final messenger = _scaffoldMessengerKey.currentState;
+    if (messenger == null) return;
+    final s = ref.read(stringsProvider);
+    messenger.hideCurrentSnackBar();
+    final text = offline
+        ? (deviceOffline ? s.noInternetBanner : s.showingSavedDataBanner)
+        : s.backOnlineBanner;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              offline
+                  ? (deviceOffline
+                      ? Icons.wifi_off_rounded
+                      : Icons.cloud_off_rounded)
+                  : _connectedIcon(connType),
+              color: WbColors.ice,
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Flexible(child: Text(text)),
+          ],
+        ),
+        backgroundColor: offline ? WbColors.warning : WbColors.deepOcean,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        // Swipe-to-dismiss, on top of the automatic 4s auto-hide — either
+        // one closes it, neither camps over the screen indefinitely.
+        dismissDirection: DismissDirection.horizontal,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final deviceOffline = ref.watch(isOfflineProvider).asData?.value ?? false;
     // Device connectivity is only one way to end up looking at stale data —
     // the device can have a perfectly good signal while Core itself is
     // unreachable/erroring, in which case data_providers.dart's cache
     // fallback kicks in and flips this instead. Either one shows the same
-    // pill; the label just says which happened.
+    // indicator; the toast text just says which happened.
     final usingCache = ref.watch(usingCachedDataProvider);
     final offline = deviceOffline || usingCache;
-    final bannerText =
-        deviceOffline ? s.noInternetBanner : s.showingSavedDataBanner;
+    final connType = ref.watch(connectivityTypeProvider).asData?.value ??
+        ConnectivityResult.none;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_wasOffline != null && _wasOffline != offline) {
+        _showToast(offline, deviceOffline, connType);
+      }
+      _wasOffline = offline;
+    });
+
     return Stack(
       children: [
-        if (child != null) child!,
-        // A floating glass pill, not a flat bar — matches the rest of the
-        // app's frosted-card language instead of a jarring solid strip
-        // pasted across the very top of the screen. Pushed down past
-        // every screen's own top row (Home's wordmark+toolbar chip,
-        // every DetailScaffold screen's back-button+title row — both
-        // land in roughly the same ~50-60px band below the safe area) —
-        // this used to sit right at the top and visually overlap those,
-        // including the toolbar chip's tappable refresh/restart buttons.
+        if (widget.child != null) widget.child!,
+        // The small persistent indicator — a plain icon in a soft circular
+        // chip, not a pill with text and not full-width, and wrapped in
+        // IgnorePointer so it can never sit in front of a real tap target
+        // the way the old full-time banner sometimes did.
         Positioned(
           top: 0,
-          left: 0,
           right: 0,
           child: SafeArea(
             bottom: false,
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
-                offset: offline ? Offset.zero : const Offset(0, -1.6),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8, right: 12),
+              child: IgnorePointer(
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
                   opacity: offline ? 1 : 0,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 68),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: WbColors.warning.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                              color: WbColors.warning.withValues(alpha: 0.4)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.25),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                                deviceOffline
-                                    ? Icons.wifi_off_rounded
-                                    : Icons.cloud_off_rounded,
-                                color: WbColors.warning,
-                                size: 16),
-                            const SizedBox(width: 8),
-                            Text(
-                              bannerText,
-                              style: const TextStyle(
-                                color: WbColors.warning,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: WbColors.warning.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: WbColors.warning.withValues(alpha: 0.4)),
+                    ),
+                    child: Icon(
+                      deviceOffline
+                          ? Icons.wifi_off_rounded
+                          : Icons.cloud_off_rounded,
+                      color: WbColors.warning,
+                      size: 14,
                     ),
                   ),
                 ),

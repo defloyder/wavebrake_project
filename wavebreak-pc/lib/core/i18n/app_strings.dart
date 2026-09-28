@@ -39,6 +39,7 @@ class AppStrings {
     required this.confirmPin,
     required this.pinsDontMatch,
     required this.incorrectPin,
+    required this.pinCheckFailed,
     required this.unlockWavebreak,
     required this.pinRequiredForBiometric,
     required this.troubleUnlockingLogOut,
@@ -65,6 +66,9 @@ class AppStrings {
     required this.updateAllowInstalls,
     required this.checkForUpdates,
     required this.upToDate,
+    required this.updateInstalling,
+    required this.updateInstalledTitle,
+    required this.updateOpenApp,
     required this.pingUnavailable,
     required this.measuringPing,
     required this.notifDisconnectAction,
@@ -184,10 +188,26 @@ class AppStrings {
     required this.shareSubscription,
     required this.copyLink,
     required this.linkCopied,
+    required this.shareScanHint,
+    required this.shareDevices,
+    required this.shareTraffic,
+    required this.shareTrafficUnlimited,
+    required this.shareAllSlotsTaken,
+    required this.shareNoSubscription,
+    required this.shareDeviceLimitReached,
+    required this.shareInvalid,
+    required this.shareOwnSubscription,
+    required this.shareOwnerInactive,
+    required this.sharedAccessTitle,
     required this.qrCode,
     required this.close,
     required this.pasteFromClipboard,
     required this.blockedSubscriptionLink,
+    required this.backOnlineBanner,
+    required this.updates,
+    required this.batteryOptPromptTitle,
+    required this.batteryOptPromptBody,
+    required this.batteryOptSettingsRow,
   });
 
   final String languageName;
@@ -225,6 +245,7 @@ class AppStrings {
   final String confirmPin;
   final String pinsDontMatch;
   final String incorrectPin;
+  final String pinCheckFailed;
   final String unlockWavebreak;
   final String pinRequiredForBiometric;
   final String troubleUnlockingLogOut;
@@ -251,6 +272,9 @@ class AppStrings {
   final String updateAllowInstalls;
   final String checkForUpdates;
   final String upToDate;
+  final String updateInstalling;
+  final String updateInstalledTitle;
+  final String updateOpenApp;
   final String pingUnavailable;
   final String measuringPing;
   final String notifDisconnectAction;
@@ -373,10 +397,26 @@ class AppStrings {
   final String shareSubscription;
   final String copyLink;
   final String linkCopied;
+  final String shareScanHint;
+  final String shareDevices;
+  final String shareTraffic;
+  final String shareTrafficUnlimited;
+  final String shareAllSlotsTaken;
+  final String shareNoSubscription;
+  final String shareDeviceLimitReached;
+  final String shareInvalid;
+  final String shareOwnSubscription;
+  final String shareOwnerInactive;
+  final String sharedAccessTitle;
   final String qrCode;
   final String close;
   final String pasteFromClipboard;
   final String blockedSubscriptionLink;
+  final String backOnlineBanner;
+  final String updates;
+  final String batteryOptPromptTitle;
+  final String batteryOptPromptBody;
+  final String batteryOptSettingsRow;
 }
 
 const kEnglishStrings = AppStrings(
@@ -416,6 +456,7 @@ const kEnglishStrings = AppStrings(
   confirmPin: 'Confirm your PIN',
   pinsDontMatch: "PINs don't match — try again",
   incorrectPin: 'Incorrect PIN',
+  pinCheckFailed: 'Could not check the PIN. Try again or log out below',
   unlockWavebreak: 'Unlock WAVEBREAK',
   pinRequiredForBiometric:
       'Set a PIN as a backup in case biometric unlock ever fails',
@@ -444,6 +485,9 @@ const kEnglishStrings = AppStrings(
   updateAllowInstalls: 'Allow installs',
   checkForUpdates: 'Check for updates',
   upToDate: 'You’re up to date',
+  updateInstalling: 'Installing update…',
+  updateInstalledTitle: 'Update installed',
+  updateOpenApp: 'Open',
   pingUnavailable: 'Ping isn\'t available for this connection yet',
   measuringPing: 'Measuring…',
   notifDisconnectAction: 'Disconnect',
@@ -569,11 +613,28 @@ const kEnglishStrings = AppStrings(
   shareSubscription: 'Share',
   copyLink: 'Copy link',
   linkCopied: 'Link copied',
+  shareScanHint: 'Scan it in the WAVEBREAK app: Add your own VPN link → QR',
+  shareDevices: 'Devices: {used} of {limit}',
+  shareTraffic: 'Shared traffic: {used} of {limit}',
+  shareTrafficUnlimited: 'Traffic: unlimited',
+  shareAllSlotsTaken: 'All device slots are taken — free one in Devices to share',
+  shareNoSubscription: 'No active subscription to share',
+  shareDeviceLimitReached: 'Device limit reached',
+  shareInvalid: 'This code is invalid or has expired',
+  shareOwnSubscription: 'This is your own subscription',
+  shareOwnerInactive: 'The owner\'s subscription is not active',
+  sharedAccessTitle: 'WAVEBREAK · shared',
   qrCode: 'QR code',
   close: 'Close',
   pasteFromClipboard: 'Paste',
   blockedSubscriptionLink:
       'https:// only — local/private addresses are not allowed',
+  backOnlineBanner: 'Back online',
+  updates: 'Updates',
+  batteryOptPromptTitle: 'Keep WAVEBREAK reliable in the background?',
+  batteryOptPromptBody:
+      "Android's battery saver can pause always-on VPN apps during long idle periods, causing dropped connections. Allow unrestricted battery use for more reliable always-on protection.",
+  batteryOptSettingsRow: 'Unrestricted battery use',
 );
 
 const kRussianStrings = AppStrings(
@@ -613,6 +674,7 @@ const kRussianStrings = AppStrings(
   confirmPin: 'Подтвердите PIN',
   pinsDontMatch: 'PIN-коды не совпадают — попробуйте снова',
   incorrectPin: 'Неверный PIN',
+  pinCheckFailed: 'Не удалось проверить PIN. Повторите или выйдите из аккаунта ниже',
   unlockWavebreak: 'Разблокировать WAVEBREAK',
   pinRequiredForBiometric: 'Задайте PIN на случай, если биометрия не сработает',
   troubleUnlockingLogOut: 'Проблемы со входом? Выйти',
@@ -640,6 +702,9 @@ const kRussianStrings = AppStrings(
   updateAllowInstalls: 'Разрешить установку',
   checkForUpdates: 'Проверить обновления',
   upToDate: 'У вас последняя версия',
+  updateInstalling: 'Устанавливается обновление…',
+  updateInstalledTitle: 'Обновление установлено',
+  updateOpenApp: 'Открыть',
   pingUnavailable: 'Пинг пока недоступен для этого типа подключения',
   measuringPing: 'Измеряем…',
   notifDisconnectAction: 'Отключиться',
@@ -767,11 +832,28 @@ const kRussianStrings = AppStrings(
   shareSubscription: 'Поделиться',
   copyLink: 'Скопировать ссылку',
   linkCopied: 'Ссылка скопирована',
+  shareScanHint: 'Отсканируйте в приложении WAVEBREAK: «Добавить свою VPN-ссылку» → QR',
+  shareDevices: 'Устройств: {used} из {limit}',
+  shareTraffic: 'Общий трафик: {used} из {limit}',
+  shareTrafficUnlimited: 'Трафик: без ограничений',
+  shareAllSlotsTaken: 'Все места для устройств заняты — освободите одно в «Устройствах»',
+  shareNoSubscription: 'Нет активной подписки, чтобы поделиться',
+  shareDeviceLimitReached: 'Достигнут лимит устройств',
+  shareInvalid: 'Код недействителен или устарел',
+  shareOwnSubscription: 'Это ваша собственная подписка',
+  shareOwnerInactive: 'Подписка владельца неактивна',
+  sharedAccessTitle: 'WAVEBREAK · общий доступ',
   qrCode: 'QR-код',
   close: 'Закрыть',
   pasteFromClipboard: 'Вставить',
   blockedSubscriptionLink:
       'Только https:// — локальные/приватные адреса запрещены',
+  backOnlineBanner: 'Снова в сети',
+  updates: 'Обновления',
+  batteryOptPromptTitle: 'Сделать работу WAVEBREAK в фоне надёжнее?',
+  batteryOptPromptBody:
+      'Экономия заряда Android может приостанавливать работу постоянно включённых VPN-приложений при длительном простое, что приводит к обрывам соединения. Разрешите неограниченное использование батареи для более надёжной защиты.',
+  batteryOptSettingsRow: 'Неограниченное использование батареи',
 );
 
 const kSpanishStrings = AppStrings(
@@ -813,6 +895,7 @@ const kSpanishStrings = AppStrings(
   confirmPin: 'Confirma tu PIN',
   pinsDontMatch: 'Los PIN no coinciden — inténtalo de nuevo',
   incorrectPin: 'PIN incorrecto',
+  pinCheckFailed: 'No se pudo comprobar el PIN. Inténtalo de nuevo o cierra sesión abajo',
   unlockWavebreak: 'Desbloquear WAVEBREAK',
   pinRequiredForBiometric:
       'Configura un PIN de respaldo por si falla el desbloqueo biométrico',
@@ -841,6 +924,9 @@ const kSpanishStrings = AppStrings(
   updateAllowInstalls: 'Permitir instalación',
   checkForUpdates: 'Buscar actualizaciones',
   upToDate: 'Estás al día',
+  updateInstalling: 'Instalando actualización…',
+  updateInstalledTitle: 'Actualización instalada',
+  updateOpenApp: 'Abrir',
   pingUnavailable: 'El ping aún no está disponible para esta conexión',
   measuringPing: 'Midiendo…',
   notifDisconnectAction: 'Desconectar',
@@ -967,11 +1053,28 @@ const kSpanishStrings = AppStrings(
   shareSubscription: 'Compartir',
   copyLink: 'Copiar enlace',
   linkCopied: 'Enlace copiado',
+  shareScanHint: 'Escanéalo en la app WAVEBREAK: Agregar tu propio enlace VPN → QR',
+  shareDevices: 'Dispositivos: {used} de {limit}',
+  shareTraffic: 'Tráfico compartido: {used} de {limit}',
+  shareTrafficUnlimited: 'Tráfico: ilimitado',
+  shareAllSlotsTaken: 'Todos los dispositivos están ocupados: libera uno en Dispositivos',
+  shareNoSubscription: 'No hay una suscripción activa para compartir',
+  shareDeviceLimitReached: 'Se alcanzó el límite de dispositivos',
+  shareInvalid: 'El código no es válido o ha caducado',
+  shareOwnSubscription: 'Esta es tu propia suscripción',
+  shareOwnerInactive: 'La suscripción del propietario no está activa',
+  sharedAccessTitle: 'WAVEBREAK · compartido',
   qrCode: 'Código QR',
   close: 'Cerrar',
   pasteFromClipboard: 'Pegar',
   blockedSubscriptionLink:
       'Solo https:// — direcciones locales/privadas no están permitidas',
+  backOnlineBanner: 'De nuevo en línea',
+  updates: 'Actualizaciones',
+  batteryOptPromptTitle: '¿Hacer que WAVEBREAK sea más fiable en segundo plano?',
+  batteryOptPromptBody:
+      'El ahorro de batería de Android puede pausar las apps VPN siempre activas durante períodos de inactividad prolongados, causando desconexiones. Permite el uso ilimitado de batería para una protección más fiable.',
+  batteryOptSettingsRow: 'Uso de batería sin restricciones',
 );
 
 const kGermanStrings = AppStrings(
@@ -1014,6 +1117,7 @@ const kGermanStrings = AppStrings(
   confirmPin: 'PIN bestätigen',
   pinsDontMatch: 'PINs stimmen nicht überein — erneut versuchen',
   incorrectPin: 'Falscher PIN',
+  pinCheckFailed: 'PIN konnte nicht geprüft werden. Erneut versuchen oder unten abmelden',
   unlockWavebreak: 'WAVEBREAK entsperren',
   pinRequiredForBiometric:
       'Lege eine PIN als Backup fest, falls die biometrische Entsperrung fehlschlägt',
@@ -1042,6 +1146,9 @@ const kGermanStrings = AppStrings(
   updateAllowInstalls: 'Installationen erlauben',
   checkForUpdates: 'Nach Updates suchen',
   upToDate: 'Du bist auf dem neuesten Stand',
+  updateInstalling: 'Update wird installiert…',
+  updateInstalledTitle: 'Update installiert',
+  updateOpenApp: 'Öffnen',
   pingUnavailable: 'Ping ist für diese Verbindung noch nicht verfügbar',
   measuringPing: 'Wird gemessen…',
   notifDisconnectAction: 'Trennen',
@@ -1172,11 +1279,28 @@ const kGermanStrings = AppStrings(
   shareSubscription: 'Teilen',
   copyLink: 'Link kopieren',
   linkCopied: 'Link kopiert',
+  shareScanHint: 'Scanne ihn in der WAVEBREAK-App: Eigenen VPN-Link hinzufügen → QR',
+  shareDevices: 'Geräte: {used} von {limit}',
+  shareTraffic: 'Geteiltes Datenvolumen: {used} von {limit}',
+  shareTrafficUnlimited: 'Datenvolumen: unbegrenzt',
+  shareAllSlotsTaken: 'Alle Geräteplätze sind belegt – gib unter Geräte einen frei',
+  shareNoSubscription: 'Kein aktives Abo zum Teilen',
+  shareDeviceLimitReached: 'Gerätelimit erreicht',
+  shareInvalid: 'Der Code ist ungültig oder abgelaufen',
+  shareOwnSubscription: 'Das ist dein eigenes Abo',
+  shareOwnerInactive: 'Das Abo des Inhabers ist nicht aktiv',
+  sharedAccessTitle: 'WAVEBREAK · geteilt',
   qrCode: 'QR-Code',
   close: 'Schließen',
   pasteFromClipboard: 'Einfügen',
   blockedSubscriptionLink:
       'Nur https:// — lokale/private Adressen sind nicht erlaubt',
+  backOnlineBanner: 'Wieder online',
+  updates: 'Updates',
+  batteryOptPromptTitle: 'WAVEBREAK im Hintergrund zuverlässiger machen?',
+  batteryOptPromptBody:
+      'Der Akkusparmodus von Android kann dauerhaft aktive VPN-Apps bei längerer Inaktivität pausieren, was zu Verbindungsabbrüchen führt. Erlaube uneingeschränkten Akkuverbrauch für zuverlässigeren Dauerschutz.',
+  batteryOptSettingsRow: 'Uneingeschränkter Akkuverbrauch',
 );
 
 const kFrenchStrings = AppStrings(
@@ -1218,6 +1342,7 @@ const kFrenchStrings = AppStrings(
   confirmPin: 'Confirmez votre PIN',
   pinsDontMatch: 'Les PIN ne correspondent pas — réessayez',
   incorrectPin: 'PIN incorrect',
+  pinCheckFailed: 'Impossible de vérifier le PIN. Réessayez ou déconnectez-vous ci-dessous',
   unlockWavebreak: 'Déverrouiller WAVEBREAK',
   pinRequiredForBiometric:
       'Définissez un code PIN de secours en cas d\'échec du déverrouillage biométrique',
@@ -1246,6 +1371,9 @@ const kFrenchStrings = AppStrings(
   updateAllowInstalls: 'Autoriser les installations',
   checkForUpdates: 'Rechercher des mises à jour',
   upToDate: 'Vous êtes à jour',
+  updateInstalling: 'Installation de la mise à jour…',
+  updateInstalledTitle: 'Mise à jour installée',
+  updateOpenApp: 'Ouvrir',
   pingUnavailable: "Le ping n'est pas encore disponible pour cette connexion",
   measuringPing: 'Mesure en cours…',
   notifDisconnectAction: 'Déconnecter',
@@ -1376,11 +1504,28 @@ const kFrenchStrings = AppStrings(
   shareSubscription: 'Partager',
   copyLink: 'Copier le lien',
   linkCopied: 'Lien copié',
+  shareScanHint: 'Scannez-le dans l\'app WAVEBREAK : Ajouter votre propre lien VPN → QR',
+  shareDevices: 'Appareils : {used} sur {limit}',
+  shareTraffic: 'Trafic partagé : {used} sur {limit}',
+  shareTrafficUnlimited: 'Trafic : illimité',
+  shareAllSlotsTaken: 'Tous les emplacements d\'appareils sont pris — libérez-en un dans Appareils',
+  shareNoSubscription: 'Aucun abonnement actif à partager',
+  shareDeviceLimitReached: 'Limite d\'appareils atteinte',
+  shareInvalid: 'Ce code est invalide ou a expiré',
+  shareOwnSubscription: 'C\'est votre propre abonnement',
+  shareOwnerInactive: 'L\'abonnement du propriétaire n\'est pas actif',
+  sharedAccessTitle: 'WAVEBREAK · partagé',
   qrCode: 'Code QR',
   close: 'Fermer',
   pasteFromClipboard: 'Coller',
   blockedSubscriptionLink:
       'https:// uniquement — adresses locales/privées non autorisées',
+  backOnlineBanner: 'De nouveau en ligne',
+  updates: 'Mises à jour',
+  batteryOptPromptTitle: 'Rendre WAVEBREAK plus fiable en arrière-plan ?',
+  batteryOptPromptBody:
+      "L'économiseur de batterie d'Android peut mettre en pause les applications VPN permanentes lors de longues périodes d'inactivité, provoquant des déconnexions. Autorisez une utilisation illimitée de la batterie pour une protection permanente plus fiable.",
+  batteryOptSettingsRow: 'Utilisation de la batterie sans restriction',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -1422,6 +1567,7 @@ const kPortugueseStrings = AppStrings(
   confirmPin: 'Confirme seu PIN',
   pinsDontMatch: 'Os PINs não coincidem — tente novamente',
   incorrectPin: 'PIN incorreto',
+  pinCheckFailed: 'Não foi possível verificar o PIN. Tente de novo ou saia abaixo',
   unlockWavebreak: 'Desbloquear o WAVEBREAK',
   pinRequiredForBiometric:
       'Defina um PIN de backup caso o desbloqueio biométrico falhe',
@@ -1450,6 +1596,9 @@ const kPortugueseStrings = AppStrings(
   updateAllowInstalls: 'Permitir instalação',
   checkForUpdates: 'Verificar atualizações',
   upToDate: 'Você está atualizado',
+  updateInstalling: 'Instalando atualização…',
+  updateInstalledTitle: 'Atualização instalada',
+  updateOpenApp: 'Abrir',
   pingUnavailable: 'O ping ainda não está disponível para esta conexão',
   measuringPing: 'Medindo…',
   notifDisconnectAction: 'Desconectar',
@@ -1577,11 +1726,28 @@ const kPortugueseStrings = AppStrings(
   shareSubscription: 'Compartilhar',
   copyLink: 'Copiar link',
   linkCopied: 'Link copiado',
+  shareScanHint: 'Escaneie no app WAVEBREAK: Adicionar seu próprio link VPN → QR',
+  shareDevices: 'Dispositivos: {used} de {limit}',
+  shareTraffic: 'Tráfego compartilhado: {used} de {limit}',
+  shareTrafficUnlimited: 'Tráfego: ilimitado',
+  shareAllSlotsTaken: 'Todos os dispositivos estão ocupados — libere um em Dispositivos',
+  shareNoSubscription: 'Nenhuma assinatura ativa para compartilhar',
+  shareDeviceLimitReached: 'Limite de dispositivos atingido',
+  shareInvalid: 'Código inválido ou expirado',
+  shareOwnSubscription: 'Esta é a sua própria assinatura',
+  shareOwnerInactive: 'A assinatura do proprietário não está ativa',
+  sharedAccessTitle: 'WAVEBREAK · compartilhado',
   qrCode: 'Código QR',
   close: 'Fechar',
   pasteFromClipboard: 'Colar',
   blockedSubscriptionLink:
       'Apenas https:// — endereços locais/privados não são permitidos',
+  backOnlineBanner: 'De volta online',
+  updates: 'Atualizações',
+  batteryOptPromptTitle: 'Tornar o WAVEBREAK mais confiável em segundo plano?',
+  batteryOptPromptBody:
+      'A economia de bateria do Android pode pausar apps de VPN sempre ativos durante longos períodos de inatividade, causando desconexões. Permita o uso irrestrito de bateria para uma proteção mais confiável.',
+  batteryOptSettingsRow: 'Uso de bateria sem restrições',
 );
 
 const kTurkishStrings = AppStrings(
@@ -1622,6 +1788,7 @@ const kTurkishStrings = AppStrings(
   confirmPin: 'PIN\'inizi onaylayın',
   pinsDontMatch: 'PIN\'ler eşleşmiyor — tekrar deneyin',
   incorrectPin: 'Yanlış PIN',
+  pinCheckFailed: 'PIN doğrulanamadı. Tekrar deneyin veya aşağıdan çıkış yapın',
   unlockWavebreak: 'WAVEBREAK kilidini aç',
   pinRequiredForBiometric:
       'Biyometrik kilit açma başarısız olursa diye yedek bir PIN belirleyin',
@@ -1650,6 +1817,9 @@ const kTurkishStrings = AppStrings(
   updateAllowInstalls: 'Yüklemelere izin ver',
   checkForUpdates: 'Güncellemeleri denetle',
   upToDate: 'Güncelsiniz',
+  updateInstalling: 'Güncelleme yükleniyor…',
+  updateInstalledTitle: 'Güncelleme yüklendi',
+  updateOpenApp: 'Aç',
   pingUnavailable: 'Bu bağlantı için ping henüz kullanılamıyor',
   measuringPing: 'Ölçülüyor…',
   notifDisconnectAction: 'Bağlantıyı kes',
@@ -1777,11 +1947,28 @@ const kTurkishStrings = AppStrings(
   shareSubscription: 'Paylaş',
   copyLink: 'Bağlantıyı kopyala',
   linkCopied: 'Bağlantı kopyalandı',
+  shareScanHint: 'WAVEBREAK uygulamasında tarayın: Kendi VPN bağlantınızı ekleyin → QR',
+  shareDevices: 'Cihazlar: {used} / {limit}',
+  shareTraffic: 'Ortak trafik: {used} / {limit}',
+  shareTrafficUnlimited: 'Trafik: sınırsız',
+  shareAllSlotsTaken: 'Tüm cihaz yerleri dolu — Cihazlar bölümünden birini boşaltın',
+  shareNoSubscription: 'Paylaşılacak aktif abonelik yok',
+  shareDeviceLimitReached: 'Cihaz sınırına ulaşıldı',
+  shareInvalid: 'Kod geçersiz veya süresi dolmuş',
+  shareOwnSubscription: 'Bu sizin kendi aboneliğiniz',
+  shareOwnerInactive: 'Sahibin aboneliği aktif değil',
+  sharedAccessTitle: 'WAVEBREAK · paylaşılan',
   qrCode: 'QR kod',
   close: 'Kapat',
   pasteFromClipboard: 'Yapıştır',
   blockedSubscriptionLink:
       'Sadece https:// — yerel/özel adreslere izin verilmez',
+  backOnlineBanner: 'Tekrar çevrimiçi',
+  updates: 'Güncellemeler',
+  batteryOptPromptTitle: 'WAVEBREAK arka planda daha güvenilir çalışsın mı?',
+  batteryOptPromptBody:
+      "Android'in pil tasarrufu, uzun boşta kalma sürelerinde her zaman açık VPN uygulamalarını duraklatabilir ve bağlantı kopmalarına neden olabilir. Daha güvenilir kesintisiz koruma için sınırsız pil kullanımına izin verin.",
+  batteryOptSettingsRow: 'Sınırsız pil kullanımı',
 );
 
 AppStrings stringsFor(AppLanguage language) {

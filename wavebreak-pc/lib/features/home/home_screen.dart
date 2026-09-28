@@ -14,8 +14,8 @@ import '../../core/theme/flag_colors.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/core_api/models.dart';
 import '../../services/custom_servers/custom_server_controller.dart';
+import '../../services/custom_servers/custom_subscription.dart';
 import '../../services/vpn/connection_manager.dart';
-import '../../services/vpn/connection_test_service.dart';
 import '../shared/add_custom_server_sheet.dart';
 import '../shared/confirm_dialogs.dart';
 import '../shared/connect_button.dart';
@@ -48,40 +48,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _locationLink = LayerLink();
   final _scrollController = ScrollController();
   bool _dropdownOpen = false;
-  int? _lastPingMs;
-  bool _pingTesting = false;
-
-  Future<void> _testPing() async {
-    if (_pingTesting) return;
-    setState(() => _pingTesting = true);
-    final connection = ref.read(connectionManagerProvider);
-    // Always the same TCP-connect-and-time probe against the selected
-    // server's own address (ConnectionTestService — also what the
-    // location picker's per-row ping uses), whether or not the tunnel is
-    // currently up. A previous version used a hardcoded 1.1.1.1:443 check
-    // while connected instead — confirmed on-device that came back as an
-    // implausible ~2ms almost every time, far too fast for a real
-    // internet round trip even over a fast connection, most likely
-    // because Android's VPN stack special-cases traffic to the tunnel's
-    // own configured DNS server address rather than actually forwarding
-    // it through tun2socks like ordinary traffic. Testing the real node's
-    // own host:port instead has no such special case and — as a bonus —
-    // now reads the same number the location list shows for consistency.
-    final result =
-        await const ConnectionTestService().testLocation(connection.location);
-    if (!mounted) return;
-    setState(() {
-      _pingTesting = false;
-      _lastPingMs = result;
-    });
-    if (result == null && mounted) {
-      final s = ref.read(stringsProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.pingUnavailable)),
-      );
-    }
-  }
-
   // Closing a long, scrolled-into location list should smoothly bring the
   // gaze back up the page instead of leaving the view stranded on the
   // now-empty space the collapsed list used to fill.
@@ -164,7 +130,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       wavebreakLocations: locations,
       customGroups: custom,
       s: s,
-      wavebreakShareUrl: ref.read(sessionControllerProvider).config.websiteUrl,
+      sharing: ref.read(sharingProvider).asData?.value,
     );
     final isDesktop = MediaQuery.sizeOf(context).width >= 820;
     final result = isDesktop
@@ -322,8 +288,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           wavebreakLocations: items,
           customGroups: ref.watch(customServersProvider),
           s: s,
-          wavebreakShareUrl: ref.watch(sessionControllerProvider
-              .select((session) => session.config.websiteUrl)),
+          sharing: ref.watch(sharingProvider).asData?.value,
         );
         return SubscriptionAccordion(
           sections: sections,
@@ -438,9 +403,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       onAddCustom: () => showAddCustomServerSheet(context, ref),
       s: s,
       tint: tint,
-      pingMs: _lastPingMs,
-      pingTesting: _pingTesting,
-      onTestPing: _testPing,
       onRetry: () {
         ref
             .read(connectionManagerProvider.notifier)
@@ -857,12 +819,9 @@ class _StatusCopy extends StatelessWidget {
     required this.s,
     required this.onRetry,
     required this.onChoosePlan,
-    required this.onTestPing,
     required this.isGuest,
     required this.onAddCustom,
     required this.onCancel,
-    this.pingMs,
-    this.pingTesting = false,
     this.tint,
   });
 
@@ -872,12 +831,9 @@ class _StatusCopy extends StatelessWidget {
   final AppStrings s;
   final VoidCallback onRetry;
   final VoidCallback onChoosePlan;
-  final VoidCallback onTestPing;
   final bool isGuest;
   final VoidCallback onAddCustom;
   final VoidCallback onCancel;
-  final int? pingMs;
-  final bool pingTesting;
   final Color? tint;
 
   @override
@@ -1007,17 +963,6 @@ class _StatusCopy extends StatelessWidget {
               child:
                   Text(s.cancel, style: const TextStyle(color: WbColors.ice60)),
             ),
-          if (!connection.isBusy &&
-              (connection.status == ConnectionStatus.connected ||
-                  connection.location.connectionTest != null)) ...[
-            const SizedBox(height: 4),
-            _PingRow(
-              pingMs: pingMs,
-              testing: pingTesting,
-              onTest: onTestPing,
-              s: s,
-            ),
-          ],
         ],
       ),
     );
@@ -1093,67 +1038,8 @@ class _ConnectWallSkeletonState extends State<_ConnectWallSkeleton>
   }
 }
 
-/// A small, explicit "test my connection" control — replaces the old
-/// silent, sometimes-there-sometimes-not ping number (real backends don't
-/// give per-location latency at all) with an honest on-demand measurement
-/// through whatever tunnel is actually up right now.
-class _PingRow extends StatelessWidget {
-  const _PingRow({
-    required this.pingMs,
-    required this.testing,
-    required this.onTest,
-    required this.s,
-  });
-
-  final int? pingMs;
-  final bool testing;
-  final VoidCallback onTest;
-  final AppStrings s;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: testing ? null : onTest,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (testing)
-                const SizedBox(
-                  width: 13,
-                  height: 13,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                const Icon(Icons.speed_rounded,
-                    size: 15, color: WbColors.ice60),
-              const SizedBox(width: 6),
-              Text(
-                testing
-                    ? s.testPing
-                    : pingMs != null
-                        ? '$pingMs ms'
-                        : s.testPing,
-                style: const TextStyle(
-                  color: WbColors.ice60,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Small entry point into the full [SpeedTestScreen] — styled like
-/// [_PingRow] right above it, but this is nav-only now; the actual test
+/// a small pill; this is nav-only; the actual test
 /// (with its live animated gauge) runs on its own dedicated page rather
 /// than inline here. Shows the last result once one exists so glancing
 class _SubscriptionStrip extends ConsumerWidget {
@@ -1191,6 +1077,24 @@ class _SubscriptionStrip extends ConsumerWidget {
             const Icon(Icons.chevron_right_rounded, color: WbColors.ice60),
           ],
         ),
+      );
+    }
+    // A location of a subscription someone shared with us is selected:
+    // show that subscription (the owner's days and traffic), not ours.
+    final locationId = ref.watch(connectionManagerProvider.select((c) => c.location.id));
+    CustomSubscriptionGroup? sharedGroup;
+    for (final g in ref.watch(customServersProvider)) {
+      if (g.sharedWithMe && g.servers.any((server) => server.id == locationId)) {
+        sharedGroup = g;
+        break;
+      }
+    }
+    if (sharedGroup != null) {
+      final received =
+          ref.watch(sharingProvider).asData?.value?.receivedFor(sharedGroup.sourceLink);
+      return WbCard(
+        tint: tint,
+        child: _SharedSubscriptionStrip(title: sharedGroup.name, received: received, s: s),
       );
     }
     return WbCard(
@@ -1269,6 +1173,53 @@ class _SubscriptionStrip extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+/// Home's strip for a subscription shared with us: its owner's plan, days
+/// and traffic (everyone sharing it uses the same traffic).
+class _SharedSubscriptionStrip extends StatelessWidget {
+  const _SharedSubscriptionStrip({required this.title, required this.received, required this.s});
+
+  final String title;
+  final SharedSubscription? received;
+  final AppStrings s;
+
+  @override
+  Widget build(BuildContext context) {
+    final sub = received;
+    final active = sub != null && sub.isActive;
+    final days = sub?.daysRemaining;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          active ? s.subscriptionActive : title,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          sub == null
+              ? s.sharedAccessTitle
+              : !active
+                  ? s.shareOwnerInactive
+                  : days == null
+                      ? title
+                      : '$days ${s.daysRemaining} · $title',
+          style: TextStyle(
+            color: sub != null && !active ? WbColors.warning : WbColors.ice60,
+            fontSize: 13,
+          ),
+        ),
+        if (active) ...[
+          const SizedBox(height: 10),
+          TrafficWaveBar(
+            usedBytes: sub.trafficUsedBytes,
+            limitBytes: sub.trafficLimitBytes,
+            s: s,
+          ),
+        ],
+      ],
     );
   }
 }

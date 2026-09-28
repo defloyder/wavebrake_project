@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:wavebreak_links/wavebreak_links.dart' show ShareLink, TunnelEngine;
+import 'package:wavebreak_links/wavebreak_links.dart' show ShareLink;
 
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/language_controller.dart';
@@ -13,6 +13,7 @@ import '../core_api/models.dart';
 import '../device/device_service.dart';
 import '../providers.dart';
 import '../vpn/connection_manager.dart';
+import '../vpn/personal_locations.dart';
 import 'custom_subscription.dart';
 import 'share_link_parsing.dart';
 
@@ -189,7 +190,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
 
   static List<LocationItem> _sharedServers(List<String> links) =>
       parseSubscriptionBody(links
-          .where((l) => ShareLink.tryParse(l)?.supportedBy(TunnelEngine.xray) ?? false)
+          .where((l) => ShareLink.tryParse(l)?.supportedBy(PersonalLocations.engine) ?? false)
           .join('\n'));
 
   /// Brings redeemed sections in line with Core's GET /me/sharing: plan

@@ -218,7 +218,18 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   }
 
   void hydrateLocations(List<LocationItem> locations) {
-    if (state.location.isAuto) return;
+    if (state.location.isAuto) {
+      // Bug 6: "Auto (Fastest)" is no longer offered anywhere. A fresh
+      // install (or a saved Auto selection) gets the first available real
+      // location instead — only while idle, never switching a live tunnel.
+      if (state.status != ConnectionStatus.idle) return;
+      final first = locations.where((l) => l.available && !l.isAuto);
+      if (first.isEmpty) return;
+      state = state.copyWith(location: first.first);
+      unawaited(
+          PrefsStore.setString(PrefsStore.lastLocationId, first.first.id));
+      return;
+    }
     final match = locations.where((l) => l.id == state.location.id);
     if (match.isNotEmpty) {
       state = state.copyWith(location: match.first);

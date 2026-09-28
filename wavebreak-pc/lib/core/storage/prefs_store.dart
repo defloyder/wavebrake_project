@@ -8,6 +8,11 @@ class PrefsStore {
   static const biometricEnabled = 'biometric_enabled';
   static const requireBiometricOnOpen = 'require_biometric_on_open';
   static const pinEnabled = 'pin_enabled';
+  // Salted hash of the app-lock PIN and its length (see PinService: kept
+  // here, not only in Keystore, which can hang on some phones).
+  static const pinSalt = 'pin_salt_v2';
+  static const pinHash = 'pin_hash_v2';
+  static const pinLength = 'pin_length';
   static const appLockEnabled = 'app_lock_enabled';
   static const guestMode = 'guest_mode';
   static const onboardingChoiceMade = 'onboarding_choice_made';
@@ -18,6 +23,11 @@ class PrefsStore {
   static const notifyConnection = 'notify_connection';
   static const notifySubscription = 'notify_subscription';
   static const biometricPromptShown = 'biometric_prompt_shown';
+  // Epoch ms of the last battery-optimization prompt (bug 1: asked once
+  // ever, so a declined/ignored prompt left the tunnel exposed to Doze
+  // for good). Re-offered at most weekly while still not exempt.
+  static const batteryOptimizationPromptLastMs =
+      'battery_optimization_prompt_last_ms';
   static const language = 'language';
   static const customServers = 'custom_servers';
   static const accentOverride = 'accent_override';
@@ -34,9 +44,24 @@ class PrefsStore {
   static const cachedDevices = 'cache_devices_v1';
   static const cachedPlans = 'cache_plans_v1';
   static const cachedUsage = 'cache_usage_v1';
-  // Last-known-good `me()` profile — see userProfileProvider in
-  // features/shared/data_providers.dart.
+  // Last-known-good `me()` profile — lets a cold start with valid tokens
+  // go straight to SessionPhase.authenticated instead of blocking on a
+  // network round-trip before showing anything. See
+  // SessionController.bootstrapSession.
   static const cachedUser = 'cache_user_v1';
+  // The highest update versionCode a local notification has already been
+  // fired for — see update_service.dart's own doc comment. Without this,
+  // periodic polling would re-notify for the SAME available update every
+  // interval for as long as it stays uninstalled, instead of once.
+  static const lastNotifiedUpdateVersionCode = 'last_notified_update_code';
+  // The versionCode an in-flight self-update install was targeting —
+  // written right before handing off to Android's own install dialog,
+  // read back on the next app start to detect that the install actually
+  // completed. See ApkInstallController.checkPendingInstallCompleted's
+  // own doc comment for why this can't just be in-memory state: the
+  // process that wrote it is gone by the time there's anything to read
+  // it back for.
+  static const pendingInstallVersionCode = 'pending_install_version_code';
 
   static void init(SharedPreferences prefs) {
     _prefs = prefs;

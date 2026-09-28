@@ -64,12 +64,12 @@ class PersonalLocations {
   }
 
   /// Android runs Xray-core, which supports every transport Core publishes.
-  static const _engine = TunnelEngine.xray;
+  static const engine = TunnelEngine.xray;
 
   /// Links this app's tunnel engine can't run are left out rather than
   /// listed and failing on connect.
   static List<LocationItem> _parse(PersonalAccess access) =>
       parseSubscriptionBody(access.links
-          .where((l) => ShareLink.tryParse(l)?.supportedBy(_engine) ?? false)
+          .where((l) => ShareLink.tryParse(l)?.supportedBy(engine) ?? false)
           .join('\n'));
 }

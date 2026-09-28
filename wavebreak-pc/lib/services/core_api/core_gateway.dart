@@ -111,6 +111,29 @@ class CoreGateway {
     }
   }
 
+  /// Share code for the account's own subscription; the mock backend has
+  /// none to give.
+  Future<ShareInfo> myShare() {
+    if (useMock) {
+      return Future.error(AppException(AppErrorKind.subscriptionRequired, statusCode: 404));
+    }
+    return live.myShare();
+  }
+
+  Future<SharingOverview> sharing() {
+    if (useMock) return Future.value(SharingOverview.empty);
+    return live.mySharing();
+  }
+
+  Future<SharedAccess> redeemShare({
+    required String token,
+    required String deviceName,
+    required String platform,
+  }) {
+    if (useMock) return Future.error(AppException(AppErrorKind.unavailable));
+    return live.redeemShare(token: token, deviceName: deviceName, platform: platform);
+  }
+
   Future<UsageSummary?> usage() async {
     if (useMock) return mock.getUsage();
     try {
