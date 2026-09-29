@@ -964,7 +964,9 @@ class _StatusCopy extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            subtitle,
+            // A non-breaking space keeps the line while connecting, so the
+            // content below doesn't jump up and back down.
+            subtitle.isEmpty ? ' ' : subtitle,
             textAlign: TextAlign.center,
             style: const TextStyle(color: WbColors.ice60, fontSize: 14),
           ),
@@ -1122,6 +1124,9 @@ class _SubscriptionStrip extends ConsumerWidget {
       onTap: onOpen,
       tint: tint,
       child: asyncSub.when(
+        // A re-read keeps the shown subscription (no one-line "loading"
+        // flash that made the screen jump).
+        skipLoadingOnReload: true,
         loading: () => Text(
           s.subscription,
           style: const TextStyle(color: WbColors.ice60),
@@ -1169,7 +1174,10 @@ class _SubscriptionStrip extends ConsumerWidget {
             );
           }
           final days = sub.daysRemaining;
-          final usage = ref.watch(trafficUsageProvider).asData?.value;
+          // valueOrNull, not asData: while usage is re-read (every connect
+          // or location switch) the last value stays instead of the bar
+          // vanishing for a moment and the screen jumping.
+          final usage = ref.watch(trafficUsageProvider).valueOrNull;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
