@@ -7,6 +7,7 @@ import 'package:wavebreak_links/wavebreak_links.dart';
 
 import '../../core/logging/app_logger.dart';
 import '../core_api/models.dart';
+import 'network_change_policy.dart';
 import 'vpn_adapter.dart';
 
 /// Loopback-only port for sing-box's Clash-API-compatible control server
@@ -136,6 +137,10 @@ class WindowsVpnAdapter implements VpnAdapter {
   // The physical networks (Wi-Fi/Ethernet/mobile) last seen; a change
   // that only adds/removes VPN or virtual adapters leaves this unchanged.
   Set<ConnectivityResult>? _lastPhysicalNetworks;
+  // When the real networks all went away (raw event time, before the
+  // debounce); null while there is one. Kept across the outage so the
+  // same network coming back after a blip isn't taken for a new one.
+  DateTime? _offlineSince;
   static const _wakeWatchInterval = Duration(seconds: 5);
   static const _wakeGapThreshold = Duration(seconds: 20);
   Timer? _wakeWatchTimer;
@@ -386,9 +391,10 @@ class WindowsVpnAdapter implements VpnAdapter {
     _consecutiveHealthFailures = 0;
     _tunnelUpAt = DateTime.now();
     _lastPhysicalNetworks = null;
+    _offlineSince = null;
     // Baseline to compare later network events against.
     unawaited(Connectivity().checkConnectivity().then((results) {
-      _lastPhysicalNetworks ??= _physicalNetworks(results);
+      _lastPhysicalNetworks ??= physicalNetworks(results);
     }).catchError((_) {}));
     _connectivitySub =
         Connectivity().onConnectivityChanged.listen(_onConnectivityChanged);
@@ -425,17 +431,10 @@ class WindowsVpnAdapter implements VpnAdapter {
     _wakeWatchTimer = null;
   }
 
-  static Set<ConnectivityResult> _physicalNetworks(
-          List<ConnectivityResult> results) =>
-      results
-          .where((r) =>
-              r == ConnectivityResult.wifi ||
-              r == ConnectivityResult.ethernet ||
-              r == ConnectivityResult.mobile)
-          .toSet();
-
   void _onConnectivityChanged(List<ConnectivityResult> results) {
     if (_process == null) return;
+    final eventAt = DateTime.now();
+    if (physicalNetworks(results).isEmpty) _offlineSince ??= eventAt;
     // Debounced so a rapid down/up flap (an adapter briefly re-negotiating
     // DHCP, a laptop's Wi-Fi/Ethernet handoff) doesn't fire two separate
     // recovery attempts back to back — 1200ms matches the mobile
@@ -445,25 +444,31 @@ class WindowsVpnAdapter implements VpnAdapter {
     _networkDebounceTimer?.cancel();
     _networkDebounceTimer = Timer(_networkChangeDebounce, () {
       if (_process == null) return;
-      final physical = _physicalNetworks(results);
-      final previous = _lastPhysicalNetworks;
-      _lastPhysicalNetworks = physical;
-      // Our own TUN adapter appearing, another VPN's adapter, or any
-      // change that leaves the real networks as they were: not a reason
-      // to reload a working tunnel (each reload is a visible drop).
-      if (DateTime.now().difference(_tunnelUpAt) < _networkChangeGrace ||
-          previous == null ||
-          (physical.length == previous.length &&
-              physical.containsAll(previous))) {
-        AppLogger.debug('Network event ignored ($results)');
-        return;
-      }
-      if (results.every((r) => r == ConnectivityResult.none)) {
+      final physical = physicalNetworks(results);
+      if (physical.isEmpty) {
         // Fully offline right now — nothing to nudge until connectivity
         // actually returns; that return is itself a future
         // onConnectivityChanged event, which re-enters this same path.
+        // The baseline stays: the networks that come back are compared
+        // with the ones before the outage.
         AppLogger.debug(
             'Network reported fully offline — waiting for it to return before attempting recovery');
+        return;
+      }
+      final previous = _lastPhysicalNetworks;
+      final offlineFor =
+          _offlineSince == null ? null : eventAt.difference(_offlineSince!);
+      _lastPhysicalNetworks = physical;
+      _offlineSince = null;
+      // Our own TUN adapter appearing, another VPN's adapter, the same
+      // networks back after a blip: not a reason to reload a working
+      // tunnel (each reload is a visible drop).
+      if (DateTime.now().difference(_tunnelUpAt) < _networkChangeGrace ||
+          !networkChangeNeedsRecovery(
+              previous: previous, current: physical, offlineFor: offlineFor)) {
+        AppLogger.debug(offlineFor == null
+            ? 'Network event ignored ($results)'
+            : 'Same network back after ${offlineFor.inMilliseconds} ms: no reconnect');
         return;
       }
       AppLogger.warn('Network change detected ($results)');
