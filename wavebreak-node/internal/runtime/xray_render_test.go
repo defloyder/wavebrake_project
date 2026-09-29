@@ -75,3 +75,18 @@ func TestRenderXHTTPRealityDisabledWithoutSNI(t *testing.T) {
 		t.Fatal("inbound must stay off until its SNI is configured")
 	}
 }
+
+func TestRealityInboundAcceptsSeveralServerNames(t *testing.T) {
+	cfg := config.XrayConfig{
+		ListenPort: 8443, RealityPrivateKey: "priv", RealityShortID: "ab12", RealityDest: "127.0.0.1:18447",
+		RealityServerName: " www.microsoft.com, r.example.test ,", Flow: "xtls-rprx-vision",
+	}
+	ib, ok := renderInbounds(t, cfg)["vless-reality"]
+	if !ok {
+		t.Fatal("reality inbound missing")
+	}
+	names := ib["streamSettings"].(map[string]any)["realitySettings"].(map[string]any)["serverNames"].([]any)
+	if len(names) != 2 || names[0] != "www.microsoft.com" || names[1] != "r.example.test" {
+		t.Fatalf("serverNames: %v", names)
+	}
+}

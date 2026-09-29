@@ -143,7 +143,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"show":        false,
 					"xver":        0,
 					"dest":        a.cfg.RealityDest,
-					"serverNames": []string{a.cfg.RealityServerName},
+					"serverNames": splitNames(a.cfg.RealityServerName),
 					"privateKey":  a.cfg.RealityPrivateKey,
 					"shortIds":    []string{a.cfg.RealityShortID},
 				},
@@ -997,4 +997,18 @@ func xrayFlowEnabled(flow string) bool {
 	default:
 		return true
 	}
+}
+
+// splitNames: WAVEBREAK_XRAY_REALITY_SERVER_NAME may list several SNIs
+// ("www.microsoft.com,r.wavebreak.com.tr"): a third-party name for new
+// links (carriers cut our own subdomains by SNI) while links still carrying
+// the old name keep working until the apps refresh them.
+func splitNames(list string) []string {
+	var out []string
+	for _, n := range strings.Split(list, ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			out = append(out, n)
+		}
+	}
+	return out
 }

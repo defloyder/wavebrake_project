@@ -221,7 +221,7 @@ func Load() (Config, error) {
 			PublicPort:                vlessPort,
 			RealityPublicKey:          env("WAVEBREAK_VLESS_REALITY_PUBLIC_KEY", ""),
 			RealityShortID:            env("WAVEBREAK_VLESS_REALITY_SHORT_ID", ""),
-			RealityServerName:         env("WAVEBREAK_VLESS_REALITY_SERVER_NAME", "www.microsoft.com"),
+			RealityServerName:         firstName(env("WAVEBREAK_VLESS_REALITY_SERVER_NAME", "www.microsoft.com")),
 			Fingerprint:               env("WAVEBREAK_VLESS_FINGERPRINT", "chrome"),
 			Flow:                      env("WAVEBREAK_VLESS_FLOW", "xtls-rprx-vision"),
 			ShadowsocksPort:           ssPort,
@@ -307,4 +307,15 @@ func mustDuration(raw string) time.Duration {
 		return 15 * time.Minute
 	}
 	return d
+}
+
+// firstName: the node may accept several REALITY SNIs (a comma-separated
+// list, the same variable in the pilot's compose); links use the first.
+func firstName(list string) string {
+	for _, n := range strings.Split(list, ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			return n
+		}
+	}
+	return ""
 }
