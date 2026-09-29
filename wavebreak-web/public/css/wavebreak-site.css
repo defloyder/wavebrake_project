@@ -1067,3 +1067,16 @@ img { display: block; max-width: 100%; }
     .hero-copy h1 .hero-kicker { font-size: 10px; margin-bottom: 16px; }
     .choice-grid--three { grid-template-columns: 1fr; gap: 36px; }
 }
+
+/* Language switcher in the header. */
+.wb-lang { display: flex; gap: 2px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; }
+.wb-lang a { padding: 6px 9px; border-radius: 5px; font: 600 11px/1 var(--mono); color: var(--muted); transition: color .2s, background .2s; }
+.wb-lang a:hover { color: var(--paper); }
+.wb-lang a.is-active { color: var(--paper); background: #142125; }
+@media (max-width: 980px) {
+    .wb-nav-panel { gap: 14px; }
+}
+@media (max-width: 760px) {
+    .wb-lang { justify-content: space-between; }
+    .wb-lang a { flex: 1; text-align: center; padding: 10px; }
+}

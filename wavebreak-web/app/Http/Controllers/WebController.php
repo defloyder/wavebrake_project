@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Services\CoreClient;
+use App\Support\Locales;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 use Throwable;
 
@@ -82,7 +84,9 @@ class WebController extends Controller
             'price' => $price,
             'currency' => $currency,
             'currency_label' => ['RUB' => '₽', 'USD' => '$', 'EUR' => '€', 'TRY' => '₺'][$currency] ?? $currency,
-            'period' => $isYearly ? 'год' : ($days ? $days.' дней' : (['month' => 'месяц', 'week' => 'неделю'][$plan['interval'] ?? ''] ?? ($plan['interval'] ?? 'период'))),
+            'period' => $isYearly ? __('site.pricing.period_year')
+                : ($days ? trans_choice('site.pricing.period_days', (int) $days, ['days' => $days])
+                : (in_array($plan['interval'] ?? '', ['month', 'week'], true) ? __('site.pricing.period_'.$plan['interval']) : __('site.pricing.period_other'))),
             'per_month' => $isYearly ? $price / 12 : null,
             'saving' => null,
             'discount' => null,
@@ -100,5 +104,22 @@ class WebController extends Controller
     public function download(): View
     {
         return view('download');
+    }
+
+    public function terms(): View
+    {
+        return view('legal.'.Locales::current().'.terms');
+    }
+
+    public function privacy(): View
+    {
+        return view('legal.'.Locales::current().'.privacy');
+    }
+
+    public function sitemap(): Response
+    {
+        return response()
+            ->view('sitemap', ['pages' => array_keys(Locales::PAGES), 'locales' => array_keys(Locales::SUPPORTED)])
+            ->header('Content-Type', 'application/xml; charset=utf-8');
     }
 }

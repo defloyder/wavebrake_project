@@ -1,4 +1,11 @@
-{{-- One source for the visible FAQ and its FAQPage markup. $faq: list of [question, answer HTML]. --}}
+{{-- One source for the visible FAQ and its FAQPage markup. $faq: list of [question, answer HTML];
+     {privacy} and {download} in answers become links in the current language. --}}
+@php
+    $faq = array_map(fn (array $item) => [$item[0], strtr($item[1], [
+        '{privacy}' => \App\Support\Locales::path('privacy'),
+        '{download}' => \App\Support\Locales::path('download'),
+    ])], $faq);
+@endphp
 <div class="faq-list">
     @foreach ($faq as [$question, $answer])
         <details><summary>{{ $question }}</summary><p>{!! $answer !!}</p></details>
