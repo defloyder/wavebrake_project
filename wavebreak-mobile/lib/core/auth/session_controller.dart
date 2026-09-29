@@ -8,6 +8,7 @@ import '../../features/shared/data_providers.dart';
 import '../../services/core_api/models.dart';
 import '../../services/device/device_service.dart';
 import '../../services/providers.dart';
+import '../../services/vpn/connection_manager.dart';
 import '../errors/app_exception.dart';
 import '../logging/app_logger.dart';
 import '../storage/prefs_store.dart';
@@ -445,6 +446,9 @@ class SessionController extends Notifier<SessionState> {
     // happened to be noticed.
     if (_loggingOut) return;
     _loggingOut = true;
+    // While the session is still valid: disconnecting revokes the access
+    // grant on Core.
+    await _stopVpn(revokeGrant: true);
     try {
       final refresh = await SecureStore.read(SecureStore.refreshToken);
       if (refresh != null) {
@@ -455,7 +459,23 @@ class SessionController extends Notifier<SessionState> {
     _loggingOut = false;
   }
 
+  /// Signing out ends the VPN too (see ConnectionManager.stopForSignOut).
+  Future<void> _stopVpn({required bool revokeGrant}) async {
+    try {
+      await ref
+          .read(connectionManagerProvider.notifier)
+          .stopForSignOut(revokeGrant: revokeGrant);
+    } catch (e) {
+      AppLogger.warn('Stopping the VPN on sign-out failed: $e');
+    }
+  }
+
   Future<void> forceLogout() async {
+    // Also reached when Core rejected the refresh token — the session is
+    // gone, so the tunnel is only stopped locally, no Core calls. A
+    // user-initiated [logout] has already stopped it (and revoked the
+    // grant) by now, which makes this a no-op.
+    await _stopVpn(revokeGrant: false);
     await SecureStore.clearSession();
     await PrefsStore.setBool(PrefsStore.biometricEnabled, false);
     await PrefsStore.setBool(PrefsStore.guestMode, false);

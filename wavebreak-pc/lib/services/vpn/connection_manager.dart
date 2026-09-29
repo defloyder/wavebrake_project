@@ -518,7 +518,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   }
 
   static const _trafficCheckFirstDelay = Duration(seconds: 2);
-  static const _trafficCheckRetryDelay = Duration(seconds: 3);
+  static const _trafficCheckRetryDelay = Duration(seconds: 1);
   static const _trafficRecheckInterval = Duration(seconds: 20);
 
   /// Locations whose protocol passed no traffic since the user last picked
@@ -864,6 +864,51 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       await ref.read(vpnAdapterProvider).disconnect();
     } catch (_) {}
     await SecureStore.delete(SecureStore.connectionProfile);
+  }
+
+  /// Signing out ends the VPN too: WAVEBREAK's locations belong to the
+  /// account, and a tunnel left running after sign-out kept carrying
+  /// traffic (and its old start time came back after the next sign-in).
+  /// [revokeGrant] = false when the session is already dead (Core rejected
+  /// the refresh token): no Core call then — revoking would itself try to
+  /// refresh, from inside the refresh that is ending the session.
+  Future<void> stopForSignOut({bool revokeGrant = true}) async {
+    _noTrafficTried.clear();
+    switch (state.status) {
+      case ConnectionStatus.requestingProfile || ConnectionStatus.connecting:
+        await cancelConnect();
+      case ConnectionStatus.connected || ConnectionStatus.configPending:
+        if (revokeGrant) {
+          await disconnect();
+        } else {
+          await _teardownTunnel();
+          state = state.copyWith(
+            status: ConnectionStatus.idle,
+            clearConnectedAt: true,
+            clearError: true,
+            clearGrantId: true,
+          );
+        }
+      case ConnectionStatus.disconnecting:
+        return;
+      case ConnectionStatus.idle || ConnectionStatus.error:
+        // Nothing this process knows of — but the engine can outlive the
+        // UI process. Only stopped when it's really up: a stop request to
+        // a service that isn't running would start it just to stop it.
+        var active = false;
+        try {
+          active = await _systemVpnChannel
+                  .invokeMethod<bool>('isSystemVpnActive') ??
+              false;
+        } catch (_) {}
+        if (active) await _teardownTunnel();
+        state = state.copyWith(
+          status: ConnectionStatus.idle,
+          clearConnectedAt: true,
+          clearError: true,
+          clearGrantId: true,
+        );
+    }
   }
 
   /// Disconnects and reconnects to the same location. Only meaningful once
