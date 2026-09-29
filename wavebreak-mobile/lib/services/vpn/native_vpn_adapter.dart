@@ -109,8 +109,11 @@ class NativeVpnAdapter implements VpnAdapter {
         // presents right now (TOFU: trust on first use) and pins that,
         // which is a strictly narrower trust decision than the old
         // blanket "skip validation" default ever was.
+        final tls = parsed.streamSetting['tlsSettings'] as Map?;
         AppLogger.debug(
-            'xray security=${parsed.streamSetting['security']} address=${parsed.address} port=${parsed.port}');
+            'xray security=${parsed.streamSetting['security']} address=${parsed.address} port=${parsed.port}'
+            '${tls?['serverName'] != null ? ' sni=${tls!['serverName']}' : ''}'
+            '${tls?['pinnedPeerCertSha256'] != null ? ' pinned' : ''}');
         applySmartRoutingPolicy(parsed, _extractRoutingPolicy(profile.rawJson));
         // Not for Hysteria2: its cert is checked by SNI (valid public
         // cert), and a TCP fetch of host:443 would pin a different
