@@ -23,6 +23,7 @@ import 'native_vpn_adapter.dart';
 import 'platform_vpn_adapter.dart';
 import 'protocol_fallback.dart';
 import 'speed_test_service.dart';
+import 'traffic_check.dart';
 import 'vpn_adapter.dart';
 import 'vpn_notification_meta.dart';
 import 'windows_vpn_adapter.dart';
@@ -500,13 +501,26 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         state.status == ConnectionStatus.connected &&
         state.location.id == used.id;
     var misses = 0;
+    var notReady = 0;
     var delay = _trafficCheckFirstDelay;
     while (true) {
       await Future<void>.delayed(delay);
       if (!current()) return;
+      final started = DateTime.now();
       final ms = await const ConnectionTestService()
           .measureTunnelLatency(timeout: const Duration(seconds: 4));
       if (!current()) return;
+      final result = classifyProbe(ms, DateTime.now().difference(started),
+          notReadySoFar: notReady);
+      if (result == ProbeResult.notReady) {
+        // Not evidence either way — try again once the engine is up.
+        notReady++;
+        AppLogger.info(
+            'Traffic check via ${_transportKey(used)}: engine not ready');
+        delay = _trafficCheckNotReadyDelay;
+        continue;
+      }
+      notReady = 0;
       // Which carrier/network it ran over: field reports then show which
       // transport works on which operator.
       String? network;
@@ -532,6 +546,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   static const _trafficCheckFirstDelay = Duration(seconds: 2);
   static const _trafficCheckRetryDelay = Duration(seconds: 1);
   static const _trafficRecheckInterval = Duration(seconds: 20);
+  static const _trafficCheckNotReadyDelay = Duration(seconds: 2);
 
   /// Locations whose protocol passed no traffic since the user last picked
   /// a location themselves — [tryOtherProtocol] doesn't go back to them.
