@@ -1154,7 +1154,12 @@ func (s *Store) CreatePlan(ctx context.Context, p Plan) (Plan, error) {
 }
 
 func (s *Store) UpdatePlan(ctx context.Context, p Plan) (Plan, error) {
-	err := s.db.QueryRow(ctx, `
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return Plan{}, err
+	}
+	defer tx.Rollback(ctx)
+	err = tx.QueryRow(ctx, `
 		update plans
 		set code = $2,
 		    name = $3,
@@ -1181,7 +1186,21 @@ func (s *Store) UpdatePlan(ctx context.Context, p Plan) (Plan, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Plan{}, ErrNotFound
 	}
-	return p, err
+	if err != nil {
+		return Plan{}, err
+	}
+	// A subscription keeps the device limit it was bought with; raising the
+	// plan's limit raises it for live subscriptions too (never lowers it; a
+	// per-subscription override still wins).
+	if _, err := tx.Exec(ctx, `
+		update subscriptions
+		set device_limit_snapshot = $2, updated_at = now()
+		where plan_id = $1
+		  and status in ('pending', 'trialing', 'active', 'past_due', 'suspended')
+		  and (device_limit_snapshot is null or device_limit_snapshot < $2)`, p.ID, p.DeviceLimit); err != nil {
+		return Plan{}, err
+	}
+	return p, tx.Commit(ctx)
 }
 
 func (s *Store) SoftDeletePlan(ctx context.Context, planID string) error {
