@@ -99,32 +99,50 @@ class AccountScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(email, style: const TextStyle(fontSize: 16)),
+                        // One line: a long address elides instead of
+                        // pushing the row out of shape.
+                        Text(
+                          email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 16),
+                        ),
                         if (me?.emailVerified != null) ...[
                           const SizedBox(height: 3),
-                          Text(
-                            me!.emailVerified!
-                                ? s.emailVerifiedRow
-                                : s.emailNotVerifiedRow,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: me.emailVerified!
-                                  ? WbColors.oceanTeal
-                                  : WbColors.warning,
-                            ),
+                          // Status and "Confirm" share the line under the
+                          // address and wrap when a language's words are
+                          // long, instead of squeezing the address.
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 2,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                me!.emailVerified!
+                                    ? s.emailVerifiedRow
+                                    : s.emailNotVerifiedRow,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: me.emailVerified!
+                                      ? WbColors.oceanTeal
+                                      : WbColors.warning,
+                                ),
+                              ),
+                              if (canVerify)
+                                Text(
+                                  s.verifyEmailConfirm,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: WbColors.waveCyan,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ],
                     ),
                   ),
-                  if (canVerify)
-                    Text(
-                      s.verifyEmailConfirm,
-                      style: const TextStyle(
-                        color: WbColors.waveCyan,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                 ],
               ),
             );

@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/session_controller.dart';
+import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../shared/detail_scaffold.dart';
@@ -18,6 +19,7 @@ class AboutScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(sessionControllerProvider).config;
     final s = ref.watch(stringsProvider);
+    final language = ref.watch(languageProvider);
 
     return DetailScaffold(
       title: s.about,
@@ -47,12 +49,12 @@ class AboutScreen extends ConsumerWidget {
           // Settings > Updates screen (see updates_screen.dart) — having
           // the same status live here too was the actual bug the header
           // bell's layout complaint traced back to, not just its position.
-          if (config.privacyUrl != null)
-            _row(s.privacyPolicy,
-                () => launchUrl(Uri.parse(config.privacyUrl!))),
-          if (config.termsUrl != null)
-            _row(
-                s.termsOfService, () => launchUrl(Uri.parse(config.termsUrl!))),
+          // The legal pages the site publishes (privacy / personal data,
+          // terms of use), in the app's language where the site has it.
+          _row(s.privacyPolicy,
+              () => launchUrl(Uri.parse(legalPageUrl('privacy', language)))),
+          _row(s.termsOfService,
+              () => launchUrl(Uri.parse(legalPageUrl('terms', language)))),
           if (config.websiteUrl != null)
             _row(s.website, () => launchUrl(Uri.parse(config.websiteUrl!))),
         ],
@@ -79,4 +81,17 @@ class AboutScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// A legal page on the site (`privacy` — privacy policy and personal data
+/// processing, `terms` — terms of use) in [language] where the site has
+/// it: Russian at the root, Turkish under /tr, English for the rest.
+String legalPageUrl(String page, AppLanguage language) {
+  const site = 'https://wavebreak.com.tr';
+  final prefix = switch (language) {
+    AppLanguage.ru => '',
+    AppLanguage.tr => '/tr',
+    _ => '/en',
+  };
+  return '$site$prefix/$page';
 }
