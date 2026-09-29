@@ -1,6 +1,6 @@
 @extends('layout')
-@section('title', 'WAVEBREAK | Защищённая инфраструктура для бизнеса')
-@section('description', 'WAVEBREAK: защищённая инфраструктура для бизнеса и приложение для ваших подключений. Тарифы сервиса и профили других провайдеров на компьютере и смартфоне.')
+@section('title', 'WAVEBREAK — защищённое сетевое подключение и управление доступом')
+@section('description', 'WAVEBREAK шифрует подключение ваших устройств и помогает управлять доступом — для себя, команды и бизнеса. Приложения для Windows и Android, для аккаунта достаточно e-mail.')
 @section('body_class', 'wb-public page-home')
 @section('content')
 <main id="main">
@@ -8,10 +8,9 @@
         @include('partials.tide')
         <div class="wb-container site-hero-inner">
             <div class="hero-copy" data-reveal>
-                <p class="download-kicker"><span></span> Защищённая инфраструктура для бизнеса</p>
-                <h1 id="home-title" class="brand-heading">WAVEBREAK</h1>
+                <h1 id="home-title" class="brand-heading"><span class="download-kicker hero-kicker"><span></span> Платформа защищённого подключения и управления доступом</span> WAVEBREAK</h1>
                 <p class="hero-statement">На вашей <em>волне.</em></p>
-                <p class="hero-description">Один сервис для работы. Одно приложение для ваших подключений. На компьютере и в телефоне.</p>
+                <p class="hero-description">Зашифрованное подключение к нашей инфраструктуре и управление доступом в одном приложении. Для себя, команды и бизнеса — на компьютере и в телефоне.</p>
                 <a class="download-discover" href="/download"><span>К приложениям</span><span aria-hidden="true">↗</span></a>
             </div>
             <div class="hero-bottom"><span>Windows / Android / iOS</span><a href="#choice">Дальше о главном <span aria-hidden="true">↓</span></a></div>
@@ -35,14 +34,26 @@
             </div>
         </div>
     </section>
+    <section class="site-section" aria-labelledby="audience-title">
+        <div class="wb-container">
+            <div class="section-heading" data-reveal><p class="download-kicker"><span></span> Для кого</p><h2 id="audience-title">Для себя, команды<br><em>и бизнеса.</em></h2></div>
+            <div class="choice-grid choice-grid--three">
+                <article data-reveal><span class="section-number">01 / ЧАСТНЫМ ПОЛЬЗОВАТЕЛЯМ</span><h3>Защищённое подключение</h3><p>Соединение с серверами WAVEBREAK шифруется — в том числе в публичных сетях Wi-Fi в кафе, отелях и аэропортах. Локацию выбираете сами.</p></article>
+                <article data-reveal data-reveal-delay="80"><span class="section-number">02 / КОМАНДАМ</span><h3>Один аккаунт — несколько устройств</h3><p>Компьютер и смартфон на одной подписке. Устройства, срок действия и расход трафика видны в приложении.</p></article>
+                <article data-reveal data-reveal-delay="160"><span class="section-number">03 / БИЗНЕСУ</span><h3>Управление доступом</h3><p>Тарифы с большим числом устройств и отдельный договор для компаний. Доступ сотрудникам выдаём и отзываем по вашему запросу.</p></article>
+            </div>
+        </div>
+    </section>
     <section class="site-section">
         <div class="wb-container faq-layout">
-            <h2 data-reveal">Коротко.<br><em>По существу.</em></h2>
-            <div class="faq-list">
-                <details><summary>Нужна ли подписка WAVEBREAK?</summary><p>Только для использования нашего сервиса. Совместимые профили других провайдеров можно добавить отдельно.</p></details>
-                <details><summary>Где войти в личный кабинет?</summary><p>В мобильном или десктопном приложении. Веб-кабинета для клиентов нет.</p></details>
-                <details><summary>Где скачать приложение?</summary><p>На <a href="/download">странице приложений</a>. Ссылки станут доступны после публикации сборок.</p></details>
-            </div>
+            <h2 data-reveal>Коротко.<br><em>По существу.</em></h2>
+            @include('partials.faq', ['faq' => [
+                ['Что такое WAVEBREAK?', 'Платформа защищённого сетевого подключения и управления доступом. Приложение шифрует соединение ваших устройств с серверами WAVEBREAK, а в аккаунте собраны подписка, устройства и доступные локации.'],
+                ['Нужна ли подписка WAVEBREAK?', 'Только для использования нашего сервиса. Совместимые профили других провайдеров можно добавить в приложение отдельно, без подписки.'],
+                ['Какие данные собирает WAVEBREAK?', 'Для аккаунта достаточно e-mail. Мы не собираем содержимое трафика и историю посещённых ресурсов. Подробнее — в <a href="/privacy">политике обработки персональных данных</a>.'],
+                ['Где войти в личный кабинет?', 'В приложении для компьютера или смартфона. Веб-кабинета для клиентов нет.'],
+                ['Где скачать приложение?', 'На <a href="/download">странице приложений</a>: версии для Windows и Android доступны сейчас, iOS — скоро.'],
+            ]])
         </div>
     </section>
 </main>

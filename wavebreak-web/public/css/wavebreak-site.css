@@ -1055,3 +1055,15 @@ img { display: block; max-width: 100%; }
     .legal-body h2 { font-size: 24px; }
     .legal-body section { padding-top: 36px; }
 }
+
+/* SEO pass: the home h1 carries the positioning line above the wordmark. */
+.hero-copy h1 .hero-kicker { display: flex; margin-bottom: 24px; font-family: var(--mono); font-size: 12px; line-height: 1.6; }
+.hero-copy h1 .hero-kicker span { flex-shrink: 0; }
+.choice-grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; }
+@media (max-width: 980px) {
+    .choice-grid--three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+    .hero-copy h1 .hero-kicker { font-size: 10px; margin-bottom: 16px; }
+    .choice-grid--three { grid-template-columns: 1fr; gap: 36px; }
+}

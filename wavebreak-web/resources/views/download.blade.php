@@ -1,9 +1,26 @@
 @extends('layout')
 
-@section('title', 'Скачать WAVEBREAK')
-@section('description', 'WAVEBREAK для компьютера и смартфона. Один аккаунт, ваши профили и управление защищённым подключением внутри приложения.')
+@section('title', 'Скачать WAVEBREAK для Windows и Android — приложение')
+@section('description', 'Официальное приложение WAVEBREAK для Windows и Android: защищённое подключение, профили и подписка в одном аккаунте. Версия для iOS — скоро.')
+@section('breadcrumb', 'Приложения')
 @section('body_class', 'wb-shell wb-public wb-download-page')
 
+@push('schema')
+<script type="application/ld+json">{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'SoftwareApplication',
+    'name' => 'WAVEBREAK',
+    'description' => 'Приложение платформы защищённого сетевого подключения и управления доступом.',
+    'applicationCategory' => 'SecurityApplication',
+    'operatingSystem' => 'Windows, Android',
+    'inLanguage' => 'ru',
+    'url' => 'https://wavebreak.com.tr/download',
+    'downloadUrl' => 'https://wavebreak.com.tr/download',
+    'image' => 'https://wavebreak.com.tr/images/og-cover.png',
+    'publisher' => ['@id' => 'https://wavebreak.com.tr/#organization'],
+    'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'RUB'],
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}</script>
+@endpush
 @section('content')
 
 

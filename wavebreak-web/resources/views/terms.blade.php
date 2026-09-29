@@ -1,6 +1,7 @@
 @extends('layout')
 @section('title', 'Пользовательское соглашение | WAVEBREAK')
 @section('description', 'Условия использования платформы WAVEBREAK: аккаунт, тарифы и оплата, возврат средств, правила использования и ответственность сторон.')
+@section('breadcrumb', 'Пользовательское соглашение')
 @section('body_class', 'wb-public page-legal')
 @section('content')
 <main id="main">

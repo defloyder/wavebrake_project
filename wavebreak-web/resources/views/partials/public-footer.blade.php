@@ -4,7 +4,7 @@
             <img src="{{ asset('images/wavebreak-mark.png') }}" width="56" height="40" alt="">
             <span class="wb-brand-name">WAVE<span>BREAK</span></span>
         </a>
-        <p>Защищённая инфраструктура для бизнеса.<br>Ваши подключения. Ваш выбор.</p>
+        <p>Платформа защищённого сетевого подключения<br>и управления доступом.</p>
     </div>
     <div class="wb-container footer-bottom">
         <nav aria-label="Нижняя навигация">

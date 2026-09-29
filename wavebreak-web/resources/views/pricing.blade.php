@@ -1,7 +1,36 @@
 @extends('layout')
-@section('title', 'Тарифы WAVEBREAK | Условия подключения')
-@section('description', 'Тарифы WAVEBREAK: стоимость, срок действия, количество устройств и доступный трафик. Подписка и управление подключениями в приложении.')
+@php
+    $monthly = collect($tiers)->pluck('month')->filter()->where('currency', 'RUB');
+    $minMonthly = $monthly->min('price');
+    $seoOffers = collect($tiers)->flatMap(fn (array $tier) => collect(['month' => 'месяц', 'year' => 'год'])
+        ->filter(fn ($label, $kind) => $tier[$kind] !== null)
+        ->map(fn ($label, $kind) => [
+            '@type' => 'Offer',
+            'name' => $tier['name'].' — '.$label,
+            'price' => number_format($tier[$kind]['price'], 2, '.', ''),
+            'priceCurrency' => $tier[$kind]['currency'],
+            'url' => 'https://wavebreak.com.tr/pricing',
+            'availability' => 'https://schema.org/InStock',
+        ])->values())->values()->all();
+@endphp
+@section('title', $minMonthly ? 'Тарифы WAVEBREAK — защищённое подключение от '.number_format($minMonthly, 0, ',', ' ').' ₽ в месяц' : 'Тарифы WAVEBREAK — защищённое подключение и управление доступом')
+@section('description', 'Тарифы WAVEBREAK: помесячная и годовая подписка на защищённое подключение, количество устройств и объём трафика. Годовая оплата выгоднее, оформление и управление — в приложении.')
+@section('breadcrumb', 'Тарифы')
 @section('body_class', 'wb-public page-pricing')
+@if ($seoOffers !== [])
+@push('schema')
+<script type="application/ld+json">{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'Service',
+    'name' => 'WAVEBREAK',
+    'serviceType' => 'Защищённое сетевое подключение и управление доступом',
+    'provider' => ['@id' => 'https://wavebreak.com.tr/#organization'],
+    'areaServed' => 'RU',
+    'url' => 'https://wavebreak.com.tr/pricing',
+    'offers' => $seoOffers,
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}</script>
+@endpush
+@endif
 @section('content')
 <main id="main">
     <section class="download-hero site-hero site-hero--compact" aria-labelledby="pricing-title">

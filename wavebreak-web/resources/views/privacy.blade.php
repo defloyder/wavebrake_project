@@ -1,6 +1,7 @@
 @extends('layout')
 @section('title', 'Политика обработки персональных данных | WAVEBREAK')
 @section('description', 'Какие данные обрабатывает WAVEBREAK, зачем и как долго: для аккаунта достаточно e-mail, содержимое трафика и история посещённых ресурсов не собираются.')
+@section('breadcrumb', 'Политика обработки персональных данных')
 @section('body_class', 'wb-public page-legal')
 @section('content')
 <main id="main">

@@ -1,4 +1,13 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /login
+Disallow: /register
+Disallow: /logout
+Disallow: /dashboard
+Disallow: /subscriptions
+Disallow: /devices
+Disallow: /telegram
+Disallow: /access/grants
+Disallow: /up
 
 Sitemap: https://wavebreak.com.tr/sitemap.xml

@@ -1,0 +1,14 @@
+{
+  "name": "WAVEBREAK",
+  "short_name": "WAVEBREAK",
+  "description": "Платформа защищённого сетевого подключения и управления доступом",
+  "lang": "ru",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#020507",
+  "theme_color": "#020507",
+  "icons": [
+    { "src": "/images/favicon.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/images/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

@@ -22,7 +22,7 @@ class ExampleTest extends TestCase
         $this->get('/download')
             ->assertOk()
             ->assertSee('Волна меняется.')
-            ->assertSee('Ссылки появятся')
+            ->assertSee('downloads/wavebreak-windows.exe', false)
             ->assertDontSee('href="/login"', false)
             ->assertDontSee('href="/register"', false);
     }
