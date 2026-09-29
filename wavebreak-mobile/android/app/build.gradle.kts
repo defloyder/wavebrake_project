@@ -156,4 +156,7 @@ dependencies {
     // native/hysteria_bridge/build_aar.sh and don't reintroduce a second
     // gomobile-bound native library here.
     implementation(files("libs/hysteria_bridge.aar"))
+    // JVM unit tests of the pure Kotlin rules (NetworkChangePolicy) —
+    // test-only, not in the APK; approved by the project owner 2026-09-30.
+    testImplementation("junit:junit:4.13.2")
 }
