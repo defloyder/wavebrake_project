@@ -28,6 +28,10 @@ class AppStrings {
     required this.configPendingHint,
     required this.disconnecting,
     required this.couldNotConnect,
+    required this.noTraffic,
+    required this.noTrafficHint,
+    required this.tryOtherProtocol,
+    required this.noTrafficAllTried,
     required this.tryAgain,
     required this.appLock,
     required this.requireUnlockToOpen,
@@ -273,6 +277,10 @@ class AppStrings {
   final String configPendingHint;
   final String disconnecting;
   final String couldNotConnect;
+  final String noTraffic;
+  final String noTrafficHint;
+  final String tryOtherProtocol;
+  final String noTrafficAllTried;
   final String tryAgain;
   final String appLock;
   final String requireUnlockToOpen;
@@ -523,6 +531,10 @@ const kEnglishStrings = AppStrings(
   configPendingHint: 'The server is setting up your VPN config — hang tight',
   disconnecting: 'Disconnecting…',
   couldNotConnect: 'Could not connect',
+  noTraffic: "No traffic",
+  noTrafficHint: "Connected, but no data gets through. This network may block the protocol.",
+  tryOtherProtocol: "Try another protocol",
+  noTrafficAllTried: "The other protocols of this location didn't get through either — pick another location.",
   tryAgain: 'Try again',
   appLock: 'App Lock',
   requireUnlockToOpen: 'Require unlock to open WAVEBREAK',
@@ -780,6 +792,10 @@ const kRussianStrings = AppStrings(
   configPendingHint: 'Сервер настраивает VPN-конфигурацию — это недолго',
   disconnecting: 'Отключение…',
   couldNotConnect: 'Не удалось подключиться',
+  noTraffic: "Нет трафика",
+  noTrafficHint: "Подключение есть, но данные не проходят. Возможно, сеть блокирует этот протокол.",
+  tryOtherProtocol: "Попробовать другой протокол",
+  noTrafficAllTried: "Другие протоколы этой локации тоже не прошли — выберите другую локацию.",
   tryAgain: 'Повторить',
   appLock: 'Блокировка приложения',
   requireUnlockToOpen: 'Требовать разблокировку при открытии WAVEBREAK',
@@ -1040,6 +1056,10 @@ const kSpanishStrings = AppStrings(
   configPendingHint: 'El servidor está configurando tu VPN — un momento',
   disconnecting: 'Desconectando…',
   couldNotConnect: 'No se pudo conectar',
+  noTraffic: "Sin tráfico",
+  noTrafficHint: "Conectado, pero no pasan datos. Puede que esta red bloquee el protocolo.",
+  tryOtherProtocol: "Probar otro protocolo",
+  noTrafficAllTried: "Los demás protocolos de esta ubicación tampoco funcionaron: elige otra ubicación.",
   tryAgain: 'Reintentar',
   appLock: 'Bloqueo de la app',
   requireUnlockToOpen: 'Requerir desbloqueo para abrir WAVEBREAK',
@@ -1301,6 +1321,10 @@ const kGermanStrings = AppStrings(
       'Der Server richtet deine VPN-Konfiguration ein — einen Moment',
   disconnecting: 'Trennen…',
   couldNotConnect: 'Verbindung fehlgeschlagen',
+  noTraffic: "Kein Datenverkehr",
+  noTrafficHint: "Verbunden, aber es kommen keine Daten durch. Dieses Netz blockiert eventuell das Protokoll.",
+  tryOtherProtocol: "Anderes Protokoll versuchen",
+  noTrafficAllTried: "Die anderen Protokolle dieses Standorts kamen auch nicht durch – wähle einen anderen Standort.",
   tryAgain: 'Erneut versuchen',
   appLock: 'App-Sperre',
   requireUnlockToOpen: 'Entsperrung beim Öffnen von WAVEBREAK verlangen',
@@ -1565,6 +1589,10 @@ const kFrenchStrings = AppStrings(
   configPendingHint: 'Le serveur configure votre VPN — un instant',
   disconnecting: 'Déconnexion…',
   couldNotConnect: 'Connexion impossible',
+  noTraffic: "Aucun trafic",
+  noTrafficHint: "Connecté, mais aucune donnée ne passe. Ce réseau bloque peut-être le protocole.",
+  tryOtherProtocol: "Essayer un autre protocole",
+  noTrafficAllTried: "Les autres protocoles de cet emplacement ne passent pas non plus : choisissez un autre emplacement.",
   tryAgain: 'Réessayer',
   appLock: 'Verrouillage de l\'app',
   requireUnlockToOpen: 'Exiger un déverrouillage pour ouvrir WAVEBREAK',
@@ -1829,6 +1857,10 @@ const kPortugueseStrings = AppStrings(
   configPendingHint: 'O servidor está configurando sua VPN — só um momento',
   disconnecting: 'Desconectando…',
   couldNotConnect: 'Não foi possível conectar',
+  noTraffic: "Sem tráfego",
+  noTrafficHint: "Conectado, mas nenhum dado passa. Esta rede pode estar bloqueando o protocolo.",
+  tryOtherProtocol: "Tentar outro protocolo",
+  noTrafficAllTried: "Os outros protocolos deste local também não funcionaram — escolha outro local.",
   tryAgain: 'Tentar novamente',
   appLock: 'Bloqueio do app',
   requireUnlockToOpen: 'Exigir desbloqueio para abrir o WAVEBREAK',
@@ -2089,6 +2121,10 @@ const kTurkishStrings = AppStrings(
   configPendingHint: 'Sunucu VPN yapılandırmanızı ayarlıyor — biraz bekleyin',
   disconnecting: 'Bağlantı kesiliyor…',
   couldNotConnect: 'Bağlanılamadı',
+  noTraffic: "Trafik yok",
+  noTrafficHint: "Bağlandı ama veri geçmiyor. Bu ağ protokolü engelliyor olabilir.",
+  tryOtherProtocol: "Başka bir protokol dene",
+  noTrafficAllTried: "Bu konumun diğer protokolleri de çalışmadı — başka bir konum seçin.",
   tryAgain: 'Tekrar dene',
   appLock: 'Uygulama Kilidi',
   requireUnlockToOpen: 'WAVEBREAK\'i açarken kilit açma iste',
