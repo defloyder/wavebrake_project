@@ -21,6 +21,7 @@ import 'connection_test_service.dart';
 import '../providers.dart';
 import 'native_vpn_adapter.dart';
 import 'platform_vpn_adapter.dart';
+import 'protocol_fallback.dart';
 import 'speed_test_service.dart';
 import 'vpn_adapter.dart';
 import 'vpn_notification_meta.dart';
@@ -47,9 +48,16 @@ class WbConnectionState {
     this.error,
     this.location = LocationItem.auto,
     this.grantId,
+    this.noTraffic = false,
   });
 
   final ConnectionStatus status;
+
+  /// Connected, but requests through the tunnel get no answer (the network
+  /// most likely blocks this protocol). Only ever set while `connected`;
+  /// any other status clears it. The app doesn't switch protocols by
+  /// itself — the UI offers the user to.
+  final bool noTraffic;
   final DateTime? connectedAt;
   final AppException? error;
   final LocationItem location;
@@ -70,16 +78,20 @@ class WbConnectionState {
     AppException? error,
     LocationItem? location,
     String? grantId,
+    bool? noTraffic,
     bool clearError = false,
     bool clearConnectedAt = false,
     bool clearGrantId = false,
   }) {
+    final nextStatus = status ?? this.status;
     return WbConnectionState(
-      status: status ?? this.status,
+      status: nextStatus,
       connectedAt: clearConnectedAt ? null : (connectedAt ?? this.connectedAt),
       error: clearError ? null : (error ?? this.error),
       location: location ?? this.location,
       grantId: clearGrantId ? null : (grantId ?? this.grantId),
+      noTraffic: nextStatus == ConnectionStatus.connected &&
+          (noTraffic ?? (status == null && this.noTraffic)),
     );
   }
 }
@@ -184,7 +196,9 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   Future<void> selectLocation(
     LocationItem location, {
     bool subscriptionActive = false,
+    bool keepTried = false,
   }) async {
+    if (!keepTried) _noTrafficTried.clear();
     final previous = state.location;
     state = state.copyWith(location: location);
     unawaited(PrefsStore.setString(PrefsStore.lastLocationId, location.id));
@@ -367,11 +381,11 @@ class ConnectionManager extends Notifier<WbConnectionState> {
           continue;
         }
 
-        // A WAVEBREAK location: note in the diagnostic log whether traffic
-        // really passes (no action is taken on the result).
+        // A WAVEBREAK location: check that traffic really passes; if it
+        // doesn't, the home screen says so and offers another protocol.
         final used = candidates[i];
         if (!location.isAuto && _isWavebreakLocation(used)) {
-          unawaited(_logTrafficCheck(used, generation));
+          unawaited(_checkTraffic(used, generation));
         }
 
         // A real handshake just succeeded. For a manual pick (or a
@@ -468,26 +482,68 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         .join('-');
   }
 
-  /// Diagnostics only: one real request through the tunnel ~2 s after
-  /// connecting, written to the diagnostic log ("Traffic check via
-  /// hysteria2: 356 ms" / "no answer") so a field report shows whether
-  /// the transport passed traffic on that network. Nothing is done with
-  /// the result — the app no longer switches transports by itself.
-  Future<void> _logTrafficCheck(LocationItem used, int generation) async {
+  /// A real request through the tunnel ~2 s after connecting, written to
+  /// the diagnostic log ("Traffic check via hysteria2: 356 ms" / "no
+  /// answer"). Two misses in a row mark the connection [noTraffic]; while
+  /// it is, the check repeats and clears the mark once traffic passes (the
+  /// network came back, the engine reconnected). The app never switches
+  /// transports by itself — see [tryOtherProtocol].
+  Future<void> _checkTraffic(LocationItem used, int generation) async {
     // The through-the-tunnel probe is the Android engine's (see
     // ConnectionTestService.measureTunnelLatency).
     if (!Platform.isAndroid) return;
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (generation != _connectGeneration ||
-        state.status != ConnectionStatus.connected ||
-        state.location.id != used.id) {
-      return;
+    bool current() =>
+        generation == _connectGeneration &&
+        state.status == ConnectionStatus.connected &&
+        state.location.id == used.id;
+    var misses = 0;
+    var delay = _trafficCheckFirstDelay;
+    while (true) {
+      await Future<void>.delayed(delay);
+      if (!current()) return;
+      final ms = await const ConnectionTestService()
+          .measureTunnelLatency(timeout: const Duration(seconds: 6));
+      if (!current()) return;
+      AppLogger.info('Traffic check via ${_transportKey(used)}: '
+          '${ms == null ? 'no answer' : '$ms ms'}');
+      if (ms != null) {
+        if (state.noTraffic) state = state.copyWith(noTraffic: false);
+        return;
+      }
+      misses++;
+      if (misses >= 2 && !state.noTraffic) {
+        state = state.copyWith(noTraffic: true);
+        _analytics.event('no_traffic');
+      }
+      delay = misses >= 2 ? _trafficRecheckInterval : _trafficCheckRetryDelay;
     }
-    final ms = await const ConnectionTestService()
-        .measureTunnelLatency(timeout: const Duration(seconds: 6));
-    if (generation != _connectGeneration) return;
-    AppLogger.info('Traffic check via ${_transportKey(used)}: '
-        '${ms == null ? 'no answer' : '$ms ms'}');
+  }
+
+  static const _trafficCheckFirstDelay = Duration(seconds: 2);
+  static const _trafficCheckRetryDelay = Duration(seconds: 3);
+  static const _trafficRecheckInterval = Duration(seconds: 20);
+
+  /// Locations whose protocol passed no traffic since the user last picked
+  /// a location themselves — [tryOtherProtocol] doesn't go back to them.
+  final Set<String> _noTrafficTried = {};
+
+  /// The next WAVEBREAK protocol of the current country to try, or null
+  /// when all of them have been tried (the UI then suggests another
+  /// location).
+  LocationItem? get otherProtocol {
+    final own = ref.read(locationsProvider).asData?.value ?? const [];
+    return nextProtocolLocation(
+        own, state.location, {..._noTrafficTried, state.location.id});
+  }
+
+  /// The user's "Try another protocol" on a [noTraffic] connection:
+  /// switches to [otherProtocol], remembering this one as tried.
+  Future<void> tryOtherProtocol() async {
+    final next = otherProtocol;
+    if (next == null) return;
+    _noTrafficTried.add(state.location.id);
+    AppLogger.info('No traffic: user switches to ${_transportKey(next)}');
+    await selectLocation(next, subscriptionActive: true, keepTried: true);
   }
 
   /// WAVEBREAK's own locations — the account's personal ones and those
@@ -807,6 +863,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
 
   Future<void> disconnect() async {
     unawaited(HapticFeedback.lightImpact());
+    _noTrafficTried.clear();
     state = state.copyWith(status: ConnectionStatus.disconnecting);
     final grantId = state.grantId;
     if (grantId != null && !state.location.isCustom) {

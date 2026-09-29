@@ -498,6 +498,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ref.read(connectionManagerProvider.notifier).disconnect();
       },
       onChoosePlan: () => context.push('/subscription'),
+      onTryOtherProtocol: connection.noTraffic &&
+              ref.read(connectionManagerProvider.notifier).otherProtocol !=
+                  null
+          ? () => ref.read(connectionManagerProvider.notifier).tryOtherProtocol()
+          : null,
     );
 
     final subscriptionStrip = _SubscriptionStrip(
@@ -856,10 +861,15 @@ class _StatusCopy extends StatelessWidget {
     required this.isGuest,
     required this.onAddCustom,
     required this.onCancel,
+    this.onTryOtherProtocol,
     this.tint,
   });
 
   final WbConnectionState connection;
+
+  /// Set while the connection passes no traffic and another protocol of
+  /// the same country is left to try; null otherwise.
+  final VoidCallback? onTryOtherProtocol;
   final bool canConnect;
   final bool subscriptionLoading;
   final AppStrings s;
@@ -924,11 +934,13 @@ class _StatusCopy extends StatelessWidget {
       );
     }
 
+    final noTraffic = connection.noTraffic;
     final title = switch (connection.status) {
       ConnectionStatus.idle => s.notConnected,
       ConnectionStatus.requestingProfile ||
       ConnectionStatus.connecting =>
         s.connecting,
+      ConnectionStatus.connected when noTraffic => s.noTraffic,
       ConnectionStatus.connected => s.connected,
       ConnectionStatus.configPending => s.configPending,
       ConnectionStatus.disconnecting => s.disconnecting,
@@ -936,14 +948,18 @@ class _StatusCopy extends StatelessWidget {
     };
     final subtitle = switch (connection.status) {
       ConnectionStatus.idle => s.tapToConnect,
+      ConnectionStatus.connected when noTraffic => onTryOtherProtocol != null
+          ? s.noTrafficHint
+          : s.noTrafficAllTried,
       ConnectionStatus.connected => _duration(connection.connectedAt, s),
       ConnectionStatus.configPending => s.configPendingHint,
       ConnectionStatus.error => connection.error?.localized(s) ?? s.tryAgain,
       _ => '',
     };
 
-    final titleColor =
-        connection.status == ConnectionStatus.connected && tint != null
+    final titleColor = noTraffic
+        ? WbColors.warning
+        : connection.status == ConnectionStatus.connected && tint != null
             ? Color.lerp(Colors.white, tint, 0.16)
             : null;
 
@@ -990,6 +1006,11 @@ class _StatusCopy extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               child: Text(s.tryAgain),
+            ),
+          if (noTraffic && onTryOtherProtocol != null)
+            TextButton(
+              onPressed: onTryOtherProtocol,
+              child: Text(s.tryOtherProtocol),
             ),
           if (connection.status == ConnectionStatus.configPending)
             TextButton(
