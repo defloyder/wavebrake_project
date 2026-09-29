@@ -507,7 +507,14 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       final ms = await const ConnectionTestService()
           .measureTunnelLatency(timeout: const Duration(seconds: 4));
       if (!current()) return;
-      AppLogger.info('Traffic check via ${_transportKey(used)}: '
+      // Which carrier/network it ran over: field reports then show which
+      // transport works on which operator.
+      String? network;
+      try {
+        network = await _systemVpnChannel.invokeMethod<String>('networkLabel');
+      } catch (_) {}
+      AppLogger.info('Traffic check via ${_transportKey(used)} '
+          '(${used.countryCode}${network == null ? '' : ', $network'}): '
           '${ms == null ? 'no answer' : '$ms ms'}');
       if (ms != null) {
         if (state.noTraffic) state = state.copyWith(noTraffic: false);

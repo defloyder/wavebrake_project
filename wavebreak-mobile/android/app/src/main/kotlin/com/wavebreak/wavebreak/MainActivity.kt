@@ -328,6 +328,9 @@ class MainActivity : FlutterFragmentActivity() {
                     "vpnSessionStartedAtMs" -> {
                         result.success(WaveEngineVpnService.sessionStartedAtMs(this))
                     }
+                    "networkLabel" -> {
+                        result.success(runCatching { NetworkLabel.describe(this) }.getOrNull())
+                    }
                     "isIgnoringBatteryOptimizations" -> {
                         result.success(BatteryOptimization.isIgnoringBatteryOptimizations(this))
                     }
