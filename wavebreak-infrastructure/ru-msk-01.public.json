@@ -10,7 +10,5 @@
   "DirectTLSPath": "/wvb-dt",
   "HysteriaHost": "135.106.227.90",
   "HysteriaPort": 443,
-  "HysteriaSNI": "dl.wavebreak.com.tr",
-  "HysteriaObfsPort": 8444,
-  "HysteriaObfsHopPorts": "20000-29999"
+  "HysteriaSNI": "dl.wavebreak.com.tr"
 }
