@@ -28,10 +28,14 @@ class UpdatesScreen extends ConsumerWidget {
     final s = ref.read(stringsProvider);
     final messenger = ScaffoldMessenger.of(context);
     ref.invalidate(availableUpdateProvider);
+    ref.invalidate(installedRollbackProvider);
     final update = await ref.read(availableUpdateProvider.future);
     if (!context.mounted) return;
     if (update == null) {
-      messenger.showSnackBar(SnackBar(content: Text(s.upToDate)));
+      final rolledBack = await ref.read(installedRollbackProvider.future);
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(
+          content: Text(rolledBack != null ? s.rollbackInstalled : s.upToDate)));
     }
   }
 
@@ -45,6 +49,8 @@ class UpdatesScreen extends ConsumerWidget {
     final installing = install.status == ApkInstallStatus.installing;
     final installed = install.status == ApkInstallStatus.installed;
     final rollback = ref.watch(rollbackOfferProvider).asData?.value;
+    final rolledBack =
+        ref.watch(installedRollbackProvider).asData?.value != null;
 
     return DetailScaffold(
       title: s.updates,
@@ -84,7 +90,9 @@ class UpdatesScreen extends ConsumerWidget {
                           Text(
                             pendingUpdate != null
                                 ? '${s.updateAvailable} · ${pendingUpdate.versionName}'
-                                : s.upToDate,
+                                : rolledBack
+                                    ? s.rollbackInstalled
+                                    : s.upToDate,
                             style: TextStyle(
                               fontSize: 13,
                               color: pendingUpdate != null

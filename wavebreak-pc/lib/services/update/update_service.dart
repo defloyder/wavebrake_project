@@ -183,6 +183,20 @@ final rollbackOfferProvider = FutureProvider<RollbackInfo?>((ref) async {
   return rollback;
 });
 
+/// The rollback this build IS (it was installed through the manifest's
+/// rollback), or null. Such a build carries a version number above the
+/// release it rolled back from, so "no newer version" doesn't mean
+/// "latest version" there — the UI says it's the rolled-back one and that
+/// the fix comes with the next update.
+final installedRollbackProvider = FutureProvider<RollbackInfo?>((ref) async {
+  final current = await PackageInfo.fromPlatform();
+  final currentCode = int.tryParse(current.buildNumber) ?? 0;
+  final data = await _fetchManifest();
+  final rollback = RollbackInfo.fromJson(data?['rollback']);
+  if (rollback == null || rollback.versionCode != currentCode) return null;
+  return rollback;
+});
+
 /// One check: `checked` is false when the manifest couldn't be fetched
 /// (so "no update" can't be concluded), `update` the newer release or null.
 Future<({bool checked, UpdateInfo? update})> _checkOnce() async {

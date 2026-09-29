@@ -74,6 +74,7 @@ class AppStrings {
     required this.updateAllowInstalls,
     required this.checkForUpdates,
     required this.upToDate,
+    required this.rollbackInstalled,
     required this.updateInstalling,
     required this.updateInstalledTitle,
     required this.updateOpenApp,
@@ -323,6 +324,7 @@ class AppStrings {
   final String updateAllowInstalls;
   final String checkForUpdates;
   final String upToDate;
+  final String rollbackInstalled;
   final String updateInstalling;
   final String updateInstalledTitle;
   final String updateOpenApp;
@@ -579,6 +581,7 @@ const kEnglishStrings = AppStrings(
   updateAllowInstalls: 'Allow installs',
   checkForUpdates: 'Check for updates',
   upToDate: 'You’re up to date',
+  rollbackInstalled: "You're on the rolled-back version. The fix will come with the next update.",
   updateInstalling: 'Installing update…',
   updateInstalledTitle: 'Update installed',
   updateOpenApp: 'Open',
@@ -839,6 +842,7 @@ const kRussianStrings = AppStrings(
   updateAllowInstalls: 'Разрешить установку',
   checkForUpdates: 'Проверить обновления',
   upToDate: 'У вас последняя версия',
+  rollbackInstalled: "Установлена откатная версия. Исправленная версия придёт со следующим обновлением.",
   updateInstalling: 'Устанавливается обновление…',
   updateInstalledTitle: 'Обновление установлено',
   updateOpenApp: 'Открыть',
@@ -1104,6 +1108,7 @@ const kSpanishStrings = AppStrings(
   updateAllowInstalls: 'Permitir instalación',
   checkForUpdates: 'Buscar actualizaciones',
   upToDate: 'Estás al día',
+  rollbackInstalled: "Tienes la versión restaurada. La corrección llegará con la próxima actualización.",
   updateInstalling: 'Instalando actualización…',
   updateInstalledTitle: 'Actualización instalada',
   updateOpenApp: 'Abrir',
@@ -1369,6 +1374,7 @@ const kGermanStrings = AppStrings(
   updateAllowInstalls: 'Installationen erlauben',
   checkForUpdates: 'Nach Updates suchen',
   upToDate: 'Du bist auf dem neuesten Stand',
+  rollbackInstalled: "Du nutzt die zurückgesetzte Version. Die Korrektur kommt mit dem nächsten Update.",
   updateInstalling: 'Update wird installiert…',
   updateInstalledTitle: 'Update installiert',
   updateOpenApp: 'Öffnen',
@@ -1637,6 +1643,7 @@ const kFrenchStrings = AppStrings(
   updateAllowInstalls: 'Autoriser les installations',
   checkForUpdates: 'Rechercher des mises à jour',
   upToDate: 'Vous êtes à jour',
+  rollbackInstalled: "Vous utilisez la version restaurée. Le correctif arrivera avec la prochaine mise à jour.",
   updateInstalling: 'Installation de la mise à jour…',
   updateInstalledTitle: 'Mise à jour installée',
   updateOpenApp: 'Ouvrir',
@@ -1905,6 +1912,7 @@ const kPortugueseStrings = AppStrings(
   updateAllowInstalls: 'Permitir instalação',
   checkForUpdates: 'Verificar atualizações',
   upToDate: 'Você está atualizado',
+  rollbackInstalled: "Você está na versão revertida. A correção virá na próxima atualização.",
   updateInstalling: 'Instalando atualização…',
   updateInstalledTitle: 'Atualização instalada',
   updateOpenApp: 'Abrir',
@@ -2169,6 +2177,7 @@ const kTurkishStrings = AppStrings(
   updateAllowInstalls: 'Yüklemelere izin ver',
   checkForUpdates: 'Güncellemeleri denetle',
   upToDate: 'Güncelsiniz',
+  rollbackInstalled: "Geri alınmış sürümü kullanıyorsunuz. Düzeltme bir sonraki güncellemeyle gelecek.",
   updateInstalling: 'Güncelleme yükleniyor…',
   updateInstalledTitle: 'Güncelleme yüklendi',
   updateOpenApp: 'Aç',

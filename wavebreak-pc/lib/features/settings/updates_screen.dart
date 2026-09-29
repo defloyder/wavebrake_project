@@ -25,9 +25,12 @@ class UpdatesScreen extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     ref.invalidate(availableUpdateProvider);
     ref.invalidate(rollbackOfferProvider);
+    ref.invalidate(installedRollbackProvider);
     final update = await ref.read(availableUpdateProvider.future);
     if (update == null) {
-      messenger.showSnackBar(SnackBar(content: Text(s.upToDate)));
+      final rolledBack = await ref.read(installedRollbackProvider.future);
+      messenger.showSnackBar(SnackBar(
+          content: Text(rolledBack != null ? s.rollbackInstalled : s.upToDate)));
     }
   }
 
@@ -66,6 +69,8 @@ class UpdatesScreen extends ConsumerWidget {
     final controller = ref.read(windowsUpdateControllerProvider.notifier);
     final pending = ref.watch(availableUpdateProvider).asData?.value;
     final rollback = ref.watch(rollbackOfferProvider).asData?.value;
+    final rolledBack =
+        ref.watch(installedRollbackProvider).asData?.value != null;
     final downloading = install.status == WindowsUpdateStatus.downloading;
     final ready = install.status == WindowsUpdateStatus.readyToInstall;
     final failed = install.status == WindowsUpdateStatus.failed;
@@ -121,7 +126,9 @@ class UpdatesScreen extends ConsumerWidget {
                           Text(
                             pending != null
                                 ? '${s.updateAvailable} · ${pending.versionName}'
-                                : s.upToDate,
+                                : rolledBack
+                                    ? s.rollbackInstalled
+                                    : s.upToDate,
                             style: TextStyle(
                               fontSize: 13,
                               color: pending != null
