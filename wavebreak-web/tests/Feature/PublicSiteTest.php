@@ -11,9 +11,11 @@ class PublicSiteTest extends TestCase
     {
         Http::fake(['*' => Http::response(['plans' => []])]);
 
-        foreach (['/', '/pricing', '/access', '/download'] as $path) {
+        foreach (['/', '/pricing', '/access', '/download', '/terms', '/privacy'] as $path) {
             $response = $this->get($path)->assertOk()
                 ->assertSee('class="site-footer"', false)
+                ->assertSee('href="/terms"', false)
+                ->assertSee('href="/privacy"', false)
                 ->assertSee('id="main"', false)
                 ->assertSee('images/wavebreak-mark.png', false)
                 ->assertSee('aria-label="Основная навигация"', false)
@@ -104,6 +106,21 @@ class PublicSiteTest extends TestCase
             ->assertSee('загрузить цены.')
             ->assertDontSee('Starter')
             ->assertDontSee('Fleet');
+    }
+
+    public function test_legal_pages_describe_the_platform_and_minimal_data(): void
+    {
+        $this->get('/terms')->assertOk()
+            ->assertSee('Пользовательское')
+            ->assertSee('платформа защищённого сетевого подключения и управления доступом')
+            ->assertSee('support@wavebreak.com.tr');
+
+        $this->get('/privacy')->assertOk()
+            ->assertSee('Политика обработки')
+            ->assertSee('адрес электронной почты')
+            ->assertSee('историю посещённых сайтов')
+            ->assertSee('support@wavebreak.com.tr')
+            ->assertDontSee('[ИНН]');
     }
 
     public function test_old_marketing_pages_are_not_served(): void

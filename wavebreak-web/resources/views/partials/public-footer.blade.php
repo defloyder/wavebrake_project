@@ -13,6 +13,11 @@
             <a href="/access">Технология</a>
             <a href="/download">Приложения</a>
         </nav>
-        <small>© {{ date('Y') }} WAVEBREAK</small>
+        <div class="footer-legal">
+            <a href="/terms">Пользовательское соглашение</a>
+            <a href="/privacy">Политика обработки персональных данных</a>
+            <a href="mailto:support@wavebreak.com.tr">support@wavebreak.com.tr</a>
+            <small>© {{ date('Y') }} WAVEBREAK</small>
+        </div>
     </div>
 </footer>

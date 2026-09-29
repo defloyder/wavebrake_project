@@ -7,6 +7,8 @@ Route::get('/', [WebController::class, 'index']);
 Route::get('/pricing', [WebController::class, 'pricing']);
 Route::get('/access', [WebController::class, 'access']);
 Route::get('/download', [WebController::class, 'download']);
+Route::view('/terms', 'terms');
+Route::view('/privacy', 'privacy');
 
 // Account management lives in the native clients. Keep old bookmarks useful,
 // while ensuring the website can no longer mutate customer data.
