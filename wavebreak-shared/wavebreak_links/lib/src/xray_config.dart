@@ -821,6 +821,9 @@ class Hysteria2URL extends V2RayURL {
       "tlsSettings": {
         "serverName": l.sni ?? l.host,
         "alpn": (l.alpn ?? 'h3').split(','),
+        // A pinned certificate: verified by hash, not by name — the SNI
+        // may then be a neutral one (see ShareLink.pinSha256).
+        if (l.pinSha256 != null) "pinnedPeerCertSha256": l.pinSha256,
       },
       "hysteriaSettings": {
         "version": 2,

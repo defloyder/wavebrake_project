@@ -60,6 +60,26 @@ void main() {
     });
   });
 
+  group('Hysteria2 with a pinned certificate', () {
+    const pin = 'aB:cd:ef:01:23:45:67:89:ab:cd:ef:01:23:45:67:89:ab:cd:ef:01:23:45:67:89:ab:cd:ef:01:23:45:67:89';
+    const link = 'hysteria2://$_grant:$_grant@45.15.41.3:443/?sni=www.example.com&alpn=h3&pinSHA256=$pin#TR';
+
+    test('parsed as lowercase hex without colons; junk ignored', () {
+      expect(ShareLink.parse(link).pinSha256, pin.replaceAll(':', '').toLowerCase());
+      expect(ShareLink.parse(link.replaceFirst(pin, 'abc')).pinSha256, isNull);
+      expect(ShareLink.parse(_hysteria).pinSha256, isNull);
+    });
+
+    test('Xray verifies by the pin with the neutral SNI', () {
+      final out = (jsonDecode(parseShareLink(link).getFullConfiguration())['outbounds'] as List).first as Map;
+      final tls = (out['streamSettings'] as Map)['tlsSettings'] as Map;
+      expect(tls['serverName'], 'www.example.com');
+      expect(tls['pinnedPeerCertSha256'], pin.replaceAll(':', '').toLowerCase());
+      final plain = (jsonDecode(parseShareLink(_hysteria).getFullConfiguration())['outbounds'] as List).first as Map;
+      expect(((plain['streamSettings'] as Map)['tlsSettings'] as Map).containsKey('pinnedPeerCertSha256'), isFalse);
+    });
+  });
+
   group('smart routing (WAVEBREAK locations)', () {
     Map<String, dynamic> routed(String link, Map<String, dynamic>? policy) {
       final parsed = parseShareLink(link);

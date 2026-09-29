@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -26,12 +27,19 @@ class ApiClient {
       connectTimeout: const Duration(seconds: 12),
       receiveTimeout: const Duration(seconds: 20),
       sendTimeout: const Duration(seconds: 12),
-      headers: const {
+      headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         // What this build's engines can run; Core only hands out links a
         // client declares here (e.g. the obfuscated Hysteria2 listener).
-        'X-Wavebreak-Features': 'hysteria-obfs,email-verification',
+        // hysteria-pin: Hysteria2 verified by certificate pin with a
+        // neutral SNI — Android's Xray does that; Windows' sing-box path
+        // doesn't, so it keeps the plain link.
+        'X-Wavebreak-Features': [
+          'hysteria-obfs',
+          'email-verification',
+          if (Platform.isAndroid) 'hysteria-pin',
+        ].join(','),
       },
     );
     _dio = dio ?? Dio(options);

@@ -79,7 +79,13 @@ func appLinks(cfg store.AccessGrantConfig, features map[string]bool) []string {
 	if cfg.ShareURL != "" && cfg.VLESS != nil && cfg.ShareURL == uriOf(cfg.VLESS) {
 		links = append(links, cfg.ShareURL)
 	}
-	for _, transport := range []map[string]any{cfg.VLESSRealityXHTTP, cfg.VLESSDirectTLS, cfg.Hysteria} {
+	hysteria := cfg.Hysteria
+	// Apps that verify Hysteria2 by certificate pin get the neutral-SNI
+	// variant instead (carriers drop the handshake by the usual SNI).
+	if features[featureHysteriaPin] && uriOf(cfg.HysteriaPinned) != "" {
+		hysteria = cfg.HysteriaPinned
+	}
+	for _, transport := range []map[string]any{cfg.VLESSRealityXHTTP, cfg.VLESSDirectTLS, hysteria} {
 		if uri := uriOf(transport); uri != "" {
 			links = append(links, uri)
 		}

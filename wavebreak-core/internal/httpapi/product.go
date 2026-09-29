@@ -559,6 +559,24 @@ func (s *Server) applyVLESSRuntimeConfigFor(config *store.AccessGrantConfig, vle
 			"uri":       hyLink,
 			"note":      "Direct connection, no CDN — fastest and most reliable option, but only works in clients that support Hysteria2 (not Happ; Karing and others do).",
 		}
+		// The same listener with a neutral SNI and a pinned certificate,
+		// for apps that can verify by pin (see hysteria_pin.go). Not in
+		// the plain link list: only appLinks swaps it in for such apps.
+		if strings.TrimSpace(vless.HysteriaPinnedSNI) != "" && strings.TrimSpace(vless.HysteriaCertFile) != "" {
+			if pin, err := certPinSHA256(vless.HysteriaCertFile); err == nil {
+				config.HysteriaPinned = map[string]any{
+					"client_id": config.Grant.ID,
+					"label":     location,
+					"protocol":  "hysteria2",
+					"server":    vless.HysteriaHost,
+					"port":      vless.HysteriaPort,
+					"sni":       vless.HysteriaPinnedSNI,
+					"uri":       buildHysteriaPinnedLink(vless, config.Grant.ID, location, pin),
+				}
+			} else {
+				config.Warnings = append(config.Warnings, "Hysteria2 certificate pin unavailable: "+err.Error())
+			}
+		}
 		if vless.HysteriaObfsPort > 0 && strings.TrimSpace(vless.HysteriaObfsPassword) != "" {
 			obfsLink := buildHysteriaObfsLink(vless, config.Grant.ID, location)
 			links = append(links, obfsLink)

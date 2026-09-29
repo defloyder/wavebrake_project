@@ -62,6 +62,7 @@ class ShareLink {
     this.obfs,
     this.obfsPassword,
     this.portHopping,
+    this.pinSha256,
     this.alterId = 0,
     this.congestionControl,
     this.udpRelayMode,
@@ -125,6 +126,12 @@ class ShareLink {
   /// The client moves between them every few seconds, so no single UDP
   /// flow lives long enough for a carrier to throttle or cut it.
   final String? portHopping;
+
+  /// Hysteria2: SHA-256 of the server certificate (the link's `pinSHA256`,
+  /// 64 hex digits). With it the client verifies the server by this hash
+  /// instead of by name, so the SNI can be a neutral one — carriers drop
+  /// the QUIC handshake by an SNI they recognise.
+  final String? pinSha256;
 
   final int alterId;
 
@@ -220,6 +227,12 @@ class ShareLink {
   /// "20000-30000" / "20000-25000,27000" when every part is a valid port
   /// or ascending range; anything else is ignored rather than handed to
   /// an engine that would reject the whole config.
+  /// 64 hex digits (colons allowed, as Hysteria writes them), lowercase.
+  static String? _sha256Hex(String? v) {
+    final hex = (v ?? '').replaceAll(':', '').trim().toLowerCase();
+    return RegExp(r'^[0-9a-f]{64}$').hasMatch(hex) ? hex : null;
+  }
+
   static String? _portRanges(String? v) {
     if (v == null || v.trim().isEmpty) return null;
     final parts = v.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
@@ -281,6 +294,7 @@ class ShareLink {
       obfs: _nonEmpty(q['obfs']),
       obfsPassword: _nonEmpty(q['obfs-password']),
       portHopping: isHysteria ? _portRanges(q['mport']) : null,
+      pinSha256: isHysteria ? _sha256Hex(q['pinSHA256']) : null,
       remark: _remark(uri),
     );
   }

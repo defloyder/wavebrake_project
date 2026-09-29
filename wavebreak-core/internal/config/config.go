@@ -87,6 +87,14 @@ type VLESSConfig struct {
 	HysteriaPort     int
 	HysteriaSNI      string
 	HysteriaInsecure bool
+	// Hysteria2 with a neutral SNI: carriers cut the QUIC handshake by
+	// its SNI (hy2.wavebreak.com.tr) while UDP itself gets through. Apps
+	// that pin certificates (X-Wavebreak-Features: hysteria-pin) get the
+	// link with this SNI and the SHA-256 of the certificate in
+	// HysteriaCertFile (read live, so a renewal needs no change); the
+	// server doesn't care about the SNI. Off unless both are set.
+	HysteriaPinnedSNI string
+	HysteriaCertFile  string
 	// A second Hysteria2 listener on the same host with salamander
 	// obfuscation (and, when HysteriaObfsHopPorts is set, port hopping):
 	// some carriers let a QUIC handshake to a foreign server through and
@@ -234,6 +242,8 @@ func Load() (Config, error) {
 			HysteriaPort:              hysteriaPort,
 			HysteriaSNI:               env("WAVEBREAK_HYSTERIA_SNI", ""),
 			HysteriaInsecure:          boolEnv("WAVEBREAK_HYSTERIA_INSECURE", true),
+			HysteriaPinnedSNI:         env("WAVEBREAK_HYSTERIA_PINNED_SNI", ""),
+			HysteriaCertFile:          env("WAVEBREAK_HYSTERIA_CERT_FILE", ""),
 			HysteriaObfsPort:          hysteriaObfsPort,
 			HysteriaObfsPassword:      env("WAVEBREAK_HYSTERIA_OBFS_PASSWORD", ""),
 			HysteriaObfsHopPorts:      env("WAVEBREAK_HYSTERIA_OBFS_HOP_PORTS", ""),
