@@ -51,7 +51,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     const Analytics().event('subscription_screen_open');
     final asyncSub = ref.watch(subscriptionProvider);
     final asyncDevices = ref.watch(devicesProvider);
-    final usage = ref.watch(trafficUsageProvider).asData?.value;
+    final usage = ref.watch(trafficUsageProvider).valueOrNull;
     final s = ref.watch(stringsProvider);
 
     return DetailScaffold(
@@ -83,7 +83,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                     final until = sub.expiresAt == null
                         ? '—'
                         : DateFormat('d MMMM y').format(sub.expiresAt!);
-                    final devicesUsed = asyncDevices.asData?.value.length;
+                    final devicesUsed = asyncDevices.valueOrNull?.length;
                     final devices = (devicesUsed != null && sub.deviceLimit != null)
                         ? '$devicesUsed / ${sub.deviceLimit}'
                         : '—';

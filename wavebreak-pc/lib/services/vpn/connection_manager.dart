@@ -379,6 +379,9 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         final used = candidates[i];
         if (!location.isAuto && _isWavebreakLocation(used)) {
           unawaited(_checkTraffic(used, generation));
+        } else if (!location.isAuto) {
+          AppLogger.info(
+              'Traffic check skipped: ${_transportKey(used)} is not a WAVEBREAK location');
         }
 
         // A real handshake just succeeded. For a manual pick (or a
@@ -478,7 +481,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   /// WAVEBREAK's own locations (the account's personal ones), as opposed
   /// to a server the user added.
   bool _isWavebreakLocation(LocationItem target) {
-    final own = ref.read(locationsProvider).asData?.value ?? const [];
+    final own = ref.read(locationsProvider).valueOrNull ?? const [];
     return own.any((l) => l.id == target.id);
   }
 
@@ -529,7 +532,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   /// when all of them have been tried (the UI then suggests another
   /// location).
   LocationItem? get otherProtocol {
-    final own = ref.read(locationsProvider).asData?.value ?? const [];
+    final own = ref.read(locationsProvider).valueOrNull ?? const [];
     return nextProtocolLocation(
         own, state.location, {..._noTrafficTried, state.location.id});
   }
@@ -818,7 +821,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   Future<List<LocationItem>> _rankCandidates(LocationItem location) async {
     if (!location.isAuto) return [location];
     final all =
-        ref.read(locationsProvider).asData?.value ?? const <LocationItem>[];
+        ref.read(locationsProvider).valueOrNull ?? const <LocationItem>[];
     final online = all.where((l) => l.available).toList();
     if (online.isEmpty) {
       throw AppException(AppErrorKind.locationUnavailable);

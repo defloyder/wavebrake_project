@@ -78,7 +78,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // below never fires (it only reacts to *changes*) — so also hydrate
     // once against whatever is already cached.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final cached = ref.read(locationsProvider).asData?.value;
+      final cached = ref.read(locationsProvider).valueOrNull;
       if (cached != null) {
         ref.read(connectionManagerProvider.notifier).hydrateLocations(cached);
       }
@@ -218,7 +218,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       wavebreakLocations: locations,
       customGroups: custom,
       s: s,
-      sharing: ref.read(sharingProvider).asData?.value,
+      sharing: ref.read(sharingProvider).valueOrNull,
     );
     if (!mounted) return;
     final isDesktop = MediaQuery.sizeOf(context).width >= 820;
@@ -385,7 +385,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           wavebreakLocations: items,
           customGroups: ref.watch(customServersProvider),
           s: s,
-          sharing: ref.watch(sharingProvider).asData?.value,
+          sharing: ref.watch(sharingProvider).valueOrNull,
         );
         return SubscriptionAccordion(
           sections: sections,
@@ -1150,7 +1150,7 @@ class _SubscriptionStrip extends ConsumerWidget {
     }
     if (sharedGroup != null) {
       final received =
-          ref.watch(sharingProvider).asData?.value?.receivedFor(sharedGroup.sourceLink);
+          ref.watch(sharingProvider).valueOrNull?.receivedFor(sharedGroup.sourceLink);
       return WbCard(
         tint: tint,
         child: _SharedSubscriptionStrip(title: sharedGroup.name, received: received, s: s),
