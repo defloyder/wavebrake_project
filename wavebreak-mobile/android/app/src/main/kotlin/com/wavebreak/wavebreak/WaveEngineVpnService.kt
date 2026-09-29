@@ -18,6 +18,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.os.ResultReceiver
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -464,7 +465,14 @@ class WaveEngineVpnService : VpnService() {
         // network every attempt just fails and burns the retry budget
         // (logcat 00:55:57: reconnect_exhausted). We reconnect when a
         // default network (re)appears.
-        var lostSinceLastAvailable = false
+        // H1 (field logs 2026-09-29, 1.2.1 and 1.2.2): ~1 s after a connect
+        // the system briefly reported the default network lost and then the
+        // SAME network available again, and that blip restarted the tunnel
+        // ("native engine reconnecting: network changed") — right while the
+        // new session was coming up. Only a DIFFERENT network, or the same
+        // one after a real outage (longer than NETWORK_BLIP_MS), reconnects.
+        var lostNetwork: Network? = null
+        var lostAtMs = 0L
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 // Right after establish() the default network reported for
@@ -475,18 +483,23 @@ class WaveEngineVpnService : VpnService() {
                 val isVpn = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
                 Log.d(TAG, "default network available: $network vpn=$isVpn tracked=$trackedNetwork")
                 if (isVpn) return
-                val previous = trackedNetwork
+                val previous = trackedNetwork ?: lostNetwork
+                val wasLost = lostNetwork != null
+                val outageMs = if (wasLost) SystemClock.elapsedRealtime() - lostAtMs else 0L
                 trackedNetwork = network
-                if ((previous != null && previous != network) || lostSinceLastAvailable) {
-                    lostSinceLastAvailable = false
+                lostNetwork = null
+                if (networkChangeNeedsReconnect(previous, network, wasLost, outageMs)) {
                     scheduleReconnect("network changed")
+                } else if (wasLost) {
+                    Log.d(TAG, "same network back after ${outageMs} ms: no reconnect")
                 }
             }
 
             override fun onLost(network: Network) {
                 if (network == trackedNetwork) {
                     trackedNetwork = null
-                    lostSinceLastAvailable = true
+                    lostNetwork = network
+                    lostAtMs = SystemClock.elapsedRealtime()
                     Log.d(TAG, "default network lost, waiting for a new one")
                 }
             }
