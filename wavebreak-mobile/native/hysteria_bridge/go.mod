@@ -9,7 +9,14 @@ require (
 	github.com/txthinking/socks5 v0.0.0-20260601051520-339b044ab0eb
 	github.com/xjasonlyu/tun2socks/v2 v2.7.1-0.20260913205830-5d9fac67bb10
 	github.com/xtls/xray-core v1.260327.0
+	wavebreak.app/cloak v0.0.0-00010101000000-000000000000
 )
+
+// The traffic-shape masking layer (see wavebreak-shared/cloak's own doc
+// comment for why it exists) lives in this repo, not a published module —
+// same relationship this build already has to the app's own other
+// internal packages.
+replace wavebreak.app/cloak => ../../../wavebreak-shared/cloak
 
 require (
 	github.com/ajg/form v1.9.0 // indirect

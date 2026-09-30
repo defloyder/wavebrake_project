@@ -24,11 +24,13 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 
 	hyclient "github.com/apernet/hysteria/core/v2/client"
 
+	"wavebreak.app/cloak"
 	"wavebreak.app/hysteria_bridge/socks5"
 )
 
@@ -184,6 +186,41 @@ func parseLink(link string) (*hyclient.Config, error) {
 	sni := firstNonEmpty(q.Get("sni"), q.Get("peer"), host)
 	insecure := q.Get("insecure") == "1" || strings.EqualFold(q.Get("insecure"), "true")
 
+	// cloak=1 wraps the QUIC socket in the traffic-shape masking layer
+	// (see wavebreak-shared/cloak): random packet-size padding, jitter,
+	// and idle chaff, on top of whatever TLS/obfs the link already does.
+	// Built in response to a specific field finding (2026-09-30): the
+	// handshake completed and then real proxied data reliably stalled
+	// with "no recent network activity" the moment it started flowing,
+	// identically whether or not salamander/gecko obfuscation was on —
+	// i.e. something on the path was recognizing the *shape* of a tunnel
+	// carrying real traffic, not the wire signature of Hysteria2/QUIC
+	// itself. cloak targets that shape directly. Off by default: it costs
+	// some throughput (padding overhead, an idle chaff trickle) that
+	// locations without this specific problem shouldn't pay.
+	cloakEnabled := q.Get("cloak") == "1" || strings.EqualFold(q.Get("cloak"), "true")
+	cloakProfile := cloak.DefaultProfile
+	if v := q.Get("cloak-min"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cloakProfile.MinSize = n
+		}
+	}
+	if v := q.Get("cloak-max"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cloakProfile.MaxSize = n
+		}
+	}
+	if v := q.Get("cloak-chaff-min-ms"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			cloakProfile.ChaffMinInterval = n
+		}
+	}
+	if v := q.Get("cloak-chaff-max-ms"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			cloakProfile.ChaffMaxInterval = n
+		}
+	}
+
 	// hysteria2:// links carry the auth password as the URI's userinfo —
 	// url.Parse puts a bare `password@host` into Username() (there's no
 	// colon to split on), and a `user:pass@host` shape into
@@ -207,14 +244,27 @@ func parseLink(link string) (*hyclient.Config, error) {
 		// UDP socket — Android's VpnService captures it right back into
 		// this app's own tunnel instead of letting it reach the real
 		// server. See protect.go for the full explanation.
-		ConnFactory: hyConnFactory{},
+		ConnFactory: hyConnFactory{cloakEnabled: cloakEnabled, cloakProfile: cloakProfile},
 	}, nil
 }
 
-type hyConnFactory struct{}
+type hyConnFactory struct {
+	cloakEnabled bool
+	cloakProfile cloak.Profile
+}
 
-func (hyConnFactory) New(net.Addr) (net.PacketConn, error) {
-	return protectedListenPacket(context.Background())
+func (f hyConnFactory) New(remote net.Addr) (net.PacketConn, error) {
+	conn, err := protectedListenPacket(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	if !f.cloakEnabled {
+		return conn, nil
+	}
+	// remote is the server address Hysteria is about to dial — cloak.Conn
+	// needs it up front to send chaff to the right peer even before the
+	// real handshake traffic starts flowing.
+	return cloak.NewConn(conn, remote, f.cloakProfile), nil
 }
 
 func firstNonEmpty(values ...string) string {
