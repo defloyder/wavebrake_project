@@ -1,6 +1,6 @@
 # Changelog
 
-## Android 1.2.4 (versionCode 42) — cloak для Hysteria2 (собрана, публикация ждёт)
+## Android 1.2.4 (versionCode 42) — cloak для Hysteria2 (опубликована 2026-10-01)
 
 - Турецкая Hysteria2 работает через cloak (маскировка «формы» трафика: случайный размер пакетов, паузы, фоновый шум) — против обрывов Hysteria на мобильных сетях (Альфа). На сервере перед Hysteria стоит cloak-relay (UDP 443).
 - Ссылки с `cloak=1` идут через клиент Hysteria в мосте (apernet + cloak), остальные Hysteria2-ссылки — через Xray, как раньше. Для cloak-ссылки smart routing (российские сайты напрямую) не применяется.
