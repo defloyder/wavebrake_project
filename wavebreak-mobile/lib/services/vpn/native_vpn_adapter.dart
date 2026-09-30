@@ -89,7 +89,8 @@ class NativeVpnAdapter implements VpnAdapter {
     final completer = Completer<void>();
     _connectCompleter = completer;
 
-    if (!_hysteria2ViaXray && (scheme == 'hysteria2' || scheme == 'hy2')) {
+    final isHysteria = scheme == 'hysteria2' || scheme == 'hy2';
+    if (isHysteria && (!_hysteria2ViaXray || usesCloak(url))) {
       await _method.invokeMethod('connect', {'link': url});
     } else {
       final String config;
@@ -353,4 +354,14 @@ class _CachedPin {
 
   final String sha256;
   final DateTime expiresAt;
+}
+
+/// A Hysteria2 link that asks for the cloak traffic-shape masking
+/// (`cloak=1`, see wavebreak-shared/cloak). Only the apernet client in
+/// the native bridge implements it — Xray-core would ignore the parameter
+/// and dial a cloak relay unmasked — so such links go to the bridge;
+/// every other Hysteria2 link stays on Xray-core as before.
+bool usesCloak(String url) {
+  final value = Uri.tryParse(url)?.queryParameters['cloak']?.toLowerCase();
+  return value == '1' || value == 'true';
 }
