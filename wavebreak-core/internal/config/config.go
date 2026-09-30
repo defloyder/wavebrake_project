@@ -87,6 +87,11 @@ type VLESSConfig struct {
 	HysteriaPort     int
 	HysteriaSNI      string
 	HysteriaInsecure bool
+	// A cloak relay (wavebreak-shared/cloak) owns this Hysteria2 port: the
+	// link carries cloak=1 and only apps that can wrap their packets in
+	// cloak connect (see featureHysteriaCloak). Per node — a mirror sets
+	// it in its own public_config or doesn't have it.
+	HysteriaCloak bool
 	// Hysteria2 with a neutral SNI: carriers cut the QUIC handshake by
 	// its SNI (hy2.wavebreak.com.tr) while UDP itself gets through. Apps
 	// that pin certificates (X-Wavebreak-Features: hysteria-pin) get the
@@ -242,6 +247,7 @@ func Load() (Config, error) {
 			HysteriaPort:              hysteriaPort,
 			HysteriaSNI:               env("WAVEBREAK_HYSTERIA_SNI", ""),
 			HysteriaInsecure:          boolEnv("WAVEBREAK_HYSTERIA_INSECURE", true),
+			HysteriaCloak:             boolEnv("WAVEBREAK_HYSTERIA_CLOAK", false),
 			HysteriaPinnedSNI:         env("WAVEBREAK_HYSTERIA_PINNED_SNI", ""),
 			HysteriaCertFile:          env("WAVEBREAK_HYSTERIA_CERT_FILE", ""),
 			HysteriaObfsPort:          hysteriaObfsPort,

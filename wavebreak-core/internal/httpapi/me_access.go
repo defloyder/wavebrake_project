@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -85,6 +86,11 @@ func appLinks(cfg store.AccessGrantConfig, features map[string]bool) []string {
 	if features[featureHysteriaPin] && uriOf(cfg.HysteriaPinned) != "" {
 		hysteria = cfg.HysteriaPinned
 	}
+	// Behind a cloak relay only apps that wrap their packets in cloak
+	// connect; to the others the location would just never pass traffic.
+	if linkNeedsCloak(uriOf(hysteria)) && !features[featureHysteriaCloak] {
+		hysteria = nil
+	}
 	for _, transport := range []map[string]any{cfg.VLESSRealityXHTTP, cfg.VLESSDirectTLS, hysteria} {
 		if uri := uriOf(transport); uri != "" {
 			links = append(links, uri)
@@ -101,6 +107,16 @@ func appLinks(cfg store.AccessGrantConfig, features map[string]bool) []string {
 }
 
 const featureHysteriaObfs = "hysteria-obfs"
+
+// featureHysteriaCloak: the app runs cloak=1 Hysteria2 links (Android
+// 1.2.4+, through the bridge's apernet client with the cloak layer).
+const featureHysteriaCloak = "hysteria-cloak"
+
+// linkNeedsCloak: a Hysteria2 link served through a cloak relay.
+func linkNeedsCloak(uri string) bool {
+	u, err := url.Parse(uri)
+	return err == nil && u.Query().Get("cloak") == "1"
+}
 
 // clientFeatures: what the calling WAVEBREAK app can run, from its
 // comma-separated X-Wavebreak-Features header (absent in older versions).

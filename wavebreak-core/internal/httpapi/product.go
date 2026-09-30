@@ -913,6 +913,9 @@ func buildHysteriaLink(vless config.VLESSConfig, grantID, location string) strin
 	if vless.HysteriaInsecure {
 		query.Set("insecure", "1")
 	}
+	if vless.HysteriaCloak {
+		query.Set("cloak", "1")
+	}
 	return fmt.Sprintf("hysteria2://%s@%s/?%s#%s", auth, endpoint, query.Encode(), url.PathEscape(label))
 }
 

@@ -79,3 +79,27 @@ func mustQuery(t *testing.T, link string) url.Values {
 	}
 	return u.Query()
 }
+
+func TestHysteriaCloakLinkAndAppGating(t *testing.T) {
+	vless := config.VLESSConfig{HysteriaHost: "hy2.example.test", HysteriaPort: 443, HysteriaCloak: true}
+	link := buildHysteriaLink(vless, "g", "L")
+	if q := mustQuery(t, link); q.Get("cloak") != "1" {
+		t.Fatalf("cloak node link without cloak=1: %s", link)
+	}
+	vless.HysteriaCloak = false
+	if q := mustQuery(t, buildHysteriaLink(vless, "g", "L")); q.Has("cloak") {
+		t.Fatal("cloak=1 on a node without a cloak relay")
+	}
+
+	cfg := store.AccessGrantConfig{Hysteria: map[string]any{"uri": link}}
+	if got := appLinks(cfg, map[string]bool{}); len(got) != 0 {
+		t.Fatalf("an app without cloak got the cloak link: %v", got)
+	}
+	if got := appLinks(cfg, map[string]bool{featureHysteriaCloak: true}); len(got) != 1 || got[0] != link {
+		t.Fatalf("a cloak app didn't get the link: %v", got)
+	}
+	plain := store.AccessGrantConfig{Hysteria: map[string]any{"uri": "hysteria2://g:g@h:443/?sni=h"}}
+	if got := appLinks(plain, map[string]bool{}); len(got) != 1 {
+		t.Fatalf("a plain Hysteria2 link must stay for every app: %v", got)
+	}
+}
