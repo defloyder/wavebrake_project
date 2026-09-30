@@ -305,6 +305,12 @@ class NativeVpnAdapter implements VpnAdapter {
     final map = event is Map ? event : const {};
     final stateStr = map['state'] as String?;
     final detail = map['detail'] as String?;
+    // Engine steps (WaveEngineVpnService.trace) — diagnostic log only, not
+    // a connection state.
+    if (stateStr == 'TRACE') {
+      if (detail != null) AppLogger.info('engine: $detail');
+      return;
+    }
     final state = switch (stateStr) {
       'CONNECTING' => VpnNativeState.connecting,
       'CONNECTED' => VpnNativeState.connected,

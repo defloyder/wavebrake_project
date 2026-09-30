@@ -903,10 +903,12 @@ class WaveEngineVpnService : VpnService() {
     private fun stopOtherEngine(previous: Engine?, target: Engine) {
         if (previous == null) return
         Log.d(TAG, "stopping $previous before starting $target")
+        trace("stop $previous -> $target: stopping tun2socks")
         try {
             Bridge.stopTun2Socks()
         } catch (t: Throwable) {
         }
+        trace("tun2socks stopped; stopping $previous")
         try {
             when (previous) {
                 Engine.XRAY -> Bridge.stopXray()
@@ -914,6 +916,7 @@ class WaveEngineVpnService : VpnService() {
             }
         } catch (t: Throwable) {
         }
+        trace("$previous stopped")
     }
 
     // [generation] is checked before AND after acquiring [connectLock] —
@@ -942,8 +945,10 @@ class WaveEngineVpnService : VpnService() {
     // original full flow unchanged.
     private fun connectXray(configJson: String, generation: Long, isReconnect: Boolean, preserveTun: Boolean, previousEngine: Engine? = null) {
         if (generation != connectGeneration || stopping) return
+        trace("xray: waiting for the engine lock")
         synchronized(connectLock) {
             if (generation != connectGeneration || stopping) return
+            trace("xray: got the lock (preserveTun=$preserveTun, previous=$previousEngine)")
             try {
                 if (!preserveTun) {
                     stopOtherEngine(previousEngine, Engine.XRAY)
@@ -957,7 +962,9 @@ class WaveEngineVpnService : VpnService() {
                 // never looks at XRAY_LOCATION_ASSET when a config has
                 // no such rules.
                 Bridge.ensureGeoAssets(filesDir.absolutePath)
+                trace("xray: starting xray")
                 Bridge.startXray(configJson)
+                trace("xray: xray started")
                 // Real-device bug this check exists to fix: a stop
                 // (user-initiated disconnect, onRevoke() because the OS
                 // handed the VPN slot to a different app, onDestroy, ...)
@@ -1039,14 +1046,19 @@ class WaveEngineVpnService : VpnService() {
     // silently leaving tun2socks bridging into a dead address forever.
     private fun connectHysteria(link: String, generation: Long, isReconnect: Boolean, preserveTun: Boolean, previousEngine: Engine? = null) {
         if (generation != connectGeneration || stopping) return
+        trace("hysteria: waiting for the engine lock")
         synchronized(connectLock) {
             if (generation != connectGeneration || stopping) return
+            trace("hysteria: got the lock (preserveTun=$preserveTun, previous=$previousEngine)")
             try {
                 if (!preserveTun) {
                     stopOtherEngine(previousEngine, Engine.HYSTERIA)
                 }
+                trace("hysteria: protection")
                 setUpProtection()
+                trace("hysteria: starting the bridge client")
                 val port = Bridge.start(link)
+                trace("hysteria: bridge client on port $port")
                 // See connectXray's identical check for the full
                 // rationale — a stop/revoke landing while Bridge.start
                 // was running must not be allowed to still call
@@ -1254,6 +1266,7 @@ class WaveEngineVpnService : VpnService() {
     }
 
     private fun establishTun(socksPort: Int) {
+        trace("tun: establishing (socks $socksPort)")
         val builder = Builder()
             .setSession("WAVEBREAK")
             .setMtu(TUN_MTU)
@@ -1319,6 +1332,7 @@ class WaveEngineVpnService : VpnService() {
         // else the moment the engine closes it.
         val fd = iface.detachFd()
         Bridge.startTun2Socks(fd.toLong(), TUN_MTU.toLong(), "127.0.0.1:$socksPort")
+        trace("tun: tun2socks started")
         tunInterface = null
     }
 
@@ -1495,6 +1509,17 @@ class WaveEngineVpnService : VpnService() {
     //            rather than silence.
     private fun logStop(reason: String, detail: String? = null) {
         Log.i(TAG, "service_stop reason=$reason${if (detail != null) " detail=$detail" else ""}")
+    }
+
+    // Engine steps into the diagnostic log (Dart logs "engine: ..."): a
+    // hang or failure between two steps then shows where it stopped.
+    private fun trace(step: String) {
+        Log.i(TAG, "trace $step")
+        val intent = Intent(ACTION_STATUS)
+        intent.setPackage(packageName)
+        intent.putExtra(EXTRA_STATE, STATE_TRACE)
+        intent.putExtra(EXTRA_ERROR_DETAIL, step)
+        sendBroadcast(intent)
     }
 
     private fun broadcastState(state: String, detail: String? = null) {
@@ -1888,6 +1913,7 @@ class WaveEngineVpnService : VpnService() {
         const val ACTION_STOP = "app.wavebreak.engine.STOP"
         const val ACTION_CHECK_PING = "app.wavebreak.engine.CHECK_PING"
         const val ACTION_STATUS = "app.wavebreak.engine.STATUS"
+        const val STATE_TRACE = "TRACE"
         const val EXTRA_LINK = "link"
         const val EXTRA_XRAY_CONFIG = "xray_config"
         const val EXTRA_STATE = "state"
