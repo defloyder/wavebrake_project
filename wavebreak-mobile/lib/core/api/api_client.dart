@@ -35,10 +35,13 @@ class ApiClient {
         // hysteria-pin: Hysteria2 verified by certificate pin with a
         // neutral SNI — Android's Xray does that; Windows' sing-box path
         // doesn't, so it keeps the plain link.
+        // hysteria-cloak: cloak=1 Hysteria2 links (behind a cloak relay) — the
+        // bridge's apernet client wraps its packets in cloak; Windows can't.
         'X-Wavebreak-Features': [
           'hysteria-obfs',
           'email-verification',
           if (Platform.isAndroid) 'hysteria-pin',
+          if (Platform.isAndroid) 'hysteria-cloak',
         ].join(','),
       },
     );
