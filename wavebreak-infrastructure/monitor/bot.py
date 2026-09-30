@@ -381,7 +381,7 @@ class Bot:
             [f"<b>{esc(c['name'])}</b>", "🟢 работает" if c["up"] else "🔴 <b>ЛЕЖИТ</b>"] for c in st["cores"]
         ] + [
             ["<b>tcp/443</b>", "🟢 слушает" if st["tcp443"] else "🔴 <b>не слушает</b>"],
-            ["<b>udp/443</b>", "🟢 слушает" if st["udp443"] else "🟠 не слушает"],
+        ] + ([["<b>udp/443</b>", "🟢 слушает" if st["udp443"] else "🟠 не слушает"]] if st.get("udp443") is not None else []) + [
             ["<b>Core API</b>", "🟢 отвечает" if core_ok else f"🔴 {esc(core_msg)}"],
         ] + [[f"<b>{esc(s['name'])}</b>", f"🔴 {esc(s['status'])}"] for s in broken])
 
@@ -426,7 +426,7 @@ class Bot:
         ], caption=st["xray_version"])
         ports = table(["Порт", "Статус"], [
             ["tcp/443 (REALITY/TLS/сайт)", "🟢" if st["tcp443"] else "🔴"],
-            ["udp/443 (Hysteria2)", "🟢" if st["udp443"] else "🔴"],
+        ] + ([["udp/443 (Hysteria2)", "🟢" if st["udp443"] else "🔴"]] if st.get("udp443") is not None else []) + [
             ["udp/51820 (ops WireGuard)", "🟢" if st["udp51820"] else "⚪"],
         ])
         svc = table(["Контейнер", "Состояние"], [
@@ -468,7 +468,7 @@ class Bot:
         groups = mon.error_groups()
         body = (table(["×", "Сообщение"], [[str(n), f"<code>{esc(p)}</code>"] for n, p in groups])
                 if groups else "<p>🟢 За последний час ошибок и предупреждений нет.</p>")
-        return f"<h3>⚠️ Ошибки xray/hysteria · 60 мин</h3>{body}{footer()}", [
+        return f"<h3>⚠️ Ошибки {'xray/hysteria' if mon.HY_ENABLED else 'xray'} · 60 мин</h3>{body}{footer()}", [
             [B("📜 Логи", "lg"), B("⬅ Мониторинг", "mon"), B("🔄", "er")]]
 
     def logs_screen(self, n):

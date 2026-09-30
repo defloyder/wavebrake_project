@@ -16,6 +16,10 @@ DB_FILE = "/var/lib/wavebreak-monitor/monitor.db"
 
 XRAY_CONTAINER = "wavebreak-pilot-xray"
 HY_CONTAINER = "wavebreak-pilot-hysteria"
+# Hysteria2 is not published to users (2026-09-30), so it is not watched
+# either: no health alerts, no log tailing, not on the status screens.
+# MONITOR_HYSTERIA=1 in telegram.env brings all of it back.
+HY_ENABLED = os.environ.get("MONITOR_HYSTERIA", "0") == "1"
 STATS_API = "127.0.0.1:19999"
 
 RECONNECT_THRESHOLD = 6
@@ -118,12 +122,13 @@ def port_listening(port, proto="tcp"):
 
 
 def health_check_loop(alert):
-    last = {"xray": True, "hysteria": True, "port443": True}
     checks = [
         ("xray", lambda: container_running(XRAY_CONTAINER), "Контейнер xray упал", "xray снова работает"),
-        ("hysteria", lambda: container_running(HY_CONTAINER), "Контейнер hysteria упал", "hysteria снова работает"),
         ("port443", lambda: port_listening(443, "tcp"), "Никто не слушает tcp/443 — REALITY/TLS недоступны", "tcp/443 снова слушается"),
     ]
+    if HY_ENABLED:
+        checks.insert(1, ("hysteria", lambda: container_running(HY_CONTAINER), "Контейнер hysteria упал", "hysteria снова работает"))
+    last = {key: True for key, *_ in checks}
     while True:
         try:
             state = {}
@@ -137,8 +142,8 @@ def health_check_loop(alert):
                     alert("ok", up_msg, key=f"{key}_up", cooldown=60)
                     log_event(f"INFO {key}_recovered")
                 last[key] = ok
-            log_event(f"HEALTH xray={state['xray']} hysteria={state['hysteria']} tcp443={state['port443']} "
-                      f"udp443={port_listening(443, 'udp')}")
+            log_event("HEALTH " + " ".join(f"{k}={v}" for k, v in state.items())
+                      + (f" udp443={port_listening(443, 'udp')}" if HY_ENABLED else ""))
         except Exception as e:
             log_event(f"ERROR health_check_loop: {e}")
         time.sleep(HEALTH_CHECK_INTERVAL_SEC)
@@ -189,7 +194,8 @@ def _inspect(name, fmt):
 
 def status_snapshot():
     cores = []
-    for label, name in (("xray", XRAY_CONTAINER), ("hysteria", HY_CONTAINER)):
+    watched = [("xray", XRAY_CONTAINER)] + ([("hysteria", HY_CONTAINER)] if HY_ENABLED else [])
+    for label, name in watched:
         up = container_running(name)
         cores.append({
             "name": label, "up": up,
@@ -199,7 +205,8 @@ def status_snapshot():
     version = "n/a"
     if cores[0]["up"]:
         version = (run(["docker", "exec", XRAY_CONTAINER, "xray", "version"]).splitlines() or ["n/a"])[0][:40]
-    return {"cores": cores, "tcp443": port_listening(443, "tcp"), "udp443": port_listening(443, "udp"),
+    return {"cores": cores, "tcp443": port_listening(443, "tcp"),
+            "udp443": port_listening(443, "udp") if HY_ENABLED else None,
             "udp51820": port_listening(51820, "udp"), "xray_version": version}
 
 
@@ -322,7 +329,9 @@ def reconnect_events(client=None, limit=20):
 
 
 def error_groups(since="60m", limit=25):
-    text = run(["docker", "logs", "--since", since, XRAY_CONTAINER]) + run(["docker", "logs", "--since", since, HY_CONTAINER])
+    text = run(["docker", "logs", "--since", since, XRAY_CONTAINER])
+    if HY_ENABLED:
+        text += run(["docker", "logs", "--since", since, HY_CONTAINER])
     groups = collections.Counter()
     for l in text.splitlines():
         if re.search(r"error|warn|fail", l, re.I):

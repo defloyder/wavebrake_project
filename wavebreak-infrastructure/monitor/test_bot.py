@@ -146,6 +146,16 @@ class BotTest(unittest.TestCase):
 
     # --- access control ---
 
+    def test_status_hides_hysteria_when_not_monitored(self):
+        mon.status_snapshot = lambda: {"cores": [{"name": "xray", "up": True, "restarts": "0", "started": "x"}],
+                                       "tcp443": True, "udp443": None, "udp51820": True, "xray_version": "Xray 26"}
+        html, _ = self.bot.status_screen()
+        self.assertNotIn("Hysteria", html)
+        self.assertNotIn("udp/443", html)
+        self.assertIn("tcp/443", html)
+        home, _ = self.bot.home(OWNER)
+        self.assertNotIn("udp/443", home)
+
     def test_strangers_and_groups_get_silence(self):
         self.bot.handle_update(msg(STRANGER, "/start"))
         self.bot.handle_update(msg(OWNER, "/start", chat_type="group"))

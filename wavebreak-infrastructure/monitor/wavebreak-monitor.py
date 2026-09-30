@@ -71,13 +71,15 @@ def main():
     mon.log_event("INFO wavebreak-monitor starting")
     bot = build_bot(load_env())
     bot.sync_commands()
-    for target, args in (
+    loops = [
         (mon.tail_container, (mon.XRAY_CONTAINER, "xray", bot.alert)),
-        (mon.tail_container, (mon.HY_CONTAINER, "hysteria", bot.alert)),
         (mon.health_check_loop, (bot.alert,)),
         (mon.traffic_sample_loop, ()),
         (poll_loop, (bot,)),
-    ):
+    ]
+    if mon.HY_ENABLED:
+        loops.insert(1, (mon.tail_container, (mon.HY_CONTAINER, "hysteria", bot.alert)))
+    for target, args in loops:
         threading.Thread(target=target, args=args, daemon=True).start()
     bot.alert("ok", "Монитор запущен — центр управления: /start")
     while True:
