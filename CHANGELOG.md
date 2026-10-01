@@ -1,5 +1,11 @@
 # Changelog
 
+## Android 1.2.4.2 (versionCode 47)
+
+- Исправлен вылет на Android 10 сразу после подключения VPN (Redmi Note 9 Pro, MIUI): приложение вызывало функцию Android 11 (`NetworkCapabilities.getOwnerUid`). Найдено по системному отчёту об ошибке телефона.
+- Уведомление VPN больше не использует вызов Android 8 на Android 7.
+- Откат — на 1.2.4.1 (versionCode 48).
+
 ## Windows 1.0.8 (build 17) — cloak для Hysteria2 (собрана, ждёт проверки и «публикуй»)
 
 - Турецкая Hysteria2 работает через cloak, как на Android: рядом с приложением лежит `cloak-client-proxy.exe` (автор — коллега), sing-box подключается к нему на 127.0.0.1, прокси заворачивает трафик в cloak.
