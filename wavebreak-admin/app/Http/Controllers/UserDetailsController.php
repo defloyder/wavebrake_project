@@ -34,12 +34,12 @@ final class UserDetailsController extends Controller
     {
         $data = $request->validate(['plan_id' => ['required', 'string', 'max:64']]);
 
-        return $this->card($request, fn (string $token) => $this->users->issueSubscription($token, $userId, $data['plan_id']), 'Подписка выдана.');
+        return $this->card($request, fn (string $token) => $this->users->issueSubscription($token, $userId, $data['plan_id']), 'Подписка выдана.', true);
     }
 
     public function issueAccess(Request $request, string $userId): Response|JsonResponse
     {
-        return $this->card($request, fn (string $token) => $this->users->issueAccess($token, $userId), 'Доступ выдан — ссылка подписки готова.');
+        return $this->card($request, fn (string $token) => $this->users->issueAccess($token, $userId), 'Доступ выдан — ссылка подписки готова.', true);
     }
 
     public function updateProfile(Request $request, string $userId): Response|JsonResponse
@@ -64,7 +64,19 @@ final class UserDetailsController extends Controller
 
     public function block(Request $request, string $userId): Response|JsonResponse
     {
-        return $this->card($request, fn (string $token) => $this->users->setBlocked($token, $userId, true), 'Пользователь заблокирован.');
+        return $this->withToken($request, function (string $token) use ($userId) {
+            $viewer = $this->users->viewer($token);
+            if (($viewer['id'] ?? '') === $userId) {
+                return response()->json(['message' => 'Нельзя заблокировать собственную учётную запись.'], 422);
+            }
+
+            return response()->view('users.details', [
+                'details' => $this->users->setBlocked($token, $userId, true),
+                'viewer' => $viewer,
+                'plans' => $this->users->planOptions($token),
+                'flash' => 'Пользователь заблокирован.',
+            ]);
+        });
     }
 
     public function unblock(Request $request, string $userId): Response|JsonResponse
@@ -108,37 +120,42 @@ final class UserDetailsController extends Controller
             'device_limit' => isset($data['device_limit']) ? (int) $data['device_limit'] : null,
         ];
 
-        return $this->card($request, fn (string $token) => $this->users->editSubscription($token, $userId, $subscriptionId, $changes), 'Подписка обновлена.');
+        return $this->card($request, fn (string $token) => $this->users->editSubscription($token, $userId, $subscriptionId, $changes), 'Подписка обновлена.', true);
     }
 
     public function resetTraffic(Request $request, string $userId, string $subscriptionId): Response|JsonResponse
     {
-        return $this->card($request, fn (string $token) => $this->users->resetTraffic($token, $userId, $subscriptionId), 'Счётчик трафика сброшен.');
+        return $this->card($request, fn (string $token) => $this->users->resetTraffic($token, $userId, $subscriptionId), 'Счётчик трафика сброшен.', true);
     }
 
     public function reissueAccess(Request $request, string $userId, string $subscriptionId): Response|JsonResponse
     {
-        return $this->card($request, fn (string $token) => $this->users->reissueAccess($token, $userId, $subscriptionId), 'Ссылка перевыпущена. Старая ссылка больше не работает.');
+        return $this->card($request, fn (string $token) => $this->users->reissueAccess($token, $userId, $subscriptionId), 'Ссылка перевыпущена. Старая ссылка больше не работает.', true);
     }
 
     public function cancelSubscription(Request $request, string $userId, string $subscriptionId): Response|JsonResponse
     {
-        return $this->card($request, fn (string $token) => $this->users->cancelSubscription($token, $userId, $subscriptionId), 'Подписка отменена, доступ отозван.');
+        return $this->card($request, fn (string $token) => $this->users->cancelSubscription($token, $userId, $subscriptionId), 'Подписка отменена, доступ отозван.', true);
     }
 
     public function revokeDevice(Request $request, string $userId, string $deviceId): Response|JsonResponse
     {
-        return $this->card($request, fn (string $token) => $this->users->revokeDevice($token, $userId, $deviceId), 'Устройство отозвано.');
+        return $this->card($request, fn (string $token) => $this->users->revokeDevice($token, $userId, $deviceId), 'Устройство отозвано.', true);
     }
 
     public function revokeGrant(Request $request, string $userId, string $grantId): Response|JsonResponse
     {
-        return $this->card($request, fn (string $token) => $this->users->revokeGrant($token, $userId, $grantId), 'Ключ доступа отозван.');
+        return $this->card($request, fn (string $token) => $this->users->revokeGrant($token, $userId, $grantId), 'Ключ доступа отозван.', true);
     }
 
     public function requestPasswordReset(Request $request, string $userId): JsonResponse
     {
         return $this->withToken($request, function (string $token) use ($userId) {
+            $viewer = $this->users->viewer($token);
+            if (! in_array($viewer['role'] ?? 'user', ['admin', 'superadmin'], true)) {
+                return response()->json(['message' => 'Недостаточно прав для этого действия.'], 403);
+            }
+
             $result = $this->users->requestPasswordReset($token, $userId);
             $message = ($result['delivery'] ?? '') === 'sent'
                 ? 'Ссылка для восстановления пароля отправлена.'
@@ -154,14 +171,22 @@ final class UserDetailsController extends Controller
     }
 
     /** @param \Closure(string): UserDetails $action */
-    private function card(Request $request, \Closure $action, ?string $flash = null): Response|JsonResponse
+    private function card(Request $request, \Closure $action, ?string $flash = null, bool $requireAdmin = false): Response|JsonResponse
     {
-        return $this->withToken($request, function (string $token) use ($action, $flash) {
+        return $this->withToken($request, function (string $token) use ($action, $flash, $requireAdmin) {
+            $viewer = null;
+            if ($requireAdmin) {
+                $viewer = $this->users->viewer($token);
+                if (! in_array($viewer['role'] ?? 'user', ['admin', 'superadmin'], true)) {
+                    return response()->json(['message' => 'Недостаточно прав для этого действия.'], 403);
+                }
+            }
+
             $details = $action($token);
 
             return response()->view('users.details', [
                 'details' => $details,
-                'viewer' => $this->users->viewer($token),
+                'viewer' => $viewer ?? $this->users->viewer($token),
                 'plans' => $this->users->planOptions($token),
                 'flash' => $flash,
             ]);

@@ -96,6 +96,41 @@ class AdminAssistantTest extends TestCase
         $this->assertContains('Пользователя', $start['suggestions']);
     }
 
+    public function test_user_delete_is_rejected_for_non_superadmin(): void
+    {
+        $core = $this->createMock(CoreClient::class);
+        $core->method('me')->willReturn(['id' => 'admin-1', 'role' => 'admin']);
+        $core->expects($this->never())->method('deleteUser');
+
+        $reply = (new AdminAssistant($core))->execute('token', ['type' => 'user_delete', 'id' => 'user-2']);
+
+        $this->assertSame('error', $reply['level']);
+        $this->assertStringContainsString('суперадмину', $reply['text']);
+    }
+
+    public function test_user_delete_blocks_self_delete(): void
+    {
+        $core = $this->createMock(CoreClient::class);
+        $core->method('me')->willReturn(['id' => 'admin-1', 'role' => 'superadmin']);
+        $core->expects($this->never())->method('deleteUser');
+
+        $reply = (new AdminAssistant($core))->execute('token', ['type' => 'user_delete', 'id' => 'admin-1']);
+
+        $this->assertSame('error', $reply['level']);
+        $this->assertStringContainsString('собственную', $reply['text']);
+    }
+
+    public function test_user_delete_succeeds_for_superadmin_deleting_someone_else(): void
+    {
+        $core = $this->createMock(CoreClient::class);
+        $core->method('me')->willReturn(['id' => 'admin-1', 'role' => 'superadmin']);
+        $core->expects($this->once())->method('deleteUser')->with('token', 'user-2')->willReturn([]);
+
+        $reply = (new AdminAssistant($core))->execute('token', ['type' => 'user_delete', 'id' => 'user-2']);
+
+        $this->assertStringContainsString('удалены', $reply['text']);
+    }
+
     public function test_bare_suspend_offers_active_subscriptions_and_prepares_confirmation(): void
     {
         $id = 'a8128415-e459-4813-9c68-52e9a7ceff70';

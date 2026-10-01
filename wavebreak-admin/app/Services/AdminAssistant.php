@@ -438,6 +438,14 @@ class AdminAssistant
 
     private function executeUserDelete(string $token, array $action): array
     {
+        $viewer = $this->core->me($token);
+        if (($viewer['role'] ?? '') !== 'superadmin') {
+            return ['text' => 'Удаление пользователей доступно только суперадмину.', 'level' => 'error'];
+        }
+        if (($viewer['id'] ?? '') === $action['id']) {
+            return ['text' => 'Нельзя удалить собственную учётную запись.', 'level' => 'error'];
+        }
+
         $this->core->deleteUser($token, $action['id']);
         return ['text' => 'Пользователь и связанные с ним данные физически удалены из базы.', 'link' => ['label' => 'Открыть пользователей', 'href' => '/users']];
     }

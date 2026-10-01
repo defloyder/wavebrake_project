@@ -222,6 +222,14 @@ class UserDetailsModalTest extends TestCase
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/enable'));
     }
 
+    public function test_admin_cannot_block_themselves_via_endpoint(): void
+    {
+        Http::fake(['*/v1/me' => Http::response(['id' => self::USER_ID, 'role' => 'admin']), '*' => Http::response([], 404)]);
+
+        $this->asAdmin()->postJson('/users/'.self::USER_ID.'/block')->assertStatus(422);
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/disable'));
+    }
+
     public function test_profile_update_normalizes_and_patches_core(): void
     {
         $this->fakeCard($this->detailsWithSubscription(), self::ADMIN, [
@@ -301,10 +309,13 @@ class UserDetailsModalTest extends TestCase
 
     public function test_core_domain_errors_are_shown_as_readable_messages(): void
     {
-        Http::fake(['*/v1/admin/users/'.self::USER_ID.'/subscriptions' => Http::response(
-            ['error' => ['code' => 'SUBSCRIPTION_ALREADY_ACTIVE', 'message' => 'User already has an active subscription.', 'request_id' => 'req-42']],
-            409,
-        )]);
+        Http::fake([
+            '*/v1/me' => Http::response(self::ADMIN),
+            '*/v1/admin/users/'.self::USER_ID.'/subscriptions' => Http::response(
+                ['error' => ['code' => 'SUBSCRIPTION_ALREADY_ACTIVE', 'message' => 'User already has an active subscription.', 'request_id' => 'req-42']],
+                409,
+            ),
+        ]);
 
         $this->asAdmin()->post('/users/'.self::USER_ID.'/subscription', ['plan_id' => 'plan-1'])
             ->assertStatus(409)
@@ -314,7 +325,10 @@ class UserDetailsModalTest extends TestCase
 
     public function test_legacy_core_errors_are_translated(): void
     {
-        Http::fake(['*/v1/admin/subscriptions/'.self::SUB_ID.'/reissue' => Http::response(['error' => 'subscription has no active grant to reissue'], 404)]);
+        Http::fake([
+            '*/v1/me' => Http::response(self::ADMIN),
+            '*/v1/admin/subscriptions/'.self::SUB_ID.'/reissue' => Http::response(['error' => 'subscription has no active grant to reissue'], 404),
+        ]);
 
         $this->asAdmin()->post('/users/'.self::USER_ID.'/subscriptions/'.self::SUB_ID.'/reissue')
             ->assertStatus(404)
@@ -323,10 +337,13 @@ class UserDetailsModalTest extends TestCase
 
     public function test_password_reset_button_reports_created_link(): void
     {
-        Http::fake(['*/v1/admin/users/'.self::USER_ID.'/password-reset' => Http::response(
-            ['status' => 'reset_link_created', 'channel' => 'email', 'delivery' => 'not_configured', 'expires_at' => '2026-09-27T01:00:00Z'],
-            202,
-        )]);
+        Http::fake([
+            '*/v1/me' => Http::response(self::ADMIN),
+            '*/v1/admin/users/'.self::USER_ID.'/password-reset' => Http::response(
+                ['status' => 'reset_link_created', 'channel' => 'email', 'delivery' => 'not_configured', 'expires_at' => '2026-09-27T01:00:00Z'],
+                202,
+            ),
+        ]);
 
         $this->asAdmin()->postJson('/users/'.self::USER_ID.'/password-reset')
             ->assertOk()
@@ -336,7 +353,7 @@ class UserDetailsModalTest extends TestCase
 
     public function test_password_reset_without_email_shows_channel_error(): void
     {
-        Http::fake(['*/v1/admin/users/'.self::USER_ID.'/password-reset' => Http::response(
+        Http::fake(['*/v1/me' => Http::response(self::ADMIN), '*/v1/admin/users/'.self::USER_ID.'/password-reset' => Http::response(
             ['error' => ['code' => 'PASSWORD_RESET_CHANNEL_UNAVAILABLE', 'message' => 'no email', 'request_id' => 'r1']],
             422,
         )]);
