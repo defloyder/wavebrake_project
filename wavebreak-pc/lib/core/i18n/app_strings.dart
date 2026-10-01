@@ -27,6 +27,7 @@ class AppStrings {
     required this.configPending,
     required this.configPendingHint,
     required this.disconnecting,
+    required this.closedOtherVpns,
     required this.couldNotConnect,
     required this.noTraffic,
     required this.noTrafficHint,
@@ -277,6 +278,9 @@ class AppStrings {
   final String configPending;
   final String configPendingHint;
   final String disconnecting;
+
+  /// Shown after connecting closed other VPN apps; {apps} = their names.
+  final String closedOtherVpns;
   final String couldNotConnect;
   final String noTraffic;
   final String noTrafficHint;
@@ -532,6 +536,7 @@ const kEnglishStrings = AppStrings(
   configPending: 'Configuration is being prepared',
   configPendingHint: 'The server is setting up your VPN config — hang tight',
   disconnecting: 'Disconnecting…',
+  closedOtherVpns: 'Closed other VPN apps so they do not interfere: {apps}',
   couldNotConnect: 'Could not connect',
   noTraffic: "No traffic",
   noTrafficHint: "Connected, but no data gets through. This network may block the protocol.",
@@ -794,6 +799,7 @@ const kRussianStrings = AppStrings(
   configPending: 'Конфигурация готовится',
   configPendingHint: 'Сервер настраивает VPN-конфигурацию — это недолго',
   disconnecting: 'Отключение…',
+  closedOtherVpns: 'Закрыли другие VPN, чтобы не мешали: {apps}',
   couldNotConnect: 'Не удалось подключиться',
   noTraffic: "Нет трафика",
   noTrafficHint: "Подключение есть, но данные не проходят. Возможно, сеть блокирует этот протокол.",
@@ -1059,6 +1065,7 @@ const kSpanishStrings = AppStrings(
   configPending: 'Se está preparando la configuración',
   configPendingHint: 'El servidor está configurando tu VPN — un momento',
   disconnecting: 'Desconectando…',
+  closedOtherVpns: 'Cerramos otras VPN para que no interfieran: {apps}',
   couldNotConnect: 'No se pudo conectar',
   noTraffic: "Sin tráfico",
   noTrafficHint: "Conectado, pero no pasan datos. Puede que esta red bloquee el protocolo.",
@@ -1325,6 +1332,7 @@ const kGermanStrings = AppStrings(
   configPendingHint:
       'Der Server richtet deine VPN-Konfiguration ein — einen Moment',
   disconnecting: 'Trennen…',
+  closedOtherVpns: 'Andere VPN-Apps geschlossen, damit sie nicht stören: {apps}',
   couldNotConnect: 'Verbindung fehlgeschlagen',
   noTraffic: "Kein Datenverkehr",
   noTrafficHint: "Verbunden, aber es kommen keine Daten durch. Dieses Netz blockiert eventuell das Protokoll.",
@@ -1594,6 +1602,7 @@ const kFrenchStrings = AppStrings(
   configPending: 'Configuration en préparation',
   configPendingHint: 'Le serveur configure votre VPN — un instant',
   disconnecting: 'Déconnexion…',
+  closedOtherVpns: 'Autres VPN fermés pour éviter les conflits : {apps}',
   couldNotConnect: 'Connexion impossible',
   noTraffic: "Aucun trafic",
   noTrafficHint: "Connecté, mais aucune donnée ne passe. Ce réseau bloque peut-être le protocole.",
@@ -1863,6 +1872,7 @@ const kPortugueseStrings = AppStrings(
   configPending: 'A configuração está sendo preparada',
   configPendingHint: 'O servidor está configurando sua VPN — só um momento',
   disconnecting: 'Desconectando…',
+  closedOtherVpns: 'Fechamos outras VPNs para não interferirem: {apps}',
   couldNotConnect: 'Não foi possível conectar',
   noTraffic: "Sem tráfego",
   noTrafficHint: "Conectado, mas nenhum dado passa. Esta rede pode estar bloqueando o protocolo.",
@@ -2128,6 +2138,7 @@ const kTurkishStrings = AppStrings(
   configPending: 'Yapılandırma hazırlanıyor',
   configPendingHint: 'Sunucu VPN yapılandırmanızı ayarlıyor — biraz bekleyin',
   disconnecting: 'Bağlantı kesiliyor…',
+  closedOtherVpns: 'Çakışmaması için diğer VPN uygulamaları kapatıldı: {apps}',
   couldNotConnect: 'Bağlanılamadı',
   noTraffic: "Trafik yok",
   noTrafficHint: "Bağlandı ama veri geçmiyor. Bu ağ protokolü engelliyor olabilir.",

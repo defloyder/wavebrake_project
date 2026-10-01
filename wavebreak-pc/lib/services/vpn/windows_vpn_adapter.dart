@@ -7,6 +7,7 @@ import 'package:wavebreak_links/wavebreak_links.dart';
 
 import '../../core/logging/app_logger.dart';
 import '../core_api/models.dart';
+import 'conflicting_vpn_closer.dart';
 import 'network_change_policy.dart';
 import 'vpn_adapter.dart';
 
@@ -232,6 +233,11 @@ class WindowsVpnAdapter implements VpnAdapter {
     }
 
     if (generation == _generation) _emit(VpnNativeState.connecting);
+
+    // Another VPN/proxy client (Happ & co.) holding the route or the
+    // system proxy makes ours useless — close it first.
+    await const ConflictingVpnCloser().closeAll();
+    if (generation != _generation) return;
 
     final exePath = await _singBoxPath();
     if (generation != _generation) return;

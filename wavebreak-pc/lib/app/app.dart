@@ -16,6 +16,7 @@ import '../features/shared/app_lock_gate.dart';
 import '../features/shared/data_providers.dart';
 import '../services/notification/status_notification_service.dart';
 import '../services/notification/tray_status.dart';
+import '../services/vpn/conflicting_vpn_closer.dart';
 import '../services/vpn/connection_manager.dart';
 import 'router.dart';
 
@@ -146,7 +147,23 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _closedVpnsSub = ConflictingVpnCloser.closed.listen((apps) {
+      final messenger = _scaffoldMessengerKey.currentState;
+      if (messenger == null || apps.isEmpty) return;
+      final s = ref.read(stringsProvider);
+      messenger.showSnackBar(SnackBar(
+        content: Text(s.closedOtherVpns.replaceAll('{apps}', apps.join(', '))),
+      ));
+    });
+  }
+
+  StreamSubscription<List<String>>? _closedVpnsSub;
+
+  @override
   void dispose() {
+    _closedVpnsSub?.cancel();
     _stopPingTicker();
     super.dispose();
   }
