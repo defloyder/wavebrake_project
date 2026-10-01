@@ -21,7 +21,8 @@ if [ ! -f "$BOOTSTRAP_MARKER" ]; then
     cat > "$CONFIG_PATH" <<EOF
 {
   "log": {
-    "loglevel": "warning"
+    "loglevel": "warning",
+    "access": "none"
   },
   "inbounds": [
     {
@@ -74,7 +75,8 @@ EOF
     cat > "$CONFIG_PATH" <<EOF
 {
   "log": {
-    "loglevel": "warning"
+    "loglevel": "warning",
+    "access": "none"
   },
   "inbounds": [],
   "outbounds": [

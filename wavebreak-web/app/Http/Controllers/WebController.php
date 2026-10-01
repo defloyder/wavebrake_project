@@ -122,4 +122,24 @@ class WebController extends Controller
             ->view('sitemap', ['pages' => array_keys(Locales::PAGES), 'locales' => array_keys(Locales::SUPPORTED)])
             ->header('Content-Type', 'application/xml; charset=utf-8');
     }
+
+    public function manifest(): \Illuminate\Http\JsonResponse
+    {
+        $locale = Locales::current();
+
+        return response()->json([
+            'name' => 'WAVEBREAK',
+            'short_name' => 'WAVEBREAK',
+            'description' => __('site.meta.description_default'),
+            'lang' => $locale,
+            'start_url' => Locales::path('home'),
+            'display' => 'browser',
+            'background_color' => '#020507',
+            'theme_color' => '#020507',
+            'icons' => [
+                ['src' => '/images/favicon.png', 'sizes' => '192x192', 'type' => 'image/png'],
+                ['src' => '/images/apple-touch-icon.png', 'sizes' => '180x180', 'type' => 'image/png'],
+            ],
+        ], 200, ['Content-Type' => 'application/manifest+json']);
+    }
 }

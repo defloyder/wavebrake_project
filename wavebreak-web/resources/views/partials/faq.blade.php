@@ -4,6 +4,9 @@
     $faq = array_map(fn (array $item) => [$item[0], strtr($item[1], [
         '{privacy}' => \App\Support\Locales::path('privacy'),
         '{download}' => \App\Support\Locales::path('download'),
+        '{terms}' => \App\Support\Locales::path('terms'),
+        '{access}' => \App\Support\Locales::path('access'),
+        '{pricing}' => \App\Support\Locales::path('pricing'),
     ])], $faq);
 @endphp
 <div class="faq-list">

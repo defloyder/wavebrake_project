@@ -2,8 +2,16 @@
 @php
     use App\Support\Locales;
     $fmt = fn (float $v) => number_format($v, $v == floor($v) ? 0 : 2, __('site.pricing.decimal'), __('site.pricing.thousands'));
-    $monthly = collect($tiers)->pluck('month')->filter()->where('currency', 'RUB');
-    $minMonthly = $monthly->min('price');
+    $monthlyOffers = collect($tiers)->pluck('month')->filter();
+    // Was always filtering to 'RUB' and suffixing the title with '₽' even
+    // on /en and /tr, which either hid the price (no RUB tier) or showed
+    // the wrong currency symbol. Prefer the locale's own currency, falling
+    // back to whatever monthly price exists if none is priced in it.
+    $preferredCurrency = ['ru' => 'RUB', 'en' => 'USD', 'tr' => 'TRY'][Locales::current()] ?? 'USD';
+    $monthly = $monthlyOffers->where('currency', $preferredCurrency);
+    $monthly = $monthly->isEmpty() ? $monthlyOffers : $monthly;
+    $cheapestMonthly = $monthly->sortBy('price')->first();
+    $minMonthly = $cheapestMonthly['price'] ?? null;
     $seoOffers = collect($tiers)->flatMap(fn (array $tier) => collect(['month' => __('site.pricing.offer_month'), 'year' => __('site.pricing.offer_year')])
         ->filter(fn ($label, $kind) => $tier[$kind] !== null)
         ->map(fn ($label, $kind) => [
@@ -15,7 +23,7 @@
             'availability' => 'https://schema.org/InStock',
         ])->values())->values()->all();
 @endphp
-@section('title', $minMonthly ? __('site.pricing.title_from', ['price' => $fmt($minMonthly).' ₽']) : __('site.pricing.title'))
+@section('title', $minMonthly ? __('site.pricing.title_from', ['price' => $fmt($minMonthly).' '.$cheapestMonthly['currency_label']]) : __('site.pricing.title'))
 @section('description', __('site.pricing.description'))
 @section('breadcrumb', __('site.nav.pricing'))
 @section('body_class', 'wb-public page-pricing')
@@ -27,7 +35,16 @@
     'name' => 'WAVEBREAK',
     'serviceType' => __('site.meta.service_type'),
     'provider' => ['@id' => 'https://wavebreak.com.tr/#organization'],
-    'areaServed' => 'RU',
+    // Was hardcoded 'RU' regardless of which locale page this renders on —
+    // wrong on /en and /tr specifically, since the site is genuinely
+    // trilingual RU/EN/TR and the service has no actual country
+    // restriction. Listing both markets the site is built for (rather
+    // than one or an unbounded "Worldwide" claim) is accurate for every
+    // locale this schema renders on.
+    'areaServed' => [
+        ['@type' => 'Country', 'name' => 'RU'],
+        ['@type' => 'Country', 'name' => 'TR'],
+    ],
     'url' => Locales::url('pricing'),
     'offers' => $seoOffers,
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}</script>
@@ -104,6 +121,9 @@
     </section>
     <section class="site-section product-band">
         <div class="wb-container faq-layout"><h2>{!! __('site.pricing.own_title') !!}</h2><div><p class="section-copy">{{ __('site.pricing.own_text') }}</p><a class="text-link" href="{{ Locales::path('access') }}#profiles">{{ __('site.pricing.own_link') }} <span aria-hidden="true">↗</span></a></div></div>
+    </section>
+    <section class="site-section" aria-label="{{ __('site.pricing.plans_label') }}">
+        <div class="wb-container faq-layout"><h2>{!! __('site.pricing.faq_title') !!}</h2>@include('partials.faq', ['faq' => __('site.pricing.faq')])</div>
     </section>
 </main>
 @endsection

@@ -12,6 +12,7 @@ $pages = function (): void {
     Route::get('/download', [WebController::class, 'download'])->name('download');
     Route::get('/terms', [WebController::class, 'terms'])->name('terms');
     Route::get('/privacy', [WebController::class, 'privacy'])->name('privacy');
+    Route::get('/site.webmanifest', [WebController::class, 'manifest'])->name('manifest');
 };
 
 // Russian lives at the root; every other language under its own prefix.

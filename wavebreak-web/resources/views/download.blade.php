@@ -5,6 +5,13 @@
 @section('breadcrumb', __('site.nav.apps'))
 @section('body_class', 'wb-shell wb-public wb-download-page')
 
+@php
+    // priceCurrency was hardcoded 'RUB' on every locale even though the
+    // download itself is free and the currency has no real meaning here —
+    // still, claiming RUB specifically on /en and /tr is misleading. Pick
+    // it from the page's own locale instead of assuming Russia.
+    $downloadCurrency = ['ru' => 'RUB', 'en' => 'USD', 'tr' => 'TRY'][Locales::current()] ?? 'USD';
+@endphp
 @push('schema')
 <script type="application/ld+json">{!! json_encode([
     '@context' => 'https://schema.org',
@@ -18,7 +25,7 @@
     'downloadUrl' => Locales::url('download'),
     'image' => 'https://wavebreak.com.tr/images/og-cover.png',
     'publisher' => ['@id' => 'https://wavebreak.com.tr/#organization'],
-    'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'RUB'],
+    'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => $downloadCurrency],
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}</script>
 @endpush
 @section('content')

@@ -2,6 +2,11 @@ services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -17,6 +22,11 @@ services:
   redis:
     image: redis:8-alpine
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     command: ["redis-server", "--appendonly", "no"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -27,6 +37,11 @@ services:
   rabbitmq:
     image: rabbitmq:4-management-alpine
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -64,10 +79,24 @@ services:
     build:
       context: ../wavebreak-core
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     command: ["wavebreak-api"]
     environment:
       WAVEBREAK_ENV: development
       WAVEBREAK_HTTP_ADDR: :8080
+      WAVEBREAK_HYSTERIA_PINNED_SNI: ${WAVEBREAK_HYSTERIA_PINNED_SNI:-}
+      WAVEBREAK_HYSTERIA_CERT_FILE: /etc/wavebreak/xray/hy-cert.pem
+      WAVEBREAK_SMTP_HOST: ${WAVEBREAK_SMTP_HOST:-}
+      WAVEBREAK_SMTP_PORT: ${WAVEBREAK_SMTP_PORT:-}
+      WAVEBREAK_SMTP_USERNAME: ${WAVEBREAK_SMTP_USERNAME:-}
+      WAVEBREAK_SMTP_PASSWORD: ${WAVEBREAK_SMTP_PASSWORD:-}
+      WAVEBREAK_SMTP_FROM: ${WAVEBREAK_SMTP_FROM:-}
+      WAVEBREAK_SMTP_FROM_NAME: ${WAVEBREAK_SMTP_FROM_NAME:-}
+      WAVEBREAK_SMTP_REPLY_TO: ${WAVEBREAK_SMTP_REPLY_TO:-}
       WAVEBREAK_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       WAVEBREAK_REDIS_ADDR: redis:6379
       WAVEBREAK_RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/
@@ -99,11 +128,17 @@ services:
       WAVEBREAK_HYSTERIA_PORT: ${WAVEBREAK_HYSTERIA_PORT:-0}
       WAVEBREAK_HYSTERIA_SNI: ${WAVEBREAK_HYSTERIA_SNI:-}
       WAVEBREAK_HYSTERIA_INSECURE: ${WAVEBREAK_HYSTERIA_INSECURE:-true}
+      WAVEBREAK_HYSTERIA_CLOAK: ${WAVEBREAK_HYSTERIA_CLOAK:-false}
+      WAVEBREAK_HYSTERIA_OBFS_PORT: ${WAVEBREAK_HYSTERIA_OBFS_PORT:-0}
+      WAVEBREAK_HYSTERIA_OBFS_PASSWORD: ${WAVEBREAK_HYSTERIA_OBFS_PASSWORD:-}
       WAVEBREAK_VLESS_PUBLISH_CDN_WS: ${WAVEBREAK_VLESS_PUBLISH_CDN_WS:-true}
       WAVEBREAK_VLESS_PUBLISH_TROJAN_CDN: ${WAVEBREAK_VLESS_PUBLISH_TROJAN_CDN:-true}
       WAVEBREAK_DIRECT_TLS_HOST: ${WAVEBREAK_DIRECT_TLS_HOST:-}
       WAVEBREAK_DIRECT_TLS_PORT: ${WAVEBREAK_DIRECT_TLS_PORT:-0}
       WAVEBREAK_DIRECT_TLS_PATH: ${WAVEBREAK_DIRECT_TLS_PATH:-/wvb-dt}
+    # Read-only: Core pins the Hysteria2 certificate (hysteria_pin.go).
+    volumes:
+      - wavebreak_xray_config:/etc/wavebreak/xray:ro
     ports:
       - "${WAVEBREAK_API_PORT:-18080}:8080"
     healthcheck:
@@ -123,8 +158,20 @@ services:
     build:
       context: ../wavebreak-core
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     command: ["wavebreak-worker"]
     environment:
+      WAVEBREAK_SMTP_HOST: ${WAVEBREAK_SMTP_HOST:-}
+      WAVEBREAK_SMTP_PORT: ${WAVEBREAK_SMTP_PORT:-}
+      WAVEBREAK_SMTP_USERNAME: ${WAVEBREAK_SMTP_USERNAME:-}
+      WAVEBREAK_SMTP_PASSWORD: ${WAVEBREAK_SMTP_PASSWORD:-}
+      WAVEBREAK_SMTP_FROM: ${WAVEBREAK_SMTP_FROM:-}
+      WAVEBREAK_SMTP_FROM_NAME: ${WAVEBREAK_SMTP_FROM_NAME:-}
+      WAVEBREAK_SMTP_REPLY_TO: ${WAVEBREAK_SMTP_REPLY_TO:-}
       WAVEBREAK_ENV: development
       WAVEBREAK_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       WAVEBREAK_REDIS_ADDR: redis:6379
@@ -141,6 +188,11 @@ services:
     build:
       context: ../wavebreak-web
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       APP_NAME: WAVEBREAK
       APP_ENV: local
@@ -164,6 +216,11 @@ services:
     build:
       context: ../wavebreak-admin
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       APP_NAME: WAVEBREAK Admin
       APP_ENV: local
@@ -189,6 +246,11 @@ services:
     build:
       context: ../wavebreak-node
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # host networking so the usage-reporting loop can reach Hysteria2's
     # traffic-stats endpoint on its own 127.0.0.1 (Hysteria itself also runs
     # network_mode: host — see the comment on wavebreak-hysteria below).
@@ -243,7 +305,7 @@ services:
       WAVEBREAK_XRAY_TROJAN_CDN_WS_PATH: ${WAVEBREAK_TROJAN_CDN_WS_PATH:-/wvb-tr}
       WAVEBREAK_XRAY_CDN_GRPC_LISTEN_PORT: ${WAVEBREAK_VLESS_CDN_GRPC_PORT:-0}
       WAVEBREAK_XRAY_CDN_GRPC_SERVICE: ${WAVEBREAK_VLESS_CDN_GRPC_SERVICE:-wvb-grpc}
-      WAVEBREAK_HYSTERIA_LISTEN_PORT: ${WAVEBREAK_HYSTERIA_PORT:-0}
+      WAVEBREAK_HYSTERIA_LISTEN_PORT: ${WAVEBREAK_HYSTERIA_LISTEN_PORT:-${WAVEBREAK_HYSTERIA_PORT:-0}}
       WAVEBREAK_HYSTERIA_CONFIG_PATH: /etc/wavebreak/xray/hysteria.yaml
       WAVEBREAK_HYSTERIA_TLS_CERT_PATH: ${WAVEBREAK_HYSTERIA_TLS_CERT_PATH:-/etc/wavebreak/xray/hy-cert.pem}
       WAVEBREAK_HYSTERIA_TLS_KEY_PATH: ${WAVEBREAK_HYSTERIA_TLS_KEY_PATH:-/etc/wavebreak/xray/hy-key.pem}
@@ -257,12 +319,19 @@ services:
       WAVEBREAK_XRAY_DIRECT_TLS_WS_PATH: ${WAVEBREAK_DIRECT_TLS_PATH:-/wvb-dt}
       WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH: ${WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH:-}
       WAVEBREAK_XRAY_DIRECT_TLS_KEY_PATH: ${WAVEBREAK_XRAY_DIRECT_TLS_KEY_PATH:-}
+      WAVEBREAK_HYSTERIA_OBFS_LISTEN_PORT: ${WAVEBREAK_HYSTERIA_OBFS_PORT:-0}
+      WAVEBREAK_HYSTERIA_OBFS_CONFIG_PATH: /etc/wavebreak/xray/hysteria-obfs.yaml
+      WAVEBREAK_HYSTERIA_OBFS_PASSWORD: ${WAVEBREAK_HYSTERIA_OBFS_PASSWORD:-}
+      WAVEBREAK_HYSTERIA_OBFS_DOCKER_CONTAINER: wavebreak-pilot-hysteria-obfs
+      WAVEBREAK_HYSTERIA_OBFS_STATS_PORT: ${WAVEBREAK_HYSTERIA_OBFS_STATS_PORT:-19997}
     depends_on:
       wavebreak-api:
         condition: service_healthy
       wavebreak-xray:
         condition: service_started
       wavebreak-hysteria:
+        condition: service_started
+      wavebreak-hysteria-obfs:
         condition: service_started
     user: "0:0"
     volumes:
@@ -273,6 +342,11 @@ services:
     image: teddysun/xray:latest
     container_name: wavebreak-pilot-xray
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # host networking: Docker's userland docker-proxy relay for published
     # ports has been observed to accept the client's TCP handshake and then
     # silently hang right after the REALITY TLS ClientHello, even though the
@@ -296,13 +370,27 @@ services:
     image: tobyxdd/hysteria:latest
     container_name: wavebreak-pilot-hysteria
     restart: unless-stopped
-    # host networking, not just for the docker-proxy issue seen on the xray
-    # container: Hysteria dialing outbound over Docker's isolated bridge
-    # network has no IPv6 route, so any destination that resolves to an
-    # IPv6 address (Telegram included) fails with "cannot assign requested
-    # address" even though the host itself has working IPv6.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     network_mode: host
-    command: ["server", "-c", "/etc/wavebreak/xray/hysteria.yaml"]
+    command: ["server", "-c", "/etc/wavebreak/xray/hysteria.yaml", "-l", "error"]
+    volumes:
+      - wavebreak_xray_config:/etc/wavebreak/xray
+
+  wavebreak-hysteria-obfs:
+    image: tobyxdd/hysteria:latest
+    container_name: wavebreak-pilot-hysteria-obfs
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    network_mode: host
+    command: ["server", "-c", "/etc/wavebreak/xray/hysteria-obfs.yaml", "-l", "error"]
     volumes:
       - wavebreak_xray_config:/etc/wavebreak/xray
 
@@ -310,6 +398,11 @@ services:
     image: nginx:alpine
     container_name: wavebreak-pilot-public-http
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     network_mode: host
     volumes:
       - ./nginx/pilot-public-http.conf:/etc/nginx/nginx.conf:ro

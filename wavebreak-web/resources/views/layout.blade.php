@@ -108,7 +108,7 @@
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('images/favicon.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('images/apple-touch-icon.png') }}">
-    <link rel="manifest" href="{{ asset('site.webmanifest') }}">
+    <link rel="manifest" href="{{ $locale === 'ru' ? '/site.webmanifest' : '/'.$locale.'/site.webmanifest' }}">
     <link rel="preload" href="{{ asset($locale === 'ru' ? 'fonts/inter-cyrillic.woff2' : 'fonts/inter-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="{{ asset('fonts/michroma-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ asset('css/wavebreak-fonts.css') }}?v={{ filemtime(public_path('css/wavebreak-fonts.css')) }}">
