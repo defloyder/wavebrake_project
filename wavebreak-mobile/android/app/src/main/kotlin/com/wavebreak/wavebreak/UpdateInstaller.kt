@@ -56,6 +56,11 @@ object UpdateInstaller {
 
     /** Deep-links straight to this app's own "install unknown apps" toggle. */
     fun installUnknownAppsSettingsIntent(context: Context): Intent {
+        // The per-app toggle is Android 8+; before that "unknown sources"
+        // is one switch in the security settings.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return Intent(Settings.ACTION_SECURITY_SETTINGS)
+        }
         return Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
             data = Uri.parse("package:${context.packageName}")
         }

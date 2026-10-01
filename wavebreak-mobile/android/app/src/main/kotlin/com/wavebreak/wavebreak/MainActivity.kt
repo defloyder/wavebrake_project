@@ -14,6 +14,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.ResultReceiver
+import android.provider.Settings
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -149,7 +151,10 @@ class MainActivity : FlutterFragmentActivity() {
                     // Picks the per-architecture APK (a third of the universal one).
                     "supportedAbis" -> result.success(Build.SUPPORTED_ABIS.toList())
                     "openInstallUnknownAppsSettings" -> {
-                        startActivity(UpdateInstaller.installUnknownAppsSettingsIntent(this))
+                        startSettingsScreen(
+                            UpdateInstaller.installUnknownAppsSettingsIntent(this),
+                            Intent(Settings.ACTION_SECURITY_SETTINGS),
+                        )
                         result.success(null)
                     }
                     "installApk" -> {
@@ -335,7 +340,10 @@ class MainActivity : FlutterFragmentActivity() {
                         result.success(BatteryOptimization.isIgnoringBatteryOptimizations(this))
                     }
                     "requestIgnoreBatteryOptimizations" -> {
-                        startActivity(BatteryOptimization.requestIgnoreBatteryOptimizationsIntent(this))
+                        startSettingsScreen(
+                            BatteryOptimization.requestIgnoreBatteryOptimizationsIntent(this),
+                            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+                        )
                         result.success(null)
                     }
                     else -> result.notImplemented()
@@ -408,6 +416,22 @@ class MainActivity : FlutterFragmentActivity() {
             val caps = cm.getNetworkCapabilities(network) ?: return@any false
             caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
                 (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || caps.ownerUid == android.os.Process.myUid())
+        }
+    }
+
+    /**
+     * Opens a system settings screen without crashing on ROMs that don't
+     * have it (stripped-down OEM builds, Android Go): [primary] first, then
+     * [fallback], then nothing.
+     */
+    private fun startSettingsScreen(primary: Intent, fallback: Intent) {
+        for (intent in listOf(primary, fallback)) {
+            try {
+                startActivity(intent)
+                return
+            } catch (t: Throwable) {
+                Log.w("WaveBreak", "settings screen unavailable: ${intent.action}", t)
+            }
         }
     }
 

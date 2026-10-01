@@ -58,6 +58,9 @@ WizardStyle=modern
 ; explicitly said not to over-invest in.
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
+; Flutter apps and sing-box need Windows 10+: on 7/8 the app would install
+; and then silently not start. The installer refuses with a clear message.
+MinVersion=10.0
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 VersionInfoVersion={#MyAppVersion}
