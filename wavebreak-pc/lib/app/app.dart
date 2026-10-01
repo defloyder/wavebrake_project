@@ -15,6 +15,7 @@ import '../core/theme/wb_theme.dart';
 import '../features/shared/app_lock_gate.dart';
 import '../features/shared/data_providers.dart';
 import '../services/notification/status_notification_service.dart';
+import '../services/notification/tray_status.dart';
 import '../services/vpn/connection_manager.dart';
 import 'router.dart';
 
@@ -34,6 +35,7 @@ bool get _usesNativeAndroidNotification =>
     AppEnv.accessProtocol == 'vless';
 
 const _statusNotifier = StatusNotificationService();
+const _trayStatus = TrayStatus();
 
 class WavebreakApp extends ConsumerStatefulWidget {
   const WavebreakApp({super.key});
@@ -79,6 +81,34 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
         }
         _stopPingTicker();
     }
+  }
+
+  void _updateTray(WbConnectionState state) {
+    final s = ref.read(stringsProvider);
+    final location = state.location;
+    final where = location.isAuto
+        ? s.auto
+        : [location.country, location.city]
+            .where((part) => part.isNotEmpty)
+            .join(' · ');
+    final String text;
+    switch (state.status) {
+      case ConnectionStatus.connected:
+        text = where.isEmpty ? s.connected : '${s.connected}: $where';
+      case ConnectionStatus.connecting:
+      case ConnectionStatus.requestingProfile:
+      case ConnectionStatus.configPending:
+        text = s.connecting;
+      case ConnectionStatus.disconnecting:
+        text = s.disconnecting;
+      case ConnectionStatus.idle:
+      case ConnectionStatus.error:
+        text = s.notConnected;
+    }
+    unawaited(_trayStatus.update(
+      connected: state.status == ConnectionStatus.connected,
+      tooltip: 'WAVEBREAK — $text',
+    ));
   }
 
   void _startPingTicker() {
@@ -132,6 +162,7 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
     // phone's notification shade while connected or connecting.
     ref.listen(connectionManagerProvider, (previous, next) {
       _updateNotification(next.status);
+      _updateTray(next);
     });
 
     return MaterialApp.router(

@@ -1,8 +1,25 @@
 #include "flutter_window.h"
 
+#include <flutter/standard_method_codec.h>
+
 #include <optional>
+#include <string>
 
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+std::wstring Utf8ToWide(const std::string& utf8) {
+  if (utf8.empty()) return std::wstring();
+  const int len = MultiByteToWideChar(CP_UTF8, 0, utf8.data(),
+                                      static_cast<int>(utf8.size()), nullptr, 0);
+  std::wstring wide(len, L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()),
+                      wide.data(), len);
+  return wide;
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -27,6 +44,40 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  // Tray icon: shown "not connected" from the start, then kept in step by
+  // Dart's "update" calls ({connected: bool, tooltip: String}).
+  tray_.Create(GetHandle());
+  tray_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "wavebreak/tray",
+          &flutter::StandardMethodCodec::GetInstance());
+  tray_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+                 result) {
+        if (call.method_name() != "update") {
+          result->NotImplemented();
+          return;
+        }
+        bool connected = false;
+        std::string tooltip;
+        if (const auto* args =
+                std::get_if<flutter::EncodableMap>(call.arguments())) {
+          auto it = args->find(flutter::EncodableValue("connected"));
+          if (it != args->end()) {
+            if (const auto* v = std::get_if<bool>(&it->second)) connected = *v;
+          }
+          it = args->find(flutter::EncodableValue("tooltip"));
+          if (it != args->end()) {
+            if (const auto* v = std::get_if<std::string>(&it->second)) {
+              tooltip = *v;
+            }
+          }
+        }
+        tray_.Update(connected, Utf8ToWide(tooltip));
+        result->Success();
+      });
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -40,6 +91,8 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  tray_channel_ = nullptr;
+  tray_.Remove();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -59,6 +112,10 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     if (result) {
       return *result;
     }
+  }
+
+  if (tray_.HandleMessage(hwnd, message, lparam)) {
+    return 0;
   }
 
   switch (message) {
