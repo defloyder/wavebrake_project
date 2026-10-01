@@ -73,6 +73,11 @@ class ShareLink {
     this.mtu,
     this.reserved,
     this.remark = '',
+    this.cloak = false,
+    this.cloakMinSize,
+    this.cloakMaxSize,
+    this.cloakChaffMinMs,
+    this.cloakChaffMaxMs,
   });
 
   final LinkProtocol protocol;
@@ -147,6 +152,70 @@ class ShareLink {
 
   /// Human label from the link's fragment (or vmess `ps`).
   final String remark;
+
+  /// Hysteria2-only, cloak traffic-shape masking (see
+  /// docs/CLOAK-TECHNICAL-OVERVIEW.md) — off by default; an ordinary
+  /// hysteria2:// link with no `cloak` param is unaffected. Mirrors the
+  /// Android app's bridge.go parseLink() handling of the same query params;
+  /// on Windows it's read by WindowsVpnAdapter._maybeStartCloakProxy since
+  /// sing-box (used there instead of the Android Go bridge) has no cloak
+  /// awareness of its own.
+  final bool cloak;
+  final int? cloakMinSize;
+  final int? cloakMaxSize;
+  final int? cloakChaffMinMs;
+  final int? cloakChaffMaxMs;
+
+  /// Used only to redirect a cloak-enabled hysteria2 link's outbound config
+  /// at a local cloak-client-proxy instead of the real server (Windows
+  /// only — see WindowsVpnAdapter._maybeStartCloakProxy). Every other field
+  /// is kept identical: critically `sni`/`credential`, since the proxy only
+  /// wraps the outer UDP datagrams and never touches the inner QUIC/TLS
+  /// handshake or auth, which still need to match the real server.
+  ShareLink withHostPort(String newHost, int newPort,
+          {bool clearPortHopping = false}) =>
+      ShareLink(
+        protocol: protocol,
+        raw: raw,
+        host: newHost,
+        port: newPort,
+        credential: credential,
+        username: username,
+        method: method,
+        network: network,
+        security: security,
+        sni: sni,
+        fingerprint: fingerprint,
+        publicKey: publicKey,
+        shortId: shortId,
+        spiderX: spiderX,
+        flow: flow,
+        alpn: alpn,
+        path: path,
+        hostHeader: hostHeader,
+        serviceName: serviceName,
+        mode: mode,
+        insecure: insecure,
+        obfs: obfs,
+        obfsPassword: obfsPassword,
+        portHopping: clearPortHopping ? null : portHopping,
+        pinSha256: pinSha256,
+        alterId: alterId,
+        congestionControl: congestionControl,
+        udpRelayMode: udpRelayMode,
+        privateKey: privateKey,
+        peerPublicKey: peerPublicKey,
+        preSharedKey: preSharedKey,
+        localAddresses: localAddresses,
+        mtu: mtu,
+        reserved: reserved,
+        remark: remark,
+        cloak: cloak,
+        cloakMinSize: cloakMinSize,
+        cloakMaxSize: cloakMaxSize,
+        cloakChaffMinMs: cloakChaffMinMs,
+        cloakChaffMaxMs: cloakChaffMaxMs,
+      );
 
   /// Schemes this parser recognizes, including aliases.
   static const knownSchemes = [
@@ -295,6 +364,13 @@ class ShareLink {
       obfsPassword: _nonEmpty(q['obfs-password']),
       portHopping: isHysteria ? _portRanges(q['mport']) : null,
       pinSha256: isHysteria ? _sha256Hex(q['pinSHA256']) : null,
+      cloak: isHysteria && _truthy(q['cloak']),
+      cloakMinSize: isHysteria ? int.tryParse(q['cloak-min'] ?? '') : null,
+      cloakMaxSize: isHysteria ? int.tryParse(q['cloak-max'] ?? '') : null,
+      cloakChaffMinMs:
+          isHysteria ? int.tryParse(q['cloak-chaff-min-ms'] ?? '') : null,
+      cloakChaffMaxMs:
+          isHysteria ? int.tryParse(q['cloak-chaff-max-ms'] ?? '') : null,
       remark: _remark(uri),
     );
   }

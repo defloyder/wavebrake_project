@@ -70,6 +70,18 @@ class WindowsVpnAdapter implements VpnAdapter {
   StreamSubscription<String>? _stderrSub;
   Timer? _rivalVpnWatch;
 
+  // cloak-client-proxy.exe, started only for a hysteria2 link that carries
+  // `cloak=1`. sing-box has its own built-in Hysteria2 client with no cloak
+  // awareness and no realistic way to add it without forking sing-box
+  // itself (see docs/CLOAK-TECHNICAL-OVERVIEW.md), so instead of touching
+  // sing-box at all, this sits between it and the real server on loopback:
+  // sing-box's hysteria2 outbound is pointed at 127.0.0.1:<local port>
+  // instead of the real host, and this process does the cloak wrapping
+  // transparently underneath — from sing-box's point of view nothing about
+  // Hysteria2 changed. Lives alongside `_process` with the same lifetime
+  // (started before sing-box, killed whenever sing-box is).
+  Process? _cloakProxyProcess;
+
   // Set right before we ourselves kill `_process` (a user disconnect(), or
   // the kill-then-relaunch step of an automatic restart) and checked in the
   // exitCode handler below — an exit we asked for is routine cleanup, not
@@ -222,7 +234,10 @@ class WindowsVpnAdapter implements VpnAdapter {
       throw StateError('sing-box.exe not found next to the app');
     }
 
-    final configPath = await _writeConfig(link);
+    final effectiveLink = await _maybeStartCloakProxy(link);
+    if (generation != _generation) return;
+
+    final configPath = await _writeConfig(effectiveLink);
     if (generation != _generation) return;
     _lastLink = link;
 
@@ -382,6 +397,92 @@ class WindowsVpnAdapter implements VpnAdapter {
         process.kill(ProcessSignal.sigkill);
       }
     }
+    final proxy = _cloakProxyProcess;
+    _cloakProxyProcess = null;
+    proxy?.kill(ProcessSignal.sigterm);
+  }
+
+  /// For a `hysteria2` link carrying `cloak=1`, starts cloak-client-proxy.exe
+  /// pointed at the link's real server and returns a copy of [link] whose
+  /// host/port point at the proxy's local port instead — sing-box's own
+  /// config (via [singBoxConfigFor]/[SingBoxProxy.fromLink]) is built from
+  /// whatever this returns, so it only ever sees a plain local Hysteria2
+  /// endpoint and does zero cloak-specific work. Anything else
+  /// (non-hysteria2, or hysteria2 without `cloak=1`) is returned unchanged,
+  /// and no process is started.
+  Future<ShareLink> _maybeStartCloakProxy(ShareLink link) async {
+    if (link.protocol != LinkProtocol.hysteria2 || !link.cloak) return link;
+
+    if (link.portHopping != null) {
+      // cloak-client-proxy listens on one fixed local port; it has no
+      // concept of sing-box's `server_ports`/hop_interval multi-port
+      // hopping, so the two can't combine. No production link does today
+      // — flag loudly instead of silently breaking one or the other.
+      AppLogger.error(
+          'hysteria2 link has both cloak=1 and mport (port hopping) set — '
+          'these cannot combine, cloak wins: port hopping will be ignored '
+          'for this connection.');
+    }
+
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+    final proxyExe = '$exeDir\\cloak-client-proxy.exe';
+    if (!await File(proxyExe).exists()) {
+      AppLogger.warn(
+          'cloak-client-proxy.exe not found next to the app; connecting to ${link.host} without cloak');
+      return link;
+    }
+
+    final readyFile = File(
+        '${Directory.systemTemp.path}\\wavebreak_cloak_proxy_${DateTime.now().microsecondsSinceEpoch}.txt');
+    final args = [
+      '-listen', '127.0.0.1:0',
+      '-remote', '${link.host}:${link.port}',
+      '-ready-file', readyFile.path,
+      if (link.cloakMinSize != null) ...['-min-size', '${link.cloakMinSize}'],
+      if (link.cloakMaxSize != null) ...['-max-size', '${link.cloakMaxSize}'],
+      if (link.cloakChaffMinMs != null) ...[
+        '-chaff-min-ms',
+        '${link.cloakChaffMinMs}'
+      ],
+      if (link.cloakChaffMaxMs != null) ...[
+        '-chaff-max-ms',
+        '${link.cloakChaffMaxMs}'
+      ],
+    ];
+
+    final process = await Process.start(proxyExe, args,
+        workingDirectory: File(proxyExe).parent.path, runInShell: false);
+    _cloakProxyProcess = process;
+    process.stdout
+        .transform(utf8.decoder)
+        .listen((l) => AppLogger.info('[cloak-proxy] $l'));
+    process.stderr
+        .transform(utf8.decoder)
+        .listen((l) => AppLogger.warn('[cloak-proxy] $l'));
+
+    // The proxy writes its actual bound address (127.0.0.1:<ephemeral
+    // port>, since we asked it to listen on :0) to this file the moment
+    // it's ready — poll briefly rather than guessing a fixed delay.
+    const deadline = Duration(seconds: 5);
+    final stopwatch = Stopwatch()..start();
+    while (stopwatch.elapsed < deadline) {
+      if (await readyFile.exists()) {
+        final contents = (await readyFile.readAsString()).trim();
+        unawaited(readyFile.delete().catchError((_) => readyFile));
+        final boundAddr = Uri.parse('udp://$contents');
+        final localPort = boundAddr.port;
+        if (localPort > 0) {
+          return link.withHostPort('127.0.0.1', localPort,
+              clearPortHopping: true);
+        }
+      }
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    AppLogger.error(
+        'cloak-client-proxy did not report ready in time; connecting to ${link.host} without cloak');
+    _cloakProxyProcess = null;
+    process.kill(ProcessSignal.sigterm);
+    return link;
   }
 
   // --- Network-change detection ---
@@ -684,7 +785,13 @@ class WindowsVpnAdapter implements VpnAdapter {
 
     String configPath;
     try {
-      configPath = await _writeConfig(link);
+      // Re-run cloak-proxy startup too, not just sing-box — _killProcessOnly
+      // above just killed the old proxy along with sing-box, and its local
+      // port is ephemeral (a fresh one every launch), so the old one cached
+      // nowhere would be stale even if it were still running.
+      final effectiveLink = await _maybeStartCloakProxy(link);
+      if (generation != _recoveryGeneration) return false;
+      configPath = await _writeConfig(effectiveLink);
     } catch (e) {
       AppLogger.error('Failed to rewrite sing-box config during recovery: $e');
       return false;

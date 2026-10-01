@@ -1,6 +1,6 @@
 # Windows runtime dependencies
 
-Two third-party binaries land here and get copied next to `wavebreak.exe`
+Three binaries land here and get copied next to `wavebreak.exe`
 by `windows/runner/CMakeLists.txt` at build time — `flutter build windows`
 fails without them (`sing-box.exe not found`-style CMake errors).
 
@@ -50,6 +50,34 @@ The release zip also contains `libcronet.dll` and a `LICENSE` file —
 neither is needed (Cronet is an alternate HTTP transport sing-box
 supports but this app's config never uses) and CMakeLists.txt doesn't
 copy them, so only `sing-box.exe` itself needs to land in this folder.
+
+## cloak-client-proxy.exe
+
+**Not committed** — same `*.exe` gitignore rule as `sing-box.exe` above.
+This one is WaveBreak's own code though (`wavebreak-shared/cloak/cmd/cloak-client-proxy`),
+not a third-party download — a plain Go cross-compile, no gomobile/cgo/Dart
+FFI involved:
+
+```powershell
+# From the repo root, PowerShell or any shell with Go on PATH:
+cd wavebreak-shared/cloak
+$env:GOOS = "windows"
+$env:GOARCH = "amd64"
+go build -o ..\..\wavebreak-pc\windows\runtime_deps\cloak-client-proxy.exe .\cmd\cloak-client-proxy
+```
+
+See `docs/CLOAK-TECHNICAL-OVERVIEW.md` for what this binary actually does
+(it's the client-side counterpart of `cloak-relay`, letting sing-box's
+built-in Hysteria2 client work with cloak-masked servers without sing-box
+itself needing any cloak awareness). It only activates for a `hysteria2://`
+link whose query string carries `cloak=1` — everything else is unaffected,
+and if this file is simply missing, `WindowsVpnAdapter` logs a warning and
+connects without cloak rather than failing the connection.
+
+Confirmed end-to-end against the real production cloak-relay (Istanbul) in
+the session that built this: a plain, non-cloak-aware Hysteria2 client
+pointed at this proxy's local port completed a real handshake and HTTP
+fetch through it with zero changes needed on the server side.
 
 ## Known build gotcha: `flutter build windows` reports success but ships an incomplete bundle
 

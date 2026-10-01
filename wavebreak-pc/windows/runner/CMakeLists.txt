@@ -52,6 +52,18 @@ add_dependencies(${BINARY_NAME} flutter_assemble)
 # bundled sing-box.exe with a "tun" inbound, which itself needs wintun.dll
 # next to it to create the TUN adapter. Both must land next to the built
 # exe for that to work outside the build tree too.
+#
+# cloak-client-proxy.exe is a separate helper (see
+# docs/CLOAK-TECHNICAL-OVERVIEW.md) that WindowsVpnAdapter spawns only for a
+# hysteria2 link carrying cloak=1 — sing-box itself has no cloak awareness
+# and never needs to. It must be built and placed in runtime_deps/ (same way
+# sing-box.exe/wintun.dll are) BEFORE running this build — CMake's
+# copy_if_different fails the whole build if the source file is missing,
+# same as it would for a missing sing-box.exe. At runtime, if it's somehow
+# absent from next to the built exe anyway, WindowsVpnAdapter degrades
+# gracefully (logs a warning, connects without cloak) rather than failing
+# the connection outright — but that's a runtime fallback, not something
+# this build step itself tolerates.
 add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_CURRENT_SOURCE_DIR}/../runtime_deps/sing-box.exe"
@@ -59,5 +71,8 @@ add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_CURRENT_SOURCE_DIR}/../runtime_deps/wintun.dll"
     "$<TARGET_FILE_DIR:${BINARY_NAME}>/wintun.dll"
-  COMMENT "Copying sing-box.exe and wintun.dll next to ${BINARY_NAME}"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_CURRENT_SOURCE_DIR}/../runtime_deps/cloak-client-proxy.exe"
+    "$<TARGET_FILE_DIR:${BINARY_NAME}>/cloak-client-proxy.exe"
+  COMMENT "Copying sing-box.exe, wintun.dll, and cloak-client-proxy.exe next to ${BINARY_NAME}"
 )
