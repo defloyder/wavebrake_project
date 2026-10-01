@@ -105,6 +105,7 @@ def stub_monitor():
                                  "connections": 42, "uptime": 90000}
     mon.online_count = lambda: 2
     mon.log_event = lambda msg: None
+    mon.dpi_blocked_snapshot = lambda window_hours=24: {"ips": 0, "hits": 0, "window_hours": window_hours, "top": []}
 
 
 def msg(uid, text, chat_type="private", **extra):
@@ -155,6 +156,19 @@ class BotTest(unittest.TestCase):
         self.assertIn("tcp/443", html)
         home, _ = self.bot.home(OWNER)
         self.assertNotIn("udp/443", home)
+
+    def test_status_shows_dpi_autoban_count(self):
+        mon.dpi_blocked_snapshot = lambda window_hours=24: {
+            "ips": 3, "hits": 57, "window_hours": 24, "top": [("1.2.3.4", 40), ("5.6.7.8", 17)]}
+        html, _ = self.bot.status_screen()
+        self.assertIn("Антипробинг", html)
+        self.assertIn("3</b>", html)
+        self.assertIn("1.2.3.4", html)
+
+    def test_status_dpi_quiet_when_nothing_blocked(self):
+        mon.dpi_blocked_snapshot = lambda window_hours=24: {"ips": 0, "hits": 0, "window_hours": 24, "top": []}
+        html, _ = self.bot.status_screen()
+        self.assertIn("не замечено", html)
 
     def test_strangers_and_groups_get_silence(self):
         self.bot.handle_update(msg(STRANGER, "/start"))

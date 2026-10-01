@@ -432,7 +432,14 @@ class Bot:
         svc = table(["Контейнер", "Состояние"], [
             [("🟢 " if s["ok"] else "🔴 ") + esc(s["name"]), esc(s["status"])] for s in services
         ])
-        html = f"<h3>📊 Мониторинг</h3>{cores}{ports}<details><summary>🐳 Контейнеры ({len(services)})</summary>{svc}</details>{footer()}"
+        dpi = mon.dpi_blocked_snapshot()
+        dpi_html = table(["Показатель", "Значение"], [
+            ["🛡 Заблокировано адресов", f"<b>{dpi['ips']}</b> за {dpi['window_hours']} ч ({dpi['hits']} попыток)"],
+        ]) if dpi["ips"] else "<p>🟢 За последние сутки активных DPI-проб не замечено.</p>"
+        dpi_block = (f"<details><summary>🛡 Антипробинг tcp/443 ({dpi['ips']})</summary>{dpi_html}"
+                     + (table(["IP", "Попыток"], [[esc(ip), str(n)] for ip, n in dpi["top"]]) if dpi["top"] else "")
+                     + "<blockquote>20+ новых соединений на 443 за 60 сек с одного IP — автобан на минуту, окно само снимается.</blockquote></details>")
+        html = f"<h3>📊 Мониторинг</h3>{cores}{ports}{dpi_block}<details><summary>🐳 Контейнеры ({len(services)})</summary>{svc}</details>{footer()}"
         kb = [
             [B("📈 Трафик", "tr"), B("📡 Клиенты", "cl")],
             [B("⚠️ Ошибки", "er"), B("📜 Логи", "lg"), B("🔁 Реконнекты", "rc")],

@@ -341,3 +341,21 @@ def error_groups(since="60m", limit=25):
 
 def xray_logs(n=30):
     return mask_secrets(run(["docker", "logs", "--tail", str(n), XRAY_CONTAINER]))
+
+
+DPI_BLOCK_RE = re.compile(r"DPI-PROBE-BLOCK.*SRC=([0-9.]+)")
+
+
+def dpi_blocked_snapshot(window_hours=24):
+    """Distinct source IPs the connection-rate ban (ufw/before.rules,
+    iptables recent module on tcp/443) has actually dropped, counted from
+    the kernel log line it emits — not a cumulative packet counter, since
+    the point is "how many attackers", not "how many packets"."""
+    out = run(["journalctl", "-k", "--since", f"-{window_hours}h", "-g", "DPI-PROBE-BLOCK"], timeout=10)
+    ips = collections.Counter()
+    for line in out.splitlines():
+        m = DPI_BLOCK_RE.search(line)
+        if m:
+            ips[m.group(1)] += 1
+    return {"ips": len(ips), "hits": sum(ips.values()), "window_hours": window_hours,
+            "top": ips.most_common(5)}
