@@ -856,15 +856,27 @@ class WindowsVpnAdapter implements VpnAdapter {
   // itself a heuristic.
   static const _rivalVpnCheckInterval = Duration(seconds: 8);
 
-  static final _rivalVpnNamePattern = RegExp(
-    r'\b(vpn|tap-windows|tap0|wintun|openvpn|wireguard|nordlynx|'
-    r'pptp|l2tp|ipsec|tunnelbear|protonvpn|expressvpn|surfshark|'
-    r'nordvpn|cisco anyconnect|globalprotect|forticlient|zerotier|tailscale)\b',
-    caseSensitive: false,
-  );
+  /// VPN-looking adapters that were already up when this connection came
+  /// up. They didn't stop the tunnel from starting, so they aren't "another
+  /// VPN coming up" — only an adapter that appears later is. Without this,
+  /// any always-present adapter with a matching name (Radmin VPN, an
+  /// OpenVPN/TAP driver, a leftover wintun of another app) dropped every
+  /// connection ~8 s after it came up, on every protocol (field report
+  /// 01.10, two PCs; the owner's PC has no such adapter and was fine).
+  Set<String> _rivalVpnBaseline = const {};
 
   void _startRivalVpnWatch() {
     _rivalVpnWatch?.cancel();
+    _rivalVpnBaseline = const {};
+    unawaited(_listInterfaceNames().then((names) {
+      _rivalVpnBaseline = rivalVpnAdapters(names);
+      if (_rivalVpnBaseline.isNotEmpty) {
+        AppLogger.info(
+            'VPN-like adapters already present at connect (ignored): ${_rivalVpnBaseline.join(', ')}');
+      }
+    }).catchError((Object e) {
+      AppLogger.debug('Rival VPN baseline failed: $e');
+    }));
     _rivalVpnWatch = Timer.periodic(
       _rivalVpnCheckInterval,
       (_) => unawaited(_checkForRivalVpn()),
@@ -876,18 +888,19 @@ class WindowsVpnAdapter implements VpnAdapter {
     _rivalVpnWatch = null;
   }
 
+  static Future<List<String>> _listInterfaceNames() async => [
+        for (final iface in await NetworkInterface.list(includeLoopback: false))
+          iface.name,
+      ];
+
   Future<void> _checkForRivalVpn() async {
     if (_process == null) return;
     try {
-      final interfaces = await NetworkInterface.list(includeLoopback: false);
-      final rival = interfaces.any((iface) {
-        final name = iface.name.toLowerCase();
-        if (name.contains('wavebreak')) return false;
-        return _rivalVpnNamePattern.hasMatch(name);
-      });
-      if (rival && _process != null) {
+      final rivals = rivalVpnAdapters(await _listInterfaceNames())
+          .difference(_rivalVpnBaseline);
+      if (rivals.isNotEmpty && _process != null) {
         AppLogger.warn(
-            'Another VPN adapter detected while connected — disconnecting to avoid two tunnels racing for the default route');
+            'Another VPN adapter came up while connected (${rivals.join(', ')}) — disconnecting to avoid two tunnels racing for the default route');
         await disconnect();
         _emit(VpnNativeState.idle);
       }
@@ -953,6 +966,22 @@ class WindowsVpnAdapter implements VpnAdapter {
 /// [directIps]: addresses routed past the tunnel — the real server of a
 /// cloak link, which cloak-client-proxy (a separate process the TUN would
 /// otherwise capture) talks to directly.
+final _rivalVpnNamePattern = RegExp(
+  r'\b(vpn|tap-windows|tap0|wintun|openvpn|wireguard|nordlynx|'
+  r'pptp|l2tp|ipsec|tunnelbear|protonvpn|expressvpn|surfshark|'
+  r'nordvpn|cisco anyconnect|globalprotect|forticlient|zerotier|tailscale)\b',
+  caseSensitive: false,
+);
+
+/// The adapter names (as listed by NetworkInterface) that look like
+/// another VPN. Our own tunnel ("wavebreak") never counts.
+Set<String> rivalVpnAdapters(Iterable<String> names) => {
+      for (final name in names)
+        if (!name.toLowerCase().contains('wavebreak') &&
+            _rivalVpnNamePattern.hasMatch(name))
+          name,
+    };
+
 Map<String, dynamic> singBoxConfigFor(ShareLink link,
     {List<String> directIps = const []}) {
   final proxy = SingBoxProxy.fromLink(link);
