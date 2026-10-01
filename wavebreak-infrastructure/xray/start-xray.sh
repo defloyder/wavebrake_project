@@ -18,6 +18,16 @@ mkdir -p "$(dirname "$CONFIG_PATH")"
 # file instead, written only after we've laid down the real REALITY config.
 if [ ! -f "$BOOTSTRAP_MARKER" ]; then
   if [ "$LISTEN_PORT" -gt 0 ]; then
+    # acceptProxyProtocol: nginx's stream{} block in front of this inbound
+    # (see nginx/pilot-public-http.conf) always terminates the public
+    # connection on loopback and forwards with a PROXY protocol header
+    # (proxy_protocol on;), so Xray must be told to expect one or every
+    # connection fails with "proxy protocol signature not present". This
+    # matches the hand patch applied directly to the live, hand-maintained
+    # /etc/xray/config.json on 2026-10-02 (see OPERATIONAL-CHANGES.md #1) —
+    # without it here, a disaster-recovered/fresh node regenerating
+    # config.json from this bootstrap template would silently reproduce
+    # that outage the moment nginx starts talking to it.
     cat > "$CONFIG_PATH" <<EOF
 {
   "log": {
@@ -47,7 +57,8 @@ if [ ! -f "$BOOTSTRAP_MARKER" ]; then
         "sockopt": {
           "tcpFastOpen": true,
           "tcpFragment": true,
-          "tcpMaxSeg": 1350
+          "tcpMaxSeg": 1350,
+          "acceptProxyProtocol": true
         }
       },
       "sniffing": {
