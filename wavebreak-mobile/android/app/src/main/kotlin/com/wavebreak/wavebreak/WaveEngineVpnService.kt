@@ -1795,7 +1795,14 @@ class WaveEngineVpnService : VpnService() {
             setOnClickPendingIntent(R.id.notif_disconnect_exp, pendingServiceIntent(ACTION_STOP, 1))
         }
 
-        return Notification.Builder(this, channelId)
+        // Builder(context, channelId) is API 26; minSdk is 24 (Android 7).
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, channelId)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+        return builder
             .setSmallIcon(R.drawable.ic_stat_wavebreak)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

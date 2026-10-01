@@ -396,15 +396,18 @@ class MainActivity : FlutterFragmentActivity() {
     // active network is never the VPN and this always answered false:
     // in-app tunnel latency and pingHost always got "no_service" (Hysteria2
     // showed no ping), and reconcileWithSystem never saw a live tunnel.
-    // Look for a VPN network among all networks instead, and on Q+ require
+    // Look for a VPN network among all networks instead, and on R+ require
     // that it is ours (ownerUid) so another VPN app doesn't count.
+    // NetworkCapabilities.getOwnerUid() is API 30 (Android 11): calling it
+    // on Android 10 threw NoSuchMethodError and crashed the app the moment
+    // a VPN came up (field report: Redmi Note 9 Pro, Android 10).
     @Suppress("DEPRECATION")
     private fun isSystemVpnActive(): Boolean {
         val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         return cm.allNetworks.any { network ->
             val caps = cm.getNetworkCapabilities(network) ?: return@any false
             caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
-                (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || caps.ownerUid == android.os.Process.myUid())
+                (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || caps.ownerUid == android.os.Process.myUid())
         }
     }
 
