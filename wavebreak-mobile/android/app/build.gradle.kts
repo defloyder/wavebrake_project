@@ -46,7 +46,11 @@ android {
         applicationId = "com.wavebreak.wavebreak"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Android 7.1 (API 25) and up. Android 7.0 doesn't trust ISRG Root X1
+        // (Let's Encrypt, which signs core./dl.), so the app could never reach
+        // Core there — better to refuse the install than to fail silently.
+        // ISRG Root X1 ships with 7.1.1; 7.1.0 shares API 25 with it.
+        minSdk = 25
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
