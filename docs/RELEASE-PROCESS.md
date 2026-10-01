@@ -38,7 +38,8 @@ Windows: версия (1.0.7) + build number (растёт всегда).
 опубликованный `version.json`):
 - Android: … 36 = 1.2.2, 37 = откат 1.2.1, 38 тест, 39 = 1.2.3, 40 = откат 1.2.1, 41 тест,
   42 = 1.2.4, 43 = откат 1.2.3, 44 тест, 45 = 1.2.4.1, 46 = откат 1.2.4 → **следующий ≥ 47**.
-- Windows: … 13 = 1.0.6, 14 = откат 1.0.5, 15 = 1.0.7, 16 = откат 1.0.5 → **следующий ≥ 17**.
+- Windows: … 13 = 1.0.6, 14 = откат 1.0.5, 15 = 1.0.7, 16 = откат 1.0.5, 17 = 1.0.8,
+  18 = откат 1.0.7 → **следующий ≥ 19**.
 
 ## 2. Подготовка
 
@@ -97,7 +98,14 @@ flutter build windows --release $D
 Установщик: `windows/installer/Output/WaveBreak-Setup-X.Y.Z.exe` → переименовать в
 `wavebreak-windows-X.Y.Z-setup.exe`. Проверить версию exe: свойства файла
 `build/windows/x64/runner/Release/wavebreak.exe` → `X.Y.Z+<build>`.
-В `Release/` должны лежать `sing-box.exe` и `wintun.dll` (из `windows/runtime_deps`, в git нет).
+В `Release/` должны лежать `sing-box.exe`, `wintun.dll` и (с 1.0.8) `cloak-client-proxy.exe` —
+из `windows/runtime_deps`, в git их нет; без любого из них сборка падает. Прокси собирается так:
+```bash
+cd wavebreak-shared/cloak
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../../wavebreak-pc/windows/runtime_deps/cloak-client-proxy.exe ./cmd/cloak-client-proxy
+```
+Также проверить, что есть `build/windows/x64/runner/Release/data/app.so` (иногда сборка
+молча выходит неполной).
 
 ## 5. Откатные сборки
 
