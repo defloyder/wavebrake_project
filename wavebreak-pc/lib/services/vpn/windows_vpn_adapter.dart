@@ -82,6 +82,12 @@ class WindowsVpnAdapter implements VpnAdapter {
   // (started before sing-box, killed whenever sing-box is).
   Process? _cloakProxyProcess;
 
+  /// The real server IP cloak-client-proxy talks to. sing-box's TUN
+  /// (auto_route + strict_route) captures every process's traffic except
+  /// sing-box's own, so without a direct rule for this IP the proxy's UDP
+  /// would loop back into the tunnel it is carrying.
+  String? _cloakBypassIp;
+
   // Set right before we ourselves kill `_process` (a user disconnect(), or
   // the kill-then-relaunch step of an automatic restart) and checked in the
   // exitCode handler below — an exit we asked for is routine cleanup, not
@@ -411,6 +417,7 @@ class WindowsVpnAdapter implements VpnAdapter {
   /// (non-hysteria2, or hysteria2 without `cloak=1`) is returned unchanged,
   /// and no process is started.
   Future<ShareLink> _maybeStartCloakProxy(ShareLink link) async {
+    _cloakBypassIp = null;
     if (link.protocol != LinkProtocol.hysteria2 || !link.cloak) return link;
 
     if (link.portHopping != null) {
@@ -432,11 +439,29 @@ class WindowsVpnAdapter implements VpnAdapter {
       return link;
     }
 
+    // Resolved here, before the tunnel is up, so the proxy and the
+    // direct route rule (see [_cloakBypassIp]) use the same address.
+    var remoteHost = link.host;
+    try {
+      final addrs = await InternetAddress.lookup(link.host,
+          type: InternetAddressType.IPv4);
+      if (addrs.isNotEmpty) remoteHost = addrs.first.address;
+    } catch (e) {
+      AppLogger.warn('cloak: could not resolve ${link.host}: $e');
+    }
+    final bypassIp =
+        InternetAddress.tryParse(remoteHost) != null ? remoteHost : null;
+    if (bypassIp == null) {
+      AppLogger.error(
+          'cloak: no IP for ${link.host} — the proxy traffic would loop through the tunnel; connecting without cloak');
+      return link;
+    }
+
     final readyFile = File(
         '${Directory.systemTemp.path}\\wavebreak_cloak_proxy_${DateTime.now().microsecondsSinceEpoch}.txt');
     final args = [
       '-listen', '127.0.0.1:0',
-      '-remote', '${link.host}:${link.port}',
+      '-remote', '$bypassIp:${link.port}',
       '-ready-file', readyFile.path,
       if (link.cloakMinSize != null) ...['-min-size', '${link.cloakMinSize}'],
       if (link.cloakMaxSize != null) ...['-max-size', '${link.cloakMaxSize}'],
@@ -472,6 +497,7 @@ class WindowsVpnAdapter implements VpnAdapter {
         final boundAddr = Uri.parse('udp://$contents');
         final localPort = boundAddr.port;
         if (localPort > 0) {
+          _cloakBypassIp = bypassIp;
           return link.withHostPort('127.0.0.1', localPort,
               clearPortHopping: true);
         }
@@ -890,7 +916,9 @@ class WindowsVpnAdapter implements VpnAdapter {
   Future<String> _writeConfig(ShareLink link) async {
     final dir = Directory.systemTemp;
     final file = File('${dir.path}\\wavebreak_singbox.json');
-    await file.writeAsString(jsonEncode(singBoxConfigFor(link)));
+    final bypass = _cloakBypassIp;
+    await file.writeAsString(jsonEncode(singBoxConfigFor(link,
+        directIps: [if (bypass != null) bypass])));
     return file.path;
   }
 
@@ -921,7 +949,12 @@ class WindowsVpnAdapter implements VpnAdapter {
 /// shared wavebreak_links package (bug-for-bug the same shapes the old
 /// in-file ShareLink class produced for vless/vmess/trojan/ss/hysteria2);
 /// this wrapper (TUN, DNS, route, Clash API) is unchanged.
-Map<String, dynamic> singBoxConfigFor(ShareLink link) {
+///
+/// [directIps]: addresses routed past the tunnel — the real server of a
+/// cloak link, which cloak-client-proxy (a separate process the TUN would
+/// otherwise capture) talks to directly.
+Map<String, dynamic> singBoxConfigFor(ShareLink link,
+    {List<String> directIps = const []}) {
   final proxy = SingBoxProxy.fromLink(link);
   return {
     'log': {'level': 'info', 'timestamp': true},
@@ -966,6 +999,13 @@ Map<String, dynamic> singBoxConfigFor(ShareLink link) {
     // `final: proxy` below, which also avoids leaking them outside it.
     'route': {
       'auto_detect_interface': true,
+      if (directIps.isNotEmpty)
+        'rules': [
+          {
+            'ip_cidr': [for (final ip in directIps) '$ip/32'],
+            'outbound': 'direct',
+          },
+        ],
       'final': 'proxy',
     },
     // Enables sing-box's Clash-API-compatible control server so
