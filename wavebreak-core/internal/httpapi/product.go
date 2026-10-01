@@ -208,6 +208,15 @@ func (s *Server) accessGrantConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.applyVLESSRuntimeConfig(&config)
+	// Second locations (e.g. Moscow) serving this same grant — previously
+	// only mixed into the public subscription's raw Links, so the app's own
+	// authenticated config never offered them. Exposed here as a distinct
+	// field (not merged into Links) since the app needs each mirror's own
+	// structured per-transport config (vless_direct_tls, location, ...) to
+	// show it as a selectable second location, not just another raw URI.
+	// Requires a mobile app update to actually render; harmless until then
+	// (an older app build simply won't read this new field).
+	config.Mirrors = s.mirrorConfigs(r.Context(), config)
 	writeJSON(w, http.StatusOK, config)
 }
 
@@ -345,6 +354,26 @@ func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
 		cfg.Links = append(cfg.Links, mirror.Links...)
 	}
 
+	// Hysteria2 only works through WaveBreak's own app (it depends on the
+	// cloak traffic-shape-masking layer built into the app's client, not
+	// anything a generic subscription-consuming client like Happ/v2rayNG/
+	// NekoBox implements), and the app never fetches its config from this
+	// public endpoint in the first place — it uses the authenticated
+	// /access/grants/{id}/config route instead, which still gets the full
+	// applyVLESSRuntimeConfig output including config.Hysteria. So a
+	// hysteria2:// link showing up here (primary or mirror) only ever
+	// reaches a client that can't use it; strip it rather than hand out a
+	// link guaranteed to fail for whoever pastes this subscription into a
+	// third-party app.
+	publicLinks := make([]string, 0, len(cfg.Links))
+	for _, link := range cfg.Links {
+		if strings.HasPrefix(link, "hysteria2://") {
+			continue
+		}
+		publicLinks = append(publicLinks, link)
+	}
+	cfg.Links = publicLinks
+
 	planName := cfg.PlanName
 	if planName == "" {
 		planName = "WaveBreak"
@@ -354,9 +383,18 @@ func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Profile-Title", "base64:"+base64.StdEncoding.EncodeToString([]byte(planName)))
 	w.Header().Set("Profile-Update-Interval", "12")
 	userinfo := fmt.Sprintf("upload=%d; download=%d", cfg.BytesUp, cfg.BytesDown)
+	// Some subscription-consumer clients (Happ confirmed) only render a
+	// used/total usage bar when "total" is present at all — an unlimited
+	// plan's genuinely absent cap just makes them show nothing, which reads
+	// as "usage tracking is broken" rather than "no limit." Cosmetic only:
+	// nothing is enforced server-side off this value. 10TiB comfortably
+	// outpaces any real account's usage so the bar never looks near-full.
+	const unlimitedDisplayTotal int64 = 10 * 1024 * 1024 * 1024 * 1024
+	total := unlimitedDisplayTotal
 	if cfg.TrafficLimitBytes != nil {
-		userinfo += fmt.Sprintf("; total=%d", *cfg.TrafficLimitBytes)
+		total = *cfg.TrafficLimitBytes
 	}
+	userinfo += fmt.Sprintf("; total=%d", total)
 	if cfg.SubscriptionExpiresAt != nil {
 		userinfo += fmt.Sprintf("; expire=%d", cfg.SubscriptionExpiresAt.Unix())
 	}
@@ -1713,7 +1751,24 @@ func (s *Server) botUserOverview(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load overview")
 		return
 	}
-	writeJSON(w, http.StatusOK, overview)
+	// subscription_url is the ready-to-send link, built from the real grant
+	// ID (overview.ActiveGrantID), not something the bot should assemble
+	// itself — see ActiveGrantID's doc comment for why that distinction
+	// matters (subscription.id silently 404s against /v1/sub/{grantID}).
+	var subscriptionURL string
+	if overview.ActiveGrantID != "" {
+		subscriptionURL = s.subscriptionLink(overview.ActiveGrantID)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user":             overview.User,
+		"subscription":     overview.Subscription,
+		"usage":            overview.Usage,
+		"devices":          overview.Devices,
+		"telegram":         overview.Telegram,
+		"access_summary":   overview.AccessSummary,
+		"active_grant_id":  overview.ActiveGrantID,
+		"subscription_url": subscriptionURL,
+	})
 }
 
 func (s *Server) botAuthRequired(next http.Handler) http.Handler {

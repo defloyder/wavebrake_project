@@ -95,6 +95,23 @@
 - **Замечание коллеги про `hyclient.NewClient` в Android-мосте** не подтвердилось: в `app-main-sync`
   с 27.09 (`17ff4f0`) используется `NewReconnectableClient`.
 
+## 6б. 01.10 ~15:20 — Hysteria на TR выдавалась с неверным портом
+
+- Коллега около 10:19 UTC перенёс Hysteria за cloak-relay на внутренний порт 44100 и для этого
+  дописал в `.env.pilot` вторую строку `WAVEBREAK_HYSTERIA_PORT=44100`. Эта же переменная задаёт
+  порт **в ссылке** Core → все клиенты (Android 1.2.4, Windows 1.0.8) с этого момента шли на
+  `45.15.41.3:44100` мимо relay, а Kolan снаружи пропускает только UDP 443 — Hysteria не работала.
+- Исправлено на сервере: порты разделены — `WAVEBREAK_HYSTERIA_PORT=443` (публичный, в ссылке),
+  новая `WAVEBREAK_HYSTERIA_LISTEN_PORT=44100` (где слушает Hysteria за relay, читает агент);
+  compose: `WAVEBREAK_HYSTERIA_LISTEN_PORT: ${WAVEBREAK_HYSTERIA_LISTEN_PORT:-${WAVEBREAK_HYSTERIA_PORT:-0}}`.
+  Пересоздан только `wavebreak-api` (без пересборки), агент и Hysteria не трогались.
+  Копии: `.env.pilot.bak-before-hyport-*`, `docker-compose.pilot.yml.bak-before-hyport-*`.
+- **Правки коллеги в Core, сделанные прямо на сервере (не были в git), перенесены в репозиторий**:
+  `internal/httpapi/product.go` (публичная `/v1/sub` без Hysteria — сторонним клиентам она без cloak
+  бесполезна; зеркала в конфиге приложения; «total» для шкалы трафика в Happ; ссылка подписки для
+  бота), `internal/store/product.go` (`ActiveGrantID`, `Mirrors`). Без этого следующая выкатка Core
+  из git затёрла бы их. Образ Core на сервере собран коллегой 01.10 13:07 MSK из этих исходников.
+
 ## 7. Открытые вопросы
 1. Xray держит клиентов Hysteria в глобальном кеше процесса (переживает перезапуск движка) — вероятная причина «после смены сети Hysteria не работает до перезапуска приложения». Не исправлено.
 2. Для cloak-Hysteria smart routing (российские сайты напрямую) не применяется — весь трафик через туннель.
