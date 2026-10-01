@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/env/app_env.dart';
+import '../core/logging/app_logger.dart';
 import '../core/i18n/language_controller.dart';
 import '../core/network/connectivity_provider.dart';
 import '../core/theme/personalization_controller.dart';
@@ -14,6 +15,8 @@ import '../core/theme/wb_colors.dart';
 import '../core/theme/wb_theme.dart';
 import '../features/shared/app_lock_gate.dart';
 import '../features/shared/data_providers.dart';
+import '../services/core_api/models.dart';
+import '../services/custom_servers/custom_server_controller.dart';
 import '../services/notification/status_notification_service.dart';
 import '../services/notification/tray_status.dart';
 import '../services/vpn/conflicting_vpn_closer.dart';
@@ -112,6 +115,78 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
     ));
   }
 
+  static const _trayToggle = 1;
+  static const _trayOpen = 2;
+  static const _trayQuit = 3;
+  static const _trayLocationBase = 100;
+
+  /// The tray icon's right-click menu, built fresh each time it opens:
+  /// connect/disconnect, the locations (current one checked; picking one
+  /// switches to it and connects), open the window, quit.
+  Future<void> _showTrayMenu() async {
+    final s = ref.read(stringsProvider);
+    final state = ref.read(connectionManagerProvider);
+    final locations = <LocationItem>[
+      LocationItem.auto,
+      ...?ref.read(locationsProvider).valueOrNull?.where((l) => !l.isAuto),
+      ...ref.read(customServersProvider).expand((g) => g.servers),
+    ];
+    String label(LocationItem l) => l.isAuto
+        ? '${s.auto} — ${s.fastestLocation}'
+        : [l.country, l.city].where((part) => part.isNotEmpty).join(' · ');
+
+    final active = state.status != ConnectionStatus.idle &&
+        state.status != ConnectionStatus.error;
+    final picked = await _trayStatus.showMenu([
+      TrayMenuEntry(
+        active ? s.trayDisconnect : s.trayConnect,
+        id: _trayToggle,
+        enabled: state.status != ConnectionStatus.disconnecting,
+      ),
+      TrayMenuEntry(s.navLocations, children: [
+        for (var i = 0; i < locations.length; i++)
+          TrayMenuEntry(
+            label(locations[i]),
+            id: _trayLocationBase + i,
+            checked: locations[i].id == state.location.id,
+            enabled: locations[i].available || locations[i].isCustom,
+          ),
+      ]),
+      const TrayMenuEntry.separator(),
+      TrayMenuEntry(s.trayOpen, id: _trayOpen),
+      TrayMenuEntry(s.trayQuit, id: _trayQuit),
+    ]);
+
+    final manager = ref.read(connectionManagerProvider.notifier);
+    final canConnect = ref.read(canConnectProvider);
+    switch (picked) {
+      case _trayToggle:
+        AppLogger.info('Tray: ${active ? 'disconnect' : 'connect'}');
+        await manager.toggle(subscriptionActive: canConnect);
+      case _trayOpen:
+        await _trayStatus.showWindow();
+      case _trayQuit:
+        AppLogger.info('Tray: quit');
+        if (ref.read(connectionManagerProvider).status !=
+            ConnectionStatus.idle) {
+          await manager.disconnect();
+        }
+        await _trayStatus.quit();
+      default:
+        final index = picked - _trayLocationBase;
+        if (index < 0 || index >= locations.length) return;
+        final location = locations[index];
+        AppLogger.info('Tray: location ${location.id}');
+        await manager.selectLocation(location, subscriptionActive: canConnect);
+        // Picking a location from the tray means "use this one now":
+        // selectLocation only switches a live connection, so start one.
+        if (ref.read(connectionManagerProvider).status ==
+            ConnectionStatus.idle) {
+          await manager.connect(subscriptionActive: canConnect);
+        }
+    }
+  }
+
   void _startPingTicker() {
     if (_usesNativeAndroidNotification) return;
     _pingTicker?.cancel();
@@ -149,6 +224,7 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
   @override
   void initState() {
     super.initState();
+    TrayStatus.onMenuRequested(_showTrayMenu);
     _closedVpnsSub = ConflictingVpnCloser.closed.listen((apps) {
       final messenger = _scaffoldMessengerKey.currentState;
       if (messenger == null || apps.isEmpty) return;

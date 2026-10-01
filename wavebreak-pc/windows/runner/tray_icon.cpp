@@ -164,11 +164,56 @@ bool TrayIcon::HandleMessage(HWND window, UINT message, LPARAM lparam) {
   switch (LOWORD(lparam)) {
     case WM_LBUTTONUP:
     case WM_LBUTTONDBLCLK:
-    case WM_RBUTTONUP:
       if (IsIconic(window)) ShowWindow(window, SW_RESTORE);
       ShowWindow(window, SW_SHOW);
       SetForegroundWindow(window);
       break;
+    case WM_RBUTTONUP:
+    case WM_CONTEXTMENU:
+      if (on_menu_requested) on_menu_requested();
+      break;
   }
   return true;
+}
+
+namespace {
+
+void AppendItems(HMENU menu, const std::vector<TrayMenuItem>& items) {
+  for (const auto& item : items) {
+    if (item.separator) {
+      AppendMenu(menu, MF_SEPARATOR, 0, nullptr);
+      continue;
+    }
+    UINT flags = MF_STRING;
+    if (item.checked) flags |= MF_CHECKED;
+    if (!item.enabled) flags |= MF_GRAYED;
+    if (!item.children.empty()) {
+      HMENU sub = CreatePopupMenu();
+      AppendItems(sub, item.children);
+      AppendMenu(menu, flags | MF_POPUP, reinterpret_cast<UINT_PTR>(sub),
+                 item.label.c_str());
+    } else {
+      AppendMenu(menu, flags, static_cast<UINT_PTR>(item.id),
+                 item.label.c_str());
+    }
+  }
+}
+
+}  // namespace
+
+int TrayIcon::ShowMenu(const std::vector<TrayMenuItem>& items) {
+  if (!window_ || items.empty()) return 0;
+  HMENU menu = CreatePopupMenu();
+  if (!menu) return 0;
+  AppendItems(menu, items);
+  POINT pt;
+  GetCursorPos(&pt);
+  // Required for the menu to close when the user clicks elsewhere.
+  SetForegroundWindow(window_);
+  const int picked = static_cast<int>(TrackPopupMenu(
+      menu, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON | TPM_BOTTOMALIGN,
+      pt.x, pt.y, 0, window_, nullptr));
+  PostMessage(window_, WM_NULL, 0, 0);
+  DestroyMenu(menu);  // destroys the submenus too
+  return picked;
 }

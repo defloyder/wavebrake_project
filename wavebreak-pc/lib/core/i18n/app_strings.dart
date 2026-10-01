@@ -28,6 +28,10 @@ class AppStrings {
     required this.configPendingHint,
     required this.disconnecting,
     required this.closedOtherVpns,
+    required this.trayConnect,
+    required this.trayDisconnect,
+    required this.trayOpen,
+    required this.trayQuit,
     required this.couldNotConnect,
     required this.noTraffic,
     required this.noTrafficHint,
@@ -281,6 +285,12 @@ class AppStrings {
 
   /// Shown after connecting closed other VPN apps; {apps} = their names.
   final String closedOtherVpns;
+
+  /// Tray icon menu (Windows).
+  final String trayConnect;
+  final String trayDisconnect;
+  final String trayOpen;
+  final String trayQuit;
   final String couldNotConnect;
   final String noTraffic;
   final String noTrafficHint;
@@ -537,6 +547,10 @@ const kEnglishStrings = AppStrings(
   configPendingHint: 'The server is setting up your VPN config — hang tight',
   disconnecting: 'Disconnecting…',
   closedOtherVpns: 'Closed other VPN apps so they do not interfere: {apps}',
+  trayConnect: 'Connect',
+  trayDisconnect: 'Disconnect',
+  trayOpen: 'Open WAVEBREAK',
+  trayQuit: 'Quit WAVEBREAK',
   couldNotConnect: 'Could not connect',
   noTraffic: "No traffic",
   noTrafficHint: "Connected, but no data gets through. This network may block the protocol.",
@@ -800,6 +814,10 @@ const kRussianStrings = AppStrings(
   configPendingHint: 'Сервер настраивает VPN-конфигурацию — это недолго',
   disconnecting: 'Отключение…',
   closedOtherVpns: 'Закрыли другие VPN, чтобы не мешали: {apps}',
+  trayConnect: 'Подключить',
+  trayDisconnect: 'Отключить',
+  trayOpen: 'Открыть WAVEBREAK',
+  trayQuit: 'Выйти из WAVEBREAK',
   couldNotConnect: 'Не удалось подключиться',
   noTraffic: "Нет трафика",
   noTrafficHint: "Подключение есть, но данные не проходят. Возможно, сеть блокирует этот протокол.",
@@ -1066,6 +1084,10 @@ const kSpanishStrings = AppStrings(
   configPendingHint: 'El servidor está configurando tu VPN — un momento',
   disconnecting: 'Desconectando…',
   closedOtherVpns: 'Cerramos otras VPN para que no interfieran: {apps}',
+  trayConnect: 'Conectar',
+  trayDisconnect: 'Desconectar',
+  trayOpen: 'Abrir WAVEBREAK',
+  trayQuit: 'Salir de WAVEBREAK',
   couldNotConnect: 'No se pudo conectar',
   noTraffic: "Sin tráfico",
   noTrafficHint: "Conectado, pero no pasan datos. Puede que esta red bloquee el protocolo.",
@@ -1333,6 +1355,10 @@ const kGermanStrings = AppStrings(
       'Der Server richtet deine VPN-Konfiguration ein — einen Moment',
   disconnecting: 'Trennen…',
   closedOtherVpns: 'Andere VPN-Apps geschlossen, damit sie nicht stören: {apps}',
+  trayConnect: 'Verbinden',
+  trayDisconnect: 'Trennen',
+  trayOpen: 'WAVEBREAK öffnen',
+  trayQuit: 'WAVEBREAK beenden',
   couldNotConnect: 'Verbindung fehlgeschlagen',
   noTraffic: "Kein Datenverkehr",
   noTrafficHint: "Verbunden, aber es kommen keine Daten durch. Dieses Netz blockiert eventuell das Protokoll.",
@@ -1603,6 +1629,10 @@ const kFrenchStrings = AppStrings(
   configPendingHint: 'Le serveur configure votre VPN — un instant',
   disconnecting: 'Déconnexion…',
   closedOtherVpns: 'Autres VPN fermés pour éviter les conflits : {apps}',
+  trayConnect: 'Se connecter',
+  trayDisconnect: 'Se déconnecter',
+  trayOpen: 'Ouvrir WAVEBREAK',
+  trayQuit: 'Quitter WAVEBREAK',
   couldNotConnect: 'Connexion impossible',
   noTraffic: "Aucun trafic",
   noTrafficHint: "Connecté, mais aucune donnée ne passe. Ce réseau bloque peut-être le protocole.",
@@ -1873,6 +1903,10 @@ const kPortugueseStrings = AppStrings(
   configPendingHint: 'O servidor está configurando sua VPN — só um momento',
   disconnecting: 'Desconectando…',
   closedOtherVpns: 'Fechamos outras VPNs para não interferirem: {apps}',
+  trayConnect: 'Conectar',
+  trayDisconnect: 'Desconectar',
+  trayOpen: 'Abrir o WAVEBREAK',
+  trayQuit: 'Sair do WAVEBREAK',
   couldNotConnect: 'Não foi possível conectar',
   noTraffic: "Sem tráfego",
   noTrafficHint: "Conectado, mas nenhum dado passa. Esta rede pode estar bloqueando o protocolo.",
@@ -2139,6 +2173,10 @@ const kTurkishStrings = AppStrings(
   configPendingHint: 'Sunucu VPN yapılandırmanızı ayarlıyor — biraz bekleyin',
   disconnecting: 'Bağlantı kesiliyor…',
   closedOtherVpns: 'Çakışmaması için diğer VPN uygulamaları kapatıldı: {apps}',
+  trayConnect: 'Bağlan',
+  trayDisconnect: 'Bağlantıyı kes',
+  trayOpen: 'WAVEBREAK uygulamasını aç',
+  trayQuit: 'WAVEBREAK uygulamasından çık',
   couldNotConnect: 'Bağlanılamadı',
   noTraffic: "Trafik yok",
   noTrafficHint: "Bağlandı ama veri geçmiyor. Bu ağ protokolü engelliyor olabilir.",
