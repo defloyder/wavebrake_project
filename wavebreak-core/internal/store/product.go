@@ -66,6 +66,13 @@ type UserOverview struct {
 	Devices       []Device       `json:"devices"`
 	Telegram      []UserIdentity `json:"telegram"`
 	AccessSummary map[string]int `json:"access_summary"`
+	// ActiveGrantID is the access_grants.id of the user's active grant, the
+	// only ID /v1/sub/{grantID} actually accepts. Added because the bot was
+	// previously left to build that link from Subscription.ID instead (a
+	// different table's primary key), which looks like a valid UUID but
+	// never matches a row in access_grants — the subscription link it sent
+	// users 404'd silently. Empty if the user has no active grant.
+	ActiveGrantID string `json:"active_grant_id,omitempty"`
 }
 
 type AdminDashboard struct {
@@ -460,10 +467,14 @@ func (s *Store) UserOverview(ctx context.Context, userID string) (UserOverview, 
 		return UserOverview{}, err
 	}
 	summary := map[string]int{"active": 0, "revoked": 0, "expired": 0}
+	var activeGrantID string
 	for _, grant := range grants {
 		summary[grant.Status]++
+		if grant.Status == "active" && activeGrantID == "" {
+			activeGrantID = grant.ID
+		}
 	}
-	overview := UserOverview{User: user, Devices: devices, Telegram: identities, AccessSummary: summary}
+	overview := UserOverview{User: user, Devices: devices, Telegram: identities, AccessSummary: summary, ActiveGrantID: activeGrantID}
 	sub, err := s.GetActiveSubscription(ctx, userID)
 	if err == nil {
 		overview.Subscription = &sub

@@ -21,7 +21,32 @@ type Config struct {
 	RefreshTokenTTL time.Duration
 	BotServiceToken string
 	OTLPEndpoint    string
+	RateLimit       RateLimitConfig
 	VLESS           VLESSConfig
+}
+
+// RateLimitConfig bounds how many requests the auth endpoints accept per
+// window, enforced via Redis (see internal/httpapi/ratelimit.go). Each limit
+// fails open if Redis is unavailable, same as the rest of this codebase
+// treats Redis as a best-effort accelerator rather than a hard dependency.
+type RateLimitConfig struct {
+	// LoginIPLimit/LoginIPWindow: attempts per client IP against /auth/login.
+	LoginIPLimit  int
+	LoginIPWindow time.Duration
+	// LoginEmailLimit/LoginEmailWindow: attempts per targeted account, tighter
+	// than the IP limit since credential stuffing can be spread across IPs.
+	LoginEmailLimit  int
+	LoginEmailWindow time.Duration
+	// RegisterIPLimit/RegisterIPWindow: account creations per IP, to blunt
+	// registration abuse and email-enumeration via the "user already exists"
+	// response.
+	RegisterIPLimit  int
+	RegisterIPWindow time.Duration
+	// RefreshIPLimit/RefreshIPWindow: a generous per-IP ceiling. Refresh
+	// tokens are 32 random bytes, so this is about blunting automated abuse
+	// rather than guessable tokens.
+	RefreshIPLimit  int
+	RefreshIPWindow time.Duration
 }
 
 type VLESSConfig struct {
@@ -141,6 +166,16 @@ func Load() (Config, error) {
 		RefreshTokenTTL: mustDuration(env("WAVEBREAK_REFRESH_TOKEN_TTL", "720h")),
 		BotServiceToken: env("WAVEBREAK_BOT_SERVICE_TOKEN", ""),
 		OTLPEndpoint:    env("WAVEBREAK_OTLP_ENDPOINT", "localhost:4317"),
+		RateLimit: RateLimitConfig{
+			LoginIPLimit:     mustInt(env("WAVEBREAK_RATELIMIT_LOGIN_IP_LIMIT", "10")),
+			LoginIPWindow:    mustDuration(env("WAVEBREAK_RATELIMIT_LOGIN_IP_WINDOW", "5m")),
+			LoginEmailLimit:  mustInt(env("WAVEBREAK_RATELIMIT_LOGIN_EMAIL_LIMIT", "5")),
+			LoginEmailWindow: mustDuration(env("WAVEBREAK_RATELIMIT_LOGIN_EMAIL_WINDOW", "5m")),
+			RegisterIPLimit:  mustInt(env("WAVEBREAK_RATELIMIT_REGISTER_IP_LIMIT", "5")),
+			RegisterIPWindow: mustDuration(env("WAVEBREAK_RATELIMIT_REGISTER_IP_WINDOW", "15m")),
+			RefreshIPLimit:   mustInt(env("WAVEBREAK_RATELIMIT_REFRESH_IP_LIMIT", "30")),
+			RefreshIPWindow:  mustDuration(env("WAVEBREAK_RATELIMIT_REFRESH_IP_WINDOW", "5m")),
+		},
 		VLESS: VLESSConfig{
 			PublicHost:         env("WAVEBREAK_VLESS_PUBLIC_HOST", ""),
 			PublicPort:         vlessPort,
@@ -219,4 +254,12 @@ func mustDuration(raw string) time.Duration {
 		return 15 * time.Minute
 	}
 	return d
+}
+
+func mustInt(raw string) int {
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+	return v
 }

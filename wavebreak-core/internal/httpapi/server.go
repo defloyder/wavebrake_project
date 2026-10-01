@@ -18,11 +18,21 @@ import (
 )
 
 type Server struct {
-	app *app.App
+	app     *app.App
+	limiter rateLimiter
 }
 
 func New(app *app.App) http.Handler {
-	s := &Server{app: app}
+	// app.Redis is nilable (see app.App), and a nil *redisstore.Store boxed
+	// into the rateLimiter interface would be a non-nil interface with a nil
+	// underlying value, so only assign limiter when Redis is actually
+	// configured — the fail-open checks in ratelimit.go rely on limiter
+	// itself being nil to skip rate limiting.
+	var limiter rateLimiter
+	if app.Redis != nil {
+		limiter = app.Redis
+	}
+	s := &Server{app: app, limiter: limiter}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -34,9 +44,10 @@ func New(app *app.App) http.Handler {
 	r.Handle("/metrics", promhttp.Handler())
 
 	r.Route("/v1", func(r chi.Router) {
-		r.Post("/auth/register", s.register)
-		r.Post("/auth/login", s.login)
-		r.Post("/auth/refresh", s.refresh)
+		rl := app.Config.RateLimit
+		r.With(ipRateLimitMiddleware(s.limiter, "register", rl.RegisterIPLimit, rl.RegisterIPWindow)).Post("/auth/register", s.register)
+		r.With(ipRateLimitMiddleware(s.limiter, "login", rl.LoginIPLimit, rl.LoginIPWindow)).Post("/auth/login", s.login)
+		r.With(ipRateLimitMiddleware(s.limiter, "refresh", rl.RefreshIPLimit, rl.RefreshIPWindow)).Post("/auth/refresh", s.refresh)
 		r.Post("/auth/logout", s.logout)
 		r.Get("/plans", s.listPlans)
 		r.Post("/node/enroll", s.nodeEnrollWithToken)

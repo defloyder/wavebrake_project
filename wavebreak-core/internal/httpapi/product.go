@@ -332,6 +332,24 @@ func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.applyVLESSRuntimeConfig(&cfg)
+	// Hysteria2 only works through WaveBreak's own app (it depends on the
+	// cloak traffic-shape-masking layer built into the app's client, not
+	// anything a generic subscription-consuming client like Happ/v2rayNG/
+	// NekoBox implements), and the app never fetches its config from this
+	// public endpoint in the first place — it uses the authenticated
+	// /access/grants/{id}/config route instead, which still gets the full
+	// applyVLESSRuntimeConfig output including config.Hysteria. So a
+	// hysteria2:// link showing up here only ever reaches a client that
+	// can't use it; strip it rather than hand out a link guaranteed to
+	// fail for whoever pastes this subscription into a third-party app.
+	publicLinks := make([]string, 0, len(cfg.Links))
+	for _, link := range cfg.Links {
+		if strings.HasPrefix(link, "hysteria2://") {
+			continue
+		}
+		publicLinks = append(publicLinks, link)
+	}
+	cfg.Links = publicLinks
 	if len(cfg.Links) == 0 {
 		writeError(w, http.StatusServiceUnavailable, "subscription is not ready yet: "+cfg.ConfigStatus)
 		return
@@ -1521,13 +1539,30 @@ func (s *Server) botUserOverview(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load overview")
 		return
 	}
-	writeJSON(w, http.StatusOK, overview)
+	// subscription_url is the ready-to-send link, built from the real grant
+	// ID (overview.ActiveGrantID), not something the bot should assemble
+	// itself — see ActiveGrantID's doc comment for why that distinction
+	// matters (subscription.id silently 404s against /v1/sub/{grantID}).
+	var subscriptionURL string
+	if overview.ActiveGrantID != "" {
+		subscriptionURL = s.subscriptionLink(overview.ActiveGrantID)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user":             overview.User,
+		"subscription":     overview.Subscription,
+		"usage":            overview.Usage,
+		"devices":          overview.Devices,
+		"telegram":         overview.Telegram,
+		"access_summary":   overview.AccessSummary,
+		"active_grant_id":  overview.ActiveGrantID,
+		"subscription_url": subscriptionURL,
+	})
 }
 
 func (s *Server) botAuthRequired(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, ok := bearerToken(r)
-		if !ok || s.app.Config.BotServiceToken == "" || raw != s.app.Config.BotServiceToken {
+		if !ok || s.app.Config.BotServiceToken == "" || !constantTimeEqual(raw, s.app.Config.BotServiceToken) {
 			writeError(w, http.StatusUnauthorized, "invalid bot service token")
 			return
 		}
