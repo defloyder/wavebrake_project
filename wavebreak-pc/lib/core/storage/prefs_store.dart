@@ -17,6 +17,9 @@ class PrefsStore {
   static const guestMode = 'guest_mode';
   static const onboardingChoiceMade = 'onboarding_choice_made';
   static const lastLocationId = 'last_location_id';
+  // The selected location's name (country|city), to find it again when
+  // its link — and with it its id — changed on the server.
+  static const lastLocationKey = 'last_location_key';
   static const autoConnect = 'auto_connect';
   static const autoConnectOnLaunch = 'auto_connect_on_launch';
   static const autoConnectUntrustedWifi = 'auto_connect_untrusted_wifi';

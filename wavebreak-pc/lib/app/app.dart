@@ -126,14 +126,13 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
   Future<void> _showTrayMenu() async {
     final s = ref.read(stringsProvider);
     final state = ref.read(connectionManagerProvider);
+    // No "Auto" here: the app doesn't offer it anywhere any more (bug 6).
     final locations = <LocationItem>[
-      LocationItem.auto,
       ...?ref.read(locationsProvider).valueOrNull?.where((l) => !l.isAuto),
       ...ref.read(customServersProvider).expand((g) => g.servers),
     ];
-    String label(LocationItem l) => l.isAuto
-        ? '${s.auto} — ${s.fastestLocation}'
-        : [l.country, l.city].where((part) => part.isNotEmpty).join(' · ');
+    String label(LocationItem l) =>
+        [l.country, l.city].where((part) => part.isNotEmpty).join(' · ');
 
     final active = state.status != ConnectionStatus.idle &&
         state.status != ConnectionStatus.error;

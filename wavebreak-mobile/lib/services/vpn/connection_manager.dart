@@ -203,6 +203,8 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     final previous = state.location;
     state = state.copyWith(location: location);
     unawaited(PrefsStore.setString(PrefsStore.lastLocationId, location.id));
+    unawaited(
+        PrefsStore.setString(PrefsStore.lastLocationKey, locationKey(location)));
 
     final switchingServers = previous.id != location.id &&
         (state.status == ConnectionStatus.connected ||
@@ -245,13 +247,37 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       state = state.copyWith(location: first.first);
       unawaited(
           PrefsStore.setString(PrefsStore.lastLocationId, first.first.id));
+      unawaited(PrefsStore.setString(
+          PrefsStore.lastLocationKey, locationKey(first.first)));
       return;
     }
     final match = locations.where((l) => l.id == state.location.id);
     if (match.isNotEmpty) {
       state = state.copyWith(location: match.first);
+      return;
     }
+    // A link-based location's id is a hash of its link, so when the
+    // server changes the link (01.10: Hysteria's port 44100 -> 443) the
+    // selected id matches nothing and the app kept connecting with the old
+    // link. Find the same location by name instead — only when exactly one
+    // matches, so nothing is guessed.
+    final key = state.location.country.isNotEmpty
+        ? locationKey(state.location)
+        : PrefsStore.getString(PrefsStore.lastLocationKey);
+    if (key == null || key.isEmpty) return;
+    final same =
+        locations.where((l) => !l.isAuto && locationKey(l) == key).toList();
+    if (same.length != 1) return;
+    AppLogger.info(
+        'Selected location ${same.first.country} ${same.first.city}: link changed on the server, using the new one');
+    state = state.copyWith(location: same.first);
+    unawaited(PrefsStore.setString(PrefsStore.lastLocationId, same.first.id));
   }
+
+  /// What identifies a location to a person — its name — as opposed to
+  /// its id, which for a link-based location changes with the link.
+  static String locationKey(LocationItem l) =>
+      '${l.countryCode}|${l.country}|${l.city}';
 
   Future<void> toggle({required bool subscriptionActive}) async {
     if (state.isBusy) {
