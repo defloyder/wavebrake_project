@@ -115,7 +115,14 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	// Signed up through the verification step but never confirmed: a
 	// fresh code (unless one just went out) and no tokens yet. Only after
 	// the password matched, so this doesn't reveal which emails exist.
-	if state, err := s.app.Store.UserEmailState(r.Context(), user.ID); err == nil && state.Required && !state.Verified() {
+	// Fail closed: if the state can't be read, no tokens (an unconfirmed
+	// account must never slip through on a database error).
+	state, err := s.app.Store.UserEmailState(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "login failed")
+		return
+	}
+	if state.Required && !state.Verified() {
 		if s.mail != nil && s.mail.Enabled() {
 			_ = s.sendEmailCode(r.Context(), user.ID, user.Email, state.Language)
 		}
