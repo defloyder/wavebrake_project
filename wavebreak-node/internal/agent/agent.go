@@ -34,6 +34,56 @@ type Agent struct {
 	// Render+Apply(+restart) path for that one sync, then resumes
 	// incremental applies from there.
 	appliedState json.RawMessage
+	// appliedGrantCount is len(grants) from appliedState, tracked alongside
+	// it so Sync can sanity-check a new state's grant count against the one
+	// actually live, without re-decoding appliedState on every poll.
+	appliedGrantCount int
+	// suspiciousDropStreak counts consecutive Sync polls in a row that all
+	// proposed the same kind of suspicious grant-count drop (see Sync). It
+	// resets to 0 the moment a poll doesn't look suspicious or a drop gets
+	// accepted.
+	suspiciousDropStreak int
+}
+
+// Sanity-check constants for the grant-count drop guard in Sync: a plain
+// floor/threshold check against the previously-applied grant count, meant to
+// catch Core serving a bad/empty/truncated desired state (bug, partial
+// outage, bad migration) before it wipes every live client off this node.
+const (
+	// minGrantsForDropCheck is the previous grant count below which a drop
+	// isn't worth second-guessing — a handful of grants disappearing on an
+	// already near-empty node is unremarkable, and it must never block a
+	// freshly-enrolled node's legitimate first sync starting from zero.
+	minGrantsForDropCheck = 5
+	// maxGrantDropRatio is the largest fraction of the previous grant count
+	// a new state is allowed to keep before Sync treats the drop as
+	// suspicious rather than an ordinary batch of expirations/revocations.
+	// 0.5 means "lost more than half the grants in one sync".
+	maxGrantDropRatio = 0.5
+	// maxConsecutiveDropRefusals bounds how many Sync cycles in a row will
+	// refuse the same kind of suspicious drop before accepting it as a
+	// real, sustained change (e.g. a genuine mass revocation) rather than a
+	// one-off/transient bad response. This is a soft valve, not a hard
+	// block: it never gets permanently stuck refusing.
+	maxConsecutiveDropRefusals = 3
+)
+
+// grantCountState is just enough of the desired-state JSON to count grants,
+// shared across whatever RuntimeAdapter is active — every adapter's state
+// payload carries a top-level "grants" array (see xrayDesiredState).
+type grantCountState struct {
+	Grants []json.RawMessage `json:"grants"`
+}
+
+func countGrants(state json.RawMessage) int {
+	if len(state) == 0 {
+		return 0
+	}
+	var s grantCountState
+	if err := json.Unmarshal(state, &s); err != nil {
+		return 0
+	}
+	return len(s.Grants)
 }
 
 type nodeResponse struct {
@@ -214,6 +264,34 @@ func (a *Agent) Sync(ctx context.Context) error {
 		return err
 	}
 
+	// Sanity-check the new grant count against what's actually live before
+	// applying anything. Guards against Core serving a bad/empty/truncated
+	// state (bug, partial outage, bad migration) that would otherwise wipe
+	// every connected client off this node in one sync. Skipped entirely on
+	// the very first sync since this process started (appliedState == nil)
+	// so a freshly-enrolled node can legitimately start from zero.
+	newGrantCount := countGrants(desired.State)
+	if a.appliedState != nil && a.appliedGrantCount >= minGrantsForDropCheck &&
+		float64(newGrantCount) <= float64(a.appliedGrantCount)*maxGrantDropRatio {
+		a.suspiciousDropStreak++
+		if a.suspiciousDropStreak <= maxConsecutiveDropRefusals {
+			a.log.WarnContext(ctx, "refusing desired state: grant count dropped suspiciously, keeping last-known-good config",
+				"revision", desired.Revision,
+				"previous_grants", a.appliedGrantCount,
+				"new_grants", newGrantCount,
+				"consecutive_refusals", a.suspiciousDropStreak,
+				"max_consecutive_refusals", maxConsecutiveDropRefusals)
+			return nil
+		}
+		a.log.WarnContext(ctx, "accepting grant count drop after repeated confirmation across consecutive syncs",
+			"revision", desired.Revision,
+			"previous_grants", a.appliedGrantCount,
+			"new_grants", newGrantCount,
+			"consecutive_refusals", a.suspiciousDropStreak)
+	} else {
+		a.suspiciousDropStreak = 0
+	}
+
 	// Try the live, non-disruptive path first: a plain grant add/remove can
 	// be applied without touching anything else already connected. Only
 	// available once we actually know the previously-applied state (not
@@ -238,6 +316,8 @@ func (a *Agent) Sync(ctx context.Context) error {
 			}
 			a.appliedRevision = desired.Revision
 			a.appliedState = desired.State
+			a.appliedGrantCount = newGrantCount
+			a.suspiciousDropStreak = 0
 			a.log.InfoContext(ctx, "desired state applied live (no restart)", "revision", desired.Revision)
 			return nil
 		}
@@ -264,6 +344,8 @@ func (a *Agent) Sync(ctx context.Context) error {
 	}
 	a.appliedRevision = desired.Revision
 	a.appliedState = desired.State
+	a.appliedGrantCount = newGrantCount
+	a.suspiciousDropStreak = 0
 	a.log.InfoContext(ctx, "desired state applied", "revision", desired.Revision)
 	return nil
 }

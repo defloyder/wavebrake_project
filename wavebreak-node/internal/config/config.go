@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -96,14 +97,27 @@ type XrayConfig struct {
 	StatsAPIPort int
 }
 
-func Load() Config {
+// Load builds the node's configuration from the environment. It returns an
+// error rather than silently defaulting WAVEBREAK_NODE_CODE/_REGION: those
+// two identify this node to Core, and a deployment script that forgets to
+// set them must not have the node quietly enroll under a shared/stale
+// identity (e.g. every node coming up as "TR-IST-01").
+func Load() (Config, error) {
+	nodeCode := env("WAVEBREAK_NODE_CODE", "")
+	if nodeCode == "" {
+		return Config{}, fmt.Errorf("WAVEBREAK_NODE_CODE is required")
+	}
+	region := env("WAVEBREAK_NODE_REGION", "")
+	if region == "" {
+		return Config{}, fmt.Errorf("WAVEBREAK_NODE_REGION is required")
+	}
 	return Config{
 		CoreURL:           env("WAVEBREAK_CORE_URL", "http://localhost:8080"),
 		EnrollmentToken:   env("WAVEBREAK_NODE_ENROLLMENT_TOKEN", ""),
 		NodeAPIToken:      env("WAVEBREAK_NODE_API_TOKEN", ""),
 		NodeTokenPath:     env("WAVEBREAK_NODE_TOKEN_PATH", ""),
-		NodeCode:          env("WAVEBREAK_NODE_CODE", "TR-IST-01"),
-		Region:            env("WAVEBREAK_NODE_REGION", "TR"),
+		NodeCode:          nodeCode,
+		Region:            region,
 		HeartbeatInterval: durationEnv("WAVEBREAK_NODE_HEARTBEAT_INTERVAL", 30*time.Second),
 		SyncInterval:      durationEnv("WAVEBREAK_NODE_SYNC_INTERVAL", 20*time.Second),
 		UsageInterval:     durationEnv("WAVEBREAK_NODE_USAGE_INTERVAL", 60*time.Second),
@@ -143,7 +157,7 @@ func Load() Config {
 			DirectTLSCertPath:       env("WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH", ""),
 			DirectTLSKeyPath:        env("WAVEBREAK_XRAY_DIRECT_TLS_KEY_PATH", ""),
 		},
-	}
+	}, nil
 }
 
 func env(key, fallback string) string {

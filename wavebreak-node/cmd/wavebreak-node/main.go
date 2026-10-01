@@ -17,7 +17,11 @@ func main() {
 	defer stop()
 
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Error("invalid wavebreak node configuration", "error", err)
+		os.Exit(1)
+	}
 	a := agent.New(cfg, log)
 	if err := a.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		log.Error("wavebreak node stopped", "error", err)
