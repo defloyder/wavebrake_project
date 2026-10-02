@@ -541,7 +541,7 @@ func (a XrayAdapter) writeXrayConfigFile(rendered []byte) error {
 		return err
 	}
 	tmp := a.cfg.ConfigPath + ".tmp"
-	if err := os.WriteFile(tmp, rendered, 0o644); err != nil {
+	if err := os.WriteFile(tmp, rendered, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, a.cfg.ConfigPath)
@@ -667,7 +667,7 @@ congestion:
   type: bbr
   bbrProfile: standard
 disableUDP: false
-udpIdleTimeout: 90s
+udpIdleTimeout: 180s
 auth:
   type: userpass
   userpass:
@@ -691,7 +691,9 @@ func (a XrayAdapter) applyHysteriaInstance(ctx context.Context, inst hysteriaIns
 		return nil
 	}
 	tmp := inst.configPath + ".tmp"
-	if err := os.WriteFile(tmp, []byte(yaml), 0o644); err != nil {
+	// 0o600, not 0o644: this file's userpass map is every active client's
+	// Hysteria2 credential in cleartext (2026-10 security audit).
+	if err := os.WriteFile(tmp, []byte(yaml), 0o600); err != nil {
 		return err
 	}
 	if err := os.Rename(tmp, inst.configPath); err != nil {
@@ -731,12 +733,28 @@ func (a XrayAdapter) restartNamedDockerContainer(ctx context.Context, name strin
 }
 
 func (a XrayAdapter) dockerClient() *http.Client {
+	network, address := dockerDialTarget(a.cfg.DockerSocket)
 	transport := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return (&net.Dialer{}).DialContext(ctx, "unix", a.cfg.DockerSocket)
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, address)
 		},
 	}
 	return &http.Client{Transport: transport, Timeout: 15 * time.Second}
+}
+
+// dockerDialTarget lets WAVEBREAK_XRAY_DOCKER_SOCKET point at either the raw
+// unix socket (default, "/var/run/docker.sock") or a TCP address such as
+// "tcp://127.0.0.1:2375" when fronted by a scoped docker-socket-proxy (see
+// the docker-socket-proxy service in docker-compose.pilot.yml, added by the
+// 2026-10 security audit so this process no longer needs the raw
+// /var/run/docker.sock mount or root). The proxy speaks the same Docker
+// Engine API over plain HTTP, just reachable over loopback instead of a
+// bind-mounted socket.
+func dockerDialTarget(raw string) (network, address string) {
+	if addr, ok := strings.CutPrefix(raw, "tcp://"); ok {
+		return "tcp", addr
+	}
+	return "unix", strings.TrimPrefix(raw, "unix://")
 }
 
 func (a XrayAdapter) dockerRequest(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
