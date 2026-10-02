@@ -16,6 +16,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import dpi_guard  # noqa: E402
 import monitor as mon  # noqa: E402
 from access import AccessList  # noqa: E402
 from bot import Bot  # noqa: E402
@@ -75,6 +76,7 @@ def main():
         (mon.tail_container, (mon.XRAY_CONTAINER, "xray", bot.alert)),
         (mon.health_check_loop, (bot.alert,)),
         (mon.traffic_sample_loop, ()),
+        (dpi_guard.run_loop, ()),
         (poll_loop, (bot,)),
     ]
     if mon.HY_ENABLED:

@@ -56,39 +56,86 @@ mount is re-resolved, and verify with
 `docker exec wavebreak-pilot-public-http grep -c proxy_protocol
 /etc/nginx/nginx.conf` before moving on.
 
-## 3. UFW: connection-rate autoban on tcp/443 (host-only, not in any repo)
+## 3. DPI-probe autoban on tcp/443 — v1 (count-only) then v2 (shape-based)
 
-**File:** `/etc/ufw/before.rules` on the server (backed up before each
-edit as `before.rules.bak-before-<reason>-<timestamp>`).
+### v1, same day, superseded: pure connection-count rate limit
 
-```
--A ufw-before-input -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --name dpi_probe --set
--A ufw-before-input -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --name dpi_probe --rcheck --seconds 60 --hitcount 20 -m limit --limit 10/min --limit-burst 5 -j LOG --log-prefix "[DPI-PROBE-BLOCK] " --log-level 4
--A ufw-before-input -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --name dpi_probe --update --seconds 60 --hitcount 20 -j DROP
-```
+First version: a UFW/`recent`-module rule dropped any source IP opening
+20+ new connections to :443 within 60 seconds, logging via
+`[DPI-PROBE-BLOCK]`. **Live within hours it produced real false
+positives**: the top "attackers" it caught (`128.71.233.198`,
+`128.71.50.65`, `128.71.203.73`, `217.107.127.124`) resolved to PJSC
+Vimpelcom (Beeline) and Rostelecom — major Russian mobile/residential
+ISPs. A carrier-NAT pool with many simultaneous genuine subscribers
+behind one public IP produces exactly the same connection-count shape as
+an active prober; the rule couldn't tell them apart and was banning real
+paying customers. Replaced same-day by v2 below.
 
-**Why this instead of banning on a failed-handshake log:** Xray's
-REALITY/XHTTP-REALITY/direct-TLS inbounds deliberately run with
-`"access": "none"` (see the earlier privacy-logging pass) — and REALITY's
-whole security model is to say *nothing* when a probe doesn't present a
-valid short ID, just transparently forward it to the camouflage dest. So
-there is no content-level signal to key a ban on without breaking that
-camouflage. What's left is pure TCP-layer shape: a real client opens one
-connection and keeps it; active DPI probing (the RKN-style fingerprinting
-this exists for) opens many, fast. 20+ new connections to 443 from one
-source IP within 60 seconds triggers a drop that lasts until that source
-stops tripping the window (self-expiring, not a permanent ban — a
-legitimate client sharing carrier-grade NAT with noisy neighbors recovers
-on its own within the minute instead of staying blocked).
+### v2 (current): ban on connection *shape*, not count
 
-**Tested live** (2026-10-02): a 25-request burst from a single source
-started getting dropped at the 19th/20th attempt, and normal access
-(`404` for an unmatched SNI) resumed within ~65 seconds unprompted, with
-zero manual intervention.
+**Why count alone doesn't work (see above):** a real client (even one of
+many sharing a carrier-NAT IP) completes a handshake and holds the
+connection open for a real session; active DPI probing opens a
+connection, inspects it, and closes it almost immediately, repeatedly.
+The distinguishing signal is session *duration*, which pure connection
+counting throws away.
 
-**To reproduce after a server rebuild:** reapply the three lines above
-into `ufw-before-input` (after the existing
-`ctstate INVALID -> DROP` block) and `ufw reload`.
+**Pieces, across two repos' worth of files plus host-only state:**
+
+1. **nginx** (`wavebreak-infrastructure/nginx/pilot-public-http.conf`,
+   tracked): the `stream{}` block now logs `DPI-SESSION <ip>
+   <session_time>` to stdout for every connection through the shared
+   port-443 proxy — source IP and duration only, nothing about
+   destination or content, same privacy bar as the existing access-log
+   redaction.
+2. **`wavebreak-infrastructure/monitor/dpi_guard.py`** (tracked, deployed
+   like the rest of the bot to `/opt/wavebreak-monitor/`): a background
+   thread (started alongside the bot's other loops in
+   `wavebreak-monitor.py`) tails that log via `docker logs -f`, keeps a
+   60s sliding window per source IP, and bans an IP only when it has
+   **15+ connections in the window AND 80%+ of them lasted under 2
+   seconds**. A carrier-NAT pool full of real, longer sessions never
+   trips this; a prober's rapid-fire short connections does.
+3. **ipset `dpi_probe_ban`** (host-only, not in any repo): `dpi_guard`
+   adds to it (`ipset add dpi_probe_ban <ip> timeout 300 -exist`);
+   entries self-expire after 5 minutes, same self-healing property as
+   v1 had, just driven by a real decision instead of a raw counter.
+   Created by a small systemd unit, `ipset-dpi-probe.service`
+   (`/etc/systemd/system/`, `enable --now`'d), with
+   `Before=ufw.service` so the set exists before UFW tries to load a
+   rule that references it — without this, a reboot would make UFW fail
+   to load that rule at all (referencing a nonexistent ipset).
+4. **UFW enforcement** (`/etc/ufw/before.rules`, host-only): the old v1
+   `recent`-module rule is gone. In its place:
+   ```
+   -A ufw-before-input -p tcp --dport 443 -m set --match-set dpi_probe_ban src -m limit --limit 10/min --limit-burst 5 -j LOG --log-prefix "[DPI-PROBE-BLOCK] " --log-level 4
+   -A ufw-before-input -p tcp --dport 443 -m set --match-set dpi_probe_ban src -j DROP
+
+   -A ufw-before-input -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --name dpi_flood --set
+   -A ufw-before-input -p tcp --dport 443 -m conntrack --ctstate NEW -m recent --name dpi_flood --update --seconds 30 --hitcount 100 -j DROP
+   ```
+   The ipset match is the real mechanism now; the `recent`-based
+   `dpi_flood` rule underneath is a pure blunt-flood backstop at a much
+   higher bar (100 connections/30s) that no legitimate traffic pattern
+   should ever reach, carrier NAT included. The `[DPI-PROBE-BLOCK]` log
+   prefix is unchanged, so #4 below (the bot's metric) kept working with
+   zero code changes.
+
+**Tested live** (2026-10-02): a 20-request burst of short (~0.3s)
+connections from one source got added to `dpi_probe_ban` and started
+getting dropped immediately; the negative case (many long-held
+sessions from one IP should *not* ban) is covered deterministically by
+`wavebreak-infrastructure/monitor/test_dpi_guard.py` rather than
+re-proven over the real network each time.
+
+**To reproduce after a server rebuild:**
+1. `apt-get install -y ipset`.
+2. Install and enable `ipset-dpi-probe.service` (create it fresh per
+   the unit content above if lost — it's host-only, not in any repo).
+3. Reapply the four `ufw-before-input` lines above (after the existing
+   `ctstate INVALID -> DROP` block) and `ufw reload`.
+4. Nothing else — `dpi_guard.py` ships with the rest of the monitor bot
+   and starts itself as part of `wavebreak-monitor.service`.
 
 ## 4. Monitoring: blocked-attacker count in the ops bot (2026-10-02)
 
