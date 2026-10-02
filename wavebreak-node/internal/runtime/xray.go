@@ -147,8 +147,19 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"privateKey":  a.cfg.RealityPrivateKey,
 					"shortIds":    []string{a.cfg.RealityShortID},
 				},
+					// acceptProxyProtocol: nginx's shared-443 stream proxy
+					// (wavebreak-infrastructure/nginx/pilot-public-http.conf)
+					// prepends a PROXY protocol v1 header to every connection
+					// reaching this inbound, to recover the real client IP for
+					// the autoban/diagnostics that need it. Must always be set
+					// alongside that nginx config, never one without the other
+					// (see OPERATIONAL-CHANGES.md #1/#2 -- losing this on a
+					// config regen while nginx still sends the header breaks
+					// every connection with "tls: first record does not look
+					// like a TLS handshake").
 				"sockopt": map[string]any{
-					"tcpMaxSeg": 1200,
+					"tcpMaxSeg":           1200,
+					"acceptProxyProtocol": true,
 				},
 			},
 			"sniffing": map[string]any{
@@ -188,6 +199,19 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				"xhttpSettings": map[string]any{
 					"path": xhttpPath,
 					"mode": "auto",
+				},
+					// acceptProxyProtocol: nginx's shared-443 stream proxy
+					// (wavebreak-infrastructure/nginx/pilot-public-http.conf)
+					// prepends a PROXY protocol v1 header to every connection
+					// reaching this inbound, to recover the real client IP for
+					// the autoban/diagnostics that need it. Must always be set
+					// alongside that nginx config, never one without the other
+					// (see OPERATIONAL-CHANGES.md #1/#2 -- losing this on a
+					// config regen while nginx still sends the header breaks
+					// every connection with "tls: first record does not look
+					// like a TLS handshake").
+				"sockopt": map[string]any{
+					"acceptProxyProtocol": true,
 				},
 			},
 			"sniffing": map[string]any{
@@ -369,8 +393,19 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"path":            directPath,
 					"heartbeatPeriod": 10,
 				},
+					// acceptProxyProtocol: nginx's shared-443 stream proxy
+					// (wavebreak-infrastructure/nginx/pilot-public-http.conf)
+					// prepends a PROXY protocol v1 header to every connection
+					// reaching this inbound, to recover the real client IP for
+					// the autoban/diagnostics that need it. Must always be set
+					// alongside that nginx config, never one without the other
+					// (see OPERATIONAL-CHANGES.md #1/#2 -- losing this on a
+					// config regen while nginx still sends the header breaks
+					// every connection with "tls: first record does not look
+					// like a TLS handshake").
 				"sockopt": map[string]any{
-					"tcpFastOpen": true,
+					"tcpFastOpen":         true,
+					"acceptProxyProtocol": true,
 				},
 			},
 			"sniffing": map[string]any{
@@ -496,7 +531,12 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 		stats = map[string]any{}
 	}
 	rendered := map[string]any{
-		"log":      map[string]any{"loglevel": "warning"},
+		// access: "none" disables Xray's per-connection access log (which
+		// otherwise records every destination address/host a client visits,
+		// to Console/stdout by default whenever a non-nil "log" object is
+		// present without an explicit "access" key). loglevel only governs
+		// the error log's severity and does nothing to gate this.
+		"log":      map[string]any{"loglevel": "warning", "access": "none"},
 		"inbounds": inbounds,
 		"dns": map[string]any{
 			"queryStrategy": "UseIPv4",
