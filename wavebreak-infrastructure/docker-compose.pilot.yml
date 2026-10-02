@@ -294,10 +294,6 @@ services:
       WAVEBREAK_XRAY_SS_PORT: ${WAVEBREAK_XRAY_SS_PORT:-0}
       WAVEBREAK_XRAY_SS_METHOD: ${WAVEBREAK_SS_METHOD:-aes-256-gcm}
       WAVEBREAK_XRAY_DOCKER_CONTAINER: wavebreak-pilot-xray
-      # Points at the scoped docker-socket-proxy service below instead of the
-      # raw /var/run/docker.sock (2026-10 security audit — see the comment
-      # on docker-socket-proxy). dockerClient() in
-      # wavebreak-node/internal/runtime/xray.go dials this as a tcp:// URL.
       WAVEBREAK_XRAY_DOCKER_SOCKET: tcp://127.0.0.1:2375
       WAVEBREAK_XRAY_STATS_API_PORT: ${WAVEBREAK_XRAY_STATS_API_PORT:-19999}
       WAVEBREAK_XRAY_CDN_LISTEN_PORT: ${WAVEBREAK_VLESS_CDN_PORT:-0}
@@ -344,18 +340,18 @@ services:
       - wavebreak_xray_config:/etc/wavebreak/xray
 
   # 2026-10 security audit (HIGH finding): wavebreak-node used to mount
-  # /var/run/docker.sock directly and run as root (`user: "0:0"`) just to
-  # reach it — any compromise of that Go service was equivalent to full host
-  # root. It only ever needs container restart and `docker exec` (see
+  # /var/run/docker.sock directly and run as root ("user: 0:0") just to
+  # reach it -- any compromise of that Go service was equivalent to full
+  # host root. It only ever needs container restart and `docker exec` (see
   # wavebreak-node/internal/runtime/xray.go: restartNamedDockerContainer and
   # dockerExec, used for the Xray/Hysteria/Hysteria-obfs containers and for
   # running `xray api statsquery`), so this proxy fronts the real socket and
   # exposes only that: CONTAINERS (restart) + EXEC (exec create/start/
   # inspect) + the POST method switch those both need. Everything else
-  # (images, networks, volumes, info, swarm, …) is left at this image's
+  # (images, networks, volumes, info, swarm, ...) is left at this image's
   # default of 0/blocked.
   docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:0.4.0
+    image: tecnativa/docker-socket-proxy:v0.5.0
     container_name: wavebreak-pilot-docker-proxy
     restart: unless-stopped
     environment:
@@ -365,10 +361,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
-      # Loopback only. wavebreak-node runs with network_mode: host (see
-      # above) so it can't resolve this service by container name on the
-      # compose network — it reaches the proxy over 127.0.0.1 like it does
-      # everything else published that way.
+      # Loopback only. wavebreak-node runs with network_mode: host so it
+      # can't resolve this service by container name on the compose
+      # network -- it reaches the proxy over 127.0.0.1 like everything
+      # else published that way.
       - "127.0.0.1:2375:2375"
 
   wavebreak-xray:
