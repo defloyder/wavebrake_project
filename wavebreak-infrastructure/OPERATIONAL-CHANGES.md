@@ -154,6 +154,77 @@ paths, so future bot changes need the same manual
 `scp` + `systemctl restart wavebreak-monitor` dance until that's
 unified).
 
+## 5. wavebreak-node: no more root, no more raw Docker socket (2026-10-02)
+
+**What:** `wavebreak-node` used to run `user: "0:0"` with
+`/var/run/docker.sock:/var/run/docker.sock` mounted directly — any
+compromise of that Go service was equivalent to full host root. A new
+`docker-socket-proxy` service (`tecnativa/docker-socket-proxy:v0.5.0` —
+note **not** `0.4.0`, which doesn't exist on Docker Hub; the agent that
+originally wrote this flagged the tag as unverified, and it was in fact
+wrong) now fronts the real socket, scoped to exactly `CONTAINERS=1`,
+`EXEC=1`, `POST=1` — restart and exec, nothing else (confirmed live:
+`GET /images/json` and `GET /volumes` both come back `403`). It listens
+on `127.0.0.1:2375` only. `wavebreak-node` talks to it via
+`WAVEBREAK_XRAY_DOCKER_SOCKET=tcp://127.0.0.1:2375` — `dockerClient()`
+in `xray.go` (`dockerDialTarget()`) dials either that or the legacy raw
+unix socket path depending on this var, so the change is backward
+compatible if ever pointed back at a real socket.
+
+**Rollout order, each step verified before the next (don't skip this
+if redoing it elsewhere):** proxy started alone and health-checked
+first; `wavebreak-node` then pointed at it via the env var with
+`user: "0:0"` and the raw socket *still mounted* as a fallback;
+confirmed via the proxy's own access log that both a real container
+restart (`POST .../restart` → `204`) and the exec path Xray's usage
+reporting depends on (`exec` create/start/inspect, all `200`/`201`)
+went through correctly; only then was `user: "0:0"` and the socket
+mount removed.
+
+**The part that actually broke service, caught and fixed live:**
+removing root uncovered that `/var/lib/docker/volumes/wavebreak_pilot_wavebreak_xray_config/_data/`
+and everything in it — including `.wavebreak-node-token` (the node's
+own persisted API token) and `config.json`/`hysteria.yaml` (tightened
+to `0600` earlier the same day, see #1) — were owned by `root` with no
+write access for anyone else. The instant the container stopped
+running as root, it could no longer read its own token file, fell
+through into `Enroll` with an already-consumed enrollment token, and
+**`withBackoff` retries silently with no logging at all on failure** —
+so the container sat there `Status=running`, zero restarts, zero log
+output, looking completely normal from the outside while actually
+wedged forever. Found by noticing a brand-new container had produced
+*no* log lines at all after a full heartbeat interval, where every
+prior boot had logged within milliseconds. Fixed with
+`chown -R 1000:1000` (wavebreak-node's UID) on that whole directory —
+safe because `wavebreak-xray`/`wavebreak-hysteria`/`wavebreak-hysteria-obfs`
+all run as root and bypass file ownership checks entirely, so they can
+still read everything in there regardless of who owns it.
+
+**Lesson for next time a container's `user:` changes:** check every
+file *that specific service* reads or writes on a shared volume for
+who currently owns it — "it was fine when everything ran as root" is
+exactly the kind of thing that only breaks the moment root goes away,
+silently if the code's retry-on-failure path doesn't log, like this
+one didn't.
+
+**To reproduce after a server rebuild:** recreate the
+`docker-socket-proxy` service and the `wavebreak-node` env var/volume
+changes from `docker-compose.pilot.yml` (tracked); then
+`chown -R 1000:1000` the `wavebreak_xray_config` volume's data
+directory before starting `wavebreak-node` as non-root, or it will
+silently wedge exactly as described above.
+
+## 6. wavebreak-node: refuse a plain-http Core URL unless it's loopback (2026-10-02)
+
+`internal/config/config.go`'s `validateCoreURL` (tracked, in
+`app-main-sync`) fails `Load()` unless `WAVEBREAK_CORE_URL` is
+`https://`, or `http://` to `127.0.0.1`/`localhost`/`::1`. Istanbul's
+node and Core share one host (`http://127.0.0.1:18080`) and is
+unaffected; this only stops a *future* node that isn't co-located with
+Core (the normal case for any additional node) from silently shipping
+with its API token traveling in cleartext. No host-only state — this
+one's just code.
+
 ## Known gap: Hysteria2/UDP does not have any of this
 
 Hysteria2's public UDP/443 is fronted by `cloak-relay` (a systemd service,
