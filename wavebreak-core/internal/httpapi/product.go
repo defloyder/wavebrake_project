@@ -1,3 +1,4 @@
+
 package httpapi
 
 import (
@@ -1774,7 +1775,7 @@ func (s *Server) botUserOverview(w http.ResponseWriter, r *http.Request) {
 func (s *Server) botAuthRequired(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, ok := bearerToken(r)
-		if !ok || s.app.Config.BotServiceToken == "" || raw != s.app.Config.BotServiceToken {
+		if !ok || s.app.Config.BotServiceToken == "" || !constantTimeEqual(raw, s.app.Config.BotServiceToken) {
 			writeError(w, http.StatusUnauthorized, "invalid bot service token")
 			return
 		}
@@ -1855,3 +1856,4 @@ func decodePlanRequest(w http.ResponseWriter, r *http.Request) (store.Plan, bool
 		SortOrder:                 req.SortOrder,
 	}, true
 }
+

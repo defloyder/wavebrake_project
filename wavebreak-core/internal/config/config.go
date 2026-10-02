@@ -1,3 +1,4 @@
+
 package config
 
 import (
@@ -29,6 +30,25 @@ type Config struct {
 	// Mail: transactional email over SMTP (Brevo). Off until host, user,
 	// password and sender are all set.
 	Mail mailer.Config
+	// RateLimit: Redis-backed per-IP/per-email abuse limits on
+	// /v1/auth/{login,register,refresh} (2026-10 security pass). A limit of
+	// 0 disables that particular check.
+	RateLimit RateLimitConfig
+}
+
+// RateLimitConfig: fixed-window request caps for the unauthenticated auth
+// endpoints. IP limits apply to all three routes; the email limit is
+// login-only (register/refresh have no stable per-account key to key on
+// before the account exists / without trusting an unverified claim).
+type RateLimitConfig struct {
+	LoginIPLimit        int
+	LoginIPWindow       time.Duration
+	LoginEmailLimit     int
+	LoginEmailWindow    time.Duration
+	RegisterIPLimit     int
+	RegisterIPWindow    time.Duration
+	RefreshIPLimit      int
+	RefreshIPWindow     time.Duration
 }
 
 // AccountsConfig drives admin account management (internal/accounts).
@@ -191,6 +211,22 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse WAVEBREAK_DIRECT_TLS_PORT: %w", err)
 	}
+	loginIPLimit, err := mustInt("WAVEBREAK_RATELIMIT_LOGIN_IP_LIMIT", "10")
+	if err != nil {
+		return Config{}, err
+	}
+	loginEmailLimit, err := mustInt("WAVEBREAK_RATELIMIT_LOGIN_EMAIL_LIMIT", "5")
+	if err != nil {
+		return Config{}, err
+	}
+	registerIPLimit, err := mustInt("WAVEBREAK_RATELIMIT_REGISTER_IP_LIMIT", "5")
+	if err != nil {
+		return Config{}, err
+	}
+	refreshIPLimit, err := mustInt("WAVEBREAK_RATELIMIT_REFRESH_IP_LIMIT", "30")
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		Environment:     env("WAVEBREAK_ENV", "development"),
@@ -220,6 +256,16 @@ func Load() (Config, error) {
 			PasswordResetTTL:     mustDuration(env("WAVEBREAK_PASSWORD_RESET_TTL", "1h")),
 			AccessProtocol:       env("WAVEBREAK_ADMIN_ACCESS_PROTOCOL", "vless"),
 			SubscriptionGrace:    mustDuration(env("WAVEBREAK_SUBSCRIPTION_GRACE", "168h")),
+		},
+		RateLimit: RateLimitConfig{
+			LoginIPLimit:     loginIPLimit,
+			LoginIPWindow:    mustDuration(env("WAVEBREAK_RATELIMIT_LOGIN_IP_WINDOW", "5m")),
+			LoginEmailLimit:  loginEmailLimit,
+			LoginEmailWindow: mustDuration(env("WAVEBREAK_RATELIMIT_LOGIN_EMAIL_WINDOW", "5m")),
+			RegisterIPLimit:  registerIPLimit,
+			RegisterIPWindow: mustDuration(env("WAVEBREAK_RATELIMIT_REGISTER_IP_WINDOW", "15m")),
+			RefreshIPLimit:   refreshIPLimit,
+			RefreshIPWindow:  mustDuration(env("WAVEBREAK_RATELIMIT_REFRESH_IP_WINDOW", "5m")),
 		},
 		VLESS: VLESSConfig{
 			PublicHost:                env("WAVEBREAK_VLESS_PUBLIC_HOST", ""),
@@ -307,6 +353,15 @@ func boolEnv(key string, fallback bool) bool {
 	}
 }
 
+func mustInt(key, fallback string) (int, error) {
+	raw := env(key, fallback)
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	return v, nil
+}
+
 func mustDuration(raw string) time.Duration {
 	d, err := time.ParseDuration(raw)
 	if err != nil {
@@ -325,3 +380,4 @@ func firstName(list string) string {
 	}
 	return ""
 }
+

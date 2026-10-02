@@ -1,7 +1,9 @@
+
 package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -38,6 +40,17 @@ func bearerToken(r *http.Request) (string, bool) {
 	raw, ok := strings.CutPrefix(header, "Bearer ")
 	raw = strings.TrimSpace(raw)
 	return raw, ok && raw != ""
+}
+
+// constantTimeEqual compares two shared-secret tokens (e.g. the bot service
+// token) without leaking timing information about where they first differ.
+// Mirrors the constant-time comparisons already used for token validation in
+// internal/security; node API tokens instead go through TokenHash lookups,
+// which is the right approach there since those are stored, but the bot
+// service token is a single config value compared directly, so this is the
+// matching pattern for that case.
+func constantTimeEqual(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +111,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if !decodeJSON(w, r, &req) {
+		return
+	}
+	normalizedEmail := store.NormalizeEmail(req.Email)
+	if !checkEmailRateLimit(r.Context(), s.limiter, "login", normalizedEmail, s.app.Config.RateLimit.LoginEmailLimit, s.app.Config.RateLimit.LoginEmailWindow) {
+		writeError(w, http.StatusTooManyRequests, "too many login attempts for this account, please try again later")
 		return
 	}
 	user, err := s.app.Store.GetUserByEmail(r.Context(), req.Email)
@@ -333,3 +351,4 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 	}
 	return true
 }
+

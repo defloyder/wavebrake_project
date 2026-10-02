@@ -1,3 +1,4 @@
+
 package httpapi
 
 import (
@@ -30,6 +31,10 @@ type Server struct {
 	mail mailer.Sender
 	// resetLimit: one self-service reset email per address per minute.
 	resetLimit resetThrottle
+	// limiter: Redis-backed abuse limiter for /v1/auth/*; nil (and every
+	// check fails open) when Redis isn't configured, same as how the rest
+	// of this codebase treats Redis as a best-effort accelerator.
+	limiter rateLimiter
 }
 
 func New(app *app.App) http.Handler {
@@ -42,7 +47,11 @@ func newServer(app *app.App) *Server {
 	// drops out of the links within ~2 minutes.
 	go registry.Run(context.Background(), time.Minute)
 	mail := mailer.NewSMTP(app.Config.Mail)
-	return &Server{app: app, accounts: newAccountServices(app, resetMailer{mail: mail, store: app.Store}), relays: registry, mail: mail}
+	var limiter rateLimiter
+	if app.Redis != nil {
+		limiter = app.Redis
+	}
+	return &Server{app: app, accounts: newAccountServices(app, resetMailer{mail: mail, store: app.Store}), relays: registry, mail: mail, limiter: limiter}
 }
 
 func (s *Server) router() http.Handler {
@@ -61,9 +70,12 @@ func (s *Server) router() http.Handler {
 	r.Handle("/metrics", promhttp.Handler())
 
 	r.Route("/v1", func(r chi.Router) {
-		r.Post("/auth/register", s.register)
-		r.Post("/auth/login", s.login)
-		r.Post("/auth/refresh", s.refresh)
+		r.With(ipRateLimitMiddleware(s.limiter, "register", s.app.Config.RateLimit.RegisterIPLimit, s.app.Config.RateLimit.RegisterIPWindow)).
+			Post("/auth/register", s.register)
+		r.With(ipRateLimitMiddleware(s.limiter, "login", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
+			Post("/auth/login", s.login)
+		r.With(ipRateLimitMiddleware(s.limiter, "refresh", s.app.Config.RateLimit.RefreshIPLimit, s.app.Config.RateLimit.RefreshIPWindow)).
+			Post("/auth/refresh", s.refresh)
 		r.Post("/auth/logout", s.logout)
 		r.Post("/auth/password-reset/confirm", s.confirmPasswordReset)
 		r.Post("/auth/password-reset/request", s.requestPasswordReset)
@@ -470,3 +482,4 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{"error": message, "code": message})
 }
+
