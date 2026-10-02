@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -131,8 +132,12 @@ func Load() (Config, error) {
 	if region == "" {
 		return Config{}, fmt.Errorf("WAVEBREAK_NODE_REGION is required")
 	}
+	coreURL := env("WAVEBREAK_CORE_URL", "http://localhost:8080")
+	if err := validateCoreURL(coreURL); err != nil {
+		return Config{}, err
+	}
 	return Config{
-		CoreURL:           env("WAVEBREAK_CORE_URL", "http://localhost:8080"),
+		CoreURL:           coreURL,
 		EnrollmentToken:   env("WAVEBREAK_NODE_ENROLLMENT_TOKEN", ""),
 		NodeAPIToken:      env("WAVEBREAK_NODE_API_TOKEN", ""),
 		NodeTokenPath:     env("WAVEBREAK_NODE_TOKEN_PATH", ""),
@@ -187,6 +192,36 @@ func Load() (Config, error) {
 			DirectTLSKeyPath:            env("WAVEBREAK_XRAY_DIRECT_TLS_KEY_PATH", ""),
 		},
 	}, nil
+}
+
+// validateCoreURL refuses a plain-HTTP Core URL unless it points at this
+// same host's loopback interface. The node's API token (and the enrollment
+// token on first boot) travel in the Authorization header on every request
+// to Core; sending that header in cleartext is only safe when the
+// connection physically never leaves the machine. Istanbul's Core and node
+// happen to share one host today (WAVEBREAK_CORE_URL=http://127.0.0.1:...),
+// so this passes there -- but any node that isn't co-located with Core (the
+// normal case) must use https://, or a network position between the two
+// (compromised router, ISP, anything on the path) captures the token
+// outright and can impersonate the node to Core from then on.
+func validateCoreURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("parse WAVEBREAK_CORE_URL: %w", err)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		switch u.Hostname() {
+		case "127.0.0.1", "localhost", "::1":
+			return nil
+		default:
+			return fmt.Errorf("WAVEBREAK_CORE_URL uses plain http:// to a non-loopback host (%q) -- the node API token would travel in cleartext; use https://", u.Hostname())
+		}
+	default:
+		return fmt.Errorf("WAVEBREAK_CORE_URL has unsupported scheme %q", u.Scheme)
+	}
 }
 
 func env(key, fallback string) string {
