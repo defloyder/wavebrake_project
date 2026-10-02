@@ -57,6 +57,19 @@ class SingBoxProxy {
             'public_key': l.publicKey,
             if (l.shortId != null) 'short_id': l.shortId,
           },
+        // 2026-10: TCP-level ClientHello fragmentation (sing-box 1.12+),
+        // same rationale as the Xray-side fragment-out chain in
+        // xray_config.dart — splits the outer TLS handshake so a DPI box
+        // doing simple single-read pattern matching doesn't see one whole
+        // ClientHello. Not record_fragment: sing-box's own docs call that
+        // one "more aggressive" with worse performance, recommended only
+        // as a reactive fallback for a specific already-blocked SNI, not
+        // a blanket default. Hysteria2 also reports security: 'tls' (QUIC/
+        // TLS1.3 underneath) but has no TCP ClientHello for a TCP-stream
+        // fragmenter to act on — excluded by protocol, not security.
+        if (l.protocol != LinkProtocol.hysteria2 &&
+            (l.security == 'tls' || l.security == 'reality'))
+          'fragment': true,
       };
 
   static Map<String, dynamic>? _transport(ShareLink l) {

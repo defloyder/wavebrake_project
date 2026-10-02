@@ -152,7 +152,8 @@ void main() {
       expect(rules.any((r) => (r['domain'] as List?)?.contains('geosite:category-ru') ?? false), isTrue);
       expect(rules.any((r) => (r['domain'] as List?)?.contains('geosite:ru') ?? false), isFalse);
       expect(c['dns'], {'servers': ['1.1.1.1', '8.8.8.8']});
-      expect((c['outbounds'] as List).length, 3);
+      // proxy, direct, blackhole, fragment-out (REALITY is fragmented).
+      expect((c['outbounds'] as List).length, 4);
     });
 
     test('no policy: config unchanged (users own servers)', () {
@@ -289,6 +290,7 @@ void main() {
           'server_name': 'www.cloudflare.com',
           'utls': {'enabled': true, 'fingerprint': 'chrome'},
           'reality': {'enabled': true, 'public_key': 'PUBKEY', 'short_id': 'abcd'},
+          'fragment': true,
         },
       });
     });
@@ -327,6 +329,23 @@ void main() {
           'vless://$_grant@c.example:443?type=xhttp&security=tls&path=%2Fx');
       expect(() => SingBoxProxy.fromLink(l),
           throwsA(isA<UnsupportedByEngineException>()));
+    });
+
+    test('REALITY and Direct-TLS outbounds fragment their ClientHello', () {
+      expect(SingBoxProxy.fromLink(ShareLink.parse(_reality)).entry['tls']['fragment'],
+          isTrue);
+      expect(
+          SingBoxProxy.fromLink(ShareLink.parse(_directTls)).entry['tls']['fragment'],
+          isTrue);
+    });
+
+    test('Hysteria2 is not fragmented — no TLS ClientHello to hide (QUIC)',
+        () {
+      expect(
+          SingBoxProxy.fromLink(ShareLink.parse(_hysteria))
+              .entry['tls']
+              .containsKey('fragment'),
+          isFalse);
     });
   });
 
@@ -414,6 +433,36 @@ void main() {
     test('TUIC is rejected as unsupported by Xray', () {
       expect(() => parseShareLink('tuic://$_grant:pw@t.example:443'),
           throwsA(isA<UnsupportedByEngineException>()));
+    });
+
+    test('REALITY gets a fragment-out outbound chained via dialerProxy', () {
+      final cfg = config(_reality);
+      final outbounds = (cfg['outbounds'] as List).cast<Map<String, dynamic>>();
+      final fragmentOut =
+          outbounds.where((o) => o['tag'] == 'fragment-out').firstOrNull;
+      expect(fragmentOut, isNotNull);
+      expect(fragmentOut!['protocol'], 'freedom');
+      expect(fragmentOut['settings']['fragment'], {
+        'packets': 'tlshello',
+        'length': '10-20',
+        'interval': '10-20',
+      });
+      final proxyOut = outbounds.firstWhere((o) => o['tag'] == 'proxy');
+      expect(proxyOut['streamSettings']['sockopt']['dialerProxy'],
+          'fragment-out');
+    });
+
+    test('Direct-TLS (plain tls, not reality) is also fragmented', () {
+      final outbounds =
+          (config(_directTls)['outbounds'] as List).cast<Map<String, dynamic>>();
+      expect(outbounds.any((o) => o['tag'] == 'fragment-out'), isTrue);
+    });
+
+    test('Hysteria2 is not fragmented — it is QUIC, not a TLS ClientHello',
+        () {
+      final outbounds =
+          (config(_hysteria)['outbounds'] as List).cast<Map<String, dynamic>>();
+      expect(outbounds.any((o) => o['tag'] == 'fragment-out'), isFalse);
     });
   });
 }

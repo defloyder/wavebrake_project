@@ -1,7 +1,7 @@
 name: wavebreak
 description: WAVEBREAK — premium simple connectivity.
 publish_to: "none"
-version: 1.0.10+23
+version: 1.0.10+24
 
 environment:
   sdk: ">=3.5.0 <4.0.0"

@@ -143,13 +143,69 @@ abstract class V2RayURL {
   /// `dns-out` (see [applySmartRoutingPolicy]).
   List<Map<String, dynamic>> extraOutbounds = [];
 
-  Map<String, dynamic> get fullConfiguration => {
-        "log": log,
-        "inbounds": [inbound],
-        "outbounds": [outbound1, outbound2, outbound3, ...extraOutbounds],
-        "dns": dns,
-        "routing": routing,
+  // 2026-10: fragments the outer TLS ClientHello into several short TCP
+  // writes before any REALITY/TLS byte reaches the wire, so a DPI box doing
+  // simple single-read pattern matching on the handshake shape doesn't see
+  // one. Deliberately "tlshello"-mode only (fragments exactly the
+  // ClientHello record), not generic TCP-packet fragmentation — the latter
+  // has been reported to corrupt REALITY's own handshake on some Xray-core
+  // versions when the ClientHello is large (X25519MLKEM768 key shares made
+  // it bigger). Only meaningful for tls/reality security; left off for
+  // plaintext or non-TLS transports where there's no handshake to hide.
+  bool get fragmentEnabled => true;
+
+  Map<String, dynamic> get fragmentOutbound => {
+        "tag": "fragment-out",
+        "protocol": "freedom",
+        "settings": {
+          "domainStrategy": null,
+          "fragment": {
+            "packets": "tlshello",
+            "length": "10-20",
+            "interval": "10-20",
+          },
+        },
+        "streamSettings": {
+          "sockopt": {"tcpNoDelay": true},
+        },
       };
+
+  bool get _usesFragment =>
+      fragmentEnabled &&
+      // Hysteria2 also reports security: 'tls' (it's QUIC/TLS1.3
+      // underneath), but there's no TCP ClientHello here for "fragment"
+      // (a TCP-stream-level freedom feature) to act on — excluded by
+      // network, not security.
+      streamSetting['network'] != 'hysteria' &&
+      (streamSetting['security'] == 'tls' ||
+          streamSetting['security'] == 'reality');
+
+  Map<String, dynamic> get fullConfiguration {
+    final proxyOut = outbound1;
+    if (_usesFragment) {
+      // outbound1's own streamSettings IS streamSetting (same mutable map
+      // in every subclass below) — safe to set this here since nothing
+      // reads 'sockopt' before this point in the config-building sequence.
+      final stream = proxyOut['streamSettings'] as Map<String, dynamic>?;
+      stream?['sockopt'] = {
+        ...?stream['sockopt'] as Map<String, dynamic>?,
+        'dialerProxy': 'fragment-out',
+      };
+    }
+    return {
+      "log": log,
+      "inbounds": [inbound],
+      "outbounds": [
+        proxyOut,
+        outbound2,
+        outbound3,
+        ...extraOutbounds,
+        if (_usesFragment) fragmentOutbound,
+      ],
+      "dns": dns,
+      "routing": routing,
+    };
+  }
 
   String getFullConfiguration({int indent = 2}) {
     return JsonEncoder.withIndent(' ' * indent).convert(
