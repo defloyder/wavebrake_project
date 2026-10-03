@@ -163,10 +163,11 @@ git -c core.longpaths=true worktree remove --force C:/wbrb && git worktree prune
 старым файлом — старый переименовать в `.bak-before-…`.
 
 ### 7.3 Сайт `wavebreak.com.tr/downloads`
-Два места одновременно — **хост** `/home/wavebreakdeploy/wavebreak-pilot/current/wavebreak-web/public/downloads`
-(для будущих пересборок образа) **и контейнер** `wavebreak_pilot-wavebreak-web-1:/app/public/downloads`
-(образ не пересобираем — коллега правит сайт прямо на сервере). Запись через временный файл:
-`cp → name.tmp → mv`, в контейнер `docker cp … name.tmp` + `docker exec -u 0 … mv`.
+Только **папка на хосте** `/home/wavebreakdeploy/wavebreak-pilot/current/wavebreak-web/public/downloads`.
+С 03.10 она подключена к контейнеру сайта (`docker-compose.pilot.yml`, `volumes: ../wavebreak-web/public/downloads:/app/public/downloads:ro`):
+что лежит на хосте, то сайт и отдаёт, пересоздание контейнера ничего не откатывает. В контейнер **ничего не копировать**
+(`docker cp` туда больше не нужен и упадёт — папка подключена только на чтение). Запись через временный файл:
+`cp → name.tmp → mv` (права 644). Раньше файлы лежали в образе, и 02.10 пересозданный контейнер откатил сайт к 1.2.2 / 1.0.6.
 Постоянные имена (на них ссылаются сайт и старые приложения):
 
 | Файл на сайте | Что кладём |

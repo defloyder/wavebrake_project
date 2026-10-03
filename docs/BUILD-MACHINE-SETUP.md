@@ -134,8 +134,8 @@ flutter build windows --release $D
 ## 8. Доступ к серверам для публикации
 
 - **TR-PILOT-01** `45.15.41.3` — сайт `wavebreak.com.tr/downloads` (папка на хосте
-  `/home/wavebreakdeploy/wavebreak-pilot/current/wavebreak-web/public/downloads` **и** контейнер
-  `wavebreak_pilot-wavebreak-web-1`, образ не пересобирается), Core.
+  `/home/wavebreakdeploy/wavebreak-pilot/current/wavebreak-web/public/downloads` — только эта папка на хосте,
+  она подключена к контейнеру сайта; в контейнер ничего не копировать), Core.
 - **RU-MSK-01** `135.106.227.90` — зеркало `dl.wavebreak.com.tr` (`/var/www/dl/downloads`).
 - Свой SSH-ключ; владелец добавляет публичную часть в `authorized_keys` на обоих серверах.
 
