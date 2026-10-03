@@ -27,8 +27,10 @@ export PATH="/c/Program Files/Go/bin:$HOME/go/bin:$JAVA_HOME/bin:$PATH"
 
 # -s -w: no symbol table / DWARF — debug info the phone never uses, a large
 # share of each architecture's library (the universal APK carries three).
+# -checklinkname=0: Go 1.23+ refuses wlynxg/anet's go:linkname without it
+# (needed since the xray-core bump in c797cb1).
 gomobile bind -v -o hysteria_bridge.aar -target android -androidapi 24 \
-  -trimpath -ldflags="-s -w" \
+  -trimpath -ldflags="-s -w -checklinkname=0" \
   -javapkg=app.wavebreak.bridge -libname=hysteriabridge .
 
 cp hysteria_bridge.aar ../../android/app/libs/hysteria_bridge.aar
