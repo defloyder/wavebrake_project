@@ -56,6 +56,7 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onPause() {
         super.onPause()
         pausedAtMs = System.currentTimeMillis()
+        if (resumedRef?.get() === this) resumedRef = null
     }
 
     // A phone asleep for a long stretch can leave a UDP-based tunnel
@@ -75,6 +76,7 @@ class MainActivity : FlutterFragmentActivity() {
     // minutes — nowhere near long enough for a NAT binding to matter.
     override fun onResume() {
         super.onResume()
+        resumedRef = java.lang.ref.WeakReference(this)
         val pausedFor = System.currentTimeMillis() - pausedAtMs
         if (pausedAtMs != 0L && pausedFor >= RESUME_RECONNECT_THRESHOLD_MS) {
             // Same cross-process caveat as pingHost/updateNotificationMeta
@@ -436,6 +438,20 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     companion object {
+        /** This activity while it's in the foreground — see [resumed]. */
+        @Volatile
+        private var resumedRef: java.lang.ref.WeakReference<MainActivity>? = null
+
+        /**
+         * The activity if it's on screen right now. InstallStatusReceiver
+         * launches the system's install confirmation from it: a start from
+         * a receiver counts as a background start, which MIUI blocks
+         * silently unless "show pop-up windows while running in the
+         * background" is on (field report: Redmi Note 9 Pro, update
+         * downloaded, nothing happened).
+         */
+        fun resumed(): MainActivity? = resumedRef?.get()
+
         private const val REQUEST_POST_NOTIFICATIONS = 1001
         private const val REQUEST_VPN_PERMISSION = 1002
         // A shorter app-switch (checking a notification, glancing at

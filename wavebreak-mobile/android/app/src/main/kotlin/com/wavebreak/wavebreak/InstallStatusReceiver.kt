@@ -37,13 +37,26 @@ class InstallStatusReceiver : BroadcastReceiver() {
                 } else {
                     intent.getParcelableExtra(Intent.EXTRA_INTENT)
                 }
-                confirmIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (confirmIntent != null) {
-                    try {
-                        context.startActivity(confirmIntent)
-                    } catch (t: Throwable) {
-                        Log.e(TAG, "failed to launch install confirmation UI", t)
+                if (confirmIntent == null) return
+                // From the app's own on-screen activity when there is one:
+                // started from this receiver it's a background start, and
+                // MIUI drops those without an error unless the user turned
+                // on "show pop-up windows while running in the background"
+                // (Redmi Note 9 Pro: update downloaded, nothing happened).
+                // Otherwise — or if that fails — a notification whose tap
+                // opens the confirmation: a tap is always allowed.
+                val activity = MainActivity.resumed()
+                if (activity != null) {
+                    activity.runOnUiThread {
+                        try {
+                            activity.startActivity(confirmIntent)
+                        } catch (t: Throwable) {
+                            Log.e(TAG, "install confirmation from the activity failed", t)
+                            UpdateAvailableNotifier.showInstallReady(activity, confirmIntent)
+                        }
                     }
+                } else {
+                    UpdateAvailableNotifier.showInstallReady(context, confirmIntent)
                 }
             }
             PackageInstaller.STATUS_SUCCESS -> {

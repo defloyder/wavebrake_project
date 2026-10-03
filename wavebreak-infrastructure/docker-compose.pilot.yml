@@ -154,6 +154,10 @@ services:
       APP_URL: ${WAVEBREAK_WEB_APP_URL:-http://${WAVEBREAK_PUBLIC_HOST:-127.0.0.1}:${WAVEBREAK_WEB_PORT:-18000}}
       WAVEBREAK_CORE_URL: http://wavebreak-api:8080
       SESSION_DRIVER: file
+    # Downloads come from the host folder, so a recreated container (or a
+    # rebuilt image) never falls back to the APKs/manifests baked into the image.
+    volumes:
+      - ../wavebreak-web/public/downloads:/app/public/downloads:ro
     ports:
       - "${WAVEBREAK_WEB_PORT:-18000}:8000"
     healthcheck:

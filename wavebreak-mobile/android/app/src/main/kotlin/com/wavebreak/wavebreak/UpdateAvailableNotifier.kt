@@ -86,6 +86,40 @@ object UpdateAvailableNotifier {
         }
     }
 
+    /**
+     * "Downloaded — tap to install": used when the system's install
+     * confirmation can't be opened directly (app not on screen, or the
+     * ROM blocked the start). Tapping it opens [confirmIntent].
+     */
+    fun showInstallReady(context: Context, confirmIntent: Intent) {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        ensureChannel(context)
+        val tap = PendingIntent.getActivity(
+            context,
+            INSTALL_NOTIFICATION_ID,
+            Intent(confirmIntent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val body = "Нажмите, чтобы установить новую версию WAVEBREAK."
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.notif_ic_update)
+            .setColor(ContextCompat.getColor(context, R.color.wb_wave_cyan))
+            .setContentTitle("Обновление скачано")
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(tap)
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify(INSTALL_NOTIFICATION_ID, notification)
+        } catch (t: SecurityException) {
+            // POST_NOTIFICATIONS revoked — nothing else to do here.
+        }
+    }
+
+    private const val INSTALL_NOTIFICATION_ID = 4302
+
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
