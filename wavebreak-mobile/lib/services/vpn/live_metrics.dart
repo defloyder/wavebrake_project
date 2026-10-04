@@ -1,11 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/logging/app_logger.dart';
 import 'connection_manager.dart';
 
 /// One throughput sample, bits per second.
@@ -55,7 +54,10 @@ class LiveMetricsState {
 
   /// Mean absolute difference between consecutive successful probes.
   double? get jitterMs {
-    final ok = [for (final p in pings) if (p.ms != null) p.ms!];
+    final ok = [
+      for (final p in pings)
+        if (p.ms != null) p.ms!
+    ];
     if (ok.length < 3) return null;
     var sum = 0.0;
     for (var i = 1; i < ok.length; i++) {
@@ -101,9 +103,8 @@ class LiveMetrics extends Notifier<LiveMetricsState> {
 
   Timer? _rateTimer;
   Timer? _pingTimer;
-  int? _lastRx, _lastTx, _baseRx, _baseTx;
+
   DateTime? _lastAt;
-  bool _unsupported = false;
 
   @override
   LiveMetricsState build() {
@@ -127,13 +128,15 @@ class LiveMetrics extends Notifier<LiveMetricsState> {
 
   void _start() {
     _stop();
-    _lastRx = _lastTx = _baseRx = _baseTx = null;
+
     _lastAt = null;
     state = const LiveMetricsState(active: true);
     unawaited(_sampleRates());
     unawaited(_samplePing());
-    _rateTimer = Timer.periodic(const Duration(seconds: 1), (_) => _sampleRates());
-    _pingTimer = Timer.periodic(const Duration(seconds: 3), (_) => _samplePing());
+    _rateTimer = Timer.periodic(
+        const Duration(milliseconds: 500), (_) => _sampleRates());
+    _pingTimer =
+        Timer.periodic(const Duration(seconds: 3), (_) => _samplePing());
   }
 
   void _stop() {
@@ -142,49 +145,42 @@ class LiveMetrics extends Notifier<LiveMetricsState> {
     _rateTimer = _pingTimer = null;
   }
 
-  Future<List<int>?> _uidBytes() async {
-    if (_unsupported || !Platform.isAndroid) return null;
-    try {
-      final r = await _channel.invokeListMethod<int>('uidBytes');
-      if (r == null || r.length < 2 || r[0] < 0 || r[1] < 0) {
-        _unsupported = true;
-        AppLogger.info('Live metrics: per-UID traffic not accounted here');
-        return null;
-      }
-      return r;
-    } catch (_) {
-      return null;
-    }
-  }
-
+  /// Reads what the VPN service measured (TUN bridge counters, smoothed,
+  /// session totals since the tunnel came up — see WaveEngineVpnService
+  /// sampleTunnelSpeed). Polled twice a second so a new value shows up
+  /// right after the service writes it.
   Future<void> _sampleRates() async {
-    final bytes = await _uidBytes();
-    if (bytes == null || _rateTimer == null && _lastAt != null) return;
-    final now = DateTime.now();
-    final rx = bytes[0], tx = bytes[1];
-    _baseRx ??= rx;
-    _baseTx ??= tx;
-    if (_lastAt != null) {
-      final dt = now.difference(_lastAt!).inMicroseconds / 1e6;
-      if (dt > 0.2) {
-        final down = math.max(0, rx - _lastRx!) * 8 / dt;
-        final up = math.max(0, tx - _lastTx!) * 8 / dt;
-        final cutoff = now.subtract(_window);
-        final rates = [
-          for (final s in state.rates) if (s.at.isAfter(cutoff)) s,
-          RateSample(now, down, up),
-        ];
-        state = state.copyWith(
-          downBps: down,
-          upBps: up,
-          sessionBytes: (rx - _baseRx!) + (tx - _baseTx!),
-          rates: rates,
-        );
-      }
+    if (!Platform.isAndroid) return;
+    String? raw;
+    try {
+      raw = await _channel.invokeMethod<String>('liveTraffic');
+    } catch (_) {
+      return;
     }
-    _lastRx = rx;
-    _lastTx = tx;
-    _lastAt = now;
+    if (raw == null || _rateTimer == null) return;
+    final Map<String, dynamic> j;
+    try {
+      j = jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return;
+    }
+    final at = DateTime.fromMillisecondsSinceEpoch((j['at'] as num).toInt());
+    if (_lastAt != null && !at.isAfter(_lastAt!)) return; // not a new sample
+    _lastAt = at;
+    final down = (j['downBps'] as num).toDouble();
+    final up = (j['upBps'] as num).toDouble();
+    final cutoff = at.subtract(_window);
+    state = state.copyWith(
+      downBps: down,
+      upBps: up,
+      sessionBytes:
+          (j['sessionUp'] as num).toInt() + (j['sessionDown'] as num).toInt(),
+      rates: [
+        for (final s in state.rates)
+          if (s.at.isAfter(cutoff)) s,
+        RateSample(at, down, up),
+      ],
+    );
   }
 
   Future<void> _samplePing() async {
@@ -196,7 +192,8 @@ class LiveMetrics extends Notifier<LiveMetricsState> {
       pingMs: ms,
       clearPing: ms == null,
       pings: [
-        for (final p in state.pings) if (p.at.isAfter(cutoff)) p,
+        for (final p in state.pings)
+          if (p.at.isAfter(cutoff)) p,
         PingSample(now, ms),
       ],
     );

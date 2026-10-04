@@ -192,6 +192,98 @@ class WaveEngineVpnService : VpnService() {
     @Volatile private var notifPingHost: String? = null
     @Volatile private var notifPingPort: Int? = null
     @Volatile private var notifPingText: String = ""
+
+    // Live tunnel speed: shown in the notification (visible from any app —
+    // the user watching a video isn't looking at WAVEBREAK) and written to
+    // a small file the app reads (the app runs in another process). Source:
+    // the TUN bridge's own byte counters (Bridge.tunnelUpload/DownloadTotal)
+    // — the apps' real payload, without the loopback hop that made Android's
+    // per-UID counters triple-count downloads. Sampled every second and
+    // smoothed, so numbers glide instead of jumping; session totals count
+    // from the moment the tunnel came up, so reopening the app doesn't
+    // reset them.
+    @Volatile private var notifSpeedText: String = ""
+    private val speedHandler = Handler(Looper.getMainLooper())
+    private var speedLastUp = -1L
+    private var speedLastDown = -1L
+    private var speedBaseUp = 0L
+    private var speedBaseDown = 0L
+    private var speedLastAt = 0L
+    private var speedDown = 0.0
+    private var speedUp = 0.0
+    private var speedTicks = 0
+    private val speedTick = object : Runnable {
+        override fun run() {
+            sampleTunnelSpeed()
+            speedHandler.postDelayed(this, 1000)
+        }
+    }
+
+    private fun startSpeedTicker() {
+        speedHandler.removeCallbacks(speedTick)
+        speedLastUp = -1L
+        speedDown = 0.0
+        speedUp = 0.0
+        speedTicks = 0
+        speedHandler.post(speedTick)
+    }
+
+    private fun stopSpeedTicker() {
+        speedHandler.removeCallbacks(speedTick)
+        notifSpeedText = ""
+        runCatching { liveTrafficFile().delete() }
+    }
+
+    private fun liveTrafficFile() = java.io.File(filesDir, LIVE_TRAFFIC_FILE)
+
+    private fun sampleTunnelSpeed() {
+        val up = runCatching { Bridge.tunnelUploadTotal() }.getOrDefault(-1L)
+        val down = runCatching { Bridge.tunnelDownloadTotal() }.getOrDefault(-1L)
+        if (up < 0 || down < 0) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (speedLastUp < 0) {
+            speedBaseUp = up
+            speedBaseDown = down
+        } else if (now > speedLastAt) {
+            val dt = (now - speedLastAt) / 1000.0
+            val rawDown = (down - speedLastDown).coerceAtLeast(0) * 8 / dt
+            val rawUp = (up - speedLastUp).coerceAtLeast(0) * 8 / dt
+            speedDown = if (speedTicks == 0) rawDown else speedDown * 0.65 + rawDown * 0.35
+            speedUp = if (speedTicks == 0) rawUp else speedUp * 0.65 + rawUp * 0.35
+            speedTicks++
+            writeLiveTraffic(up - speedBaseUp, down - speedBaseDown)
+            if (speedTicks % 2 == 0) {
+                val text = "↓ ${formatMbps(speedDown)} · ↑ ${formatMbps(speedUp)} Mbps"
+                if (text != notifSpeedText) {
+                    notifSpeedText = text
+                    refreshNotification()
+                }
+            }
+        }
+        speedLastUp = up
+        speedLastDown = down
+        speedLastAt = now
+    }
+
+    private fun writeLiveTraffic(sessionUp: Long, sessionDown: Long) {
+        val json = "{\"downBps\":${speedDown.toLong()},\"upBps\":${speedUp.toLong()}," +
+            "\"sessionUp\":$sessionUp,\"sessionDown\":$sessionDown," +
+            "\"at\":${System.currentTimeMillis()}}"
+        runCatching {
+            val tmp = java.io.File(filesDir, "$LIVE_TRAFFIC_FILE.tmp")
+            tmp.writeText(json)
+            tmp.renameTo(liveTrafficFile())
+        }
+    }
+
+    private fun formatMbps(bps: Double): String {
+        val mbps = bps / 1_000_000
+        return when {
+            mbps < 0.05 -> "0"
+            mbps < 10 -> String.format(java.util.Locale.US, "%.1f", mbps)
+            else -> mbps.toInt().toString()
+        }
+    }
     @Volatile private var notifStatusText: String = ""
     @Volatile private var notifLabelConnected: String = "Connected"
     @Volatile private var notifLabelConnecting: String = "Connecting…"
@@ -1395,6 +1487,7 @@ class WaveEngineVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        stopSpeedTicker()
         // If a user/revoke/system stopAll() already ran, `stopping` is
         // already true and this onDestroy() is just Android's ordinary
         // teardown following that stopSelf() — not a new, unexplained
@@ -1527,6 +1620,10 @@ class WaveEngineVpnService : VpnService() {
         // "reason" trail requirement (see logStateTransition/logStop's own
         // comments) needs a line here regardless of which state this is.
         Log.i(TAG, "state=$state${if (detail != null) " reason=$detail" else ""}")
+        when (state) {
+            STATE_CONNECTED -> speedHandler.post { if (notifSpeedText.isEmpty()) startSpeedTicker() }
+            STATE_FAILED, STATE_IDLE -> speedHandler.post { stopSpeedTicker() }
+        }
         notifStatusText = when (state) {
             STATE_CONNECTING -> notifLabelConnecting
             STATE_CONNECTED -> notifLabelConnected
@@ -1773,10 +1870,10 @@ class WaveEngineVpnService : VpnService() {
         } else {
             notifLocationLabel
         }
-        val statusLine = if (notifPingText.isNotEmpty()) {
-            "$notifStatusText · $notifPingText"
-        } else {
-            notifStatusText
+        val statusLine = when {
+            notifSpeedText.isNotEmpty() -> "$notifStatusText · $notifSpeedText"
+            notifPingText.isNotEmpty() -> "$notifStatusText · $notifPingText"
+            else -> notifStatusText
         }
 
         val collapsed = RemoteViews(packageName, R.layout.notification_vpn_collapsed).apply {
@@ -1787,7 +1884,10 @@ class WaveEngineVpnService : VpnService() {
 
         val expanded = RemoteViews(packageName, R.layout.notification_vpn_expanded).apply {
             setTextViewText(R.id.notif_location_exp, flagAndLocation)
-            setTextViewText(R.id.notif_status_exp, notifStatusText)
+            setTextViewText(
+                R.id.notif_status_exp,
+                if (notifSpeedText.isNotEmpty()) "$notifStatusText · $notifSpeedText" else notifStatusText,
+            )
             setTextViewText(R.id.notif_ping_exp, notifPingText)
             setTextViewText(R.id.notif_check_ping_label, notifLabelCheckPing)
             setTextViewText(R.id.notif_disconnect_label, notifLabelDisconnect)
@@ -1920,6 +2020,9 @@ class WaveEngineVpnService : VpnService() {
         const val ACTION_STOP = "app.wavebreak.engine.STOP"
         const val ACTION_CHECK_PING = "app.wavebreak.engine.CHECK_PING"
         const val ACTION_STATUS = "app.wavebreak.engine.STATUS"
+        // Written by the service every second while connected, read by the app
+        // (MainActivity "liveTraffic"). Deleted when the tunnel goes down.
+        const val LIVE_TRAFFIC_FILE = "live_traffic.json"
         const val STATE_TRACE = "TRACE"
         const val EXTRA_LINK = "link"
         const val EXTRA_XRAY_CONFIG = "xray_config"

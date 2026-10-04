@@ -5,11 +5,17 @@ import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/live_metrics.dart';
 import '../immersive/immersive_colors.dart';
 
+// Layout rule for everything here: nothing may change size when a value
+// appears or changes. Fixed slot widths, fixed font sizes (no FittedBox
+// shrinking), tabular digits, units in their own fixed place, single-line
+// texts. Values glide (AnimatedValue) and a dash cross-fades into the
+// first value instead of popping.
+
 const _tabular = [FontFeature.tabularFigures()];
 
 String formatMbps(double? mbps) {
   if (mbps == null) return '—';
-  if (mbps < 0.1) return mbps == 0 ? '0' : '<0.1';
+  if (mbps < 0.05) return '0';
   if (mbps < 10) return mbps.toStringAsFixed(1);
   return mbps.round().toString();
 }
@@ -22,50 +28,96 @@ String formatBytes(int bytes) {
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
 }
 
-/// A measured value beside the connect core: big number, unit, caption.
-/// Shows a dash until there's a real measurement.
+/// A number that glides to its new value (~0.9 s) instead of jumping.
+/// Null shows a dash; dash ⇄ number cross-fades.
+class AnimatedValue extends StatelessWidget {
+  const AnimatedValue({
+    super.key,
+    required this.value,
+    required this.format,
+    required this.style,
+    this.alignment = Alignment.centerLeft,
+  });
+
+  final double? value;
+  final String Function(double) format;
+  final TextStyle style;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = value == null
+        ? Text('—', key: const ValueKey('dash'), style: style)
+        : TweenAnimationBuilder<double>(
+            key: const ValueKey('value'),
+            tween: Tween(end: value),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (_, v, __) =>
+                Text(format(v), style: style, maxLines: 1, softWrap: false),
+          );
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      layoutBuilder: (current, previous) => Stack(
+        alignment: alignment,
+        children: [...previous, if (current != null) current],
+      ),
+      child: child,
+    );
+  }
+}
+
+/// A measured value beside the connect core: number, unit, caption — in a
+/// fixed-width slot.
 class SideVital extends StatelessWidget {
   const SideVital({
     super.key,
     required this.value,
+    required this.format,
     required this.unit,
     required this.caption,
     this.alignEnd = false,
-    this.color = Ic.text,
   });
 
-  final String value;
+  final double? value;
+  final String Function(double) format;
   final String unit;
   final String caption;
   final bool alignEnd;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
     final align = alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     return SizedBox(
-      width: 64,
+      width: 68,
       child: Column(
         crossAxisAlignment: align,
         mainAxisSize: MainAxisSize.min,
         children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontSize: 24,
+          SizedBox(
+            height: 30,
+            width: 68,
+            child: AnimatedValue(
+              value: value,
+              format: format,
+              alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+              style: const TextStyle(
+                color: Ic.text,
+                fontSize: 22,
+                height: 1.2,
                 fontWeight: FontWeight.w600,
                 fontFeatures: _tabular,
               ),
             ),
           ),
           Text(unit,
+              maxLines: 1,
               style: const TextStyle(color: Ic.textSecondary, fontSize: 12)),
           const SizedBox(height: 2),
           Text(caption,
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
               style: const TextStyle(color: Ic.textMuted, fontSize: 12)),
         ],
       ),
@@ -87,13 +139,15 @@ class CoreWithVitals extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SideVital(
-          value: live && m.pingMs != null ? '${m.pingMs}' : '—',
+          value: live ? m.pingMs?.toDouble() : null,
+          format: (v) => v.round().toString(),
           unit: 'мс',
           caption: 'Задержка',
         ),
         Expanded(child: Center(child: core)),
         SideVital(
-          value: live ? formatMbps(m.downMbps) : '—',
+          value: live ? m.downMbps : null,
+          format: formatMbps,
           unit: 'Mbps',
           caption: 'Загрузка',
           alignEnd: true,
@@ -103,7 +157,8 @@ class CoreWithVitals extends ConsumerWidget {
   }
 }
 
-/// "Protection" row and the session card under the status.
+/// "Protection" row and the session card under the status. Both keep the
+/// same height in every state.
 class SessionPanel extends ConsumerWidget {
   const SessionPanel({super.key});
 
@@ -119,59 +174,75 @@ class SessionPanel extends ConsumerWidget {
         : error
             ? Ic.amber
             : Ic.textSecondary;
+    final protectText = connected
+        ? 'Защита активна'
+        : error
+            ? 'Защита не активна'
+            : 'Защита — после подключения';
     return Column(
       children: [
         _GlassCard(
-          child: Row(
-            children: [
-              Icon(
-                connected
-                    ? Icons.verified_user_rounded
-                    : Icons.shield_outlined,
-                color: protectColor,
-                size: 22,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  connected
-                      ? 'Трафик идёт через защищённый туннель'
-                      : error
-                          ? 'Защита не активна — соединение не установлено'
-                          : 'Защита начнётся после подключения',
-                  style: TextStyle(color: protectColor, fontSize: 14),
+          child: SizedBox(
+            height: 24,
+            child: Row(
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: Icon(
+                    connected
+                        ? Icons.verified_user_rounded
+                        : Icons.shield_outlined,
+                    key: ValueKey(connected),
+                    color: protectColor,
+                    size: 22,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 300),
+                    style: TextStyle(color: protectColor, fontSize: 15),
+                    child: Text(protectText,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 12),
         _GlassCard(
-          child: Row(
-            children: [
-              Expanded(
-                child: _Cell(
-                  title: 'Сессия',
-                  value: m.sessionBytes > 0 ? formatBytes(m.sessionBytes) : '—',
+          child: SizedBox(
+            height: 46,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _Cell(
+                    title: 'Сессия',
+                    value: m.sessionBytes > 0 ? m.sessionBytes.toDouble() : null,
+                    format: (v) => formatBytes(v.round()),
+                  ),
                 ),
-              ),
-              Container(width: 1, height: 44, color: Ic.glassBorder),
-              Expanded(
-                child: _Cell(
-                  title: '↓ Приём',
-                  value: m.active ? '${formatMbps(m.downMbps)} Mbps' : '—',
-                  color: Ic.arctic,
+                Container(width: 1, color: Ic.glassBorder),
+                Expanded(
+                  child: _Cell(
+                    title: '↓ Приём',
+                    value: m.active ? m.downMbps : null,
+                    format: (v) => "${formatMbps(v)} Mbps",
+                    color: Ic.arctic,
+                  ),
                 ),
-              ),
-              Container(width: 1, height: 44, color: Ic.glassBorder),
-              Expanded(
-                child: _Cell(
-                  title: '↑ Отдача',
-                  value: m.active ? '${formatMbps(m.upMbps)} Mbps' : '—',
-                  color: Ic.crimson,
+                Container(width: 1, color: Ic.glassBorder),
+                Expanded(
+                  child: _Cell(
+                    title: '↑ Отдача',
+                    value: m.active ? m.upMbps : null,
+                    format: (v) => "${formatMbps(v)} Mbps",
+                    color: Ic.crimson,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -180,30 +251,41 @@ class SessionPanel extends ConsumerWidget {
 }
 
 class _Cell extends StatelessWidget {
-  const _Cell({required this.title, required this.value, this.color = Ic.text});
+  const _Cell({
+    required this.title,
+    required this.value,
+    required this.format,
+    this.color = Ic.text,
+  });
 
   final String title;
-  final String value;
+  final double? value;
+  final String Function(double) format;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
               style: const TextStyle(color: Ic.textMuted, fontSize: 12)),
           const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
+          SizedBox(
+            height: 22,
+            child: AnimatedValue(
+              value: value,
+              format: format,
               style: TextStyle(
                 color: color,
-                fontSize: 16,
+                fontSize: 17,
+                height: 1.2,
                 fontWeight: FontWeight.w600,
                 fontFeatures: _tabular,
               ),

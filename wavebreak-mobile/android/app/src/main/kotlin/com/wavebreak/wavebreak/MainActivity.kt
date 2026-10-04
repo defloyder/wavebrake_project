@@ -326,6 +326,25 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
+        // Live throughput for the home/metrics screens, measured by the VPN
+        // service from the TUN bridge counters (see its sampleTunnelSpeed)
+        // and written to a small file every second — the service runs in
+        // the :RunWaveEngine process. Null when the tunnel is down or the
+        // file is stale.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/metrics")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "liveTraffic" -> {
+                        val f = java.io.File(filesDir, WaveEngineVpnService.LIVE_TRAFFIC_FILE)
+                        val text = runCatching {
+                            if (f.exists() && System.currentTimeMillis() - f.lastModified() < 5000) f.readText() else null
+                        }.getOrNull()
+                        result.success(text)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         // Android's VpnService (any engine — Xray-core or the Hysteria
         // bridge) runs in its own process and keeps the real tunnel up
         // even if the user swipes the app away and the Flutter/UI process
@@ -337,26 +356,6 @@ class MainActivity : FlutterFragmentActivity() {
         // still connected once a server was reselected. Checking for an
         // active VPN transport network-wide is adapter-agnostic: it works
         // the same regardless of which engine actually holds the tunnel.
-        // Live throughput for the home/metrics screens: bytes received and
-        // sent by this app's UID. Every tunnelled packet leaves and arrives
-        // through the engine's own sockets (same UID, also from the
-        // :RunWaveEngine process), so the delta between two reads is the
-        // real tunnel speed — no estimate. -1 when the kernel doesn't
-        // account per-UID traffic (TrafficStats.UNSUPPORTED).
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/metrics")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "uidBytes" -> {
-                        val uid = android.os.Process.myUid()
-                        result.success(listOf(
-                            android.net.TrafficStats.getUidRxBytes(uid),
-                            android.net.TrafficStats.getUidTxBytes(uid),
-                        ))
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/vpn_state")
             .setMethodCallHandler { call, result ->
                 when (call.method) {

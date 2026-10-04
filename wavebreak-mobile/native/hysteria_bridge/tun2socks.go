@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/xjasonlyu/tun2socks/v2/engine"
+	"github.com/xjasonlyu/tun2socks/v2/tunnel/statistic"
 )
 
 // StartTun2Socks runs an in-process TUN-to-SOCKS5 bridge (MIT-licensed
@@ -67,4 +68,19 @@ func stopTun2SocksLocked() {
 	}
 	_ = engine.Stop()
 	tun2socksRunning = false
+}
+
+// TunnelUploadTotal / TunnelDownloadTotal: bytes the TUN bridge has moved
+// since this process started — the apps' own payload, counted where it
+// enters/leaves the tunnel. Unlike Android's per-UID counters these don't
+// include the loopback hop to the local SOCKS proxy (which made every
+// downloaded byte count three times) or protocol overhead, and they're
+// the same for every engine (Xray and Hysteria both sit behind this
+// bridge). Callers take deltas; the totals never reset.
+func TunnelUploadTotal() int64 {
+	return statistic.DefaultManager.Snapshot().UploadTotal
+}
+
+func TunnelDownloadTotal() int64 {
+	return statistic.DefaultManager.Snapshot().DownloadTotal
 }
