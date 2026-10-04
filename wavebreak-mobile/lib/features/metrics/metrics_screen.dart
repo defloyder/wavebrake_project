@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/live_metrics.dart';
 import '../home/home_vitals.dart';
+import '../home/location_bar.dart';
 import '../immersive/immersive_colors.dart';
 import '../immersive/wave_field.dart';
 import '../shared/flag_icon.dart';
@@ -96,7 +97,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            loc.city.isNotEmpty ? loc.city : loc.country,
+                            splitPlaceAndProtocol(loc.city).$1.isNotEmpty ? splitPlaceAndProtocol(loc.city).$1 : loc.country,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -105,7 +106,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
                                 fontWeight: FontWeight.w600),
                           ),
                           Text(
-                            loc.country,
+                            [loc.country, if (protocolLabel(loc) != null) protocolLabel(loc)!].join(' · '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -198,7 +199,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
                             )
                           : const Center(
                               child: Text(
-                                'Подключитесь — здесь появится живой график\nскорости вашего соединения',
+                                'Подключитесь — здесь появится живой график скорости вашего соединения',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                     color: Ic.textMuted, fontSize: 14, height: 1.4),
@@ -300,30 +301,22 @@ class _QualityCard extends StatelessWidget {
               maxLines: 1,
               style: const TextStyle(color: Ic.textMuted, fontSize: 12)),
           const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              SizedBox(
-                height: 28,
-                width: 92,
-                child: AnimatedValue(
-                  value: value,
-                  format: format,
-                  style: const TextStyle(
-                    color: Ic.text,
-                    fontSize: 22,
-                    height: 1.2,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
-                ),
+          // Unit right after the number (part of the same text), in a
+          // full-width fixed-height slot — nothing around it moves.
+          SizedBox(
+            height: 28,
+            width: double.infinity,
+            child: AnimatedValue(
+              value: value,
+              format: (v) => unit.isEmpty ? format(v) : '${format(v)} $unit',
+              style: const TextStyle(
+                color: Ic.text,
+                fontSize: 22,
+                height: 1.2,
+                fontWeight: FontWeight.w600,
+                fontFeatures: [FontFeature.tabularFigures()],
               ),
-              if (unit.isNotEmpty)
-                Text(unit,
-                    style: const TextStyle(
-                        color: Ic.textSecondary, fontSize: 12)),
-            ],
+            ),
           ),
           const Spacer(),
           SizedBox(
@@ -370,23 +363,22 @@ class _Legend extends StatelessWidget {
             Text('$arrow ',
                 style: TextStyle(
                     color: color, fontSize: 20, fontWeight: FontWeight.w600)),
-            SizedBox(
-              width: 64,
-              height: 30,
-              child: AnimatedValue(
-                value: mbps,
-                format: formatMbps,
-                style: const TextStyle(
-                  color: Ic.text,
-                  fontSize: 24,
-                  height: 1.2,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: [FontFeature.tabularFigures()],
+            Expanded(
+              child: SizedBox(
+                height: 30,
+                child: AnimatedValue(
+                  value: mbps,
+                  format: (v) => '${formatMbps(v)} Mbps',
+                  style: const TextStyle(
+                    color: Ic.text,
+                    fontSize: 22,
+                    height: 1.2,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ),
-            const Text('Mbps',
-                style: TextStyle(color: Ic.textSecondary, fontSize: 12)),
           ],
         ),
         Text(label,

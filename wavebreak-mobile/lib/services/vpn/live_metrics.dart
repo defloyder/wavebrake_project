@@ -132,7 +132,11 @@ class LiveMetrics extends Notifier<LiveMetricsState> {
     _lastAt = null;
     state = const LiveMetricsState(active: true);
     unawaited(_sampleRates());
-    unawaited(_samplePing());
+    // First probe after a short settle: one taken the very moment the
+    // tunnel reports up often fails and showed as packet loss.
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (_pingTimer != null) unawaited(_samplePing());
+    });
     _rateTimer = Timer.periodic(
         const Duration(milliseconds: 500), (_) => _sampleRates());
     _pingTimer =

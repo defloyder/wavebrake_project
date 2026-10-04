@@ -935,7 +935,7 @@ const kRussianStrings = AppStrings(
   chooseLocation: 'Выбор локации',
   unavailable: 'Недоступно',
   navHome: 'Главная',
-  navLocations: 'Локации',
+  navLocations: 'Серверы',
   navMetrics: 'Метрики',
   statusReady: 'Готовы к свободе?',
   statusReadyHint: 'Выберите направление и подключитесь',

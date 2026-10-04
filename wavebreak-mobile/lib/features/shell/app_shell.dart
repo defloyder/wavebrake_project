@@ -221,7 +221,7 @@ class _MobileShell extends ConsumerWidget {
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(28),
                   child: BackdropFilter(
@@ -344,7 +344,7 @@ class _MobileNavButton extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               height: 56,
-              margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+              margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
                 color: selected
@@ -389,7 +389,7 @@ class _MobileNavButton extends StatelessWidget {
                     softWrap: false,
                     style: TextStyle(
                       color: color,
-                      fontSize: 11,
+                      fontSize: 10.5,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                     ),
                   ),
