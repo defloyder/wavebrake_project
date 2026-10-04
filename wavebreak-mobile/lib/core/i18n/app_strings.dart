@@ -28,6 +28,10 @@ class AppStrings {
     required this.configPendingHint,
     required this.disconnecting,
     required this.couldNotConnect,
+    required this.coreConnect,
+    required this.coreCancel,
+    required this.coreDisconnect,
+    required this.coreRetry,
     required this.noTraffic,
     required this.noTrafficHint,
     required this.tryOtherProtocol,
@@ -278,6 +282,12 @@ class AppStrings {
   final String configPendingHint;
   final String disconnecting;
   final String couldNotConnect;
+
+  /// Action label inside the connect sphere (short, one line).
+  final String coreConnect;
+  final String coreCancel;
+  final String coreDisconnect;
+  final String coreRetry;
   final String noTraffic;
   final String noTrafficHint;
   final String tryOtherProtocol;
@@ -536,6 +546,10 @@ const kEnglishStrings = AppStrings(
   configPendingHint: 'The server is setting up your VPN config — hang tight',
   disconnecting: 'Disconnecting…',
   couldNotConnect: 'Could not connect',
+  coreConnect: 'Connect',
+  coreCancel: 'Cancel',
+  coreDisconnect: 'Disconnect',
+  coreRetry: 'Retry',
   noTraffic: "No traffic",
   noTrafficHint: "Connected, but no data gets through. This network may block the protocol.",
   tryOtherProtocol: "Try another protocol",
@@ -803,6 +817,10 @@ const kRussianStrings = AppStrings(
   configPendingHint: 'Сервер настраивает VPN-конфигурацию — это недолго',
   disconnecting: 'Отключение…',
   couldNotConnect: 'Не удалось подключиться',
+  coreConnect: 'Подключить',
+  coreCancel: 'Отменить',
+  coreDisconnect: 'Отключить',
+  coreRetry: 'Повторить',
   noTraffic: "Нет трафика",
   noTrafficHint: "Подключение есть, но данные не проходят. Возможно, сеть блокирует этот протокол.",
   tryOtherProtocol: "Попробовать другой протокол",
@@ -1076,6 +1094,10 @@ const kSpanishStrings = AppStrings(
   configPendingHint: 'El servidor está configurando tu VPN — un momento',
   disconnecting: 'Desconectando…',
   couldNotConnect: 'No se pudo conectar',
+  coreConnect: 'Conectar',
+  coreCancel: 'Cancelar',
+  coreDisconnect: 'Desconectar',
+  coreRetry: 'Reintentar',
   noTraffic: "Sin tráfico",
   noTrafficHint: "Conectado, pero no pasan datos. Puede que esta red bloquee el protocolo.",
   tryOtherProtocol: "Probar otro protocolo",
@@ -1351,6 +1373,10 @@ const kGermanStrings = AppStrings(
       'Der Server richtet deine VPN-Konfiguration ein — einen Moment',
   disconnecting: 'Trennen…',
   couldNotConnect: 'Verbindung fehlgeschlagen',
+  coreConnect: 'Verbinden',
+  coreCancel: 'Abbrechen',
+  coreDisconnect: 'Trennen',
+  coreRetry: 'Erneut versuchen',
   noTraffic: "Kein Datenverkehr",
   noTrafficHint: "Verbunden, aber es kommen keine Daten durch. Dieses Netz blockiert eventuell das Protokoll.",
   tryOtherProtocol: "Anderes Protokoll versuchen",
@@ -1628,6 +1654,10 @@ const kFrenchStrings = AppStrings(
   configPendingHint: 'Le serveur configure votre VPN — un instant',
   disconnecting: 'Déconnexion…',
   couldNotConnect: 'Connexion impossible',
+  coreConnect: 'Connecter',
+  coreCancel: 'Annuler',
+  coreDisconnect: 'Déconnecter',
+  coreRetry: 'Réessayer',
   noTraffic: "Aucun trafic",
   noTrafficHint: "Connecté, mais aucune donnée ne passe. Ce réseau bloque peut-être le protocole.",
   tryOtherProtocol: "Essayer un autre protocole",
@@ -1906,6 +1936,10 @@ const kPortugueseStrings = AppStrings(
   configPendingHint: 'O servidor está configurando sua VPN — só um momento',
   disconnecting: 'Desconectando…',
   couldNotConnect: 'Não foi possível conectar',
+  coreConnect: 'Conectar',
+  coreCancel: 'Cancelar',
+  coreDisconnect: 'Desconectar',
+  coreRetry: 'Tentar novamente',
   noTraffic: "Sem tráfego",
   noTrafficHint: "Conectado, mas nenhum dado passa. Esta rede pode estar bloqueando o protocolo.",
   tryOtherProtocol: "Tentar outro protocolo",
@@ -2179,6 +2213,10 @@ const kTurkishStrings = AppStrings(
   configPendingHint: 'Sunucu VPN yapılandırmanızı ayarlıyor — biraz bekleyin',
   disconnecting: 'Bağlantı kesiliyor…',
   couldNotConnect: 'Bağlanılamadı',
+  coreConnect: 'Bağlan',
+  coreCancel: 'İptal',
+  coreDisconnect: 'Bağlantıyı kes',
+  coreRetry: 'Tekrar dene',
   noTraffic: "Trafik yok",
   noTrafficHint: "Bağlandı ama veri geçmiyor. Bu ağ protokolü engelliyor olabilir.",
   tryOtherProtocol: "Başka bir protokol dene",

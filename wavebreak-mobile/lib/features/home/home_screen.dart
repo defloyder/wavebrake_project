@@ -36,6 +36,7 @@ import '../shared/subscription_section.dart';
 import '../shared/wave_params.dart';
 import '../shared/wb_card.dart';
 import '../shared/wavebreak_mark.dart';
+import '../immersive/living_core.dart';
 import '../immersive/wave_field.dart';
 import 'home_vitals.dart';
 
@@ -454,26 +455,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         );
 
+    // requestingProfile/connecting stay tappable so
+    // ConnectionManager.toggle() can treat that tap as "cancel this
+    // attempt" (see cancelConnect()) instead of it just sitting there
+    // unresponsive for however long a slow grant/handshake takes.
+    final connectEnabled = effectiveCanConnect ||
+        connection.status == ConnectionStatus.connected ||
+        connection.status == ConnectionStatus.configPending ||
+        connection.status == ConnectionStatus.connecting ||
+        connection.status == ConnectionStatus.requestingProfile ||
+        connection.status == ConnectionStatus.disconnecting;
+    void onConnectPressed() {
+      ref
+          .read(connectionManagerProvider.notifier)
+          .toggle(subscriptionActive: canConnect);
+    }
+
     final connectButton = ConnectButton(
       status: connection.status,
-      // requestingProfile/connecting stay tappable so
-      // ConnectionManager.toggle() can treat that tap as "cancel this
-      // attempt" (see cancelConnect()) instead of it just sitting there
-      // unresponsive for however long a slow grant/handshake takes.
-      enabled: effectiveCanConnect ||
-          connection.status == ConnectionStatus.connected ||
-          connection.status == ConnectionStatus.configPending ||
-          connection.status == ConnectionStatus.connecting ||
-          connection.status == ConnectionStatus.requestingProfile ||
-          connection.status == ConnectionStatus.disconnecting,
+      enabled: connectEnabled,
       accentColors: connection.location.isAuto
           ? null
           : accentPairFor(connection.location.countryCode),
-      onPressed: () {
-        ref
-            .read(connectionManagerProvider.notifier)
-            .toggle(subscriptionActive: canConnect);
-      },
+      onPressed: onConnectPressed,
+    );
+
+    // Phone (V5): the living sphere instead of the glass button.
+    final coreDiameter = livingCoreDiameter(MediaQuery.sizeOf(context).width);
+    final livingCore = LivingCore(
+      status: connection.status,
+      enabled: connectEnabled,
+      diameter: coreDiameter,
+      onPressed: onConnectPressed,
     );
 
     final statusCopy = _StatusCopy(
@@ -558,11 +571,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             buildTopBar(false),
                             SizedBox(height: aboveButtonGap * 0.5),
                             locationHeader,
-                            SizedBox(height: aboveButtonGap),
+                            // The stage already leaves room for the orbit
+                            // waves above and below the sphere.
+                            SizedBox(height: aboveButtonGap * 0.4),
                             // Real ping / download beside the core
-                            // (dashes until connected — never invented).
-                            CoreWithVitals(core: connectButton),
-                            const SizedBox(height: 24),
+                            // (dashes until connected — never invented),
+                            // laid over the sphere's wave stage. The empty
+                            // middle lets taps through to the sphere.
+                            CoreStage(
+                              diameter: coreDiameter,
+                              core: livingCore,
+                              overlay: const CoreWithVitals(
+                                  core: SizedBox.shrink()),
+                            ),
+                            const SizedBox(height: 4),
                             statusCopy,
                             const SizedBox(height: 20),
                             const SessionPanel(),

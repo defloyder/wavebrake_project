@@ -23,9 +23,15 @@ out vec4 fragColor;
 
 const float PI = 3.14159265;
 
+// 1 at x <= a, 0 at x >= b. smoothstep() with edge0 > edge1 is undefined
+// in GLSL and renders garbage on some mobile GPUs, so never call it that way.
+float falloff(float a, float b, float x) {
+  return 1.0 - smoothstep(a, b, x);
+}
+
 float lineMask(float v, float width) {
   float d = abs(fract(v) - 0.5);
-  return smoothstep(width, 0.0, 0.5 - d);
+  return falloff(0.0, width, 0.5 - d);
 }
 
 void main() {
@@ -39,7 +45,7 @@ void main() {
   // Atmosphere / outer glow ring, outside the disc.
   if (r2 > 1.0) {
     float r = sqrt(r2);
-    float halo = smoothstep(1.16, 1.0, r);
+    float halo = falloff(1.0, 1.16, r);
     if (uMode > 0.5) {
       vec3 atm = vec3(0.30, 0.78, 1.0) * (0.55 + 0.15 * sin(uTime * 0.6));
       fragColor = vec4(atm * halo * 0.65, halo * 0.65);
@@ -97,7 +103,7 @@ void main() {
     for (int i = 0; i < 9; i++) {
       float fi = float(i);
       float band = -0.9 + fi * 0.22 + 0.10 * sin(lon * 2.0 + uTime * (0.45 + 0.05 * fi) + fi * 1.7);
-      currents += smoothstep(0.022, 0.0, abs(lat - band)) * (0.35 + 0.65 * fract(fi * 0.37));
+      currents += falloff(0.0, 0.022, abs(lat - band)) * (0.35 + 0.65 * fract(fi * 0.37));
     }
     col += vec3(1.0, 0.55, 0.62) * currents * (0.10 + 0.22 * uEnergy + 0.25 * uPulse) * z;
 
@@ -106,10 +112,10 @@ void main() {
     col += vec3(1.0, 0.92, 0.94) * spec * 0.55;
     float shadow = smoothstep(-0.2, 1.1, p.x * 0.7 - p.y * 0.7);
     col *= 1.0 - 0.45 * shadow;
-    col += vec3(1.0, 0.85, 0.88) * smoothstep(0.55, 0.0, length(p - vec2(-0.42, 0.48))) * 0.18;
+    col += vec3(1.0, 0.85, 0.88) * falloff(0.0, 0.55, length(p - vec2(-0.42, 0.48))) * 0.18;
   }
 
   // Soft anti-aliased edge.
-  float edge = smoothstep(1.0, 0.985, sqrt(r2));
+  float edge = falloff(0.985, 1.0, sqrt(r2));
   fragColor = vec4(col * edge, alpha * edge);
 }
