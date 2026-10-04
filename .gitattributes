@@ -1,4 +1,2 @@
 # Shell scripts run on Linux servers: always LF, even on Windows checkouts.
 *.sh text eol=lf
-# Shell scripts must keep LF on Windows checkouts too, or bash fails on 
-*.sh text eol=lf
