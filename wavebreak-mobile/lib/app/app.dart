@@ -13,6 +13,7 @@ import '../core/theme/personalization_controller.dart';
 import '../core/theme/wb_colors.dart';
 import '../core/theme/wb_theme.dart';
 import '../features/shared/app_lock_gate.dart';
+import '../features/immersive/immersive_clock.dart';
 import '../features/shared/data_providers.dart';
 import '../services/notification/status_notification_service.dart';
 import '../services/vpn/connection_manager.dart';
@@ -158,8 +159,10 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
       builder: (context, child) => MediaQuery.withClampedTextScaling(
         minScaleFactor: textScale,
         maxScaleFactor: textScale,
-        child: AppLockGate(
-          child: _OfflineBanner(child: child),
+        child: ImmersiveClock(
+          child: AppLockGate(
+            child: _OfflineBanner(child: child),
+          ),
         ),
       ),
     );

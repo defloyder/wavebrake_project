@@ -36,6 +36,8 @@ import '../shared/subscription_section.dart';
 import '../shared/wave_params.dart';
 import '../shared/wb_card.dart';
 import '../shared/wavebreak_mark.dart';
+import '../immersive/wave_field.dart';
+import 'home_vitals.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -528,9 +530,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
     );
 
+    // Phone layout, used under the wave field (see below).
+    Widget buildMobileBody() => LayoutBuilder(
+                    builder: (context, constraints) {
+                      // A comfortable fixed rhythm for the hero section — no
+                      // Spacer games tied to viewport height, so it looks the
+                      // same whether the screen is short or tall.
+                      final heroTopGap =
+                          (constraints.maxHeight * 0.04).clamp(8.0, 28.0);
+                      final aboveButtonGap =
+                          (constraints.maxHeight * 0.06).clamp(20.0, 56.0);
+                      return SingleChildScrollView(
+                        controller: _scrollController,
+                        // The bottom nav pill now floats over the body
+                        // instead of reserving its own Scaffold slot, so
+                        // this has to leave room for it manually or the
+                        // last row of locations ends up underneath it.
+                        padding: const EdgeInsets.fromLTRB(
+                          20,
+                          0,
+                          20,
+                          kMobileBottomBarReserve + 12,
+                        ),
+                        child: Column(
+                          children: [
+                            SizedBox(height: heroTopGap),
+                            buildTopBar(false),
+                            SizedBox(height: aboveButtonGap * 0.5),
+                            locationHeader,
+                            SizedBox(height: aboveButtonGap),
+                            // Real ping / download beside the core
+                            // (dashes until connected — never invented).
+                            CoreWithVitals(core: connectButton),
+                            const SizedBox(height: 24),
+                            statusCopy,
+                            const SizedBox(height: 20),
+                            const SessionPanel(),
+                            const SizedBox(height: 12),
+                            subscriptionStrip,
+                            const SizedBox(height: 28),
+                            const Divider(color: WbColors.ice08, height: 1),
+                            const SizedBox(height: 20),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                s.chooseLocation,
+                                style: const TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            locationsSection,
+                          ],
+                        ),
+                      );
+                    },
+        );
+
     return LayoutBuilder(
       builder: (context, outer) {
         final isDesktop = outer.maxWidth >= 820;
+        if (!isDesktop) {
+          // Phone: the immersive (V5) look — full-screen wave field under
+          // the content.
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: WaveField(
+                  intensity:
+                      connection.status == ConnectionStatus.connected ? 1 : 0.55,
+                ),
+              ),
+              SafeArea(child: buildMobileBody()),
+            ],
+          );
+        }
         return OceanBackground(
           illuminate: true,
           tint: tint,
@@ -623,57 +697,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ],
                     ),
                   )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      // A comfortable fixed rhythm for the hero section — no
-                      // Spacer games tied to viewport height, so it looks the
-                      // same whether the screen is short or tall.
-                      final heroTopGap =
-                          (constraints.maxHeight * 0.04).clamp(8.0, 28.0);
-                      final aboveButtonGap =
-                          (constraints.maxHeight * 0.06).clamp(20.0, 56.0);
-                      return SingleChildScrollView(
-                        controller: _scrollController,
-                        // The bottom nav pill now floats over the body
-                        // instead of reserving its own Scaffold slot, so
-                        // this has to leave room for it manually or the
-                        // last row of locations ends up underneath it.
-                        padding: const EdgeInsets.fromLTRB(
-                          20,
-                          0,
-                          20,
-                          kMobileBottomBarReserve + 12,
-                        ),
-                        child: Column(
-                          children: [
-                            SizedBox(height: heroTopGap),
-                            buildTopBar(false),
-                            SizedBox(height: aboveButtonGap * 0.5),
-                            locationHeader,
-                            SizedBox(height: aboveButtonGap),
-                            connectButton,
-                            const SizedBox(height: 24),
-                            statusCopy,
-                            SizedBox(height: aboveButtonGap),
-                            subscriptionStrip,
-                            const SizedBox(height: 28),
-                            const Divider(color: WbColors.ice08, height: 1),
-                            const SizedBox(height: 20),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                s.chooseLocation,
-                                style: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            locationsSection,
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                : buildMobileBody(),
           ),
         );
       },

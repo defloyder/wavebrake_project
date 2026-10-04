@@ -337,6 +337,26 @@ class MainActivity : FlutterFragmentActivity() {
         // still connected once a server was reselected. Checking for an
         // active VPN transport network-wide is adapter-agnostic: it works
         // the same regardless of which engine actually holds the tunnel.
+        // Live throughput for the home/metrics screens: bytes received and
+        // sent by this app's UID. Every tunnelled packet leaves and arrives
+        // through the engine's own sockets (same UID, also from the
+        // :RunWaveEngine process), so the delta between two reads is the
+        // real tunnel speed — no estimate. -1 when the kernel doesn't
+        // account per-UID traffic (TrafficStats.UNSUPPORTED).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/metrics")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "uidBytes" -> {
+                        val uid = android.os.Process.myUid()
+                        result.success(listOf(
+                            android.net.TrafficStats.getUidRxBytes(uid),
+                            android.net.TrafficStats.getUidTxBytes(uid),
+                        ))
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/vpn_state")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
