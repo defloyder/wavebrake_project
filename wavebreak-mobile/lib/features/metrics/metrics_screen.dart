@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'package:flutter/scheduler.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,30 +24,57 @@ class MetricsScreen extends ConsumerStatefulWidget {
   ConsumerState<MetricsScreen> createState() => _MetricsScreenState();
 }
 
-class _MetricsScreenState extends ConsumerState<MetricsScreen> {
+class _MetricsScreenState extends ConsumerState<MetricsScreen>
+    with SingleTickerProviderStateMixin {
   Duration _window = const Duration(minutes: 1);
   double? _touchX;
-  Timer? _tick;
-  DateTime _now = DateTime.now();
+
+  // Smooth chart state, advanced every frame (~30 fps) by [_ticker]: the
+  // render time trails real time by [_lag] so samples (one a second) are
+  // already in the past when the line reaches them — the wave flows out
+  // continuously instead of jumping; window width and axis scale ease
+  // towards their targets instead of snapping. TickerMode stops the
+  // ticker while this tab is off screen.
+  static const _lag = 1500.0;
+  late final Ticker _ticker = createTicker(_onTick);
+  Duration _lastFrame = Duration.zero;
+  double _renderNowMs = DateTime.now().millisecondsSinceEpoch - _lag;
+  double _windowMs = 60000;
+  double _maxMbps = 1;
 
   @override
   void initState() {
     super.initState();
-    // Slides the time window even when no new sample arrives.
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
+    _ticker.start();
+  }
+
+  void _onTick(Duration elapsed) {
+    if (elapsed - _lastFrame < const Duration(milliseconds: 33)) return;
+    _lastFrame = elapsed;
+    final rates = ref.read(liveMetricsProvider).rates;
+    final targetWindow = _window.inMilliseconds.toDouble();
+    final renderNow = DateTime.now().millisecondsSinceEpoch - _lag;
+    final windowMs = _windowMs + (targetWindow - _windowMs) * 0.14;
+    final peak = ThroughputChartPainter.peakMbps(rates, renderNow, windowMs);
+    final targetMax = niceMaxMbps(peak * 1.1);
+    setState(() {
+      _renderNowMs = renderNow;
+      _windowMs =
+          (windowMs - targetWindow).abs() < 50 ? targetWindow : windowMs;
+      _maxMbps += (targetMax - _maxMbps) * 0.10;
     });
   }
 
   @override
   void dispose() {
-    _tick?.cancel();
+    _ticker.dispose();
     super.dispose();
   }
 
   RateSample? _sampleAt(List<RateSample> rates, double x) {
     if (rates.isEmpty) return null;
-    final t = _now.subtract(_window).add(_window * x);
+    final t = DateTime.fromMillisecondsSinceEpoch(
+        (_renderNowMs - _windowMs + _windowMs * x).round());
     RateSample? best;
     var bestD = 1 << 62;
     for (final s in rates) {
@@ -97,7 +124,9 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            splitPlaceAndProtocol(loc.city).$1.isNotEmpty ? splitPlaceAndProtocol(loc.city).$1 : loc.country,
+                            splitPlaceAndProtocol(loc.city).$1.isNotEmpty
+                                ? splitPlaceAndProtocol(loc.city).$1
+                                : loc.country,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -106,7 +135,11 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
                                 fontWeight: FontWeight.w600),
                           ),
                           Text(
-                            [loc.country, if (protocolLabel(loc) != null) protocolLabel(loc)!].join(' · '),
+                            [
+                              loc.country,
+                              if (protocolLabel(loc) != null)
+                                protocolLabel(loc)!
+                            ].join(' · '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -179,19 +212,24 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
                               builder: (context, c) => GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onPanDown: (d) => setState(() => _touchX =
-                                    ((d.localPosition.dx - 34) / (c.maxWidth - 34))
+                                    ((d.localPosition.dx - 34) /
+                                            (c.maxWidth - 34))
                                         .clamp(0.0, 1.0)),
                                 onPanUpdate: (d) => setState(() => _touchX =
-                                    ((d.localPosition.dx - 34) / (c.maxWidth - 34))
+                                    ((d.localPosition.dx - 34) /
+                                            (c.maxWidth - 34))
                                         .clamp(0.0, 1.0)),
                                 onPanEnd: (_) => setState(() => _touchX = null),
-                                onPanCancel: () => setState(() => _touchX = null),
+                                onPanCancel: () =>
+                                    setState(() => _touchX = null),
                                 child: CustomPaint(
                                   size: Size(c.maxWidth, 190),
                                   painter: ThroughputChartPainter(
                                     samples: m.rates,
-                                    window: _window,
-                                    now: _now,
+                                    windowMs: _windowMs,
+                                    renderNowMs: _renderNowMs,
+                                    maxMbps: _maxMbps,
+                                    minutesLabel: _window.inMinutes,
                                     touchX: _touchX,
                                   ),
                                 ),
@@ -202,7 +240,9 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
                                 'Подключитесь — здесь появится живой график скорости вашего соединения',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                    color: Ic.textMuted, fontSize: 14, height: 1.4),
+                                    color: Ic.textMuted,
+                                    fontSize: 14,
+                                    height: 1.4),
                               ),
                             ),
                     ),
@@ -250,7 +290,8 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
                   ),
                   _QualityCard(
                     title: 'Трафик сессии',
-                    value: m.sessionBytes > 0 ? m.sessionBytes.toDouble() : null,
+                    value:
+                        m.sessionBytes > 0 ? m.sessionBytes.toDouble() : null,
                     format: (v) => formatBytes(v.round()),
                     unit: '',
                     series: [for (final r in m.rates) r.downBps + r.upBps],
@@ -266,7 +307,10 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen> {
   }
 
   static List<double> _jitterSeries(List<PingSample> pings) {
-    final ok = [for (final p in pings) if (p.ms != null) p.ms!.toDouble()];
+    final ok = [
+      for (final p in pings)
+        if (p.ms != null) p.ms!.toDouble()
+    ];
     return [for (var i = 1; i < ok.length; i++) (ok[i] - ok[i - 1]).abs()];
   }
 }
@@ -322,15 +366,7 @@ class _QualityCard extends StatelessWidget {
           SizedBox(
             height: 26,
             width: double.infinity,
-            child: CustomPaint(
-              painter: MiniWavePainter(
-                series.length > 40
-                    ? series.sublist(series.length - 40)
-                    : series,
-                color: color,
-                dashed: dashed,
-              ),
-            ),
+            child: SmoothSpark(values: series, color: color, dashed: dashed),
           ),
         ],
       ),
@@ -382,7 +418,8 @@ class _Legend extends StatelessWidget {
           ],
         ),
         Text(label,
-            style: TextStyle(color: color.withValues(alpha: 0.85), fontSize: 13)),
+            style:
+                TextStyle(color: color.withValues(alpha: 0.85), fontSize: 13)),
       ],
     );
   }
