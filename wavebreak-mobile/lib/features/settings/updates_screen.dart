@@ -35,7 +35,8 @@ class UpdatesScreen extends ConsumerWidget {
       final rolledBack = await ref.read(installedRollbackProvider.future);
       if (!context.mounted) return;
       messenger.showSnackBar(SnackBar(
-          content: Text(rolledBack != null ? s.rollbackInstalled : s.upToDate)));
+          content:
+              Text(rolledBack != null ? s.rollbackInstalled : s.upToDate)));
     }
   }
 
@@ -47,6 +48,8 @@ class UpdatesScreen extends ConsumerWidget {
     final downloading = install.status == ApkInstallStatus.downloading;
     final needsPermission = install.status == ApkInstallStatus.needsPermission;
     final installing = install.status == ApkInstallStatus.installing;
+    final awaitingConfirmation =
+        install.status == ApkInstallStatus.awaitingConfirmation;
     final installed = install.status == ApkInstallStatus.installed;
     final rollback = ref.watch(rollbackOfferProvider).asData?.value;
     final rolledBack =
@@ -145,7 +148,7 @@ class UpdatesScreen extends ConsumerWidget {
                   if (pendingUpdate != null) {
                     final notifier =
                         ref.read(apkInstallControllerProvider.notifier);
-                    if (needsPermission) {
+                    if (needsPermission || awaitingConfirmation) {
                       notifier.retryInstallOrOpenSettings();
                     } else {
                       unawaited(notifier.downloadAndInstall(pendingUpdate));
@@ -177,6 +180,7 @@ class UpdatesScreen extends ConsumerWidget {
               !installing &&
               !downloading &&
               !needsPermission &&
+              !awaitingConfirmation &&
               pendingUpdate == null &&
               rollback != null) ...[
             const SizedBox(height: 12),
@@ -277,8 +281,7 @@ class _InstallingIndicatorState extends State<_InstallingIndicator>
                 turns: _controller,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.4,
-                  valueColor:
-                      const AlwaysStoppedAnimation(WbColors.waveCyan),
+                  valueColor: const AlwaysStoppedAnimation(WbColors.waveCyan),
                   backgroundColor: WbColors.ice08,
                 ),
               ),
@@ -294,15 +297,14 @@ class _InstallingIndicatorState extends State<_InstallingIndicator>
             children: [
               Text(
                 widget.s.updateInstalling,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600),
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               if (widget.versionName != null) ...[
                 const SizedBox(height: 2),
                 Text(
                   widget.versionName!,
-                  style:
-                      const TextStyle(fontSize: 13, color: WbColors.ice60),
+                  style: const TextStyle(fontSize: 13, color: WbColors.ice60),
                 ),
               ],
             ],
@@ -363,8 +365,8 @@ class _InstalledConfirmation extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       versionName!,
-                      style: const TextStyle(
-                          fontSize: 13, color: WbColors.ice60),
+                      style:
+                          const TextStyle(fontSize: 13, color: WbColors.ice60),
                     ),
                   ],
                 ],

@@ -45,6 +45,10 @@ class InstallStatusReceiver : BroadcastReceiver() {
                 // (Redmi Note 9 Pro: update downloaded, nothing happened).
                 // Otherwise — or if that fails — a notification whose tap
                 // opens the confirmation: a tap is always allowed.
+                // And kept until it's shown: the user who switched to
+                // another app while the update downloaded gets it the
+                // moment they come back (field report: back from Telegram,
+                // "Installing update…" forever, no prompt).
                 val activity = MainActivity.resumed()
                 if (activity != null) {
                     activity.runOnUiThread {
@@ -52,10 +56,12 @@ class InstallStatusReceiver : BroadcastReceiver() {
                             activity.startActivity(confirmIntent)
                         } catch (t: Throwable) {
                             Log.e(TAG, "install confirmation from the activity failed", t)
+                            MainActivity.pendingInstallConfirm = confirmIntent
                             UpdateAvailableNotifier.showInstallReady(activity, confirmIntent)
                         }
                     }
                 } else {
+                    MainActivity.pendingInstallConfirm = confirmIntent
                     UpdateAvailableNotifier.showInstallReady(context, confirmIntent)
                 }
             }

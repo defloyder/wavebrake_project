@@ -118,6 +118,10 @@ object UpdateAvailableNotifier {
         }
     }
 
+    fun cancelInstallReady(context: Context) {
+        NotificationManagerCompat.from(context).cancel(INSTALL_NOTIFICATION_ID)
+    }
+
     private const val INSTALL_NOTIFICATION_ID = 4302
 
     private fun ensureChannel(context: Context) {

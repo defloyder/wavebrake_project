@@ -77,6 +77,17 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onResume() {
         super.onResume()
         resumedRef = java.lang.ref.WeakReference(this)
+        // An install confirmation that arrived while the app was in the
+        // background (see InstallStatusReceiver): show it now.
+        pendingInstallConfirm?.let { confirm ->
+            pendingInstallConfirm = null
+            UpdateAvailableNotifier.cancelInstallReady(this)
+            try {
+                startActivity(confirm)
+            } catch (t: Throwable) {
+                android.util.Log.w("MainActivity", "pending install confirmation failed", t)
+            }
+        }
         val pausedFor = System.currentTimeMillis() - pausedAtMs
         if (pausedAtMs != 0L && pausedFor >= RESUME_RECONNECT_THRESHOLD_MS) {
             // Same cross-process caveat as pingHost/updateNotificationMeta
@@ -451,6 +462,10 @@ class MainActivity : FlutterFragmentActivity() {
          * downloaded, nothing happened).
          */
         fun resumed(): MainActivity? = resumedRef?.get()
+
+        /** The system's install confirmation, held until the app is on screen. */
+        @Volatile
+        var pendingInstallConfirm: Intent? = null
 
         private const val REQUEST_POST_NOTIFICATIONS = 1001
         private const val REQUEST_VPN_PERMISSION = 1002

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -21,6 +22,11 @@ enum ApkInstallStatus {
   // Store package (see UpdateInstaller.kt's own doc comment — that OS
   // dialog can't be skipped or restyled, only handed off to promptly).
   installing,
+  // Back in the app after [installing] without the update having been
+  // applied: Android's dialog never appeared (the user was in another app
+  // when the download finished) or was dismissed. The downloaded file is
+  // kept; one tap asks for the confirmation again.
+  awaitingConfirmation,
   // The app is running a build whose versionCode matches (or exceeds)
   // the update this controller was installing — see
   // checkPendingInstallCompleted()'s own doc comment for how that's
@@ -83,6 +89,26 @@ class ApkInstallController extends Notifier<ApkInstallState> {
     // without this session ever seeing an `installing` state to resume
     // from. See checkPendingInstallCompleted()'s own doc comment.
     Future.microtask(checkPendingInstallCompleted);
+    // Field report: download started, user switched to Telegram, came
+    // back — "Installing update…" forever and no system prompt. While
+    // Android's install dialog is up this app isn't in the foreground;
+    // being back in front still `installing` means it never showed or was
+    // dismissed. A short grace covers the native side showing a held-back
+    // confirmation right on resume (MainActivity.onResume).
+    if (!Platform.isAndroid) return const ApkInstallState();
+    final lifecycle = AppLifecycleListener(onResume: () {
+      if (state.status != ApkInstallStatus.installing) return;
+      Future<void>.delayed(const Duration(milliseconds: 1500), () {
+        if (state.status == ApkInstallStatus.installing &&
+            WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed) {
+          AppLogger.info('Update: back in the app without installing — '
+              'offering the install prompt again');
+          state = state.copyWith(status: ApkInstallStatus.awaitingConfirmation);
+        }
+      });
+    });
+    ref.onDispose(lifecycle.dispose);
     return const ApkInstallState();
   }
 
