@@ -23,6 +23,7 @@ import '../features/settings/support_screen.dart';
 import '../features/settings/updates_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/speedtest/speed_test_screen.dart';
+import '../features/metrics/metrics_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/subscription/subscription_screen.dart';
 import '../features/update/maintenance_screen.dart';
@@ -219,6 +220,17 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/speed-test',
                 pageBuilder: (_, __) => const NoTransitionPage(
                   child: SpeedTestScreen(),
+                ),
+              ),
+            ],
+          ),
+          // Branch 4: connection metrics (measured throughput, quality).
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/metrics',
+                pageBuilder: (_, __) => const NoTransitionPage(
+                  child: MetricsScreen(),
                 ),
               ),
             ],

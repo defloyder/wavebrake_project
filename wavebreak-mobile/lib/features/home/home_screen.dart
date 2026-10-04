@@ -4,7 +4,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/auth/session_controller.dart';
 import '../../core/errors/app_exception.dart';
@@ -28,7 +27,6 @@ import '../shared/location_dropdown.dart';
 import '../shared/menu_button.dart';
 import '../shell/app_shell.dart';
 import '../shared/ocean_background.dart';
-import '../shared/flag_icon.dart';
 import '../shared/share_subscription_sheet.dart';
 import '../shared/subscription_accordion.dart';
 import '../shared/subscription_texts.dart';
@@ -36,9 +34,11 @@ import '../shared/subscription_section.dart';
 import '../shared/wave_params.dart';
 import '../shared/wb_card.dart';
 import '../shared/wavebreak_mark.dart';
+import '../immersive/immersive_colors.dart';
 import '../immersive/living_core.dart';
 import '../immersive/wave_field.dart';
 import 'home_vitals.dart';
+import 'location_bar.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -532,14 +532,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       },
     );
 
+    // Same-country WAVEBREAK locations = the protocol choices (Direct /
+    // Hysteria2) for the switch under the server row.
+    final current = connection.location;
+    final protocolSiblings = current.isAuto
+        ? const <LocationItem>[]
+        : [
+            for (final l in locations.valueOrNull ?? const <LocationItem>[])
+              if (!l.isAuto &&
+                  l.available &&
+                  l.countryCode == current.countryCode)
+                l,
+          ];
     final locationHeader = CompositedTransformTarget(
       link: _locationLink,
-      child: _LocationHeader(
-        location: connection.location,
+      child: LocationBar(
+        location: current,
+        siblings: protocolSiblings,
         s: s,
-        open: _dropdownOpen,
-        onTap: () => locations.whenData(_openLocationPicker),
-        tint: tint,
+        onOpenPicker: () => locations.whenData(_openLocationPicker),
+        onSelect: (item) => ref
+            .read(connectionManagerProvider.notifier)
+            .selectLocation(item, subscriptionActive: canConnect),
       ),
     );
 
@@ -807,95 +821,6 @@ class _SpinIconButtonState extends State<_SpinIconButton>
   }
 }
 
-class _LocationHeader extends StatelessWidget {
-  const _LocationHeader({
-    required this.location,
-    required this.s,
-    required this.open,
-    required this.onTap,
-    this.tint,
-  });
-
-  final LocationItem location;
-  final AppStrings s;
-  final bool open;
-  final VoidCallback onTap;
-  final Color? tint;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Text(
-              location.isAuto ? s.auto : location.country.toUpperCase(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 15,
-                letterSpacing: 3,
-                color: WbColors.ice60,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          // Custom/BYO server names can run long — the raw share-link
-          // label, or a city with a protocol note appended to disambiguate
-          // it from another variant of the same location (see
-          // custom_server_controller.dart's _splitCountryCity). Row used
-          // to size to its unconstrained content and simply run off the
-          // edge of the screen for those; it's now bounded to the
-          // available width with the name itself eliding instead.
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (!location.isAuto) ...[
-                  FlagIcon(countryCode: location.countryCode, width: 26),
-                  const SizedBox(width: 8),
-                ],
-                Flexible(
-                  child: Text(
-                    location.isAuto
-                        ? s.fastestLocation
-                        : (location.city.isEmpty
-                            ? location.country
-                            : location.city),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                AnimatedRotation(
-                  turns: open ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  child: Icon(
-                    Icons.expand_more,
-                    color: tint == null
-                        ? WbColors.ice60
-                        : Color.lerp(WbColors.ice60, tint, 0.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _StatusCopy extends StatelessWidget {
   const _StatusCopy({
     required this.connection,
@@ -982,18 +907,18 @@ class _StatusCopy extends StatelessWidget {
 
     final noTraffic = connection.noTraffic;
     final title = switch (connection.status) {
-      ConnectionStatus.idle => s.notConnected,
+      ConnectionStatus.idle => s.statusReady,
       ConnectionStatus.requestingProfile ||
       ConnectionStatus.connecting =>
-        s.connecting,
+        s.statusOnWave,
       ConnectionStatus.connected when noTraffic => s.noTraffic,
-      ConnectionStatus.connected => s.connected,
+      ConnectionStatus.connected => s.statusProtected,
       ConnectionStatus.configPending => s.configPending,
       ConnectionStatus.disconnecting => s.disconnecting,
-      ConnectionStatus.error => s.couldNotConnect,
+      ConnectionStatus.error => s.statusFailed,
     };
     final subtitle = switch (connection.status) {
-      ConnectionStatus.idle => s.tapToConnect,
+      ConnectionStatus.idle => s.statusReadyHint,
       ConnectionStatus.connected when noTraffic => onTryOtherProtocol != null
           ? s.noTrafficHint
           : s.noTrafficAllTried,
@@ -1024,20 +949,12 @@ class _StatusCopy extends StatelessWidget {
               title,
               key: ValueKey(title),
               textAlign: TextAlign.center,
-              // Fraunces — the same serif wavebreak-web uses for its own
-              // large headlines (site-section h2, hero copy — see
-              // wavebreak-site.css's --font/h1/h2 rules). Kept at this
-              // screen's existing mobile-tuned 28px rather than the
-              // site's 52-70px display scale — the point is matching the
-              // font family/character, not transplanting a desktop type
-              // scale onto a phone. Loaded via google_fonts (already a
-              // dependency, already used for Inter below) rather than
-              // bundling the site's own woff2 files — same OFL-licensed
-              // typeface, no separate asset registration or web-font-
-              // format risk.
-              style: GoogleFonts.fraunces(
-                fontSize: 28,
-                fontWeight: FontWeight.w500,
+              // System serif (V5: "emotional headings Georgia / serif"). Not
+              // Fraunces: it has no Cyrillic, so Russian fell back to sans.
+              style: TextStyle(
+                fontFamily: Ic.fontSerif,
+                fontSize: 30,
+                fontWeight: FontWeight.w400,
                 color: titleColor ?? WbColors.ice,
               ),
             ),

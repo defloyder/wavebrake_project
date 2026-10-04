@@ -114,6 +114,13 @@ class AppStrings {
     required this.unavailable,
     required this.navHome,
     required this.navLocations,
+    required this.navMetrics,
+    required this.statusReady,
+    required this.statusReadyHint,
+    required this.statusOnWave,
+    required this.statusProtected,
+    required this.statusFailed,
+    required this.navSpeedShort,
     required this.navSettings,
     required this.settings,
     required this.account,
@@ -370,6 +377,17 @@ class AppStrings {
   final String unavailable;
   final String navHome;
   final String navLocations;
+
+  /// Bottom bar (5 tabs): metrics tab, short speed-test label.
+  final String navMetrics;
+
+  /// Home status titles (V5): idle, its hint, connecting, connected, error.
+  final String statusReady;
+  final String statusReadyHint;
+  final String statusOnWave;
+  final String statusProtected;
+  final String statusFailed;
+  final String navSpeedShort;
   final String navSettings;
   final String settings;
   final String account;
@@ -639,6 +657,13 @@ const kEnglishStrings = AppStrings(
   unavailable: 'Unavailable',
   navHome: 'Home',
   navLocations: 'Locations',
+  navMetrics: 'Metrics',
+  statusReady: 'Ready for freedom?',
+  statusReadyHint: 'Pick a location and connect',
+  statusOnWave: 'Riding your wave…',
+  statusProtected: 'You are protected',
+  statusFailed: 'Connection not established',
+  navSpeedShort: 'Test',
   navSettings: 'Settings',
   settings: 'Settings',
   account: 'Account',
@@ -911,6 +936,13 @@ const kRussianStrings = AppStrings(
   unavailable: 'Недоступно',
   navHome: 'Главная',
   navLocations: 'Локации',
+  navMetrics: 'Метрики',
+  statusReady: 'Готовы к свободе?',
+  statusReadyHint: 'Выберите направление и подключитесь',
+  statusOnWave: 'На вашей волне…',
+  statusProtected: 'Вы защищены',
+  statusFailed: 'Соединение не установлено',
+  navSpeedShort: 'Тест',
   navSettings: 'Настройки',
   settings: 'Настройки',
   account: 'Аккаунт',
@@ -1188,6 +1220,13 @@ const kSpanishStrings = AppStrings(
   unavailable: 'No disponible',
   navHome: 'Inicio',
   navLocations: 'Ubicaciones',
+  navMetrics: 'Métricas',
+  statusReady: '¿Listo para la libertad?',
+  statusReadyHint: 'Elige una ubicación y conéctate',
+  statusOnWave: 'En tu onda…',
+  statusProtected: 'Estás protegido',
+  statusFailed: 'No se pudo conectar',
+  navSpeedShort: 'Test',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
   account: 'Cuenta',
@@ -1468,6 +1507,13 @@ const kGermanStrings = AppStrings(
   unavailable: 'Nicht verfügbar',
   navHome: 'Start',
   navLocations: 'Standorte',
+  navMetrics: 'Metriken',
+  statusReady: 'Bereit für Freiheit?',
+  statusReadyHint: 'Standort wählen und verbinden',
+  statusOnWave: 'Auf deiner Welle…',
+  statusProtected: 'Du bist geschützt',
+  statusFailed: 'Verbindung nicht hergestellt',
+  navSpeedShort: 'Test',
   navSettings: 'Einstellungen',
   settings: 'Einstellungen',
   account: 'Konto',
@@ -1749,6 +1795,13 @@ const kFrenchStrings = AppStrings(
   unavailable: 'Indisponible',
   navHome: 'Accueil',
   navLocations: 'Emplacements',
+  navMetrics: 'Mesures',
+  statusReady: 'Prêt pour la liberté ?',
+  statusReadyHint: 'Choisissez un lieu et connectez-vous',
+  statusOnWave: 'Sur votre vague…',
+  statusProtected: 'Vous êtes protégé',
+  statusFailed: 'Connexion non établie',
+  navSpeedShort: 'Test',
   navSettings: 'Réglages',
   settings: 'Réglages',
   account: 'Compte',
@@ -2031,6 +2084,13 @@ const kPortugueseStrings = AppStrings(
   unavailable: 'Indisponível',
   navHome: 'Início',
   navLocations: 'Locais',
+  navMetrics: 'Métricas',
+  navSpeedShort: 'Teste',
+  statusReady: 'Pronto para a liberdade?',
+  statusReadyHint: 'Escolha um local e conecte-se',
+  statusOnWave: 'Na sua onda…',
+  statusProtected: 'Você está protegido',
+  statusFailed: 'Conexão não estabelecida',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
   account: 'Conta',
@@ -2306,6 +2366,13 @@ const kTurkishStrings = AppStrings(
   unavailable: 'Kullanılamıyor',
   navHome: 'Ana Sayfa',
   navLocations: 'Konumlar',
+  navMetrics: 'Ölçümler',
+  statusReady: 'Özgürlüğe hazır mısınız?',
+  statusReadyHint: 'Bir konum seçin ve bağlanın',
+  statusOnWave: 'Dalganızdasınız…',
+  statusProtected: 'Korunuyorsunuz',
+  statusFailed: 'Bağlantı kurulamadı',
+  navSpeedShort: 'Test',
   navSettings: 'Ayarlar',
   settings: 'Ayarlar',
   account: 'Hesap',

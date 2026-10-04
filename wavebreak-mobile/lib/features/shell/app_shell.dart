@@ -10,6 +10,7 @@ import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/update/update_service.dart';
+import '../immersive/immersive_colors.dart';
 import '../shared/wave_params.dart';
 import '../shared/wavebreak_mark.dart';
 
@@ -23,14 +24,10 @@ const _kDesktopBreakpoint = 820.0;
 /// expand, it uses a bottom bar instead.
 final navExpandedProvider = StateProvider<bool>((ref) => false);
 
-/// Locations doesn't get its own bottom-bar destination on mobile —
-/// location picking lives entirely on Home (tap the location header).
-/// The branch/route still exists (desktop's rail still links to it).
-/// Speed Test DOES get one (branch 3, appended after Settings in
-/// router.dart) — it used to be a small text link buried under the ping
-/// row on Home; this is its own proper tab now, in order Home / Speed
-/// Test / Settings.
-const _kMobileBranchIndexes = [0, 3, 2];
+/// Bottom bar order (V5): Home / Servers / Test / Metrics / Settings —
+/// positions in the bar mapped to router branch indexes (Settings is
+/// branch 2, Speed Test 3, Metrics 4 — appended over time).
+const _kMobileBranchIndexes = [0, 1, 3, 4, 2];
 
 /// Height the floating mobile bottom bar occupies (pill content + its
 /// bottom margin, not counting the device's own safe-area inset) — screens
@@ -98,6 +95,11 @@ class AppShell extends ConsumerWidget {
           icon: Icons.speed_outlined,
           filledIcon: Icons.speed_rounded,
           label: s.speedTest),
+      // Index 4 — Metrics (router branch 4).
+      _NavItemData(
+          icon: Icons.ssid_chart_outlined,
+          filledIcon: Icons.ssid_chart_rounded,
+          label: s.navMetrics),
     ];
 
     return LayoutBuilder(
@@ -230,17 +232,12 @@ class _MobileShell extends ConsumerWidget {
                         // Same gentle wash as the desktop rail — tinted a
                         // little toward the selected location's accent
                         // color instead of a flat, unchanging navy.
-                        color: (waveParams.tint == null
-                                ? WbColors.deepOcean
-                                : Color.lerp(WbColors.deepOcean,
-                                        waveParams.tint, 0.30) ??
-                                    WbColors.deepOcean)
-                            .withValues(alpha: 0.72),
+                        color: Ic.glassMid.withValues(alpha: 0.82),
                         borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: WbColors.ice08),
+                        border: Border.all(color: Ic.glassBorder),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.35),
+                            color: Colors.black.withValues(alpha: 0.45),
                             blurRadius: 24,
                             offset: const Offset(0, 10),
                           ),
@@ -248,43 +245,56 @@ class _MobileShell extends ConsumerWidget {
                       ),
                       child: Row(
                         children: [
-                          _MobileNavButton(
-                            icon: Icons.home_outlined,
-                            filledIcon: Icons.home_rounded,
-                            label: s.navHome,
-                            selected: activeButton == 0,
-                            tint: waveParams.tint,
-                            onTap: () => navigationShell.goBranch(
+                          for (final (i, branch, icon, filled, label) in [
+                            (
                               0,
-                              initialLocation:
-                                  navigationShell.currentIndex == 0,
+                              0,
+                              Icons.home_outlined,
+                              Icons.home_rounded,
+                              s.navHome
                             ),
-                          ),
-                          _MobileNavButton(
-                            icon: Icons.speed_outlined,
-                            filledIcon: Icons.speed_rounded,
-                            label: s.speedTest,
-                            selected: activeButton == 1,
-                            tint: waveParams.tint,
-                            onTap: () => navigationShell.goBranch(
-                              3,
-                              initialLocation:
-                                  navigationShell.currentIndex == 3,
+                            (
+                              1,
+                              1,
+                              Icons.public_outlined,
+                              Icons.public,
+                              s.navLocations
                             ),
-                          ),
-                          _MobileNavButton(
-                            icon: Icons.settings_outlined,
-                            filledIcon: Icons.settings,
-                            label: s.navSettings,
-                            selected: activeButton == 2,
-                            tint: waveParams.tint,
-                            showBadge: pendingUpdate != null,
-                            onTap: () => navigationShell.goBranch(
+                            (
                               2,
-                              initialLocation:
-                                  navigationShell.currentIndex == 2,
+                              3,
+                              Icons.speed_outlined,
+                              Icons.speed_rounded,
+                              s.navSpeedShort
                             ),
-                          ),
+                            (
+                              3,
+                              4,
+                              Icons.ssid_chart_outlined,
+                              Icons.ssid_chart_rounded,
+                              s.navMetrics
+                            ),
+                            (
+                              4,
+                              2,
+                              Icons.settings_outlined,
+                              Icons.settings,
+                              s.navSettings
+                            ),
+                          ])
+                            _MobileNavButton(
+                              icon: icon,
+                              filledIcon: filled,
+                              label: label,
+                              selected: activeButton == i,
+                              tint: waveParams.tint,
+                              showBadge: branch == 2 && pendingUpdate != null,
+                              onTap: () => navigationShell.goBranch(
+                                branch,
+                                initialLocation:
+                                    navigationShell.currentIndex == branch,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -320,51 +330,71 @@ class _MobileNavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? _selectedNavColor(tint) : WbColors.ice60;
+    final color = selected ? Ic.text : Ic.textMuted;
     return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          // The whole half of the bar is the tap target, not just the
-          // icon+label — a big, easy, unmissable thumb target.
-          child: SizedBox(
-            height: 64,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(selected ? filledIcon : icon,
-                        color: color, size: 24),
-                    if (showBadge)
-                      Positioned(
-                        top: -2,
-                        right: -3,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: WbColors.waveCyan,
-                            shape: BoxShape.circle,
-                            border:
-                                Border.all(color: WbColors.deepOcean, width: 1.5),
+      child: Semantics(
+        selected: selected,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            // The whole fifth of the bar is the tap target, not just the
+            // icon+label — a big, easy, unmissable thumb target.
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              height: 56,
+              margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                color: selected
+                    ? Ic.crimson.withValues(alpha: 0.16)
+                    : Colors.transparent,
+                border: Border.all(
+                  color: selected
+                      ? Ic.crimson.withValues(alpha: 0.35)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(selected ? filledIcon : icon,
+                          color: color, size: 24),
+                      if (showBadge)
+                        Positioned(
+                          top: -2,
+                          right: -3,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: WbColors.waveCyan,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: WbColors.deepOcean, width: 1.5),
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
