@@ -7,6 +7,8 @@
 Связанные документы: `docs/RELEASE-PROCESS.md` (как собирать и публиковать), `CHANGELOG.md` (что в каждой версии), `docs/2026-10-01-changes-report.md`
 (отчёт об изменениях), `docs/pilot-vps-deployment.md` (сервер).
 
+> **С 05.10.2026 выпуск делается скриптом `tools/release/release.sh` (check → build → stage → publish), см. `CLAUDE.md` и навык `/release`.** Ниже — что скрипт делает внутри, и ручной порядок на случай, если скрипт недоступен.
+
 ---
 
 ## 0. Правила (обязательно)

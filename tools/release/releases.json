@@ -1,0 +1,55 @@
+{
+  "expectedCertSha256": "d0d706bf9211d6a4c50e6a86742a2452eee650f0f3a4db5d5463a24b63cc57b6",
+  "android": {
+    "maxCode": 54,
+    "releases": [
+      {
+        "name": "1.2.4.5",
+        "code": 53,
+        "commit": "3c703ab",
+        "rollback": {"name": "1.2.4.4", "code": 54, "commit": "b9a36cb"},
+        "published": "2026-10-03"
+      },
+      {
+        "name": "1.2.4.4",
+        "code": 51,
+        "commit": "b9a36cb",
+        "rollback": {"name": "1.2.4.3", "code": 52, "commit": "022d623"},
+        "published": "2026-10-01"
+      },
+      {
+        "name": "1.2.4.3",
+        "code": 49,
+        "commit": "022d623",
+        "rollback": {"name": "1.2.4.2", "code": 50, "commit": "af3d00a"},
+        "published": "2026-10-01"
+      }
+    ]
+  },
+  "windows": {
+    "maxCode": 26,
+    "releases": [
+      {
+        "name": "1.0.11",
+        "code": 25,
+        "commit": "3c703ab",
+        "rollback": {"name": "1.0.10", "code": 26, "commit": "b9a36cb"},
+        "published": "2026-10-03"
+      },
+      {
+        "name": "1.0.10",
+        "code": 23,
+        "commit": "b9a36cb",
+        "rollback": {"name": "1.0.9", "code": 24, "commit": "3c7b83e"},
+        "published": "2026-10-01"
+      },
+      {
+        "name": "1.0.9",
+        "code": 21,
+        "commit": "3c7b83e",
+        "rollback": {"name": "1.0.8", "code": 22, "commit": "ff4d3a8"},
+        "published": "2026-10-01"
+      }
+    ]
+  }
+}

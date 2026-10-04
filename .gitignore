@@ -19,3 +19,7 @@ vmtest/
 
 # Local release artifacts (APK/EXE), never committed
 /release/
+
+# Release tool: machine-specific paths, bridge build stamp
+tools/release/local.env
+*.aar.src
