@@ -127,6 +127,7 @@ class AppStrings {
     required this.killSwitchTitle,
     required this.killSwitchHint,
     required this.welcomeKicker,
+    required this.welcomeHeadline,
     required this.welcomeSub,
     required this.orContinueWith,
     required this.authEmail,
@@ -416,6 +417,9 @@ class AppStrings {
 
   /// Welcome (V5): kicker over the headline, line under it, social row.
   final String welcomeKicker;
+
+  /// Two-line serif slogan over the Earth on the welcome screen.
+  final String welcomeHeadline;
   final String welcomeSub;
   final String orContinueWith;
   final String authEmail;
@@ -710,6 +714,7 @@ const kEnglishStrings = AppStrings(
   killSwitchTitle: 'Block internet without VPN',
   killSwitchHint: 'Turn on “Always-on VPN” and “Block connections without VPN” for WAVEBREAK — Android will then let no traffic out while the VPN is down.',
   welcomeKicker: 'YOUR WORLD. YOUR DIRECTION.',
+  welcomeHeadline: 'Freedom\nMoves Forward.',
   welcomeSub: 'Waves of freedom. Protected access to the world — on your terms.',
   orContinueWith: 'or continue with',
   authEmail: 'Email',
@@ -1005,6 +1010,7 @@ const kRussianStrings = AppStrings(
   killSwitchTitle: 'Блокировать интернет без VPN',
   killSwitchHint: 'Включите для WAVEBREAK «Постоянная VPN» и «Блокировать соединения без VPN» — тогда Android не выпустит трафик, пока VPN не подключён.',
   welcomeKicker: 'ВАШ МИР. ВАШЕ НАПРАВЛЕНИЕ.',
+  welcomeHeadline: 'Свобода\nидёт вперёд.',
   welcomeSub: 'Волны свободы. Защищённый доступ к миру — по вашему решению.',
   orContinueWith: 'или продолжить с',
   authEmail: 'Почта',
@@ -1305,6 +1311,7 @@ const kSpanishStrings = AppStrings(
   killSwitchTitle: 'Bloquear internet sin VPN',
   killSwitchHint: 'Activa «VPN siempre activa» y «Bloquear conexiones sin VPN» para WAVEBREAK — Android no dejará salir tráfico sin la VPN.',
   welcomeKicker: 'TU MUNDO. TU DIRECCIÓN.',
+  welcomeHeadline: 'La libertad\navanza.',
   welcomeSub: 'Olas de libertad. Acceso protegido al mundo, a tu manera.',
   orContinueWith: 'o continuar con',
   authEmail: 'Correo',
@@ -1608,6 +1615,7 @@ const kGermanStrings = AppStrings(
   killSwitchTitle: 'Internet ohne VPN sperren',
   killSwitchHint: 'Aktivieren Sie für WAVEBREAK „Durchgehend aktives VPN“ und „Verbindungen ohne VPN blockieren“ — dann lässt Android ohne VPN keinen Verkehr durch.',
   welcomeKicker: 'DEINE WELT. DEINE RICHTUNG.',
+  welcomeHeadline: 'Freiheit\ngeht voran.',
   welcomeSub: 'Wellen der Freiheit. Geschützter Zugang zur Welt — nach deinen Regeln.',
   orContinueWith: 'oder weiter mit',
   authEmail: 'E-Mail',
@@ -1912,6 +1920,7 @@ const kFrenchStrings = AppStrings(
   killSwitchTitle: 'Bloquer Internet sans VPN',
   killSwitchHint: 'Activez « VPN permanent » et « Bloquer les connexions sans VPN » pour WAVEBREAK — Android ne laissera alors rien passer sans VPN.',
   welcomeKicker: 'VOTRE MONDE. VOTRE DIRECTION.',
+  welcomeHeadline: 'La liberté\navance.',
   welcomeSub: 'Des vagues de liberté. Un accès protégé au monde, à votre façon.',
   orContinueWith: 'ou continuer avec',
   authEmail: 'E-mail',
@@ -2218,6 +2227,7 @@ const kPortugueseStrings = AppStrings(
   killSwitchTitle: 'Bloquear internet sem VPN',
   killSwitchHint: 'Ative “VPN sempre ativa” e “Bloquear conexões sem VPN” para o WAVEBREAK — o Android não deixará o tráfego sair sem a VPN.',
   welcomeKicker: 'SEU MUNDO. SUA DIREÇÃO.',
+  welcomeHeadline: 'A liberdade\navança.',
   welcomeSub: 'Ondas de liberdade. Acesso protegido ao mundo, do seu jeito.',
   orContinueWith: 'ou continuar com',
   authEmail: 'E-mail',
@@ -2515,6 +2525,7 @@ const kTurkishStrings = AppStrings(
   killSwitchTitle: 'VPN olmadan interneti engelle',
   killSwitchHint: 'WAVEBREAK için “Her zaman açık VPN” ve “VPN olmadan bağlantıları engelle” seçeneklerini açın — VPN kapalıyken Android trafiğe izin vermez.',
   welcomeKicker: 'SENİN DÜNYAN. SENİN YÖNÜN.',
+  welcomeHeadline: 'Özgürlük\nileriye gider.',
   welcomeSub: 'Özgürlük dalgaları. Dünyaya korumalı erişim — senin kararınla.',
   orContinueWith: 'veya şununla devam et',
   authEmail: 'E-posta',

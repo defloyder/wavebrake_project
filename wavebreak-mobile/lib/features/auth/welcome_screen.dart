@@ -259,13 +259,20 @@ class _SceneCopy extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        Text(
-          'Freedom\nMoves Forward.',
-          style: TextStyle(
-            fontFamily: Ic.fontSerif,
-            fontSize: headlineSize,
-            height: 1.08,
-            color: Ic.text,
+        // Two fixed lines; a longer translation shrinks instead of wrapping
+        // into a third line over the planet.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            s.welcomeHeadline,
+            softWrap: false,
+            style: TextStyle(
+              fontFamily: Ic.fontSerif,
+              fontSize: headlineSize,
+              height: 1.08,
+              color: Ic.text,
+            ),
           ),
         ),
         const SizedBox(height: 16),
