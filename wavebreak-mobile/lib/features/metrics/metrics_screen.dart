@@ -14,6 +14,7 @@ import '../immersive/wave_field.dart';
 import '../shared/flag_icon.dart';
 import '../shell/app_shell.dart';
 import 'metrics_chart.dart';
+import 'metrics_tabs.dart';
 
 /// Connection metrics: measured throughput over the last 1 / 5 minutes and
 /// quality cards (latency, jitter, loss, session traffic). Only real
@@ -29,6 +30,7 @@ class MetricsScreen extends ConsumerStatefulWidget {
 class _MetricsScreenState extends ConsumerState<MetricsScreen>
     with SingleTickerProviderStateMixin {
   Duration _window = const Duration(minutes: 1);
+  int _tab = 0;
   double? _touchX;
 
   // Smooth chart state, advanced every frame (~30 fps) by [_ticker]: the
@@ -51,6 +53,8 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
   }
 
   void _onTick(Duration elapsed) {
+    // Only the chart tab animates; other tabs don't rebuild per frame.
+    if (_tab != 0) return;
     if (elapsed - _lastFrame < const Duration(milliseconds: 33)) return;
     _lastFrame = elapsed;
     final rates = ref.read(liveMetricsProvider).rates;
@@ -168,145 +172,159 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                 ),
               ),
               const SizedBox(height: 14),
-              _Glass(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text('Скорость соединения',
-                              style: TextStyle(
-                                  color: Ic.text,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                        _PeriodToggle(
-                          value: _window,
-                          onChanged: (w) => setState(() => _window = w),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _Legend(
-                            arrow: '↓',
-                            label: 'Приём',
-                            color: Ic.arctic,
-                            mbps: touched != null
-                                ? touched.downBps / 1e6
-                                : (m.active ? m.downMbps : null),
+              _Tabs(
+                value: _tab,
+                labels: const ['Метрики', 'Инфо', 'Маршрут', 'Логи'],
+                onChanged: (i) => setState(() => _tab = i),
+              ),
+              const SizedBox(height: 14),
+              if (_tab == 0) ...[
+                _Glass(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text('Скорость соединения',
+                                style: TextStyle(
+                                    color: Ic.text,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600)),
                           ),
-                        ),
-                        Expanded(
-                          child: _Legend(
-                            arrow: '↑',
-                            label: 'Отдача',
-                            color: Ic.crimson,
-                            mbps: touched != null
-                                ? touched.upBps / 1e6
-                                : (m.active ? m.upMbps : null),
+                          _PeriodToggle(
+                            value: _window,
+                            onChanged: (w) => setState(() => _window = w),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 190,
-                      child: hasData
-                          ? LayoutBuilder(
-                              builder: (context, c) => GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onPanDown: (d) => setState(() => _touchX =
-                                    ((d.localPosition.dx - 34) /
-                                            (c.maxWidth - 34))
-                                        .clamp(0.0, 1.0)),
-                                onPanUpdate: (d) => setState(() => _touchX =
-                                    ((d.localPosition.dx - 34) /
-                                            (c.maxWidth - 34))
-                                        .clamp(0.0, 1.0)),
-                                onPanEnd: (_) => setState(() => _touchX = null),
-                                onPanCancel: () =>
-                                    setState(() => _touchX = null),
-                                child: CustomPaint(
-                                  size: Size(c.maxWidth, 190),
-                                  painter: ThroughputChartPainter(
-                                    samples: m.rates,
-                                    windowMs: _windowMs,
-                                    renderNowMs: _renderNowMs,
-                                    maxMbps: _maxMbps,
-                                    minutesLabel: _window.inMinutes,
-                                    touchX: _touchX,
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _Legend(
+                              arrow: '↓',
+                              label: 'Приём',
+                              color: Ic.arctic,
+                              mbps: touched != null
+                                  ? touched.downBps / 1e6
+                                  : (m.active ? m.downMbps : null),
+                            ),
+                          ),
+                          Expanded(
+                            child: _Legend(
+                              arrow: '↑',
+                              label: 'Отдача',
+                              color: Ic.crimson,
+                              mbps: touched != null
+                                  ? touched.upBps / 1e6
+                                  : (m.active ? m.upMbps : null),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 190,
+                        child: hasData
+                            ? LayoutBuilder(
+                                builder: (context, c) => GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onPanDown: (d) => setState(() => _touchX =
+                                      ((d.localPosition.dx - 34) /
+                                              (c.maxWidth - 34))
+                                          .clamp(0.0, 1.0)),
+                                  onPanUpdate: (d) => setState(() => _touchX =
+                                      ((d.localPosition.dx - 34) /
+                                              (c.maxWidth - 34))
+                                          .clamp(0.0, 1.0)),
+                                  onPanEnd: (_) =>
+                                      setState(() => _touchX = null),
+                                  onPanCancel: () =>
+                                      setState(() => _touchX = null),
+                                  child: CustomPaint(
+                                    size: Size(c.maxWidth, 190),
+                                    painter: ThroughputChartPainter(
+                                      samples: m.rates,
+                                      windowMs: _windowMs,
+                                      renderNowMs: _renderNowMs,
+                                      maxMbps: _maxMbps,
+                                      minutesLabel: _window.inMinutes,
+                                      touchX: _touchX,
+                                    ),
                                   ),
                                 ),
+                              )
+                            : const Center(
+                                child: Text(
+                                  'Подключитесь — здесь появится живой график скорости вашего соединения',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: Ic.textMuted,
+                                      fontSize: 14,
+                                      height: 1.4),
+                                ),
                               ),
-                            )
-                          : const Center(
-                              child: Text(
-                                'Подключитесь — здесь появится живой график скорости вашего соединения',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    color: Ic.textMuted,
-                                    fontSize: 14,
-                                    height: 1.4),
-                              ),
-                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.35,
+                  children: [
+                    _QualityCard(
+                      title: 'Задержка',
+                      value: m.active ? m.pingMs?.toDouble() : null,
+                      format: (v) => '${v.round()}',
+                      unit: 'мс',
+                      series: [
+                        for (final p in m.pings)
+                          if (p.ms != null) p.ms!.toDouble()
+                      ],
+                      color: Ic.arctic,
+                    ),
+                    _QualityCard(
+                      title: 'Джиттер',
+                      value: m.jitterMs,
+                      format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
+                      unit: 'мс',
+                      series: _jitterSeries(m.pings),
+                      color: Ic.textSecondary,
+                    ),
+                    _QualityCard(
+                      title: 'Потери',
+                      value: m.lossPercent,
+                      format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
+                      unit: '%',
+                      series: [
+                        for (final p in m.pings) p.ms == null ? 100.0 : 0.0
+                      ],
+                      color: Ic.amber,
+                      dashed: true,
+                    ),
+                    _QualityCard(
+                      title: 'Трафик сессии',
+                      value:
+                          m.sessionBytes > 0 ? m.sessionBytes.toDouble() : null,
+                      format: (v) => formatBytes(v.round()),
+                      unit: '',
+                      series: [for (final r in m.rates) r.downBps + r.upBps],
+                      color: Ic.crimson,
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 14),
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.35,
-                children: [
-                  _QualityCard(
-                    title: 'Задержка',
-                    value: m.active ? m.pingMs?.toDouble() : null,
-                    format: (v) => '${v.round()}',
-                    unit: 'мс',
-                    series: [
-                      for (final p in m.pings)
-                        if (p.ms != null) p.ms!.toDouble()
-                    ],
-                    color: Ic.arctic,
-                  ),
-                  _QualityCard(
-                    title: 'Джиттер',
-                    value: m.jitterMs,
-                    format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
-                    unit: 'мс',
-                    series: _jitterSeries(m.pings),
-                    color: Ic.textSecondary,
-                  ),
-                  _QualityCard(
-                    title: 'Потери',
-                    value: m.lossPercent,
-                    format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
-                    unit: '%',
-                    series: [
-                      for (final p in m.pings) p.ms == null ? 100.0 : 0.0
-                    ],
-                    color: Ic.amber,
-                    dashed: true,
-                  ),
-                  _QualityCard(
-                    title: 'Трафик сессии',
-                    value:
-                        m.sessionBytes > 0 ? m.sessionBytes.toDouble() : null,
-                    format: (v) => formatBytes(v.round()),
-                    unit: '',
-                    series: [for (final r in m.rates) r.downBps + r.upBps],
-                    color: Ic.crimson,
-                  ),
-                ],
-              ),
+              ] else if (_tab == 1)
+                InfoTab(connection: connection, metrics: m)
+              else if (_tab == 2)
+                RouteTab(connection: connection, metrics: m)
+              else
+                const LogsTab(),
             ],
           ),
         ),
@@ -523,6 +541,69 @@ class _Glass extends StatelessWidget {
     return TintedGlass(
       padding: padding ?? const EdgeInsets.all(16),
       child: child,
+    );
+  }
+}
+
+/// Metrics / Info / Route / Logs switch.
+class _Tabs extends StatelessWidget {
+  const _Tabs({
+    required this.value,
+    required this.labels,
+    required this.onChanged,
+  });
+
+  final int value;
+  final List<String> labels;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Ic.glassBorder),
+        color: Ic.glassBottom.withValues(alpha: 0.6),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < labels.length; i++)
+            Expanded(
+              child: Semantics(
+                selected: i == value,
+                button: true,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(11),
+                  onTap: () => onChanged(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(11),
+                      color: i == value
+                          ? Ic.text.withValues(alpha: 0.10)
+                          : Colors.transparent,
+                    ),
+                    child: Text(
+                      labels[i],
+                      maxLines: 1,
+                      overflow: TextOverflow.fade,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: i == value ? Ic.text : Ic.textMuted,
+                        fontSize: 13,
+                        fontWeight:
+                            i == value ? FontWeight.w600 : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

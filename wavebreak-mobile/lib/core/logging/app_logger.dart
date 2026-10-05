@@ -64,6 +64,29 @@ class AppLogger {
     debugPrint('[WB][error] $message');
   }
 
+  static final _email = RegExp(r'[\w.+-]+@[\w-]+\.[\w.]+');
+  static final _link =
+      RegExp(r'\b(vless|vmess|trojan|ss|hysteria2|hy2|tuic)://\S+');
+  static final _uuid = RegExp(
+      r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b');
+  static final _secret = RegExp(r'\b[A-Za-z0-9_\-]{32,}\b');
+
+  /// The last [n] lines for the in-app "Logs" tab, newest last, with
+  /// emails, connection links, ids and long tokens masked — this is shown
+  /// on screen, not exported.
+  static List<String> recent([int n = 80]) {
+    final lines =
+        _buffer.length > n ? _buffer.skip(_buffer.length - n) : _buffer;
+    return [
+      for (final l in lines)
+        l
+            .replaceAll(_link, '<link>')
+            .replaceAll(_email, '<email>')
+            .replaceAll(_uuid, '<id>')
+            .replaceAll(_secret, '<…>'),
+    ];
+  }
+
   /// Writes the current buffer to a plain text file in the app's cache
   /// dir and returns it, ready to hand to a share sheet — see
   /// features/settings/diagnostics.dart. Overwrites the same filename
