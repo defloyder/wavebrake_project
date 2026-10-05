@@ -105,6 +105,8 @@ ensure_aar() {  # $1 = checkout root
     echo "$want" > "$aar.src"; echo "ok: мост .aar взят из основной копии (исходники те же)"; return
   fi
   say "Сборка моста .aar (исходники изменились) — около 10 минут"
+  # A rollback worktree has no android/app/libs (the .aar is not in git).
+  mkdir -p "$(dirname "$aar")"
   bash "$root/wavebreak-mobile/native/hysteria_bridge/build_aar.sh" | tail -2
   echo "$want" > "$aar.src"
 }
