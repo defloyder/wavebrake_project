@@ -11,6 +11,7 @@ import '../../services/vpn/connection_manager.dart';
 import '../shared/wave_params.dart';
 import 'effects_quality.dart';
 import 'immersive_clock.dart';
+import 'orbit_frame.dart';
 import 'sphere_assets.dart';
 
 /// Sphere size for the screen width (V5 spec: 278 tablet, 240 phone,
@@ -309,13 +310,9 @@ class _Motion {
   double particleAngle = 0;
   double speed = 0.46;
   double? lastT;
+  final orbits = OrbitFrame(_CorePainter._bands);
 
   double get sincePhase => (clock.elapsed - phaseStart).inMicroseconds / 1e6;
-}
-
-class _Pt {
-  const _Pt(this.x, this.y, this.z);
-  final double x, y, z;
 }
 
 class _CorePainter extends CustomPainter {
@@ -365,7 +362,7 @@ class _CorePainter extends CustomPainter {
   /// Hue rotation (luminance-preserving matrix) from the designed crimson
   /// to [tint], faded out while the error amber shows. Null when there's
   /// nothing to rotate (no tint, a near-grey tint, or ~the same hue).
-  ColorFilter? _tintFilter(double w) {
+  static List<double>? _tintMatrix(Color? tint, double w) {
     final c = tint;
     if (c == null) return null;
     final hsl = HSLColor.fromColor(c);
@@ -377,7 +374,7 @@ class _CorePainter extends CustomPainter {
     if (deg.abs() < 2) return null;
     final a = deg * math.pi / 180;
     final cs = math.cos(a), sn = math.sin(a);
-    return ColorFilter.matrix(<double>[
+    return <double>[
       0.213 + cs * 0.787 - sn * 0.213, 0.715 - cs * 0.715 - sn * 0.715,
       0.072 - cs * 0.072 + sn * 0.928, 0, 0, //
       0.213 - cs * 0.213 + sn * 0.143, 0.715 + cs * 0.285 + sn * 0.140,
@@ -385,8 +382,27 @@ class _CorePainter extends CustomPainter {
       0.213 - cs * 0.213 - sn * 0.787, 0.715 - cs * 0.715 + sn * 0.715,
       0.072 + cs * 0.928 + sn * 0.072, 0, 0, //
       0, 0, 0, 1, 0,
-    ]);
+    ];
   }
+
+  /// This frame's tint matrix (set at the start of [paint]).
+  List<double>? _m;
+
+  /// [c] through the tint matrix (clamped like a color filter would).
+  Color _tc(Color c) {
+    final m = _m;
+    if (m == null) return c;
+    final r = c.r, g = c.g, b = c.b;
+    return Color.from(
+      alpha: c.a,
+      red: (m[0] * r + m[1] * g + m[2] * b).clamp(0.0, 1.0),
+      green: (m[5] * r + m[6] * g + m[7] * b).clamp(0.0, 1.0),
+      blue: (m[10] * r + m[11] * g + m[12] * b).clamp(0.0, 1.0),
+    );
+  }
+
+  List<Color> _tcs(List<Color> colors) =>
+      _m == null ? colors : [for (final c in colors) _tc(c)];
 
   static const _crimson = Color(0xFFFF4C74);
   static const _amber = Color(0xFFFFA84C);
@@ -433,21 +449,24 @@ class _CorePainter extends CustomPainter {
 
     if (!enabled) {
       canvas.saveLayer(
-          // Same reach as the tint layer below (a box-sized one clipped).
+          // The effects' reach (aura, glow, fronts go up to 1.8 r): a
+          // box-sized layer cut them off in a hard edge under the sphere.
           Rect.fromCircle(center: c, radius: r * 2.1),
           Paint()..color = const Color(0x73FFFFFF));
     }
 
-    // Everything but the W emblem and the label follows the flag accent.
-    final tintFilter = _tintFilter(w);
-    if (tintFilter != null) {
-      // Bounded by the effects' reach, not this painter's box: the aura,
-      // glow and success fronts reach past the box (up to 1.8 r), and a
-      // box-sized layer cut them off in a hard edge under the sphere
-      // (owner's screenshot, TR flag). Not unbounded: full-screen layer.
-      final layerBounds = Rect.fromCircle(center: c, radius: r * 2.1);
-      canvas.saveLayer(layerBounds, Paint()..colorFilter = tintFilter);
-    }
+    // Everything but the W emblem and the label follows the flag accent:
+    // each color goes through the hue rotation here ([_tc]) — the same
+    // result as one color-filtered layer over them (the matrix is linear),
+    // without an offscreen buffer the size of the effects every frame.
+    _m = _tintMatrix(tint, w);
+
+    // Orbit geometry once for both passes.
+    motion.orbits
+      ..setFrame(t: t, center: c, rs: r * 0.97, charge: charge)
+      ..fillBands(lite ? 84 : _vertices)
+      ..fillParticles(_particles, motion.particleAngle);
+
     _aura(canvas, c, r, t, e, w);
     _shell(canvas, c, r, e, w);
 
@@ -458,14 +477,13 @@ class _CorePainter extends CustomPainter {
     _outerGlow(canvas, c, r, e, w, pulse);
     _sphere(canvas, c, r, t, e, w, pulse);
     // Far halves of the orbits, faint, seen through the glass.
-    if (!lite) _ribbons(canvas, c, r, t, charge, front: false);
+    if (!lite) _ribbons(canvas, r, front: false);
     _glass(canvas, c, r, t, e, w);
     canvas.restore();
 
-    _ribbons(canvas, c, r, t, charge, front: true);
+    _ribbons(canvas, r, front: true);
     if (connecting && !frozen) _inwardFronts(canvas, c, r, t);
     if (success) _outwardFronts(canvas, c, r, t, since);
-    if (tintFilter != null) canvas.restore();
 
     canvas.save();
     canvas.translate(c.dx, c.dy);
@@ -484,7 +502,7 @@ class _CorePainter extends CustomPainter {
     final breathe = 0.5 + 0.5 * math.sin(t * 2 * math.pi / 5);
     final opacity = ui.lerpDouble(0.8 - 0.15 * breathe, 1.0, e)!;
     final radius = r * 1.54 * (1 + 0.03 * breathe * (1 - e));
-    final color = Color.lerp(const Color(0xFFFF2343), _amber, w)!;
+    final color = _tc(Color.lerp(const Color(0xFFFF2343), _amber, w)!);
     canvas.drawCircle(
       c,
       radius,
@@ -501,14 +519,14 @@ class _CorePainter extends CustomPainter {
 
   void _shell(Canvas canvas, Offset c, double r, double e, double w) {
     final shellR = r * 1.14;
-    final tone = Color.lerp(const Color(0xFFE15467), _amber, w)!;
+    final tone = _tc(Color.lerp(const Color(0xFFE15467), _amber, w)!);
     canvas.drawCircle(
       c,
       shellR,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 10
-        ..color = const Color(0xFFFA1830).withValues(alpha: 0.05 + 0.04 * e)
+        ..color = _tc(const Color(0xFFFA1830).withValues(alpha: 0.05 + 0.04 * e))
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
     );
     canvas.drawCircle(
@@ -531,11 +549,11 @@ class _CorePainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           transform: const GradientRotation(20 * math.pi / 180),
-          colors: const [
+          colors: _tcs(const [
             Color(0x44FFC4CC),
             Color(0x00FFC4CC),
             Color(0x44FFC4CC),
-          ],
+          ]),
           stops: const [0, 0.45, 1],
         ).createShader(inner),
     );
@@ -543,7 +561,7 @@ class _CorePainter extends CustomPainter {
 
   void _outerGlow(
       Canvas canvas, Offset c, double r, double e, double w, double pulse) {
-    final glow = Color.lerp(const Color(0xFFFF154B), _amber, w)!;
+    final glow = _tc(Color.lerp(const Color(0xFFFF154B), _amber, w)!);
     // Wide soft glow (0 0 40px idle -> 0 0 34px + 85px connected).
     canvas.drawCircle(
       c,
@@ -557,7 +575,7 @@ class _CorePainter extends CustomPainter {
         c,
         r * 1.05,
         Paint()
-          ..color = const Color(0xFFE82744).withValues(alpha: 0.23 * e)
+          ..color = _tc(const Color(0xFFE82744).withValues(alpha: 0.23 * e))
           ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 40),
       );
     }
@@ -565,15 +583,15 @@ class _CorePainter extends CustomPainter {
     final ring2 =
         Color.lerp(const Color(0x45F5385B), const Color(0x7AFF4169), e)!;
     final ring1 =
-        Color.lerp(const Color(0x2D8F1B30), const Color(0x2DB62C47), e)!;
+        _tc(Color.lerp(const Color(0x2D8F1B30), const Color(0x2DB62C47), e)!);
     canvas.drawCircle(
       c,
       r + 3.5 + 0.5 * e,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 7 + e
-        ..color =
-            w > 0 ? Color.lerp(ring2, const Color(0x2BB67734), w)! : ring2,
+        ..color = _tc(
+            w > 0 ? Color.lerp(ring2, const Color(0x2BB67734), w)! : ring2),
     );
     canvas.drawCircle(
       c,
@@ -615,7 +633,13 @@ class _CorePainter extends CustomPainter {
     }
     canvas.save();
     canvas.translate(c.dx - side / 2, c.dy - side / 2);
-    canvas.drawRect(Rect.fromLTWH(0, 0, side, side), Paint()..shader = sh);
+    final m = _m;
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, side, side),
+      Paint()
+        ..shader = sh
+        ..colorFilter = m == null ? null : ColorFilter.matrix(m),
+    );
     canvas.restore();
   }
 
@@ -642,7 +666,8 @@ class _CorePainter extends CustomPainter {
           radius: 1.1,
           colors: [
             for (var i = 0; i < 4; i++)
-              Color.lerp(Color.lerp(base[i], lit[i], e)!, _amber, w * 0.35)!,
+              _tc(Color.lerp(
+                  Color.lerp(base[i], lit[i], e)!, _amber, w * 0.35)!),
           ],
           stops: const [0, 0.33, 0.75, 1],
         ).createShader(rect),
@@ -652,11 +677,11 @@ class _CorePainter extends CustomPainter {
   void _glass(Canvas canvas, Offset c, double r, double t, double e, double w) {
     final rect = Rect.fromCircle(center: c, radius: r);
     canvas.save();
-    canvas.clipPath(Path()..addOval(rect));
+    canvas.clipRRect(RRect.fromRectXY(rect, r, r)); // = the oval, cheaper clip
 
     // Atmosphere: a crimson band just inside the rim, slow pulse.
     final ar = r * 0.97;
-    final atm = Color.lerp(const Color(0xFFFF2651), _amber, w)!;
+    final atm = _tc(Color.lerp(const Color(0xFFFF2651), _amber, w)!);
     canvas.drawCircle(
       c,
       ar * 1.065,
@@ -678,8 +703,8 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.3
-        ..color =
-            Color.lerp(const Color(0xB0FFC1D1), const Color(0xB0FFE0B8), w)!,
+        ..color = _tc(
+            Color.lerp(const Color(0xB0FFC1D1), const Color(0xB0FFE0B8), w)!),
     );
 
     // Inset rings (5 px and 11 px inside the rim).
@@ -689,7 +714,7 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 11
-        ..color = const Color(0x45A31533),
+        ..color = _tc(const Color(0x45A31533)),
     );
     canvas.drawCircle(
       c,
@@ -697,8 +722,8 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 5
-        ..color =
-            Color.lerp(const Color(0x30FC5C73), const Color(0x32FF90A9), e)!,
+        ..color = _tc(
+            Color.lerp(const Color(0x30FC5C73), const Color(0x32FF90A9), e)!),
     );
 
     // Glass reflex: soft top-left highlight and a diagonal sheen.
@@ -706,10 +731,10 @@ class _CorePainter extends CustomPainter {
     canvas.drawOval(
       inner,
       Paint()
-        ..shader = const RadialGradient(
-          center: Alignment(-0.36, -0.52),
+        ..shader = RadialGradient(
+          center: const Alignment(-0.36, -0.52),
           radius: 0.34,
-          colors: [Color(0x34FFF2E8), Color(0x00FFF2E8)],
+          colors: _tcs(const [Color(0x34FFF2E8), Color(0x00FFF2E8)]),
         ).createShader(inner),
     );
     canvas.drawOval(
@@ -719,11 +744,11 @@ class _CorePainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           transform: const GradientRotation(-10 * math.pi / 180),
-          colors: const [
+          colors: _tcs(const [
             Color(0x00FFD7E3),
             Color(0x12FFD7E3),
             Color(0x00FFD7E3),
-          ],
+          ]),
           stops: const [0.20, 0.39, 0.57],
         ).createShader(inner),
     );
@@ -746,11 +771,12 @@ class _CorePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
         ..strokeCap = StrokeCap.round
-        ..shader = const LinearGradient(colors: [
+        ..shader = LinearGradient(
+            colors: _tcs(const [
           Color(0x00FFB9D0),
           Color(0x81FFB9D0),
           Color(0x00FFB9D0),
-        ]).createShader(arc),
+        ])).createShader(arc),
     );
     canvas.restore();
 
@@ -761,77 +787,52 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color =
-            Color.lerp(const Color(0xAAFF718B), const Color(0xFFFFD0A1), w)!,
+        ..color = _tc(
+            Color.lerp(const Color(0xAAFF718B), const Color(0xFFFFD0A1), w)!),
     );
   }
 
-  /// One vertex of orbit [band] at angle [a]: a ring around the sphere,
-  /// rippled by two sines, lifted in z by a third, tilted and slowly
-  /// swaying — the same model for lines and particles.
-  _Pt _point(double a, int band, double t, Offset c, double rs, double charge) {
-    final radius = rs * (1.08 + band * 0.026);
-    final rip = 1 +
-        math.sin(a * 4 - t * 0.9 + band * 0.24) * 0.025 +
-        math.sin(a * 7 + t * 0.55 + band * 0.4) * 0.012;
-    var x = math.cos(a) * radius * rip;
-    final y = math.sin(a) * radius * rip;
-    final z = math.sin(a * 3 - t * 0.44 + band * 0.3) * radius * 0.025;
-    const tilt = 0.86;
-    final ny = y * math.cos(tilt) - z * math.sin(tilt);
-    final nz = y * math.sin(tilt) + z * math.cos(tilt);
-    final turn = -0.38 + math.sin(t * 0.16) * 0.13;
-    // While connecting the orbits draw in across their long axis.
-    x *= 1 - 0.12 * charge;
-    return _Pt(
-      c.dx + x * math.cos(turn) - ny * math.sin(turn),
-      c.dy + x * math.sin(turn) + ny * math.cos(turn),
-      nz,
-    );
-  }
-
-  bool _behind(_Pt p, Offset c, double rs) {
-    final nx = (p.x - c.dx) / rs, ny = (p.y - c.dy) / rs;
-    final d2 = nx * nx + ny * ny;
-    return d2 < 1 && p.z < math.sqrt(1 - d2) * rs;
-  }
-
-  void _ribbons(Canvas canvas, Offset c, double r, double t, double charge,
-      {required bool front}) {
+  /// The orbits and particles in front of the sphere, or (front: false)
+  /// their far halves seen through the glass. Geometry from [OrbitFrame],
+  /// computed once per frame for both passes.
+  void _ribbons(Canvas canvas, double r, {required bool front}) {
+    final o = motion.orbits;
     final rs = r * 0.97;
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    final vertices = lite ? 84 : _vertices;
+    final n = o.vertexCount + 1;
+    final xs = o.xs, ys = o.ys, behind = o.behind;
+    final hidden = front ? 1 : 0;
     for (var b = _bands - 1; b >= 0; b--) {
       final path = Path();
       var drawing = false;
-      for (var i = 0; i <= vertices; i++) {
-        final a = i / vertices * math.pi * 2;
-        final p = _point(a, b, t, c, rs, charge);
-        final visible = front != _behind(p, c, rs);
-        if (!visible) {
+      final base = b * n;
+      for (var i = 0; i < n; i++) {
+        final k = base + i;
+        if (behind[k] == hidden) {
           drawing = false;
           continue;
         }
         if (!drawing) {
-          path.moveTo(p.x, p.y);
+          path.moveTo(xs[k], ys[k]);
           drawing = true;
         } else {
-          path.lineTo(p.x, p.y);
+          path.lineTo(xs[k], ys[k]);
         }
       }
       final cold = b == _bands - 1;
-      final base = cold ? const Color(0xFF85EBF9) : _crimson;
+      final color = cold ? const Color(0xFF85EBF9) : _crimson;
       final alpha = (front ? 0.34 : 0.08) * (1 - b / (_bands * 1.15));
       if (b == 0 && front && !lite) {
         canvas.drawPath(
           path,
           stroke
             ..strokeWidth = 4
-            ..color = (cold ? const Color(0xFF45E9FF) : const Color(0xFFFF174C))
-                .withValues(alpha: 0.35)
+            ..color = _tc(
+                (cold ? const Color(0xFF45E9FF) : const Color(0xFFFF174C))
+                    .withValues(alpha: 0.35))
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
         );
         stroke.maskFilter = null;
@@ -840,30 +841,23 @@ class _CorePainter extends CustomPainter {
         path,
         stroke
           ..strokeWidth = b == 0 ? 1.5 : 0.55
-          ..color = base.withValues(alpha: alpha),
+          ..color = _tc(color.withValues(alpha: alpha)),
       );
     }
 
-    final dot = Paint();
+    final dot = Paint()
+      ..color =
+          _tc(const Color(0xFFFFA4BE).withValues(alpha: front ? 0.65 : 0.16));
     final glow = Paint()
-      ..color = const Color(0xFFFF416A).withValues(alpha: 0.5)
+      ..color = _tc(const Color(0xFFFF416A).withValues(alpha: 0.5))
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
     for (var i = 0; i < _particles; i++) {
-      final band = i % 7;
-      final a = (i * 2.399 + motion.particleAngle) % (math.pi * 2);
-      final p = _point(a, band + 1, t, c, rs, charge);
-      if (front == _behind(p, c, rs)) continue;
+      if (o.pBehind[i] == hidden) continue;
       final big = i % 13 == 0;
-      final size = (big ? 1.8 : 0.7) * (1 + p.z / rs * 0.25);
-      final o = Offset(p.x, p.y);
-      if (big && front && !lite) canvas.drawCircle(o, size * 3, glow);
-      canvas.drawCircle(
-        o,
-        size,
-        dot
-          ..color =
-              const Color(0xFFFFA4BE).withValues(alpha: front ? 0.65 : 0.16),
-      );
+      final size = (big ? 1.8 : 0.7) * (1 + o.pz[i] / rs * 0.25);
+      final p = Offset(o.px[i], o.py[i]);
+      if (big && front && !lite) canvas.drawCircle(p, size * 3, glow);
+      canvas.drawCircle(p, size, dot);
     }
   }
 
@@ -882,7 +876,7 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color = color.withValues(alpha: alpha),
+        ..color = _tc(color.withValues(alpha: alpha)),
     );
   }
 
