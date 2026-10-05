@@ -161,12 +161,12 @@ worktree_at() {  # $1 commit
 worktree_drop() { git -c core.longpaths=true worktree remove --force "$WT" 2>/dev/null || true; git worktree prune; }
 
 cmd_build() {
-  local want=${1:-all}
+  local want=${1:-all} aname=${2:-}
   preflight "$want"
   mkdir -p "$OUT"; rm -f "$OUT"/*.apk "$OUT"/*.exe "$OUT"/*.json
   : > "$STATE"
   local an ac arn arc arcommit wn wc wrn wrc wrcommit
-  if [ "$want" != windows ]; then read -r an ac arn arc arcommit < <(rel next android); fi
+  if [ "$want" != windows ]; then read -r an ac arn arc arcommit < <(rel next android $aname); fi
   if [ "$want" != android ]; then read -r wn wc wrn wrc wrcommit < <(rel next windows); fi
   say "Версии: ${an:+Android $an ($ac), откат $arn ($arc)} ${wn:+Windows $wn ($wc), откат $wrn ($wrc)}"
 
@@ -304,7 +304,7 @@ case "${1:-}" in
   check)   preflight "${2:-all}"
            [ "${2:-all}" != windows ] && echo "Следующий Android: $(rel next android)"
            [ "${2:-all}" != android ] && echo "Следующий Windows: $(rel next windows)"; true ;;
-  build)   cmd_build "${2:-all}" ;;
+  build)   cmd_build "${2:-all}" "${3:-}" ;;   # build android 1.3.0 — своё имя версии Android
   stage)   cmd_stage ;;
   publish) cmd_publish ;;
   *) sed -n '2,8p' "$0"; exit 1 ;;

@@ -34,6 +34,7 @@ tools/release/release.sh build            # или: build android / build window
 коммита), проверяет подпись и что в сборке боевой адрес Core (не заглушки). Сборка ~20–40 минут —
 запускать в фоне. Результат — `.artifacts/release/`.
 
+Своё имя версии Android (например, крупное обновление): `tools/release/release.sh build android 1.3.0`.
 Если нужна конкретная версия (например, минорная), сначала посмотреть `check`, а номер версии
 менять только через `tools/release/rel.dart next <android|windows> <имя>` — скрипт не даст
 четырёхзначную версию Windows.
