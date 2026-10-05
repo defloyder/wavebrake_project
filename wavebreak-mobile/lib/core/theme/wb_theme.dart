@@ -65,30 +65,87 @@ class WbTheme {
       highlightColor: WbColors.waveCyan.withValues(alpha: 0.06),
       focusColor: WbColors.waveCyan.withValues(alpha: 0.16),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: WbColors.card,
+        backgroundColor: const Color(0xF20C1418),
         contentTextStyle: text.bodyMedium,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: WbColors.hairline),
+        ),
+      ),
+      // V5 controls: light primary CTA (as the mockup's "Войти"), quiet
+      // outlined secondary, arctic accents, 12 px fields, dark-glass
+      // dialogs and sheets. Minimum 44 px tap height everywhere.
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: WbColors.ice,
+          foregroundColor: WbColors.midnight,
+          disabledBackgroundColor: WbColors.ice08,
+          minimumSize: const Size(44, 48),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: WbColors.ice,
+          minimumSize: const Size(44, 48),
+          side: const BorderSide(color: WbColors.hairline),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: WbColors.waveCyan,
+          minimumSize: const Size(44, 44),
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected) ? WbColors.ice : WbColors.ice60),
+        trackColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected)
+                ? WbColors.waveCyan.withValues(alpha: 0.55)
+                : WbColors.ice08),
+        trackOutlineColor: const WidgetStatePropertyAll(WbColors.hairline),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: const Color(0xF20A1013),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: WbColors.hairline),
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Color(0xF20A1013),
+        modalBackgroundColor: Color(0xF20A1013),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          side: BorderSide(color: WbColors.hairline),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: WbColors.card,
-        hintStyle: const TextStyle(color: WbColors.ice60),
+        fillColor: const Color(0xCC0A1013),
+        hintStyle: const TextStyle(color: WbColors.muted),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: WbColors.ice08),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: WbColors.hairline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: WbColors.waveCyan, width: 1.2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: WbColors.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: WbColors.error),
         ),
       ),

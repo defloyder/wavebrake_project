@@ -7,6 +7,7 @@ import '../../core/i18n/language_controller.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/live_metrics.dart';
 import '../immersive/immersive_colors.dart';
+import '../immersive/tinted_glass.dart';
 
 // Layout rule for everything here: nothing may change size when a value
 // appears or changes. Fixed slot widths, fixed font sizes (no FittedBox
@@ -335,14 +336,8 @@ class _GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return TintedGlass(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: Ic.glass,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Ic.glassBorder),
-      ),
       child: child,
     );
   }

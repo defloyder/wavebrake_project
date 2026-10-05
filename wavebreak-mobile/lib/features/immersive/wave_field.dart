@@ -11,11 +11,16 @@ import 'immersive_colors.dart';
 /// across the lower two thirds of the screen. Pure decoration: no hit
 /// testing, no semantics, sits under the content.
 class WaveField extends StatelessWidget {
-  const WaveField({super.key, this.intensity = 1.0, this.layers = 26});
+  const WaveField(
+      {super.key, this.intensity = 1.0, this.layers = 26, this.tint});
 
   /// 0..1 — brighter while connected.
   final double intensity;
   final int layers;
+
+  /// Location flag accent: the crimson streams lean towards it a little
+  /// (the same flag-tinted mood the rest of the app follows).
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +33,7 @@ class WaveField extends StatelessWidget {
               time: ImmersiveClock.of(context),
               intensity: intensity,
               layers: layers,
+              tint: tint,
             ),
           ),
         ),
@@ -38,12 +44,19 @@ class WaveField extends StatelessWidget {
 
 class _WaveFieldPainter extends CustomPainter {
   _WaveFieldPainter(
-      {required this.time, required this.intensity, required this.layers})
+      {required this.time,
+      required this.intensity,
+      required this.layers,
+      this.tint})
       : super(repaint: time);
 
   final ValueListenable<double> time;
   final double intensity;
   final int layers;
+  final Color? tint;
+
+  Color _lean(Color c, double a) =>
+      tint == null ? c : (Color.lerp(c, tint, a) ?? c);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -59,7 +72,7 @@ class _WaveFieldPainter extends CustomPainter {
           center: const Alignment(0.3, 0.55),
           radius: 1.1,
           colors: [
-            Ic.burgundy.withValues(alpha: 0.55),
+            _lean(Ic.burgundy, 0.30).withValues(alpha: 0.55),
             Ic.background.withValues(alpha: 0),
           ],
         ).createShader(Offset.zero & size),
@@ -114,7 +127,7 @@ class _WaveFieldPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Ic.crimson.withValues(alpha: 0.035 * k * (0.6 + 0.4 * intensity)),
+            _lean(Ic.crimson, 0.30).withValues(alpha: 0.035 * k * (0.6 + 0.4 * intensity)),
             Ic.background.withValues(alpha: 0),
           ],
         ).createShader(Rect.fromLTWH(0, base - amp * 1.5, w, h - base));
@@ -123,13 +136,13 @@ class _WaveFieldPainter extends CustomPainter {
       final bright = i == layers - 3 || i == layers - 9;
       stroke
         ..strokeWidth = bright ? 1.4 : 0.5 + 0.6 * k
-        ..color = Color.lerp(Ic.burgundy, Ic.crimson, k * k)!.withValues(
+        ..color = _lean(Color.lerp(Ic.burgundy, Ic.crimson, k * k)!, 0.30).withValues(
             alpha: (bright ? 0.55 : 0.10 + 0.22 * k) * (0.7 + 0.3 * intensity));
       canvas.drawPath(crest, stroke);
       if (bright) {
         stroke
           ..strokeWidth = 6
-          ..color = Ic.crimson.withValues(alpha: 0.06 * (0.6 + 0.4 * intensity))
+          ..color = _lean(Ic.crimson, 0.30).withValues(alpha: 0.06 * (0.6 + 0.4 * intensity))
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
         canvas.drawPath(crest, stroke);
         stroke.maskFilter = null;
@@ -139,5 +152,8 @@ class _WaveFieldPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_WaveFieldPainter old) =>
-      old.intensity != intensity || old.layers != layers || old.time != time;
+      old.intensity != intensity ||
+      old.layers != layers ||
+      old.time != time ||
+      old.tint != tint;
 }

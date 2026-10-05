@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../services/core_api/models.dart';
 import '../immersive/immersive_colors.dart';
+import '../immersive/tinted_glass.dart';
 import '../shared/flag_icon.dart';
 
 final _paren = RegExp(r'^(.*?)\s*\(([^)]+)\)\s*$');
@@ -66,67 +67,55 @@ class LocationBar extends StatelessWidget {
 
     return Column(
       children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onOpenPicker,
-            borderRadius: BorderRadius.circular(16),
-            child: Ink(
-              padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-              decoration: BoxDecoration(
-                gradient: Ic.glass,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Ic.glassBorder),
+        TintedGlass(
+          onTap: onOpenPicker,
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Ic.text.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: location.isAuto
+                    ? const Icon(Icons.public, color: Ic.arctic)
+                    : FlagIcon(countryCode: location.countryCode, width: 28),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Ic.text.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(12),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Ic.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    child: location.isAuto
-                        ? const Icon(Icons.public, color: Ic.arctic)
-                        : FlagIcon(countryCode: location.countryCode, width: 28),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Ic.text,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (subtitle.isNotEmpty)
-                          Text(
-                            subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Ic.textMuted, fontSize: 13),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: Icon(Icons.expand_more_rounded,
-                        color: Ic.textSecondary),
-                  ),
-                ],
+                    if (subtitle.isNotEmpty)
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            const TextStyle(color: Ic.textMuted, fontSize: 13),
+                      ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(
+                width: 44,
+                height: 44,
+                child: Icon(Icons.expand_more_rounded, color: Ic.textSecondary),
+              ),
+            ],
           ),
         ),
         if (options.length > 1) ...[

@@ -633,6 +633,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             children: [
               Positioned.fill(
                 child: WaveField(
+                  tint: tint,
                   intensity:
                       connection.status == ConnectionStatus.connected ? 1 : 0.55,
                 ),

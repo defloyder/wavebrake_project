@@ -8,6 +8,8 @@ import '../../services/vpn/live_metrics.dart';
 import '../home/home_vitals.dart';
 import '../home/location_bar.dart';
 import '../immersive/immersive_colors.dart';
+import '../immersive/tinted_glass.dart';
+import '../shared/wave_params.dart';
 import '../immersive/wave_field.dart';
 import '../shared/flag_icon.dart';
 import '../shell/app_shell.dart';
@@ -97,7 +99,13 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
 
     return Stack(
       children: [
-        const Positioned.fill(child: WaveField(intensity: 0.45, layers: 14)),
+        Positioned.fill(
+          child: WaveField(
+            intensity: 0.45,
+            layers: 14,
+            tint: ref.watch(appWaveParamsProvider).tint,
+          ),
+        ),
         SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(
@@ -512,13 +520,8 @@ class _Glass extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return TintedGlass(
       padding: padding ?? const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: Ic.glass,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Ic.glassBorder),
-      ),
       child: child,
     );
   }
