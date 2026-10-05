@@ -140,8 +140,12 @@ verify_apk() {  # $1 file $2 name $3 code
   cert=$("$(tool apksigner)" verify --print-certs "$f" | grep -m1 "SHA-256" | awk '{print $NF}')
   [ "$cert" = "$(rel cert)" ] || die "$f подписан не релизным ключом (SHA-256 $cert)"
   local so; so=$(unzip -l "$f" | grep -oE "lib/[^ ]+/libapp.so" | head -1)
-  unzip -p "$f" "$so" | grep -aq "$CORE_URL" || die "$f: нет боевого адреса Core — сборка с заглушками"
-  ! unzip -p "$f" "$so" | grep -aq "127.0.0.1:18080" || die "$f: собран с адресом по умолчанию (заглушки)"
+  # The library goes to a temp file first: piped into grep -q, grep quit at
+  # the first match, unzip got SIGPIPE and pipefail failed the check (1.3.0).
+  local lib; lib=$(mktemp); unzip -p "$f" "$so" > "$lib"
+  grep -aq "$CORE_URL" "$lib" || { rm -f "$lib"; die "$f: нет боевого адреса Core — сборка с заглушками"; }
+  ! grep -aq "127.0.0.1:18080" "$lib" || { rm -f "$lib"; die "$f: собран с адресом по умолчанию (заглушки)"; }
+  rm -f "$lib"
   echo "ok: $(basename "$f") — $2 ($3), релизный ключ, боевой Core"
 }
 
