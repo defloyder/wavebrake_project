@@ -4,6 +4,17 @@
     "maxCode": 56,
     "releases": [
       {
+        "name": "1.3.0",
+        "code": 55,
+        "commit": "f25ac17",
+        "rollback": {
+          "name": "1.2.4.5",
+          "code": 56,
+          "commit": "3c703ab"
+        },
+        "published": "2026-10-05"
+      },
+      {
         "name": "1.2.4.5",
         "code": 53,
         "commit": "3c703ab",
