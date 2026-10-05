@@ -83,7 +83,7 @@ class SettingsScreen extends ConsumerWidget {
                 _row(context, s.personalization, Icons.palette_outlined,
                     '/settings/personalization'),
                 _languageRow(context, ref, s, language),
-                if (VpnLockdown.available) _killSwitchCard(s),
+                if (VpnLockdown.available) _killSwitchCard(context, s),
                 if (QuickTile.available) _quickTileCard(context, s),
                 _row(context, s.support, Icons.chat_bubble_outline,
                     '/settings/support'),
@@ -134,41 +134,16 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  /// System kill switch: explains what it does and opens Android's VPN
-  /// screen, where the user turns it on (apps can't).
-  Widget _killSwitchCard(AppStrings s) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: WbCard(
-        onTap: VpnLockdown.openSystemSettings,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Builder(
-              builder: (context) =>
-                  Icon(Icons.gpp_good_outlined, color: context.accent),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(s.killSwitchTitle,
-                      style: const TextStyle(fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text(
-                    s.killSwitchHint,
-                    style: const TextStyle(
-                        fontSize: 13, color: WbColors.muted, height: 1.35),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.open_in_new_rounded,
-                color: WbColors.ice60, size: 20),
-          ],
-        ),
-      ),
+  /// System kill switch: a short line, the details behind (i); the card
+  /// opens Android's VPN screen, where the user turns it on (apps can't).
+  Widget _killSwitchCard(BuildContext context, AppStrings s) {
+    return _InfoActionCard(
+      icon: Icons.gpp_good_outlined,
+      title: s.killSwitchTitle,
+      hint: s.killSwitchHint,
+      info: s.killSwitchInfo,
+      trailing: Icons.open_in_new_rounded,
+      onTap: VpnLockdown.openSystemSettings,
     );
   }
 
@@ -179,19 +154,7 @@ class SettingsScreen extends ConsumerWidget {
       final result = await QuickTile.requestAdd();
       if (!context.mounted) return;
       if (result == QuickTileResult.manual) {
-        await showDialog<void>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: Text(s.quickTileTitle),
-            content: Text(s.quickTileManual),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
+        await _showInfo(context, s.quickTileTitle, s.quickTileManual);
         return;
       }
       final text = switch (result) {
@@ -205,33 +168,13 @@ class SettingsScreen extends ConsumerWidget {
       }
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: WbCard(
-        onTap: add,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.toggle_on_outlined, color: context.accent),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(s.quickTileTitle, style: const TextStyle(fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text(
-                    s.quickTileHint,
-                    style: const TextStyle(
-                        fontSize: 13, color: WbColors.muted, height: 1.35),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.add_rounded, color: WbColors.ice60, size: 22),
-          ],
-        ),
-      ),
+    return _InfoActionCard(
+      icon: Icons.toggle_on_outlined,
+      title: s.quickTileTitle,
+      hint: s.quickTileHint,
+      info: s.quickTileInfo,
+      trailing: Icons.add_rounded,
+      onTap: add,
     );
   }
 
@@ -329,5 +272,83 @@ class SettingsScreen extends ConsumerWidget {
     if (picked != null) {
       await ref.read(languageProvider.notifier).setLanguage(picked);
     }
+  }
+}
+
+Future<void> _showInfo(BuildContext context, String title, String body) {
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(title,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+      content: SingleChildScrollView(
+        child: Text(body, style: const TextStyle(height: 1.45)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// A settings card that does one thing on tap, with a short [hint] and
+/// the full explanation behind an (i) button.
+class _InfoActionCard extends StatelessWidget {
+  const _InfoActionCard({
+    required this.icon,
+    required this.title,
+    required this.hint,
+    required this.info,
+    required this.trailing,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String hint;
+  final String info;
+  final IconData trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: WbCard(
+        onTap: onTap,
+        padding: const EdgeInsets.fromLTRB(16, 12, 6, 12),
+        child: Row(
+          children: [
+            Icon(icon, color: context.accent),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 3),
+                  Text(
+                    hint,
+                    style: const TextStyle(
+                        fontSize: 13, color: WbColors.muted, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: title,
+              onPressed: () => _showInfo(context, title, info),
+              icon: const Icon(Icons.info_outline_rounded,
+                  color: WbColors.ice60, size: 22),
+            ),
+            Icon(trailing, color: WbColors.ice60, size: 20),
+            const SizedBox(width: 6),
+          ],
+        ),
+      ),
+    );
   }
 }
