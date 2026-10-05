@@ -7,6 +7,7 @@ import '../core/storage/prefs_store.dart';
 import '../features/auth/forgot_password_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
+import '../features/auth/email_code_screen.dart';
 import '../features/auth/verify_email_screen.dart';
 import '../features/auth/welcome_screen.dart';
 import '../features/home/home_screen.dart';
@@ -52,7 +53,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuth = loc == '/login' ||
           loc == '/register' ||
           loc == '/forgot' ||
-          loc == '/verify-email';
+          loc == '/verify-email' ||
+          loc == '/email-code';
       final isUpdate = loc == '/update-required';
       final isMaintenance = loc == '/maintenance';
 
@@ -99,6 +101,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             fadeThroughPage(state, const RegisterScreen()),
       ),
       GoRoute(
+        path: '/email-code',
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const EmailCodeScreen()),
+      ),
+      GoRoute(
         path: '/verify-email',
         pageBuilder: (_, state) {
           final extra = state.extra is Map ? state.extra as Map : const {};
@@ -107,6 +114,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             VerifyEmailScreen(
               email: (extra['email'] ?? '').toString(),
               codeSent: extra['sent'] != false,
+              loginCode: extra['login'] == true,
             ),
           );
         },

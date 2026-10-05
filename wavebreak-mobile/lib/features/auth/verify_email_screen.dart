@@ -20,13 +20,20 @@ import '../shared/wavebreak_mark.dart';
 /// user in (Core returns tokens), exactly like a login.
 class VerifyEmailScreen extends ConsumerStatefulWidget {
   const VerifyEmailScreen(
-      {super.key, required this.email, this.codeSent = true});
+      {super.key,
+      required this.email,
+      this.codeSent = true,
+      this.loginCode = false});
 
   final String email;
 
   /// False when Core created the account but the email didn't go out —
   /// the screen then offers "send again" straight away.
   final bool codeSent;
+
+  /// Sign-in with an emailed code (an existing account) instead of
+  /// confirming a new one: same screen, Core's login-code endpoints.
+  final bool loginCode;
 
   @override
   ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
@@ -68,9 +75,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       _info = null;
     });
     try {
-      final tokens = await ref
-          .read(coreGatewayProvider)
-          .verifyEmail(email: widget.email, code: code)
+      final gateway = ref.read(coreGatewayProvider);
+      final tokens = await (widget.loginCode
+              ? gateway.confirmLoginCode(email: widget.email, code: code)
+              : gateway.verifyEmail(email: widget.email, code: code))
           .timeout(const Duration(seconds: 30),
               onTimeout: () => throw AppException(AppErrorKind.unavailable));
       await ref
@@ -96,7 +104,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       _info = null;
     });
     try {
-      await ref.read(coreGatewayProvider).resendEmailCode(
+      final gateway = ref.read(coreGatewayProvider);
+      await (widget.loginCode
+          ? gateway.requestLoginCode
+          : gateway.resendEmailCode)(
             email: widget.email,
             language: ref.read(languageProvider).name,
           );
@@ -143,14 +154,15 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: IconButton(
-                    onPressed: () => safePop(context, fallback: '/login'),
+                    onPressed: () => safePop(context,
+                        fallback: widget.loginCode ? '/email-code' : '/login'),
                     icon: const Icon(Icons.arrow_back_ios_new_rounded),
                   ),
                 ),
                 const WavebreakMark(size: 64),
                 const SizedBox(height: 16),
                 Text(
-                  s.verifyEmailTitle,
+                  widget.loginCode ? s.emailCodeTitle : s.verifyEmailTitle,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontFamily: 'serif', fontSize: 26),
@@ -159,7 +171,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 Text(
                   notSent
                       ? s.errEmailSendFailed
-                      : s.verifyEmailBody.replaceAll('{email}', widget.email),
+                      : (widget.loginCode ? s.emailCodeBody : s.verifyEmailBody)
+                          .replaceAll('{email}', widget.email),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: notSent ? WbColors.warning : WbColors.muted,
@@ -222,7 +235,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                             height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2.4),
                           )
-                        : Text(s.verifyEmailConfirm),
+                        : Text(widget.loginCode
+                            ? s.emailCodeSignIn
+                            : s.verifyEmailConfirm),
                   ),
                 ),
                 const SizedBox(height: 8),

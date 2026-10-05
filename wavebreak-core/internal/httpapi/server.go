@@ -81,6 +81,10 @@ func (s *Server) router() http.Handler {
 		r.Post("/auth/password-reset/request", s.requestPasswordReset)
 		r.Post("/auth/email/verify", s.verifyEmail)
 		r.Post("/auth/email/resend", s.resendEmailCode)
+		r.With(ipRateLimitMiddleware(s.limiter, "login", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
+			Post("/auth/email/login-code/request", s.requestLoginCode)
+		r.With(ipRateLimitMiddleware(s.limiter, "login", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
+			Post("/auth/email/login-code/confirm", s.confirmLoginCode)
 		r.Get("/plans", s.listPlans)
 		r.Post("/node/enroll", s.nodeEnrollWithToken)
 		r.Get("/sub/{grantID}", s.subscriptionByGrant)

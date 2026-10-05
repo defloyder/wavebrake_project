@@ -58,6 +58,19 @@ class CoreGateway {
     await live.resendEmailCode(email: email, language: language);
   }
 
+  // Sign-in with an emailed code (the mock backend signs in directly).
+  Future<void> requestLoginCode(
+      {required String email, String? language}) async {
+    if (useMock) return;
+    await live.requestLoginCode(email: email, language: language);
+  }
+
+  Future<TokenPair> confirmLoginCode(
+      {required String email, required String code}) {
+    if (useMock) return mock.login(email, '');
+    return live.confirmLoginCode(email: email, code: code);
+  }
+
   Future<void> sendMyEmailCode({String? language}) async {
     if (useMock) return;
     await live.sendMyEmailCode(language: language);

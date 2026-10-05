@@ -43,6 +43,29 @@ func VerificationCode(lang, to, code string, ttl time.Duration) Message {
 	})
 }
 
+// LoginCode: a one-time code to sign in without the password.
+func LoginCode(lang, to, code string, ttl time.Duration) Message {
+	minutes := int(ttl.Minutes())
+	if Language(lang) == "ru" {
+		return build(to, "Код для входа в WAVEBREAK: "+code, layout{
+			Preheader: "Ваш код для входа: " + code,
+			Title:     "Вход в WAVEBREAK",
+			Lead:      "Введите этот код в приложении WAVEBREAK, чтобы войти в аккаунт " + to + ".",
+			Code:      code,
+			Note:      fmt.Sprintf("Код действует %d минут. Если вы не пытались войти, просто проигнорируйте это письмо — без кода в аккаунт не войти.", minutes),
+			Lang:      "ru",
+		})
+	}
+	return build(to, "Your WAVEBREAK sign-in code: "+code, layout{
+		Preheader: "Your sign-in code: " + code,
+		Title:     "Sign in to WAVEBREAK",
+		Lead:      "Enter this code in the WAVEBREAK app to sign in to " + to + ".",
+		Code:      code,
+		Note:      fmt.Sprintf("The code is valid for %d minutes. If you didn't try to sign in, just ignore this email — no one can get in without the code.", minutes),
+		Lang:      "en",
+	})
+}
+
 // Welcome: sent once the address is confirmed.
 func Welcome(lang, to string) Message {
 	if Language(lang) == "ru" {

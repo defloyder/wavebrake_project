@@ -58,25 +58,9 @@ func emailCodeHash(userID, code string) string {
 // sendEmailCode creates a fresh code and emails it; within a minute of the
 // previous one it does nothing and returns errEmailCooldown.
 func (s *Server) sendEmailCode(ctx context.Context, userID, email, lang string) error {
-	sentAt, err := s.app.Store.EmailCodeSentAt(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if !sentAt.IsZero() && time.Since(sentAt) < emailCodeResendAfter {
-		return errEmailCooldown
-	}
-	code, err := newEmailCode()
-	if err != nil {
-		return err
-	}
-	if err := s.app.Store.SaveEmailCode(ctx, userID, emailCodeHash(userID, code), time.Now().Add(emailCodeTTL)); err != nil {
-		return err
-	}
-	if err := s.mail.Send(ctx, mailer.VerificationCode(lang, email, code, emailCodeTTL)); err != nil {
-		s.warn(ctx, "send verification email", "error", err)
-		return err
-	}
-	return nil
+	return s.sendCode(ctx, userID, func(code string) mailer.Message {
+		return mailer.VerificationCode(lang, email, code, emailCodeTTL)
+	})
 }
 
 func (s *Server) sendWelcome(userID, email, lang string) {

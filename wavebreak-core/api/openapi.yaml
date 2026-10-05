@@ -43,6 +43,48 @@ paths:
       responses:
         "200":
           description: Token pair
+  /v1/auth/email/login-code/request:
+    post:
+      summary: Mail a one-time sign-in code to an existing account (202 for unknown addresses too)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                language:
+                  type: string
+      responses:
+        "202":
+          description: Sent (or silently ignored for an unknown address)
+        "429":
+          description: A code was sent less than a minute ago, or too many attempts
+  /v1/auth/email/login-code/confirm:
+    post:
+      summary: Sign in with the mailed code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email:
+                  type: string
+                code:
+                  type: string
+      responses:
+        "200":
+          description: Token pair
+        "400":
+          description: invalid_code or code_expired
+        "429":
+          description: too_many_attempts
   /v1/auth/refresh:
     post:
       summary: Refresh an access token

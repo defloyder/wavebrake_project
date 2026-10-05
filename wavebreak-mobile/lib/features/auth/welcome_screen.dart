@@ -199,7 +199,7 @@ class WelcomeScreen extends ConsumerWidget {
                 child: _SocialButton(
                   icon: Icons.alternate_email_rounded,
                   label: s.authEmail,
-                  onTap: () => _choose(context, ref, '/login'),
+                  onTap: () => _choose(context, ref, '/email-code'),
                 ),
               ),
             ],

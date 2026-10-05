@@ -157,6 +157,49 @@ void main() {
     expect(tokens.refreshToken, 'r2');
   });
 
+  test('sign-in with an emailed code: request, then tokens', () async {
+    await serve({
+      '/auth/email/login-code/request': (
+        202,
+        {'status': 'sent', 'resend_after_seconds': 60}
+      ),
+      '/auth/email/login-code/confirm': (
+        200,
+        {'access_token': 'a3', 'refresh_token': 'r3'}
+      ),
+    });
+    await _api().requestLoginCode(email: 'a@b.c', language: 'ru');
+    final (path, body, _) = core.seen.single;
+    expect(path, '/auth/email/login-code/request');
+    expect(body, {'email': 'a@b.c', 'language': 'ru'});
+    final tokens = await _api().confirmLoginCode(email: 'a@b.c', code: '123456');
+    expect(tokens.accessToken, 'a3');
+    expect(core.seen.last.$2, {'email': 'a@b.c', 'code': '123456'});
+  });
+
+  test('login-code errors map like verification codes', () async {
+    await serve({
+      '/auth/email/login-code/request': (
+        429,
+        {'code': 'resend_too_soon', 'error': 'x', 'resend_after_seconds': 60}
+      ),
+      '/auth/email/login-code/confirm': (
+        400,
+        {'code': 'invalid_code', 'error': 'invalid_code'}
+      ),
+    });
+    await expectLater(
+      _api().requestLoginCode(email: 'a@b.c'),
+      throwsA(isA<AppException>()
+          .having((e) => e.kind, 'kind', AppErrorKind.resendTooSoon)),
+    );
+    await expectLater(
+      _api().confirmLoginCode(email: 'a@b.c', code: '000000'),
+      throwsA(isA<AppException>()
+          .having((e) => e.kind, 'kind', AppErrorKind.codeInvalid)),
+    );
+  });
+
   test('profile carries the verification state', () {
     final p = UserProfile.fromJson({
       'id': 'u',
