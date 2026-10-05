@@ -9,6 +9,7 @@ import '../../core/theme/wb_colors.dart';
 import '../../services/core_api/models.dart';
 import '../../services/vpn/connection_test_service.dart';
 import 'flag_icon.dart';
+import '../immersive/immersive_colors.dart';
 import 'share_subscription_sheet.dart';
 import 'subscription_section.dart';
 import 'wave_params.dart';
@@ -241,9 +242,22 @@ class _SectionCardState extends State<_SectionCard> {
     // the location picker, and a live blur per section is the kind of
     // per-instance GPU cost that stays smooth on a desktop/emulator but
     // turns the whole sheet janky to open/scroll on a real phone.
+    // V5 glass gradient leaning towards this section's flag (no live
+    // blur, see above).
+    final accent = active == null ? null : accentColorFor(active.countryCode);
+    Color lean(Color c, double a) =>
+        accent == null ? c : (Color.lerp(c, accent, a) ?? c);
     return Container(
       decoration: BoxDecoration(
-        color: WbColors.card.withValues(alpha: 0.82),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            lean(Ic.glassTop, 0.20),
+            lean(Ic.glassMid, 0.07),
+            lean(Ic.glassBottom, 0.03),
+          ],
+        ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: borderColor),
       ),
