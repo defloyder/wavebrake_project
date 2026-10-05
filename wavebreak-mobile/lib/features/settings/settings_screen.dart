@@ -8,6 +8,7 @@ import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/update/update_service.dart';
+import '../../services/system/vpn_lockdown.dart';
 import '../shared/menu_button.dart';
 import '../shared/ocean_background.dart';
 import '../shared/wave_params.dart';
@@ -64,7 +65,7 @@ class SettingsScreen extends ConsumerWidget {
                     Text(
                       s.settings,
                       style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w600),
+                          fontFamily: 'serif', fontSize: 30),
                     ),
                   ],
                 ),
@@ -80,6 +81,7 @@ class SettingsScreen extends ConsumerWidget {
                 _row(context, s.personalization, Icons.palette_outlined,
                     '/settings/personalization'),
                 _languageRow(context, ref, s, language),
+                if (VpnLockdown.available) _killSwitchCard(s),
                 _row(context, s.support, Icons.chat_bubble_outline,
                     '/settings/support'),
                 if (Platform.isAndroid || Platform.isWindows)
@@ -123,6 +125,41 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ],
             const Icon(Icons.chevron_right, color: WbColors.ice60),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// System kill switch: explains what it does and opens Android's VPN
+  /// screen, where the user turns it on (apps can't).
+  Widget _killSwitchCard(AppStrings s) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: WbCard(
+        onTap: VpnLockdown.openSystemSettings,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.gpp_good_outlined, color: WbColors.waveCyan),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.killSwitchTitle,
+                      style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(
+                    s.killSwitchHint,
+                    style: const TextStyle(
+                        fontSize: 13, color: WbColors.muted, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.open_in_new_rounded,
+                color: WbColors.ice60, size: 20),
           ],
         ),
       ),

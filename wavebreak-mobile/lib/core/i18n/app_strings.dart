@@ -124,6 +124,8 @@ class AppStrings {
     required this.protectOn,
     required this.protectConnecting,
     required this.protectDisconnecting,
+    required this.killSwitchTitle,
+    required this.killSwitchHint,
     required this.navSpeedShort,
     required this.navSettings,
     required this.settings,
@@ -397,6 +399,10 @@ class AppStrings {
   final String protectOn;
   final String protectConnecting;
   final String protectDisconnecting;
+
+  /// Settings: system "block connections without VPN" (kill switch).
+  final String killSwitchTitle;
+  final String killSwitchHint;
   final String navSpeedShort;
   final String navSettings;
   final String settings;
@@ -677,6 +683,8 @@ const kEnglishStrings = AppStrings(
   protectOn: 'Protection active',
   protectConnecting: 'Connecting…',
   protectDisconnecting: 'Disconnecting…',
+  killSwitchTitle: 'Block internet without VPN',
+  killSwitchHint: 'Turn on “Always-on VPN” and “Block connections without VPN” for WAVEBREAK — Android will then let no traffic out while the VPN is down.',
   navSpeedShort: 'Test',
   navSettings: 'Settings',
   settings: 'Settings',
@@ -960,6 +968,8 @@ const kRussianStrings = AppStrings(
   protectOn: 'Защита активна',
   protectConnecting: 'Подключение…',
   protectDisconnecting: 'Отключение…',
+  killSwitchTitle: 'Блокировать интернет без VPN',
+  killSwitchHint: 'Включите для WAVEBREAK «Постоянная VPN» и «Блокировать соединения без VPN» — тогда Android не выпустит трафик, пока VPN не подключён.',
   navSpeedShort: 'Тест',
   navSettings: 'Настройки',
   settings: 'Настройки',
@@ -1248,6 +1258,8 @@ const kSpanishStrings = AppStrings(
   protectOn: 'Protección activa',
   protectConnecting: 'Conectando…',
   protectDisconnecting: 'Desconectando…',
+  killSwitchTitle: 'Bloquear internet sin VPN',
+  killSwitchHint: 'Activa «VPN siempre activa» y «Bloquear conexiones sin VPN» para WAVEBREAK — Android no dejará salir tráfico sin la VPN.',
   navSpeedShort: 'Test',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
@@ -1539,6 +1551,8 @@ const kGermanStrings = AppStrings(
   protectOn: 'Schutz aktiv',
   protectConnecting: 'Verbinde…',
   protectDisconnecting: 'Trenne…',
+  killSwitchTitle: 'Internet ohne VPN sperren',
+  killSwitchHint: 'Aktivieren Sie für WAVEBREAK „Durchgehend aktives VPN“ und „Verbindungen ohne VPN blockieren“ — dann lässt Android ohne VPN keinen Verkehr durch.',
   navSpeedShort: 'Test',
   navSettings: 'Einstellungen',
   settings: 'Einstellungen',
@@ -1831,6 +1845,8 @@ const kFrenchStrings = AppStrings(
   protectOn: 'Protection active',
   protectConnecting: 'Connexion…',
   protectDisconnecting: 'Déconnexion…',
+  killSwitchTitle: 'Bloquer Internet sans VPN',
+  killSwitchHint: 'Activez « VPN permanent » et « Bloquer les connexions sans VPN » pour WAVEBREAK — Android ne laissera alors rien passer sans VPN.',
   navSpeedShort: 'Test',
   navSettings: 'Réglages',
   settings: 'Réglages',
@@ -2125,6 +2141,8 @@ const kPortugueseStrings = AppStrings(
   protectOn: 'Proteção ativa',
   protectConnecting: 'Conectando…',
   protectDisconnecting: 'Desconectando…',
+  killSwitchTitle: 'Bloquear internet sem VPN',
+  killSwitchHint: 'Ative “VPN sempre ativa” e “Bloquear conexões sem VPN” para o WAVEBREAK — o Android não deixará o tráfego sair sem a VPN.',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
   account: 'Conta',
@@ -2410,6 +2428,8 @@ const kTurkishStrings = AppStrings(
   protectOn: 'Koruma etkin',
   protectConnecting: 'Bağlanıyor…',
   protectDisconnecting: 'Bağlantı kesiliyor…',
+  killSwitchTitle: 'VPN olmadan interneti engelle',
+  killSwitchHint: 'WAVEBREAK için “Her zaman açık VPN” ve “VPN olmadan bağlantıları engelle” seçeneklerini açın — VPN kapalıyken Android trafiğe izin vermez.',
   navSpeedShort: 'Test',
   navSettings: 'Ayarlar',
   settings: 'Ayarlar',

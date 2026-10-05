@@ -371,6 +371,17 @@ class MainActivity : FlutterFragmentActivity() {
                     "isIgnoringBatteryOptimizations" -> {
                         result.success(BatteryOptimization.isIgnoringBatteryOptimizations(this))
                     }
+                    // Settings > "Block internet without VPN": Android lets
+                    // only the user turn on "Always-on VPN" + "Block
+                    // connections without VPN" — an app can't — so this
+                    // just opens the system VPN screen.
+                    "openVpnSettings" -> {
+                        startSettingsScreen(
+                            Intent(Settings.ACTION_VPN_SETTINGS),
+                            Intent(Settings.ACTION_WIRELESS_SETTINGS),
+                        )
+                        result.success(null)
+                    }
                     "requestIgnoreBatteryOptimizations" -> {
                         startSettingsScreen(
                             BatteryOptimization.requestIgnoreBatteryOptimizationsIntent(this),
