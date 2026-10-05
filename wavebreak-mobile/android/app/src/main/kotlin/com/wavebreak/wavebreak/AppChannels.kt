@@ -243,9 +243,6 @@ object AppChannels {
                         putExtra("labelCheckPing", call.argument<String>("labelCheckPing") ?: "Check ping")
                         putExtra("labelPingUnavailable", call.argument<String>("labelPingUnavailable") ?: "Unavailable")
                         putExtra("labelMeasuring", call.argument<String>("labelMeasuring") ?: "Measuring…")
-                        // Quick switching from the shade (empty = no button).
-                        putExtra("labelServer", call.argument<String>("labelServer") ?: "")
-                        putExtra("labelProtocol", call.argument<String>("labelProtocol") ?: "")
                     }
                     startService(app, intent)
                     result.success(null)

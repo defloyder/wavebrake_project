@@ -72,8 +72,19 @@ class AnimatedValue extends StatelessWidget {
   }
 }
 
+/// Rate under 1 Mbps in Kbps: light traffic used to read "0 Mbps" (owner:
+/// "the download beside the sphere is always 0").
+bool rateInKbps(double mbps) => mbps < 1;
+
+String formatRate(double mbps) =>
+    rateInKbps(mbps) ? (mbps * 1000).round().toString() : formatMbps(mbps);
+
+String rateUnit(double? mbps) =>
+    mbps != null && rateInKbps(mbps) ? 'Kbps' : 'Mbps';
+
 /// A measured value beside the connect core: number, unit, caption — in a
-/// fixed-width slot.
+/// fixed-width slot. Unit and caption shrink rather than clip (a narrow
+/// phone or a large text size used to cut "Загрузка").
 class SideVital extends StatelessWidget {
   const SideVital({
     super.key,
@@ -84,6 +95,9 @@ class SideVital extends StatelessWidget {
     this.alignEnd = false,
   });
 
+  /// The slot width (home_screen keeps the sphere clear of two of these).
+  static const width = 64.0;
+
   final double? value;
   final String Function(double) format;
   final String unit;
@@ -93,20 +107,24 @@ class SideVital extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final align = alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final along = alignEnd ? Alignment.centerRight : Alignment.centerLeft;
+    Widget fit(Widget child) => SizedBox(
+          width: width,
+          child: FittedBox(fit: BoxFit.scaleDown, alignment: along, child: child),
+        );
     return SizedBox(
-      width: 68,
+      width: width,
       child: Column(
         crossAxisAlignment: align,
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
             height: 30,
-            width: 68,
+            width: width,
             child: AnimatedValue(
               value: value,
               format: format,
-              alignment:
-                  alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+              alignment: along,
               style: const TextStyle(
                 color: Ic.text,
                 fontSize: 22,
@@ -116,15 +134,13 @@ class SideVital extends StatelessWidget {
               ),
             ),
           ),
-          Text(unit,
+          fit(Text(unit,
               maxLines: 1,
-              style: const TextStyle(color: Ic.textSecondary, fontSize: 12)),
+              style: const TextStyle(color: Ic.textSecondary, fontSize: 12))),
           const SizedBox(height: 2),
-          Text(caption,
+          fit(Text(caption,
               maxLines: 1,
-              overflow: TextOverflow.fade,
-              softWrap: false,
-              style: const TextStyle(color: Ic.textMuted, fontSize: 12)),
+              style: const TextStyle(color: Ic.textMuted, fontSize: 12))),
         ],
       ),
     );
@@ -139,26 +155,64 @@ class CoreWithVitals extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final m = ref.watch(liveMetricsProvider);
-    final live = m.active;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        SideVital(
-          value: live ? m.pingMs?.toDouble() : null,
-          format: (v) => v.round().toString(),
-          unit: 'мс',
-          caption: 'Задержка',
-        ),
+        const _PingVital(),
         Expanded(child: Center(child: core)),
-        SideVital(
-          value: live ? m.downMbps : null,
-          format: formatMbps,
-          unit: 'Mbps',
-          caption: 'Загрузка',
-          alignEnd: true,
-        ),
+        const _DownVital(),
       ],
+    );
+  }
+}
+
+/// The same two readouts in a row under the sphere — for phones too narrow
+/// to keep them beside it without covering it.
+class VitalsRow extends StatelessWidget {
+  const VitalsRow({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [_PingVital(), _DownVital()],
+      ),
+    );
+  }
+}
+
+class _PingVital extends ConsumerWidget {
+  const _PingVital();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final m = ref.watch(liveMetricsProvider);
+    final s = ref.watch(stringsProvider);
+    return SideVital(
+      value: m.active ? m.pingMs?.toDouble() : null,
+      format: (v) => v.round().toString(),
+      unit: s.unitMs,
+      caption: s.speedTestLatency,
+    );
+  }
+}
+
+class _DownVital extends ConsumerWidget {
+  const _DownVital();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final m = ref.watch(liveMetricsProvider);
+    final s = ref.watch(stringsProvider);
+    final mbps = m.active ? m.downMbps : null;
+    return SideVital(
+      value: mbps,
+      format: formatRate,
+      unit: rateUnit(mbps),
+      caption: s.speedTestDownload,
+      alignEnd: true,
     );
   }
 }
@@ -202,7 +256,9 @@ class SessionPanel extends ConsumerWidget {
       children: [
         _GlassCard(
           child: SizedBox(
-            height: 24,
+            // Fixed (values never resize the card), but scaled with the
+            // app text size — at 1.3 a fixed 24/46 overflowed.
+            height: MediaQuery.textScalerOf(context).scale(24),
             child: Row(
               children: [
                 AnimatedSwitcher(
@@ -247,12 +303,12 @@ class SessionPanel extends ConsumerWidget {
         const SizedBox(height: 12),
         _GlassCard(
           child: SizedBox(
-            height: 46,
+            height: MediaQuery.textScalerOf(context).scale(46),
             child: Row(
               children: [
                 Expanded(
                   child: _Cell(
-                    title: 'Сессия',
+                    title: s.sessionTitle,
                     value:
                         m.sessionBytes > 0 ? m.sessionBytes.toDouble() : null,
                     format: (v) => formatBytes(v.round()),
@@ -261,18 +317,18 @@ class SessionPanel extends ConsumerWidget {
                 Container(width: 1, color: Ic.glassBorder),
                 Expanded(
                   child: _Cell(
-                    title: '↓ Приём',
+                    title: '↓ ${s.trafficDown}',
                     value: m.active ? m.downMbps : null,
-                    format: (v) => "${formatMbps(v)} Mbps",
+                    format: (v) => '${formatRate(v)} ${rateUnit(v)}',
                     color: Ic.arctic,
                   ),
                 ),
                 Container(width: 1, color: Ic.glassBorder),
                 Expanded(
                   child: _Cell(
-                    title: '↑ Отдача',
+                    title: '↑ ${s.trafficUp}',
                     value: m.active ? m.upMbps : null,
-                    format: (v) => "${formatMbps(v)} Mbps",
+                    format: (v) => '${formatRate(v)} ${rateUnit(v)}',
                     color: context.brand,
                   ),
                 ),
@@ -313,7 +369,7 @@ class _Cell extends StatelessWidget {
               style: const TextStyle(color: Ic.textMuted, fontSize: 12)),
           const SizedBox(height: 4),
           SizedBox(
-            height: 22,
+            height: MediaQuery.textScalerOf(context).scale(22),
             child: AnimatedValue(
               value: value,
               format: format,

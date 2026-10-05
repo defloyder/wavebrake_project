@@ -88,7 +88,8 @@ class WbTheme {
           foregroundColor: WbColors.midnight,
           disabledBackgroundColor: WbColors.ice08,
           minimumSize: const Size(44, 48),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          // The app font (a bare TextStyle here fell back to the system one).
+          textStyle: text.labelLarge?.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
         ),

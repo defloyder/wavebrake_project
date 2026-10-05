@@ -19,10 +19,6 @@ class VpnNotificationMeta {
 
   static const _channel = MethodChannel('app.wavebreak/vpn_engine');
 
-  /// The notification's quick-switch buttons, kept current by
-  /// QuickActions.publish(); empty = that button is hidden.
-  static String quickServerLabel = '';
-  static String quickProtocolLabel = '';
 
   static Future<void> update(LocationItem location, AppStrings s) async {
     if (!Platform.isAndroid) return;
@@ -45,8 +41,6 @@ class VpnNotificationMeta {
         'labelCheckPing': s.testPing,
         'labelPingUnavailable': s.pingUnavailable,
         'labelMeasuring': s.measuringPing,
-        'labelServer': quickServerLabel,
-        'labelProtocol': quickProtocolLabel,
       });
     } on PlatformException catch (e) {
       // Best-effort — a stale/not-yet-running service just means the next

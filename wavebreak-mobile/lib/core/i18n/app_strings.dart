@@ -218,9 +218,6 @@ class AppStrings {
     required this.emailCodeSend,
     required this.emailCodeBody,
     required this.emailCodeSignIn,
-    required this.quickServer,
-    required this.quickProtocol,
-    required this.quickPickServer,
     required this.quickOpenApp,
     required this.quickTileTitle,
     required this.quickTileHint,
@@ -228,6 +225,10 @@ class AppStrings {
     required this.quickTileAdded,
     required this.quickTileAlready,
     required this.quickTileInfo,
+    required this.unitMs,
+    required this.sessionTitle,
+    required this.trafficDown,
+    required this.trafficUp,
     required this.verifyEmailResendIn,
     required this.verifyEmailSent,
     required this.verifyEmailCheckSpam,
@@ -535,9 +536,6 @@ class AppStrings {
   final String emailCodeSend;
   final String emailCodeBody;
   final String emailCodeSignIn;
-  final String quickServer;
-  final String quickProtocol;
-  final String quickPickServer;
   final String quickOpenApp;
   final String quickTileTitle;
   final String quickTileHint;
@@ -545,6 +543,10 @@ class AppStrings {
   final String quickTileAdded;
   final String quickTileAlready;
   final String quickTileInfo;
+  final String unitMs;
+  final String sessionTitle;
+  final String trafficDown;
+  final String trafficUp;
   final String verifyEmailResendIn;
   final String verifyEmailSent;
   final String verifyEmailCheckSpam;
@@ -842,9 +844,6 @@ const kEnglishStrings = AppStrings(
   emailCodeSend: 'Get a code',
   emailCodeBody: "If there's an account for {email}, we've sent a code to it. Enter it below.",
   emailCodeSignIn: 'Sign in',
-  quickServer: 'Change server',
-  quickProtocol: '⇄ {p}',
-  quickPickServer: 'Choose a server',
   quickOpenApp: 'Open WAVEBREAK to connect',
   quickTileTitle: 'Add the app to Quick Settings',
   quickTileHint: 'A WAVEBREAK button in the phone’s shade',
@@ -852,6 +851,10 @@ const kEnglishStrings = AppStrings(
   quickTileAdded: 'Tile added',
   quickTileAlready: 'The tile is already in Quick Settings',
   quickTileInfo: 'Adds a WAVEBREAK tile to Quick Settings in the shade — next to Wi-Fi, mobile data and the flashlight. A tap on the tile turns the VPN on and off without opening the app, and the line under it shows the current server. You can change the server or protocol right in the VPN notification.',
+  unitMs: 'ms',
+  sessionTitle: 'Session',
+  trafficDown: 'Received',
+  trafficUp: 'Sent',
   verifyEmailResendIn: 'Send again in {s} s',
   verifyEmailSent: 'Code sent to {email}',
   verifyEmailCheckSpam: 'No email? Check your Spam folder.',
@@ -1157,9 +1160,6 @@ const kRussianStrings = AppStrings(
   emailCodeSend: 'Получить код',
   emailCodeBody: 'Если аккаунт с адресом {email} есть, мы отправили на него код. Введите его ниже.',
   emailCodeSignIn: 'Войти',
-  quickServer: 'Сменить сервер',
-  quickProtocol: '⇄ {p}',
-  quickPickServer: 'Выберите сервер',
   quickOpenApp: 'Откройте WAVEBREAK, чтобы подключиться',
   quickTileTitle: 'Добавить приложение в быстрый доступ',
   quickTileHint: 'Кнопка WAVEBREAK в шторке телефона',
@@ -1167,6 +1167,10 @@ const kRussianStrings = AppStrings(
   quickTileAdded: 'Плитка добавлена',
   quickTileAlready: 'Плитка уже есть в быстрых настройках',
   quickTileInfo: 'Добавляет плитку WAVEBREAK в быстрые настройки шторки — рядом с Wi-Fi, мобильным интернетом и фонариком. Нажатие на плитку включает и выключает VPN, не открывая приложение, а подпись под ней показывает текущий сервер. Сменить сервер или протокол можно прямо в уведомлении VPN.',
+  unitMs: 'мс',
+  sessionTitle: 'Сессия',
+  trafficDown: 'Приём',
+  trafficUp: 'Отдача',
   verifyEmailResendIn: 'Отправить ещё раз через {s} с',
   verifyEmailSent: 'Код отправлен на {email}',
   verifyEmailCheckSpam: 'Не пришло письмо? Проверьте папку «Спам».',
@@ -1475,9 +1479,6 @@ const kSpanishStrings = AppStrings(
   emailCodeSend: 'Recibir código',
   emailCodeBody: 'Si existe una cuenta con {email}, le hemos enviado un código. Escríbelo abajo.',
   emailCodeSignIn: 'Entrar',
-  quickServer: 'Cambiar servidor',
-  quickProtocol: '⇄ {p}',
-  quickPickServer: 'Elige un servidor',
   quickOpenApp: 'Abre WAVEBREAK para conectarte',
   quickTileTitle: 'Añadir la app a Ajustes rápidos',
   quickTileHint: 'Un botón de WAVEBREAK en el panel del teléfono',
@@ -1485,6 +1486,10 @@ const kSpanishStrings = AppStrings(
   quickTileAdded: 'Mosaico añadido',
   quickTileAlready: 'El mosaico ya está en Ajustes rápidos',
   quickTileInfo: 'Añade un mosaico de WAVEBREAK a los Ajustes rápidos del panel, junto al Wi-Fi, los datos móviles y la linterna. Al tocarlo, la VPN se activa o se desactiva sin abrir la app, y debajo se ve el servidor actual. El servidor o el protocolo se cambian directamente en la notificación de la VPN.',
+  unitMs: 'ms',
+  sessionTitle: 'Sesión',
+  trafficDown: 'Recibido',
+  trafficUp: 'Enviado',
   verifyEmailResendIn: 'Reenviar en {s} s',
   verifyEmailSent: 'Código enviado a {email}',
   verifyEmailCheckSpam: '¿No llegó? Revisa la carpeta de spam.',
@@ -1797,9 +1802,6 @@ const kGermanStrings = AppStrings(
   emailCodeSend: 'Code anfordern',
   emailCodeBody: 'Falls es ein Konto für {email} gibt, haben wir einen Code gesendet. Gib ihn unten ein.',
   emailCodeSignIn: 'Anmelden',
-  quickServer: 'Server wechseln',
-  quickProtocol: '⇄ {p}',
-  quickPickServer: 'Server wählen',
   quickOpenApp: 'Öffne WAVEBREAK, um dich zu verbinden',
   quickTileTitle: 'App zu den Schnelleinstellungen hinzufügen',
   quickTileHint: 'Ein WAVEBREAK-Schalter in der Benachrichtigungsleiste',
@@ -1807,6 +1809,10 @@ const kGermanStrings = AppStrings(
   quickTileAdded: 'Kachel hinzugefügt',
   quickTileAlready: 'Die Kachel ist bereits in den Schnelleinstellungen',
   quickTileInfo: 'Fügt den Schnelleinstellungen eine WAVEBREAK-Kachel hinzu – neben WLAN, mobilen Daten und Taschenlampe. Ein Tippen schaltet das VPN ein und aus, ohne die App zu öffnen, darunter steht der aktuelle Server. Server oder Protokoll wechselst du direkt in der VPN-Benachrichtigung.',
+  unitMs: 'ms',
+  sessionTitle: 'Sitzung',
+  trafficDown: 'Empfangen',
+  trafficUp: 'Gesendet',
   verifyEmailResendIn: 'Erneut senden in {s} s',
   verifyEmailSent: 'Code an {email} gesendet',
   verifyEmailCheckSpam: 'Keine E-Mail? Sieh im Spam-Ordner nach.',
@@ -2121,9 +2127,6 @@ const kFrenchStrings = AppStrings(
   emailCodeSend: 'Recevoir un code',
   emailCodeBody: 'Si un compte existe pour {email}, nous y avons envoyé un code. Saisissez-le ci-dessous.',
   emailCodeSignIn: 'Se connecter',
-  quickServer: 'Changer de serveur',
-  quickProtocol: '⇄ {p}',
-  quickPickServer: 'Choisissez un serveur',
   quickOpenApp: 'Ouvrez WAVEBREAK pour vous connecter',
   quickTileTitle: 'Ajouter l’appli aux réglages rapides',
   quickTileHint: 'Un bouton WAVEBREAK dans le volet du téléphone',
@@ -2131,6 +2134,10 @@ const kFrenchStrings = AppStrings(
   quickTileAdded: 'Tuile ajoutée',
   quickTileAlready: 'La tuile est déjà dans les réglages rapides',
   quickTileInfo: 'Ajoute une tuile WAVEBREAK aux réglages rapides du volet, à côté du Wi-Fi, des données mobiles et de la lampe. Une pression active ou coupe le VPN sans ouvrir l’appli, et le serveur actuel s’affiche en dessous. Le serveur ou le protocole se changent directement depuis la notification du VPN.',
+  unitMs: 'ms',
+  sessionTitle: 'Session',
+  trafficDown: 'Reçu',
+  trafficUp: 'Envoyé',
   verifyEmailResendIn: 'Renvoyer dans {s} s',
   verifyEmailSent: 'Code envoyé à {email}',
   verifyEmailCheckSpam: 'Pas d\'e-mail ? Vérifiez vos spams.',
@@ -2441,9 +2448,6 @@ const kPortugueseStrings = AppStrings(
   emailCodeSend: 'Receber código',
   emailCodeBody: 'Se existir uma conta com {email}, enviamos um código para ele. Digite-o abaixo.',
   emailCodeSignIn: 'Entrar',
-  quickServer: 'Trocar servidor',
-  quickProtocol: '⇄ {p}',
-  quickPickServer: 'Escolha um servidor',
   quickOpenApp: 'Abra o WAVEBREAK para conectar',
   quickTileTitle: 'Adicionar o app às Configurações rápidas',
   quickTileHint: 'Um botão do WAVEBREAK na barra do telefone',
@@ -2451,6 +2455,10 @@ const kPortugueseStrings = AppStrings(
   quickTileAdded: 'Bloco adicionado',
   quickTileAlready: 'O bloco já está nas Configurações rápidas',
   quickTileInfo: 'Adiciona um bloco do WAVEBREAK às Configurações rápidas da barra, ao lado do Wi-Fi, dos dados móveis e da lanterna. Um toque liga e desliga a VPN sem abrir o app, e abaixo aparece o servidor atual. Servidor ou protocolo mudam direto na notificação da VPN.',
+  unitMs: 'ms',
+  sessionTitle: 'Sessão',
+  trafficDown: 'Recebido',
+  trafficUp: 'Enviado',
   verifyEmailResendIn: 'Reenviar em {s} s',
   verifyEmailSent: 'Código enviado para {email}',
   verifyEmailCheckSpam: 'Não chegou? Verifique a pasta de spam.',
@@ -2757,9 +2765,6 @@ const kTurkishStrings = AppStrings(
   emailCodeSend: 'Kod al',
   emailCodeBody: '{email} için bir hesap varsa koda gönderdik. Aşağıya girin.',
   emailCodeSignIn: 'Giriş yap',
-  quickServer: 'Sunucuyu değiştir',
-  quickProtocol: '⇄ {p}',
-  quickPickServer: 'Bir sunucu seçin',
   quickOpenApp: 'Bağlanmak için WAVEBREAK uygulamasını açın',
   quickTileTitle: 'Uygulamayı hızlı ayarlara ekle',
   quickTileHint: 'Telefon panelinde WAVEBREAK düğmesi',
@@ -2767,6 +2772,10 @@ const kTurkishStrings = AppStrings(
   quickTileAdded: 'Kutucuk eklendi',
   quickTileAlready: 'Kutucuk zaten hızlı ayarlarda',
   quickTileInfo: 'Hızlı ayarlara bir WAVEBREAK kutucuğu ekler: Wi-Fi, mobil veri ve fenerin yanına. Kutucuğa dokunmak uygulamayı açmadan VPN’i açar ve kapatır, altında geçerli sunucu görünür. Sunucuyu veya protokolü doğrudan VPN bildiriminden değiştirebilirsiniz.',
+  unitMs: 'ms',
+  sessionTitle: 'Oturum',
+  trafficDown: 'Alınan',
+  trafficUp: 'Gönderilen',
   verifyEmailResendIn: '{s} sn sonra tekrar gönder',
   verifyEmailSent: 'Kod {email} adresine gönderildi',
   verifyEmailCheckSpam: 'E-posta gelmedi mi? Spam klasörünü kontrol edin.',

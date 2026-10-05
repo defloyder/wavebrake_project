@@ -176,7 +176,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                 const SizedBox(height: 14),
                 _Tabs(
                   value: _tab,
-                  labels: const ['Метрики', 'Инфо', 'Маршрут', 'Логи'],
+                  labels: const ['Метрики', 'Инфо', 'Маршрут'],
                   onChanged: (i) => setState(() => _tab = i),
                 ),
                 const SizedBox(height: 14),
@@ -325,10 +325,8 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                   ),
                 ] else if (_tab == 1)
                   InfoTab(connection: connection, metrics: m)
-                else if (_tab == 2)
-                  RouteTab(connection: connection, metrics: m)
                 else
-                  const LogsTab(),
+                  RouteTab(connection: connection, metrics: m),
               ],
             ),
           ),

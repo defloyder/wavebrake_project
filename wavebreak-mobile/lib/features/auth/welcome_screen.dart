@@ -53,43 +53,63 @@ class WelcomeScreen extends ConsumerWidget {
 
   /// Phone: the Earth scene on top (full width, under the status bar), the
   /// choices panel overlapping its lower edge; everything scrolls.
+  ///
+  /// The choices panel (with "continue with my own link") always fits
+  /// whole on the screen; the scene takes the height that is left, down to
+  /// a minimum — a fixed 520–600 px scene pushed the buttons off a
+  /// 568 px phone (owner, P3e). Scrolls only if even that doesn't fit.
   Widget _phoneLayout(
       BuildContext context, WidgetRef ref, AppStrings s, Size size) {
-    final sceneHeight = (size.height * 0.64).clamp(520.0, 600.0);
     final padding = MediaQuery.paddingOf(context);
+    final compact = size.height < 720;
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: 24 + padding.bottom),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                height: sceneHeight,
-                child: EarthScene(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(26, padding.top + 22, 26, 44),
-                    child: _SceneCopy(s: s, headlineSize: 44, centered: true),
-                  ),
+        child: LayoutBuilder(
+          builder: (context, c) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: c.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: ConstrainedBox(
+                        constraints:
+                            BoxConstraints(minHeight: compact ? 190 : 380),
+                        child: EarthScene(
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                                26, padding.top + (compact ? 12 : 22), 26, 40),
+                            child: _SceneCopy(
+                              s: s,
+                              headlineSize: compact ? 34 : 44,
+                              centered: true,
+                              compact: compact,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Transform.translate(
+                      offset: const Offset(0, -24),
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(14, 0, 14, padding.bottom),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _choicesPanel(context, ref, s, compact: compact),
+                            const SizedBox(height: 10),
+                            _ownLink(ref, s),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Transform.translate(
-                offset: const Offset(0, -24),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _choicesPanel(context, ref, s),
-                      const SizedBox(height: 14),
-                      _ownLink(ref, s),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -138,32 +158,35 @@ class WelcomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _choicesPanel(BuildContext context, WidgetRef ref, AppStrings s) {
+  Widget _choicesPanel(BuildContext context, WidgetRef ref, AppStrings s,
+      {bool compact = false}) {
+    final buttonHeight = compact ? 46.0 : 52.0;
+    final gap = compact ? 12.0 : 18.0;
     return TintedGlass(
       radius: 24,
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+      padding: EdgeInsets.fromLTRB(18, compact ? 16 : 20, 18, compact ? 12 : 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             s.welcomeChooseTitle,
-            style: const TextStyle(fontFamily: 'serif', fontSize: 22),
+            style: TextStyle(fontFamily: 'serif', fontSize: compact ? 19 : 22),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: gap),
           FilledButton(
             onPressed: () => _choose(context, ref, '/register'),
             style:
-                FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                FilledButton.styleFrom(minimumSize: Size.fromHeight(buttonHeight)),
             child: Text(s.createAccount),
           ),
           const SizedBox(height: 10),
           OutlinedButton(
             onPressed: () => _choose(context, ref, '/login'),
             style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(52)),
+                minimumSize: Size.fromHeight(buttonHeight)),
             child: Text(s.iHaveAccount),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: gap),
           Row(
             children: [
               const Expanded(child: Divider(color: WbColors.hairline)),
@@ -176,7 +199,7 @@ class WelcomeScreen extends ConsumerWidget {
               const Expanded(child: Divider(color: WbColors.hairline)),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? 8 : 12),
           Row(
             children: [
               Expanded(
@@ -231,13 +254,19 @@ class WelcomeScreen extends ConsumerWidget {
 /// subline, and a small caption at the bottom.
 class _SceneCopy extends StatelessWidget {
   const _SceneCopy(
-      {required this.s, required this.headlineSize, this.centered = false});
+      {required this.s,
+      required this.headlineSize,
+      this.centered = false,
+      this.compact = false});
 
   final AppStrings s;
   final double headlineSize;
 
   /// Phone: the wordmark is centered; the copy itself stays left-aligned.
   final bool centered;
+
+  /// A short phone: tighter gaps, the sub line at most three lines.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -249,7 +278,7 @@ class _SceneCopy extends StatelessWidget {
           // The real brand wordmark image, same as on Home.
           child: const WavebreakWordmark(size: 16),
         ),
-        SizedBox(height: centered ? 44 : 40),
+        SizedBox(height: compact ? 18 : (centered ? 44 : 40)),
         Text(
           s.welcomeKicker,
           style: const TextStyle(
@@ -258,7 +287,7 @@ class _SceneCopy extends StatelessWidget {
             letterSpacing: 2.4,
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: compact ? 8 : 14),
         // Two fixed lines; a longer translation shrinks instead of wrapping
         // into a third line over the planet.
         FittedBox(
@@ -275,17 +304,21 @@ class _SceneCopy extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 300),
-          child: Text(
-            s.welcomeSub,
-            style: const TextStyle(
-                color: Ic.textSecondary, fontSize: 15, height: 1.6),
+        // A short phone keeps the headline and drops the sub line and the
+        // caption — the sign-in choices below must fit without scrolling.
+        if (!compact) ...[
+          const SizedBox(height: 16),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 300),
+            child: Text(
+              s.welcomeSub,
+              style: const TextStyle(
+                  color: Ic.textSecondary, fontSize: 15, height: 1.6),
+            ),
           ),
-        ),
+        ],
         const Spacer(),
-        const Row(
+        if (!compact) const Row(
           children: [
             DecoratedBox(
               decoration: BoxDecoration(
@@ -344,12 +377,15 @@ class _SocialButton extends StatelessWidget {
               children: [
                 Icon(icon, size: 18, color: color),
                 const SizedBox(width: 4),
+                // Shrinks instead of fading out ("Telegra…" on 320 px).
                 Flexible(
-                  child: Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.fade,
-                      softWrap: false,
-                      style: TextStyle(color: color, fontSize: 13)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(label,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(color: color, fontSize: 13)),
+                  ),
                 ),
               ],
             ),

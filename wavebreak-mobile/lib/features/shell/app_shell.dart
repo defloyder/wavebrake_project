@@ -228,6 +228,9 @@ class _MobileShell extends ConsumerWidget {
                     filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
                     child: Container(
                       height: 64,
+                      // Equal inner gap all round: the active tab's outline
+                      // used to touch the bar's rounded ends (owner, P7).
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         // Same gentle wash as the desktop rail — tinted a
                         // little toward the selected location's accent
@@ -338,15 +341,16 @@ class _MobileNavButton extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
             // The whole fifth of the bar is the tap target, not just the
             // icon+label — a big, easy, unmissable thumb target.
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               height: 56,
-              margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+              // Concentric with the bar (28 - its 4 px inner gap).
+              margin: const EdgeInsets.symmetric(horizontal: 2),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(24),
                 color: selected
                     ? context.brand.withValues(alpha: 0.16)
                     : Colors.transparent,
@@ -382,15 +386,23 @@ class _MobileNavButton extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.fade,
-                    softWrap: false,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 10.5,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  // Shrinks to fit ("Настройки" was cut on a 320 px phone
+                  // and at a large text size).
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 10.5,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ),
                 ],

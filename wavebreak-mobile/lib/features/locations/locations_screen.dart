@@ -12,7 +12,8 @@ import '../shared/data_providers.dart';
 import '../shared/menu_button.dart';
 import '../shared/ocean_background.dart';
 import '../shared/subscription_accordion.dart';
-import '../shared/subscription_section.dart';
+import '../../services/vpn/server_catalog.dart';
+import '../shell/app_shell.dart';
 import '../shared/wave_params.dart';
 
 class LocationsScreen extends ConsumerWidget {
@@ -22,7 +23,6 @@ class LocationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(connectionManagerProvider).location;
     final locations = ref.watch(locationsProvider);
-    final custom = ref.watch(customServersProvider);
     final s = ref.watch(stringsProvider);
     final canConnect = ref.watch(canConnectProvider);
     final waves = ref.watch(appWaveParamsProvider);
@@ -80,17 +80,15 @@ class LocationsScreen extends ConsumerWidget {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  data: (items) {
-                    final sections = buildSubscriptionSections(
-                      wavebreakLocations: items,
-                      customGroups: custom,
-                      s: s,
-                      sharing: ref.watch(sharingProvider).valueOrNull,
-                    );
+                  data: (_) {
+                    final sections = ref.watch(serverCatalogProvider);
                     return SingleChildScrollView(
+                      // Room for the floating bottom bar on phones.
+                      padding: EdgeInsets.only(
+                          bottom: isDesktop ? 16 : kMobileBottomBarReserve + 12),
                       child: SubscriptionAccordion(
                         sections: sections,
-                        currentId: selected.id,
+                        current: selected,
                         s: s,
                         shrinkWrap: true,
                         onSelect: (item) => ref

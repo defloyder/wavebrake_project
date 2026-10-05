@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/logging/app_logger.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/live_metrics.dart';
 import '../home/home_vitals.dart';
@@ -311,62 +310,3 @@ class _FlowPainter extends CustomPainter {
       old.active != active || old.color != color;
 }
 
-/// The app's own recent log lines (emails, links, ids masked).
-class LogsTab extends StatefulWidget {
-  const LogsTab({super.key});
-
-  @override
-  State<LogsTab> createState() => _LogsTabState();
-}
-
-class _LogsTabState extends State<LogsTab> {
-  late final Timer _refresh =
-      Timer.periodic(const Duration(seconds: 2), (_) => setState(() {}));
-
-  @override
-  void initState() {
-    super.initState();
-    _refresh;
-  }
-
-  @override
-  void dispose() {
-    _refresh.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final lines = AppLogger.recent(80).reversed.toList();
-    return TintedGlass(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: lines.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text('Журнал пуст',
-                    style: TextStyle(color: Ic.textMuted, fontSize: 14)),
-              ),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final l in lines)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Text(
-                      // Drop the date part of the ISO timestamp.
-                      l.length > 11 ? l.substring(11) : l,
-                      style: const TextStyle(
-                        color: Ic.textSecondary,
-                        fontSize: 11,
-                        height: 1.3,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-    );
-  }
-}

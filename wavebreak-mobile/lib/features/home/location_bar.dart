@@ -27,27 +27,30 @@ String? protocolLabel(LocationItem l) {
   return fromName;
 }
 
-/// The selected server: flag, place, "country · protocol", chevron to the
-/// picker — and, when the country has more than one protocol, a segmented
-/// Direct / Hysteria2 switch. Never truncates the place to fit the
-/// protocol: the protocol has its own line.
+/// The selected server: flag, place, "country · protocol" and a chevron to
+/// the Servers tab — and, when the place has more than one protocol, a
+/// protocol switch under it. The protocols come from the server catalog
+/// (server_catalog.dart), the same source as the Servers tab, so the
+/// header and the list always pick the same entry.
+///
+/// Up to three protocols share the width equally; more scroll sideways
+/// with the active one kept in view. Labels shrink rather than clip.
 class LocationBar extends StatelessWidget {
   const LocationBar({
     super.key,
     required this.location,
-    required this.siblings,
+    required this.variants,
     required this.s,
-    required this.onOpenPicker,
+    required this.onOpenServers,
     required this.onSelect,
   });
 
   final LocationItem location;
 
-  /// Locations of the same country (including [location]), one per
-  /// protocol, in display order.
-  final List<LocationItem> siblings;
+  /// The current place's protocol variants (from the catalog), in order.
+  final List<LocationItem> variants;
   final AppStrings s;
-  final VoidCallback onOpenPicker;
+  final VoidCallback onOpenServers;
   final ValueChanged<LocationItem> onSelect;
 
   @override
@@ -61,16 +64,12 @@ class LocationBar extends StatelessWidget {
       if (!location.isAuto && place.isNotEmpty) location.country,
       if (proto != null) proto,
     ].join(' · ');
-    final options = [
-      for (final l in siblings)
-        if (protocolLabel(l) != null) l,
-    ];
 
     return Column(
       children: [
         TintedGlass(
-          onTap: onOpenPicker,
-          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          onTap: onOpenServers,
+          padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
           child: Row(
             children: [
               Container(
@@ -112,34 +111,19 @@ class LocationBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(
-                width: 44,
+                width: 40,
                 height: 44,
-                child: Icon(Icons.expand_more_rounded, color: Ic.textSecondary),
+                child: Icon(Icons.chevron_right_rounded, color: Ic.textSecondary),
               ),
             ],
           ),
         ),
-        if (options.length > 1) ...[
+        if (variants.length > 1) ...[
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Ic.glassBorder),
-              color: Ic.glassBottom.withValues(alpha: 0.6),
-            ),
-            child: Row(
-              children: [
-                for (final l in options)
-                  Expanded(
-                    child: _Segment(
-                      label: protocolLabel(l)!,
-                      selected: l.id == location.id,
-                      onTap: l.id == location.id ? null : () => onSelect(l),
-                    ),
-                  ),
-              ],
-            ),
+          ProtocolSwitch(
+            variants: variants,
+            selectedProtocol: proto,
+            onSelect: onSelect,
           ),
         ],
       ],
@@ -147,8 +131,94 @@ class LocationBar extends StatelessWidget {
   }
 }
 
+/// Segmented protocol switch (2–6 protocols).
+class ProtocolSwitch extends StatelessWidget {
+  const ProtocolSwitch({
+    super.key,
+    required this.variants,
+    required this.selectedProtocol,
+    required this.onSelect,
+  });
+
+  final List<LocationItem> variants;
+  final String? selectedProtocol;
+  final ValueChanged<LocationItem> onSelect;
+
+  static const _gap = 3.0;
+  static const _minSegment = 92.0;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget segment(LocationItem v) {
+      final label = protocolLabel(v) ?? '—';
+      final selected = label == selectedProtocol;
+      return _Segment(
+        key: selected ? const ValueKey('selected-protocol') : null,
+        label: label,
+        selected: selected,
+        onTap: selected ? null : () => onSelect(v),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(_gap),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Ic.glassBorder),
+        color: Ic.glassBottom.withValues(alpha: 0.6),
+      ),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final fits = variants.length <= 3 ||
+              c.maxWidth / variants.length >= _minSegment;
+          if (fits) {
+            return Row(
+              children: [
+                for (final v in variants) Expanded(child: segment(v)),
+              ],
+            );
+          }
+          // More than fits: scroll, the active one brought into view.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final ctx = _selectedContext(context);
+            if (ctx != null) {
+              Scrollable.ensureVisible(ctx,
+                  alignment: 0.5, duration: const Duration(milliseconds: 250));
+            }
+          });
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final v in variants)
+                  SizedBox(width: _minSegment, child: segment(v)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  BuildContext? _selectedContext(BuildContext root) {
+    BuildContext? found;
+    void visit(Element e) {
+      if (found != null) return;
+      if (e.widget.key == const ValueKey('selected-protocol')) {
+        found = e;
+        return;
+      }
+      e.visitChildren(visit);
+    }
+
+    if (root.mounted) (root as Element).visitChildren(visit);
+    return found;
+  }
+}
+
 class _Segment extends StatelessWidget {
-  const _Segment({required this.label, required this.selected, this.onTap});
+  const _Segment(
+      {super.key, required this.label, required this.selected, this.onTap});
 
   final String label;
   final bool selected;
@@ -166,6 +236,7 @@ class _Segment extends StatelessWidget {
           duration: const Duration(milliseconds: 220),
           height: 40,
           alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(11),
             color: selected ? context.brand.withValues(alpha: 0.18) : null,
@@ -175,12 +246,16 @@ class _Segment extends StatelessWidget {
                   : Colors.transparent,
             ),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Ic.text : Ic.textMuted,
-              fontSize: 14,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: TextStyle(
+                color: selected ? Ic.text : Ic.textMuted,
+                fontSize: 14,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
             ),
           ),
         ),

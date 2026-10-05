@@ -1,19 +1,16 @@
 package com.wavebreak.wavebreak
 
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.widget.Toast
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * Quick actions without opening the app — the VPN notification's buttons,
- * the location picker and the Quick Settings tile. Each one is handed to
- * the Dart side over "app.wavebreak/quick" and run by the same
+ * Quick actions without opening the app — the Quick Settings tile. Each
+ * one is handed to the Dart side over "app.wavebreak/quick" and run by the same
  * ConnectionManager code as the home screen (Core access grant, engine
  * start). The engine is started headless if the process was cold; actions
  * wait in [pending] until Dart reports "ready".
@@ -24,10 +21,6 @@ import io.flutter.plugin.common.MethodChannel
  */
 object QuickActions {
     private const val TAG = "QuickActions"
-    const val ACTION_TOGGLE = "app.wavebreak.quick.TOGGLE"
-    const val ACTION_PROTOCOL = "app.wavebreak.quick.PROTOCOL"
-    const val ACTION_LOCATION = "app.wavebreak.quick.LOCATION"
-    const val EXTRA_LOCATION_ID = "location_id"
 
     /** Written by the Dart side: locations, current one, labels. */
     const val SNAPSHOT_FILE = "quick_locations.json"
@@ -112,27 +105,3 @@ object QuickActions {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 }
 
-/**
- * The notification's "Protocol" button (and a plain toggle). A broadcast,
- * not an activity: the shade stays where it is and nothing opens. When
- * the Dart side needs the screen, Android 12+ forbids opening an activity
- * from a notification broadcast, so a short toast says what to do.
- */
-class QuickActionReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        val type = when (intent.action) {
-            QuickActions.ACTION_TOGGLE -> "toggle"
-            QuickActions.ACTION_PROTOCOL -> "protocol"
-            QuickActions.ACTION_LOCATION -> "location"
-            else -> return
-        }
-        val pendingResult = goAsync()
-        val app = context.applicationContext
-        QuickActions.dispatch(app, type, intent.getStringExtra(QuickActions.EXTRA_LOCATION_ID)) { outcome ->
-            if (outcome.openApp && !outcome.message.isNullOrEmpty()) {
-                Toast.makeText(app, outcome.message, Toast.LENGTH_LONG).show()
-            }
-            pendingResult.finish()
-        }
-    }
-}

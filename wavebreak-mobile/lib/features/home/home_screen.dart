@@ -1,5 +1,6 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -24,14 +25,12 @@ import '../shared/confirm_dialogs.dart';
 import '../shared/connect_button.dart';
 import '../shared/data_providers.dart';
 import '../shared/traffic_wave_bar.dart';
-import '../shared/location_dropdown.dart';
+import '../../services/vpn/server_catalog.dart';
 import '../shared/menu_button.dart';
 import '../shell/app_shell.dart';
 import '../shared/ocean_background.dart';
-import '../shared/share_subscription_sheet.dart';
 import '../shared/subscription_accordion.dart';
 import '../shared/subscription_texts.dart';
-import '../shared/subscription_section.dart';
 import '../shared/wave_params.dart';
 import '../shared/wb_card.dart';
 import '../shared/wavebreak_mark.dart';
@@ -52,9 +51,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with WidgetsBindingObserver {
   Timer? _ticker;
-  final _locationLink = LayerLink();
   final _scrollController = ScrollController();
-  bool _dropdownOpen = false;
 
   // Closing a long, scrolled-into location list should smoothly bring the
   // gaze back up the page instead of leaving the view stranded on the
@@ -213,67 +210,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  Future<void> _openLocationPicker(List<LocationItem> locations) async {
-    if (_dropdownOpen) return;
-    setState(() => _dropdownOpen = true);
-    final current = ref.read(connectionManagerProvider).location;
-    final custom = ref.read(customServersProvider);
-    final s = ref.read(stringsProvider);
-    final sections = buildSubscriptionSections(
-      wavebreakLocations: locations,
-      customGroups: custom,
-      s: s,
-      sharing: ref.read(sharingProvider).valueOrNull,
-    );
-    if (!mounted) return;
-    final isDesktop = MediaQuery.sizeOf(context).width >= 820;
-    final result = isDesktop
-        ? await showLocationDropdown(
-            // ignore: use_build_context_synchronously
-            context: context,
-            link: _locationLink,
-            sections: sections,
-            current: current,
-            s: s,
-            onRemoveCustom: (id) => _removeCustomGroup(id),
-            onRefreshCustom: (id) =>
-                ref.read(customServersProvider.notifier).refreshGroup(id),
-          )
-        : await showLocationSheet(
-            // ignore: use_build_context_synchronously
-            context: context,
-            sections: sections,
-            current: current,
-            s: s,
-            onRemoveCustom: (id) => _removeCustomGroup(id),
-            onRefreshCustom: (id) =>
-                ref.read(customServersProvider.notifier).refreshGroup(id),
-          );
-    if (mounted) setState(() => _dropdownOpen = false);
-    if (result == null) return;
-    if (result.addCustom) {
-      if (mounted) await showAddCustomServerSheet(context, ref);
-      return;
-    }
-    if (result.shareLink != null) {
-      if (mounted) {
-        await showShareSubscriptionSheet(
-          context,
-          title: result.shareTitle ?? '',
-          link: result.shareLink!,
-          s: s,
-        );
-      }
-      return;
-    }
-    if (result.selected != null) {
-      final canConnect = ref.read(canConnectProvider);
-      ref
-          .read(connectionManagerProvider.notifier)
-          .selectLocation(result.selected!, subscriptionActive: canConnect);
-    }
-  }
-
   Future<void> _removeCustomGroup(String id) async {
     final s = ref.read(stringsProvider);
     if (!await confirmRemoveCustomGroup(context, s)) return;
@@ -385,16 +321,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           style: const TextStyle(color: WbColors.ice60),
         ),
       ),
-      data: (items) {
-        final sections = buildSubscriptionSections(
-          wavebreakLocations: items,
-          customGroups: ref.watch(customServersProvider),
-          s: s,
-          sharing: ref.watch(sharingProvider).valueOrNull,
-        );
+      // Wide windows only (the phone has the Servers tab): the same list,
+      // from the same catalog.
+      data: (_) {
         return SubscriptionAccordion(
-          sections: sections,
-          currentId: connection.location.id,
+          sections: ref.watch(serverCatalogProvider),
+          current: connection.location,
           s: s,
           shrinkWrap: true,
           onSelect: (item) => ref
@@ -417,7 +349,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               // Centered against the row's true midpoint, not balanced by
               // Spacers — the menu button and toolbar chip have different
               // widths, so equal Spacers would leave the wordmark off-center.
-              const Center(child: WavebreakWordmarkText(size: 14)),
+              // On a narrow phone (< 400) the centered wordmark ran under
+              // the toolbar: it moves to the left edge there.
+              Align(
+                alignment: isDesktop || MediaQuery.sizeOf(context).width >= 400
+                    ? Alignment.center
+                    : Alignment.centerLeft,
+                child: const WavebreakWordmarkText(size: 14),
+              ),
               // Mobile has no side rail to expand — the menu button belongs
               // to desktop only.
               if (isDesktop)
@@ -482,8 +421,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       onPressed: onConnectPressed,
     );
 
-    // Phone (V5): the living sphere instead of the glass button.
-    final coreDiameter = livingCoreDiameter(MediaQuery.sizeOf(context).width);
+    // Phone (V5): the living sphere instead of the glass button. The ping /
+    // download readouts sit beside it when the sphere keeps at least 180
+    // across between them; on narrower phones they go in a row under it
+    // (beside a full-size sphere they covered it and clipped).
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final betweenVitals = screenWidth - 40 - 2 * SideVital.width;
+    final vitalsBeside = betweenVitals >= 180;
+    final coreDiameter = vitalsBeside
+        ? math.min(livingCoreDiameter(screenWidth), betweenVitals)
+        : livingCoreDiameter(screenWidth);
     final livingCore = LivingCore(
       status: connection.status,
       enabled: connectEnabled,
@@ -515,11 +462,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ref.read(connectionManagerProvider.notifier).disconnect();
       },
       onChoosePlan: () => context.push('/subscription'),
-      onTryOtherProtocol: connection.noTraffic &&
-              ref.read(connectionManagerProvider.notifier).otherProtocol != null
-          ? () =>
-              ref.read(connectionManagerProvider.notifier).tryOtherProtocol()
-          : null,
+      // The protocol switch is right above the sphere: the hint points
+      // there instead of a button of its own (one place to switch).
+      hasOtherProtocol: connection.noTraffic &&
+          ref.read(connectionManagerProvider.notifier).otherProtocol != null,
     );
 
     final subscriptionStrip = _SubscriptionStrip(
@@ -534,29 +480,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       },
     );
 
-    // Same-country WAVEBREAK locations = the protocol choices (Direct /
-    // Hysteria2) for the switch under the server row.
+    // The current place's protocols (Direct / Hysteria2 …) from the server
+    // catalog — the Servers tab picks from the same entries. The row
+    // itself opens the Servers tab (the one place to change location).
     final current = connection.location;
-    final protocolSiblings = current.isAuto
-        ? const <LocationItem>[]
-        : [
-            for (final l in locations.valueOrNull ?? const <LocationItem>[])
-              if (!l.isAuto &&
-                  l.available &&
-                  l.countryCode == current.countryCode)
-                l,
-          ];
-    final locationHeader = CompositedTransformTarget(
-      link: _locationLink,
-      child: LocationBar(
-        location: current,
-        siblings: protocolSiblings,
-        s: s,
-        onOpenPicker: () => locations.whenData(_openLocationPicker),
-        onSelect: (item) => ref
-            .read(connectionManagerProvider.notifier)
-            .selectLocation(item, subscriptionActive: canConnect),
-      ),
+    final currentPlace = current.isAuto
+        ? null
+        : placeOf(current, ref.watch(serverCatalogProvider));
+    final locationHeader = LocationBar(
+      location: current,
+      variants: currentPlace?.variants ?? const <LocationItem>[],
+      s: s,
+      onOpenServers: () => context.go('/locations'),
+      onSelect: (item) => ref
+          .read(connectionManagerProvider.notifier)
+          .selectLocation(item, subscriptionActive: canConnect),
     );
 
     // Phone layout, used under the wave field (see below).
@@ -596,27 +534,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   CoreStage(
                     diameter: coreDiameter,
                     core: livingCore,
-                    overlay: const CoreWithVitals(core: SizedBox.shrink()),
+                    overlay: vitalsBeside
+                        ? const CoreWithVitals(core: SizedBox.shrink())
+                        : null,
                   ),
+                  if (!vitalsBeside) const VitalsRow(),
                   const SizedBox(height: 4),
                   statusCopy,
                   const SizedBox(height: 20),
                   const SessionPanel(),
                   const SizedBox(height: 12),
                   subscriptionStrip,
-                  const SizedBox(height: 28),
-                  const Divider(color: WbColors.ice08, height: 1),
-                  const SizedBox(height: 20),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      s.chooseLocation,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  locationsSection,
                 ],
               ),
             );
@@ -834,7 +762,7 @@ class _StatusCopy extends StatelessWidget {
     required this.isGuest,
     required this.onAddCustom,
     required this.onCancel,
-    this.onTryOtherProtocol,
+    this.hasOtherProtocol = false,
     this.tint,
   });
 
@@ -842,7 +770,7 @@ class _StatusCopy extends StatelessWidget {
 
   /// Set while the connection passes no traffic and another protocol of
   /// the same country is left to try; null otherwise.
-  final VoidCallback? onTryOtherProtocol;
+  final bool hasOtherProtocol;
   final bool canConnect;
   final bool subscriptionLoading;
   final AppStrings s;
@@ -922,7 +850,7 @@ class _StatusCopy extends StatelessWidget {
     final subtitle = switch (connection.status) {
       ConnectionStatus.idle => s.statusReadyHint,
       ConnectionStatus.connected when noTraffic =>
-        onTryOtherProtocol != null ? s.noTrafficHint : s.noTrafficAllTried,
+        hasOtherProtocol ? s.noTrafficHint : s.noTrafficAllTried,
       ConnectionStatus.connected => _duration(connection.connectedAt, s),
       ConnectionStatus.configPending => s.configPendingHint,
       ConnectionStatus.error => connection.error?.localized(s) ?? s.tryAgain,
@@ -988,11 +916,6 @@ class _StatusCopy extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               child: Text(s.tryAgain),
-            ),
-          if (noTraffic && onTryOtherProtocol != null)
-            TextButton(
-              onPressed: onTryOtherProtocol,
-              child: Text(s.tryOtherProtocol),
             ),
           if (connection.status == ConnectionStatus.configPending)
             TextButton(

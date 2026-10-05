@@ -5,53 +5,45 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n/app_strings.dart';
-import '../../core/theme/flag_colors.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/core_api/models.dart';
 import '../../services/vpn/connection_test_service.dart';
+import '../../services/vpn/server_catalog.dart';
+import '../home/location_bar.dart';
 import 'flag_icon.dart';
 import '../immersive/immersive_colors.dart';
 import 'share_subscription_sheet.dart';
-import 'subscription_section.dart';
 import 'wave_params.dart';
 
-/// A Happ-style expandable list: one card per subscription source, each
-/// expanding to reveal that source's servers. Used both in the Home quick
-/// picker and the full Locations screen.
+/// The server list of the Servers tab: one expandable card per
+/// subscription source; inside, one row per place (a city) with its
+/// protocols as chips. Built from the server catalog — the same source as
+/// the home header's protocol switch.
 class SubscriptionAccordion extends StatefulWidget {
   const SubscriptionAccordion({
     super.key,
     required this.sections,
-    required this.currentId,
+    required this.current,
     required this.s,
     required this.onSelect,
     required this.onAddCustom,
     this.onRemove,
     this.onRefresh,
-    this.onShare,
     this.onCollapse,
     this.shrinkWrap = false,
   });
 
-  final List<SubscriptionSectionData> sections;
-  final String currentId;
+  final List<ServerSection> sections;
+  final LocationItem current;
   final AppStrings s;
   final ValueChanged<LocationItem> onSelect;
   final VoidCallback onAddCustom;
   final ValueChanged<String>? onRemove;
   final ValueChanged<String>? onRefresh;
 
-  /// Fires when a section that was expanded gets collapsed (tapped again
-  /// to close, not just switched to another section) — lets the caller
-  /// scroll the page back up so closing a long location list doesn't
-  /// leave the view stranded on now-empty space below it.
+  /// Fires when an expanded section gets collapsed — lets the caller
+  /// scroll back up so closing a long list doesn't strand the view.
   final VoidCallback? onCollapse;
-
-  /// When set, share taps call this instead of opening the share sheet
-  /// directly — needed when the accordion lives inside another overlay
-  /// (the Home dropdown), so that overlay can close first and the caller
-  /// can open the share sheet afterwards from a stable context.
-  final void Function(String title, String link)? onShare;
   final bool shrinkWrap;
 
   @override
@@ -59,10 +51,17 @@ class SubscriptionAccordion extends StatefulWidget {
 }
 
 class _SubscriptionAccordionState extends State<SubscriptionAccordion> {
-  late String? _expanded = sectionIdFor(widget.sections, widget.currentId);
+  late String? _expanded = _sectionOfCurrent();
+
+  String? _sectionOfCurrent() {
+    final place = placeOf(widget.current, widget.sections);
+    if (place != null) return place.sectionId;
+    return widget.sections.isEmpty ? null : widget.sections.first.data.id;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentPlace = placeOf(widget.current, widget.sections);
     return Column(
       mainAxisSize: widget.shrinkWrap ? MainAxisSize.min : MainAxisSize.max,
       children: [
@@ -71,18 +70,18 @@ class _SubscriptionAccordionState extends State<SubscriptionAccordion> {
             padding: const EdgeInsets.only(bottom: 10),
             child: _SectionCard(
               section: section,
-              expanded: _expanded == section.id,
-              currentId: widget.currentId,
+              expanded: _expanded == section.data.id,
+              current: widget.current,
+              currentPlaceKey: currentPlace?.key,
               s: widget.s,
               onToggle: () {
-                final wasExpanded = _expanded == section.id;
-                setState(() => _expanded = wasExpanded ? null : section.id);
+                final wasExpanded = _expanded == section.data.id;
+                setState(() => _expanded = wasExpanded ? null : section.data.id);
                 if (wasExpanded) widget.onCollapse?.call();
               },
               onSelect: widget.onSelect,
               onRemove: widget.onRemove,
               onRefresh: widget.onRefresh,
-              onShare: widget.onShare,
             ),
           ),
         Material(
@@ -92,25 +91,25 @@ class _SubscriptionAccordionState extends State<SubscriptionAccordion> {
             onTap: widget.onAddCustom,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: context.accent.withValues(alpha: 0.35),
-                  style: BorderStyle.solid,
-                ),
+                border: Border.all(color: Ic.glassBorder),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.add_circle_outline, color: context.accent, size: 18),
                   const SizedBox(width: 10),
-                  Text(
-                    widget.s.addSubscriptionLink,
-                    style: TextStyle(
-                      color: context.accent,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                  Flexible(
+                    child: Text(
+                      widget.s.addSubscriptionLink,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Ic.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
@@ -127,24 +126,24 @@ class _SectionCard extends StatefulWidget {
   const _SectionCard({
     required this.section,
     required this.expanded,
-    required this.currentId,
+    required this.current,
+    required this.currentPlaceKey,
     required this.s,
     required this.onToggle,
     required this.onSelect,
     required this.onRemove,
     required this.onRefresh,
-    required this.onShare,
   });
 
-  final SubscriptionSectionData section;
+  final ServerSection section;
   final bool expanded;
-  final String currentId;
+  final LocationItem current;
+  final String? currentPlaceKey;
   final AppStrings s;
   final VoidCallback onToggle;
   final ValueChanged<LocationItem> onSelect;
   final ValueChanged<String>? onRemove;
   final ValueChanged<String>? onRefresh;
-  final void Function(String title, String link)? onShare;
 
   @override
   State<_SectionCard> createState() => _SectionCardState();
@@ -157,7 +156,7 @@ class _SectionCardState extends State<_SectionCard> {
   Timer? _pingTimer;
   final Map<String, int?> _livePings = {};
 
-  SubscriptionSectionData get section => widget.section;
+  ServerSection get section => widget.section;
 
   @override
   void initState() {
@@ -182,27 +181,26 @@ class _SectionCardState extends State<_SectionCard> {
     super.dispose();
   }
 
-  // Real WAVEBREAK locations carry Core's connection_test recipe; custom
-  // (BYO) servers instead get tested straight against the host/port
-  // ConnectionTestService pulls out of their own pasted share link (see
-  // its _hostPortFromRawLink) — either way there's a real target to probe,
-  // just not for a section the user isn't even looking at.
   void _startPingSweep() {
     _runPingSweep();
     _pingTimer?.cancel();
     _pingTimer = Timer.periodic(_pingInterval, (_) => _runPingSweep());
   }
 
+  // Core's connection_test recipe for WAVEBREAK entries, the share link's
+  // host/port for the user's own; the selected one through the tunnel when
+  // it is up (works for Hysteria2 too).
   Future<void> _runPingSweep() async {
-    final targets = section.servers
-        .where((s) => s.connectionTest != null || (s.isCustom && (s.rawLink ?? '').isNotEmpty))
-        .toList();
+    final targets = [
+      for (final p in section.places)
+        for (final v in p.variants)
+          if (v.connectionTest != null ||
+              (v.isCustom && (v.rawLink ?? '').isNotEmpty))
+            v,
+    ];
     if (targets.isEmpty) return;
-    // Bug 12: the selected location is measured through the tunnel when
-    // one is up (works for Hysteria2 too); otherwise, and for every other
-    // row, the pre-connect TCP probe.
     Future<int?> ping(LocationItem s) async {
-      if (s.id == widget.currentId) {
+      if (s.id == widget.current.id) {
         final viaTunnel = await _pingService.measureTunnelLatency();
         if (viaTunnel != null) return viaTunnel;
       }
@@ -219,48 +217,27 @@ class _SectionCardState extends State<_SectionCard> {
   }
 
   void _share(BuildContext context, String title, String link) {
-    if (widget.onShare != null) {
-      widget.onShare!(title, link);
-    } else {
-      showShareSubscriptionSheet(context, title: title, link: link, s: widget.s);
-    }
-  }
-
-  LocationItem? get _activeServer {
-    for (final l in section.servers) {
-      if (l.id == widget.currentId) return l;
-    }
-    return null;
+    showShareSubscriptionSheet(context, title: title, link: link, s: widget.s);
   }
 
   @override
   Widget build(BuildContext context) {
-    final active = _activeServer;
-    final borderColor = active == null
-        ? WbColors.ice08
-        : accentColorFor(active.countryCode).withValues(alpha: 0.4);
-    // Not a BackdropFilter blur — this card is one of several stacked in
-    // the location picker, and a live blur per section is the kind of
-    // per-instance GPU cost that stays smooth on a desktop/emulator but
-    // turns the whole sheet janky to open/scroll on a real phone.
-    // V5 glass gradient leaning towards this section's flag (no live
-    // blur, see above).
-    final accent = active == null ? null : accentColorFor(active.countryCode);
-    Color lean(Color c, double a) =>
-        accent == null ? c : (Color.lerp(c, accent, a) ?? c);
+    final data = section.data;
+    final hasCurrent =
+        section.places.any((p) => p.key == widget.currentPlaceKey);
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            lean(Ic.glassTop, 0.20),
-            lean(Ic.glassMid, 0.07),
-            lean(Ic.glassBottom, 0.03),
-          ],
+          colors: [Ic.glassTop, Ic.glassMid, Ic.glassBottom],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
+        border: Border.all(
+          color: hasCurrent
+              ? context.brand.withValues(alpha: 0.30)
+              : Ic.glassBorder,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -279,9 +256,9 @@ class _SectionCardState extends State<_SectionCard> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: context.accent.withValues(alpha: 0.12),
+                        color: Ic.text.withValues(alpha: 0.06),
                       ),
-                      child: Icon(section.icon, color: context.accent, size: 17),
+                      child: Icon(data.icon, color: Ic.textSecondary, size: 17),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -289,44 +266,43 @@ class _SectionCardState extends State<_SectionCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            section.title,
+                            data.title,
                             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            section.subtitle,
+                            '${section.places.length} ${widget.s.locationsWord}',
                             style: const TextStyle(color: WbColors.ice60, fontSize: 12),
                             overflow: TextOverflow.ellipsis,
                           ),
-                          // Traffic and devices of this subscription —
-                          // the owner's own limits for a shared one — or a
-                          // note (e.g. the owner's subscription is inactive).
-                          if (section.limitsNote != null)
+                          // Traffic and devices of this subscription — the
+                          // owner's own limits for a shared one — or a note.
+                          if (data.limitsNote != null)
                             Text(
-                              section.limitsNote!,
+                              data.limitsNote!,
                               style: const TextStyle(color: WbColors.warning, fontSize: 12),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             )
-                          else if (section.limitsTraffic != null)
+                          else if (data.limitsTraffic != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 1),
                               child: Row(
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      section.limitsTraffic!,
+                                      data.limitsTraffic!,
                                       style: const TextStyle(color: WbColors.ice60, fontSize: 12),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  if (section.limitsDevices != null) ...[
+                                  if (data.limitsDevices != null) ...[
                                     const SizedBox(width: 8),
                                     const Icon(Icons.devices_rounded,
                                         color: WbColors.ice60, size: 12),
                                     const SizedBox(width: 3),
                                     Text(
-                                      section.limitsDevices!,
+                                      data.limitsDevices!,
                                       style: const TextStyle(color: WbColors.ice60, fontSize: 12),
                                     ),
                                   ],
@@ -336,19 +312,19 @@ class _SectionCardState extends State<_SectionCard> {
                         ],
                       ),
                     ),
-                    if ((section.canRefresh && widget.onRefresh != null) ||
-                        section.shareLink != null ||
-                        (section.isCustom && widget.onRemove != null))
+                    if ((data.canRefresh && widget.onRefresh != null) ||
+                        data.shareLink != null ||
+                        (data.isCustom && widget.onRemove != null))
                       _SectionMenuButton(
                         s: widget.s,
-                        onRefresh: (section.canRefresh && widget.onRefresh != null)
-                            ? () => widget.onRefresh!(section.id)
+                        onRefresh: (data.canRefresh && widget.onRefresh != null)
+                            ? () => widget.onRefresh!(data.id)
                             : null,
-                        onShare: section.shareLink != null
-                            ? () => _share(context, section.title, section.shareLink!)
+                        onShare: data.shareLink != null
+                            ? () => _share(context, data.title, data.shareLink!)
                             : null,
-                        onRemove: (section.isCustom && widget.onRemove != null)
-                            ? () => widget.onRemove!(section.id)
+                        onRemove: (data.isCustom && widget.onRemove != null)
+                            ? () => widget.onRemove!(data.id)
                             : null,
                       ),
                     const SizedBox(width: 4),
@@ -369,17 +345,15 @@ class _SectionCardState extends State<_SectionCard> {
                 ? Column(
                     children: [
                       const Divider(height: 1, color: WbColors.ice08),
-                      for (final server in section.servers)
-                        _ServerRow(
-                          server: server,
+                      for (final place in section.places)
+                        _PlaceRow(
+                          place: place,
                           s: widget.s,
-                          selected: server.id == widget.currentId,
-                          livePingMs: _livePings[server.id],
-                          onTap: server.available ? () => widget.onSelect(server) : null,
-                          onShare: widget.onShare == null
-                              ? null
-                              : (title, link) => widget.onShare!(title, link),
-                          shareable: section.shareable,
+                          current: widget.current,
+                          selected: place.key == widget.currentPlaceKey,
+                          livePings: _livePings,
+                          onSelect: widget.onSelect,
+                          shareable: data.shareable,
                         ),
                     ],
                   )
@@ -502,102 +476,175 @@ class _MenuRow extends StatelessWidget {
   }
 }
 
-class _ServerRow extends StatelessWidget {
-  const _ServerRow({
-    required this.server,
+
+/// One place: flag, city, country (and the protocol when it has only one),
+/// ping, and — with several protocols — a chip per protocol. Tapping the
+/// row picks the place keeping the current protocol when it has it;
+/// a chip picks that protocol.
+class _PlaceRow extends StatelessWidget {
+  const _PlaceRow({
+    required this.place,
     required this.s,
+    required this.current,
     required this.selected,
-    required this.onTap,
-    required this.onShare,
-    this.livePingMs,
+    required this.livePings,
+    required this.onSelect,
     this.shareable = true,
   });
 
-  final LocationItem server;
+  final ServerPlace place;
   final AppStrings s;
+  final LocationItem current;
   final bool selected;
-  final VoidCallback? onTap;
-  final void Function(String title, String link)? onShare;
+  final Map<String, int?> livePings;
+  final ValueChanged<LocationItem> onSelect;
 
   /// False for a section redeemed from someone else's share code.
   final bool shareable;
 
-  /// A real, just-measured reachability figure from _SectionCard's
-  /// periodic sweep (see connection_test_service.dart) — real backend
-  /// locations never carry a static [LocationItem.pingMs] (Core doesn't
-  /// track that server-side at all), so without this the ping column was
-  /// silently blank for every real location and only ever populated for
-  /// mock/demo data.
-  final int? livePingMs;
+  LocationItem get _rowTarget =>
+      place.variant(protocolLabel(current)) ?? place.primary;
 
   @override
   Widget build(BuildContext context) {
+    final currentProto = protocolLabel(current);
+    final shown = selected ? (place.variant(currentProto) ?? place.primary) : _rowTarget;
+    final ping = livePings[shown.id] ?? shown.pingMs;
+    final available = place.variants.any((v) => v.available);
+    final single = place.variants.length == 1;
+    final singleProto = single ? protocolLabel(place.primary) : null;
+    final subtitle = [
+      if (place.title != place.country) place.country,
+      if (singleProto != null) singleProto,
+    ].join(' · ');
+    final shareTarget = shown.isCustom && shown.rawLink != null && shareable
+        ? shown.rawLink
+        : null;
+
     return Material(
-      color: selected ? context.accent.withValues(alpha: 0.08) : Colors.transparent,
+      color: selected ? context.brand.withValues(alpha: 0.08) : Colors.transparent,
+      child: InkWell(
+        onTap: available && !(selected && single) ? () => onSelect(_rowTarget) : null,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+          child: Opacity(
+            opacity: available ? 1 : 0.4,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    place.countryCode.isNotEmpty
+                        ? FlagIcon(countryCode: place.countryCode, width: 22)
+                        : const Icon(Icons.link, color: WbColors.ice60, size: 16),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            place.title,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          if (subtitle.isNotEmpty)
+                            Text(
+                              subtitle,
+                              style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (ping != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '$ping ms',
+                        style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                      ),
+                    ],
+                    if (shareTarget != null)
+                      _HeaderIcon(
+                        icon: Icons.ios_share_rounded,
+                        tooltip: s.shareSubscription,
+                        onTap: () => showShareSubscriptionSheet(
+                          context,
+                          title: place.title,
+                          link: shareTarget,
+                          s: s,
+                        ),
+                      ),
+                    SizedBox(
+                      width: 28,
+                      child: selected
+                          ? Icon(Icons.check_circle, color: context.accent, size: 18)
+                          : null,
+                    ),
+                  ],
+                ),
+                if (!single) ...[
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final v in place.variants)
+                          _ProtocolChip(
+                            label: protocolLabel(v) ?? '—',
+                            selected: selected && protocolLabel(v) == currentProto,
+                            onTap: v.available &&
+                                    !(selected && protocolLabel(v) == currentProto)
+                                ? () => onSelect(v)
+                                : null,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProtocolChip extends StatelessWidget {
+  const _ProtocolChip({required this.label, required this.selected, this.onTap});
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Opacity(
-            opacity: server.available ? 1 : 0.4,
-            child: Row(
-              children: [
-                // A custom link's label can carry a real, decodable flag
-                // (see CustomServerController._flagCodeFromLabel) — show
-                // it whenever one was found instead of always falling
-                // back to a generic link icon just because the server is
-                // custom. Only a link with no detectable country still
-                // gets the link icon.
-                server.isAuto
-                    ? const Text('●', style: TextStyle(fontSize: 18))
-                    : server.countryCode.isNotEmpty
-                        ? FlagIcon(countryCode: server.countryCode, width: 22)
-                        : const Icon(Icons.link, color: WbColors.ice60, size: 16),
-                const SizedBox(width: 10),
-                Expanded(
-                  // The flag icon already carries the country, so
-                  // repeating it as a text prefix on every single row
-                  // ("Netherlands · Amsterdam", "Netherlands ·
-                  // Rotterdam", ...) just burns width a group's rows
-                  // usually share anyway — confirmed on-device: with a
-                  // longer city/note (e.g. "Amsterdam (Direct-TLS)") that
-                  // redundant prefix was exactly what pushed the ping
-                  // value and action icons out of a narrow phone's width,
-                  // or ellipsized the one part of the name that actually
-                  // distinguishes the row. City (falling back to country
-                  // only when there's no city at all) is the whole label
-                  // now.
-                  child: Text(
-                    server.isAuto ? 'Auto · Fastest' : (server.city.isEmpty ? server.country : server.city),
-                    style: const TextStyle(fontSize: 14),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-                if ((livePingMs ?? server.pingMs) != null) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    '${livePingMs ?? server.pingMs} ms',
-                    style: const TextStyle(color: WbColors.ice60, fontSize: 12),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                if (shareable && server.isCustom && server.rawLink != null)
-                  _HeaderIcon(
-                    icon: Icons.ios_share_rounded,
-                    tooltip: s.shareSubscription,
-                    onTap: () => onShare != null
-                        ? onShare!(server.country, server.rawLink!)
-                        : showShareSubscriptionSheet(
-                            context,
-                            title: server.country,
-                            link: server.rawLink!,
-                            s: s,
-                          ),
-                  ),
-                if (selected)
-                  Icon(Icons.check_circle, color: context.accent, size: 18),
-              ],
+        borderRadius: BorderRadius.circular(9),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(9),
+            color: selected ? context.brand.withValues(alpha: 0.16) : null,
+            border: Border.all(
+              color: selected ? context.brand.withValues(alpha: 0.45) : Ic.glassBorder,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: selected ? Ic.text : Ic.textMuted,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
         ),

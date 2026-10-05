@@ -103,6 +103,24 @@ class _LivingCoreState extends ConsumerState<LivingCore>
   final _motion = _Motion();
   ui.FragmentShader? _shader;
   ui.Image? _texture;
+  ui.Image? _mark;
+
+  // The standard WAVEBREAK mark (the one the connect button had before the
+  // sphere, WavebreakMark): decoded once, small.
+  static Future<ui.Image?>? _markFuture;
+  static Future<ui.Image?> _loadMark() async {
+    try {
+      final data =
+          await rootBundle.load('assets/branding/wavebreak_mark_square.png');
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List(),
+          targetWidth: 512);
+      final frame = await codec.getNextFrame();
+      codec.dispose();
+      return frame.image;
+    } catch (_) {
+      return null;
+    }
+  }
   TextPainter? _labelPainter;
   String? _labelText;
   double? _labelDiameter;
@@ -142,6 +160,9 @@ class _LivingCoreState extends ConsumerState<LivingCore>
   void initState() {
     super.initState();
     _apply(initial: true);
+    (_markFuture ??= _loadMark()).then((img) {
+      if (mounted && img != null) setState(() => _mark = img);
+    });
     SphereAssets.load().then((assets) {
       if (!mounted || assets == null) return;
       setState(() {
@@ -237,6 +258,7 @@ class _LivingCoreState extends ConsumerState<LivingCore>
         shader: economy ? null : _shader,
         lite: economy,
         texture: _texture,
+        mark: _mark,
         label: _labelFor(label, d, DefaultTextStyle.of(context).style.fontFamily),
         enabled: widget.enabled,
         tint: tint,
@@ -308,6 +330,7 @@ class _CorePainter extends CustomPainter {
     required this.motion,
     required this.shader,
     required this.texture,
+    this.mark,
     required this.label,
     required this.enabled,
     required this.tint,
@@ -323,6 +346,9 @@ class _CorePainter extends CustomPainter {
   final _Motion motion;
   final ui.FragmentShader? shader;
   final ui.Image? texture;
+
+  /// The standard WAVEBREAK mark; the vector W until it is decoded.
+  final ui.Image? mark;
   final TextPainter label;
   final bool enabled;
 
@@ -407,13 +433,20 @@ class _CorePainter extends CustomPainter {
 
     if (!enabled) {
       canvas.saveLayer(
-          Offset.zero & size, Paint()..color = const Color(0x73FFFFFF));
+          // Same reach as the tint layer below (a box-sized one clipped).
+          Rect.fromCircle(center: c, radius: r * 2.1),
+          Paint()..color = const Color(0x73FFFFFF));
     }
 
     // Everything but the W emblem and the label follows the flag accent.
     final tintFilter = _tintFilter(w);
     if (tintFilter != null) {
-      canvas.saveLayer(Offset.zero & size, Paint()..colorFilter = tintFilter);
+      // Bounded by the effects' reach, not this painter's box: the aura,
+      // glow and success fronts reach past the box (up to 1.8 r), and a
+      // box-sized layer cut them off in a hard edge under the sphere
+      // (owner's screenshot, TR flag). Not unbounded: full-screen layer.
+      final layerBounds = Rect.fromCircle(center: c, radius: r * 2.1);
+      canvas.saveLayer(layerBounds, Paint()..colorFilter = tintFilter);
     }
     _aura(canvas, c, r, t, e, w);
     _shell(canvas, c, r, e, w);
@@ -913,6 +946,21 @@ class _CorePainter extends CustomPainter {
   /// The metallic arctic W (viewBox 90×60, 34 % of the sphere wide).
   /// It never rotates with the surface.
   void _emblem(Canvas canvas, Offset c) {
+    final m = mark;
+    if (m != null) {
+      // The W fills ~95 % of the square image's width and sits a bit
+      // below its middle: 40 % of the sphere wide, optically centred.
+      final side = diameter * 0.40 / 0.95;
+      final dst = Rect.fromCenter(
+          center: c.translate(0, -0.042 * side), width: side, height: side);
+      canvas.drawImageRect(
+        m,
+        Rect.fromLTWH(0, 0, m.width.toDouble(), m.height.toDouble()),
+        dst,
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+      return;
+    }
     final s = diameter * 0.34 / 90;
     canvas.save();
     canvas.translate(c.dx - 45 * s, c.dy - 30 * s);
@@ -966,6 +1014,7 @@ class _CorePainter extends CustomPainter {
       old.diameter != diameter ||
       old.shader != shader ||
       old.texture != texture ||
+      old.mark != mark ||
       old.label != label ||
       old.enabled != enabled ||
       old.tint != tint ||

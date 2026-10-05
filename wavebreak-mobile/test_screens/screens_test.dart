@@ -1,3 +1,4 @@
+// ignore_for_file: depend_on_referenced_packages, invalid_use_of_visible_for_testing_member
 // Screenshot bench: renders the real app (mock Core, signed in) at several
 // phone/tablet sizes and text scales and writes PNGs to test_screens/out/.
 //
@@ -26,17 +27,23 @@ import 'package:wavebreak/app/router.dart';
 import 'package:wavebreak/core/i18n/language_controller.dart';
 import 'package:wavebreak/core/storage/prefs_store.dart';
 import 'package:wavebreak/core/storage/secure_store.dart';
+import 'package:wavebreak/services/core_api/mock_backend.dart';
+import 'package:wavebreak/services/core_api/models.dart';
 
 import '../test/test_helpers.dart';
 
 class Shot {
-  const Shot(this.name, this.path, {this.signedIn = true, this.firstRun = false});
+  const Shot(this.name, this.path,
+      {this.signedIn = true, this.firstRun = false, this.locationId});
   final String name;
   final String path;
   final bool signedIn;
 
   /// Guest-or-account not chosen yet (the welcome screen).
   final bool firstRun;
+
+  /// The selected location (saved as the last one).
+  final String? locationId;
 }
 
 const shots = [
@@ -44,6 +51,7 @@ const shots = [
   Shot('login', '/login', signedIn: false),
   Shot('email-code', '/email-code', signedIn: false),
   Shot('home', '/home'),
+  Shot('home-5proto', '/home', locationId: 'hel-r'),
   Shot('servers', '/locations'),
   Shot('test', '/speed-test'),
   Shot('metrics', '/metrics'),
@@ -137,19 +145,25 @@ void main() {
             await PrefsStore.setBool(
                 PrefsStore.onboardingChoiceMade, !shot.firstRun);
             await PrefsStore.setString(PrefsStore.language, lang);
+            if (shot.locationId != null) {
+              await PrefsStore.setString(
+                  PrefsStore.lastLocationId, shot.locationId!);
+            }
             if (shot.signedIn) {
               await SecureStore.write(SecureStore.accessToken, 'mock-access');
               await SecureStore.write(SecureStore.refreshToken, 'mock-refresh');
             }
             tester.view.physicalSize = entry.value * 2;
             tester.view.devicePixelRatio = 2;
-            tester.platformDispatcher.textScaleFactorTestValue = scale;
+            // The app applies its own text size (Personalization) and ignores
+            // the system scale: 1.3 is its largest preset.
+            await PrefsStore.setDouble(PrefsStore.textScale,
+                scale >= 1.3 ? 1.3 : 1.0);
             addTearDown(tester.view.reset);
-            addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
             await tester.pumpWidget(
               ProviderScope(
-                overrides: mockCoreOverrides(),
+                overrides: mockCoreOverrides(MockCoreBackend()..locations = benchLocations),
                 child: const WavebreakApp(),
               ),
             );
@@ -178,3 +192,19 @@ void main() {
     }
   }
 }
+
+/// Places with 1–5 protocols, so the header switch (2–6 protocols) and
+/// the server list's chips show up on the shots.
+const benchLocations = [
+  LocationItem(id: 'ist-d', countryCode: 'TR', country: 'Turkey', city: 'Istanbul (Direct-TLS)', available: true, pingMs: 34),
+  LocationItem(id: 'ist-h', countryCode: 'TR', country: 'Turkey', city: 'Istanbul (Hysteria2)', available: true, pingMs: 31),
+  LocationItem(id: 'msk-d', countryCode: 'RU', country: 'Russia', city: 'Moscow (Direct-TLS)', available: true, pingMs: 12),
+  LocationItem(id: 'msk-h', countryCode: 'RU', country: 'Russia', city: 'Moscow (Hysteria2)', available: true, pingMs: 14),
+  LocationItem(id: 'msk-r', countryCode: 'RU', country: 'Russia', city: 'Moscow (REALITY)', available: true, pingMs: 15),
+  LocationItem(id: 'ams', countryCode: 'NL', country: 'Netherlands', city: 'Amsterdam', available: true, pingMs: 62),
+  LocationItem(id: 'hel-d', countryCode: 'FI', country: 'Finland', city: 'Helsinki (Direct-TLS)', available: true, pingMs: 58),
+  LocationItem(id: 'hel-h', countryCode: 'FI', country: 'Finland', city: 'Helsinki (Hysteria2)', available: true),
+  LocationItem(id: 'hel-r', countryCode: 'FI', country: 'Finland', city: 'Helsinki (REALITY)', available: true),
+  LocationItem(id: 'hel-c', countryCode: 'FI', country: 'Finland', city: 'Helsinki (CDN)', available: true),
+  LocationItem(id: 'hel-t', countryCode: 'FI', country: 'Finland', city: 'Helsinki (Trojan)', available: true),
+];

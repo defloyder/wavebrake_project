@@ -84,19 +84,8 @@
         <receiver
             android:name=".InstallStatusReceiver"
             android:exported="false" />
-        <!-- Quick actions without opening the app (QuickActions.kt): the
-             VPN notification's "protocol" button, the server picker over
-             the current app, and the Quick Settings tile. -->
-        <receiver
-            android:name=".QuickActionReceiver"
-            android:exported="false" />
-        <activity
-            android:name=".LocationPickerActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity="app.wavebreak.picker"
-            android:launchMode="singleTask"
-            android:theme="@android:style/Theme.Material.Dialog.NoActionBar" />
+        <!-- Quick Settings tile (QuickTileService.kt): VPN on/off without
+             opening the app. -->
         <service
             android:name=".QuickTileService"
             android:exported="true"
