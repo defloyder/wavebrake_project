@@ -234,7 +234,9 @@ cmd_stage() {
   [ -s "$STATE" ] || die "нет сборки: сначала build"
   . "$STATE"
   cd "$OUT"
-  local files; files=$(ls *.apk *.exe 2>/dev/null | tr '\n' ' ')
+  # Android-only or Windows-only releases: one of the globs matches nothing,
+  # ls fails and pipefail stopped the script silently — list what exists.
+  local files; files=$(for f in *.apk *.exe; do if [ -f "$f" ]; then printf '%s ' "$f"; fi; done)
   say "Загрузка на зеркало (incoming-$ID)"
   "${SSH[@]}" "$MIRROR_HOST" "mkdir -p $MIRROR_DIR/incoming-$ID"
   for f in $files *.json; do
