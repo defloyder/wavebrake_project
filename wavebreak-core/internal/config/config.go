@@ -135,6 +135,9 @@ type VLESSConfig struct {
 	DirectTLSHost string
 	DirectTLSPort int
 	DirectTLSPath string
+	// DirectTLSLabel overrides the "(Direct-TLS)" suffix of this location's
+	// Direct-TLS link name, e.g. a mirror shown as "YouTube без рекламы".
+	DirectTLSLabel string
 	// PublishDirect controls whether the direct REALITY link is included in
 	// a grant's links/subscription. Default true; set false once a network
 	// is confirmed to actively disrupt REALITY, so clients only see (and

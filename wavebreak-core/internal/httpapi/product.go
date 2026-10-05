@@ -887,7 +887,11 @@ func buildVLESSCDNGRPCLink(vless config.VLESSConfig, grantID, location string) s
 // own domain (not the CDN one) with a real Let's Encrypt certificate — no
 // REALITY camouflage, no CDN hop, just an ordinary, valid TLS handshake.
 func buildVLESSDirectTLSLink(vless config.VLESSConfig, grantID, location string) string {
-	label := fmt.Sprintf("%s (Direct-TLS)", location)
+	suffix := "Direct-TLS"
+	if vless.DirectTLSLabel != "" {
+		suffix = vless.DirectTLSLabel
+	}
+	label := fmt.Sprintf("%s (%s)", location, suffix)
 	endpoint := net.JoinHostPort(vless.DirectTLSHost, strconv.Itoa(vless.DirectTLSPort))
 	path := vless.DirectTLSPath
 	if path == "" {
