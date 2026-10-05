@@ -928,6 +928,22 @@ class _StatusCopy extends StatelessWidget {
       _ => '',
     };
 
+    // V5: ordinary states need no headline — the protection row under the
+    // core already says "Not protected / Connecting… / Protection active"
+    // with the session timer. Only states that ask the user to do
+    // something keep their text (error + retry, no traffic, config
+    // pending; the no-subscription walls returned above).
+    final quiet = switch (connection.status) {
+      ConnectionStatus.idle ||
+      ConnectionStatus.requestingProfile ||
+      ConnectionStatus.connecting ||
+      ConnectionStatus.disconnecting =>
+        true,
+      ConnectionStatus.connected => !noTraffic,
+      _ => false,
+    };
+    if (quiet) return const SizedBox.shrink();
+
     final titleColor = noTraffic
         ? WbColors.warning
         : connection.status == ConnectionStatus.connected && tint != null

@@ -24,7 +24,9 @@ Path smoothPath(List<Offset> pts) {
 
 /// "Nice" axis maximum in Mbps for the given peak: 1, 2, 5, 10, 20, 50 …
 double niceMaxMbps(double peak) {
-  if (peak <= 1) return 1;
+  // Scales down to 0.1 Mbps so even light traffic fills the chart with a
+  // readable wave (axis labels stay honest).
+  if (peak <= 0.1) return 0.1;
   final exp = math.pow(10, (math.log(peak) / math.ln10).floor()).toDouble();
   for (final m in const [1, 2, 5, 10]) {
     if (peak <= m * exp) return m * exp;
@@ -155,6 +157,37 @@ class ThroughputChartPainter extends CustomPainter {
       ..lineTo(pts.last.dx, plot.bottom)
       ..lineTo(pts.first.dx, plot.bottom)
       ..close();
+
+    // Depth: two receding ridges behind the wave (shifted up-right, fainter)
+    // so it reads as a volume, not a flat line.
+    for (final (dx, dy, a) in const [(10.0, -14.0, 0.10), (5.0, -7.0, 0.18)]) {
+      final back = [
+        for (final p in pts) Offset(p.dx + dx, p.dy + dy * _h(p, plot))
+      ];
+      final ridge = smoothPath(back);
+      canvas.drawPath(
+        Path.from(ridge)
+          ..lineTo(back.last.dx, plot.bottom)
+          ..lineTo(back.first.dx, plot.bottom)
+          ..close(),
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              color.withValues(alpha: a * strength),
+              color.withValues(alpha: 0),
+            ],
+          ).createShader(plot),
+      );
+      canvas.drawPath(
+        ridge,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8
+          ..color = color.withValues(alpha: a * 1.6 * strength),
+      );
+    }
     canvas.drawPath(
       body,
       Paint()
@@ -162,8 +195,8 @@ class ThroughputChartPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            color.withValues(alpha: 0.30 * strength),
-            color.withValues(alpha: 0.02),
+            color.withValues(alpha: 0.42 * strength),
+            color.withValues(alpha: 0.03),
           ],
         ).createShader(plot),
     );
@@ -180,7 +213,7 @@ class ThroughputChartPainter extends CustomPainter {
         for (final p in pts)
           Offset(p.dx, plot.bottom - (plot.bottom - p.dy) * (1 - k))
       ];
-      contour.color = color.withValues(alpha: 0.16 * (1 - k) * strength);
+      contour.color = color.withValues(alpha: 0.24 * (1 - k) * strength);
       canvas.drawPath(smoothPath(scaled), contour);
     }
     // A few curved vertical threads.
@@ -216,8 +249,13 @@ class ThroughputChartPainter extends CustomPainter {
     );
   }
 
-  static String _fmtAxis(double v) =>
-      v >= 10 ? v.round().toString() : (v == 0 ? '0' : v.toStringAsFixed(1));
+  static String _fmtAxis(double v) => v >= 10
+      ? v.round().toString()
+      : v == 0
+          ? '0'
+          : v >= 1
+              ? v.toStringAsFixed(1)
+              : v.toStringAsFixed(2).replaceFirst(RegExp(r'0$'), '');
 
   void _label(
       Canvas canvas, String text, Offset at, double width, TextAlign align) {
@@ -403,3 +441,8 @@ class _SmoothSparkState extends State<SmoothSpark>
     );
   }
 }
+
+/// 0 at the base .. 1 at the top of the plot — ridges lift with the wave,
+/// so a flat (idle) line doesn't float above the axis.
+double _h(Offset p, Rect plot) =>
+    ((plot.bottom - p.dy) / plot.height).clamp(0.0, 1.0);

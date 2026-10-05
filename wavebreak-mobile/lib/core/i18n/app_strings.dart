@@ -120,6 +120,10 @@ class AppStrings {
     required this.statusOnWave,
     required this.statusProtected,
     required this.statusFailed,
+    required this.protectOff,
+    required this.protectOn,
+    required this.protectConnecting,
+    required this.protectDisconnecting,
     required this.navSpeedShort,
     required this.navSettings,
     required this.settings,
@@ -387,6 +391,12 @@ class AppStrings {
   final String statusOnWave;
   final String statusProtected;
   final String statusFailed;
+
+  /// Home protection status row.
+  final String protectOff;
+  final String protectOn;
+  final String protectConnecting;
+  final String protectDisconnecting;
   final String navSpeedShort;
   final String navSettings;
   final String settings;
@@ -663,6 +673,10 @@ const kEnglishStrings = AppStrings(
   statusOnWave: 'Riding your wave…',
   statusProtected: 'You are protected',
   statusFailed: 'Connection not established',
+  protectOff: 'Not protected',
+  protectOn: 'Protection active',
+  protectConnecting: 'Connecting…',
+  protectDisconnecting: 'Disconnecting…',
   navSpeedShort: 'Test',
   navSettings: 'Settings',
   settings: 'Settings',
@@ -942,6 +956,10 @@ const kRussianStrings = AppStrings(
   statusOnWave: 'На вашей волне…',
   statusProtected: 'Вы защищены',
   statusFailed: 'Соединение не установлено',
+  protectOff: 'Не защищено',
+  protectOn: 'Защита активна',
+  protectConnecting: 'Подключение…',
+  protectDisconnecting: 'Отключение…',
   navSpeedShort: 'Тест',
   navSettings: 'Настройки',
   settings: 'Настройки',
@@ -1226,6 +1244,10 @@ const kSpanishStrings = AppStrings(
   statusOnWave: 'En tu onda…',
   statusProtected: 'Estás protegido',
   statusFailed: 'No se pudo conectar',
+  protectOff: 'Sin protección',
+  protectOn: 'Protección activa',
+  protectConnecting: 'Conectando…',
+  protectDisconnecting: 'Desconectando…',
   navSpeedShort: 'Test',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
@@ -1513,6 +1535,10 @@ const kGermanStrings = AppStrings(
   statusOnWave: 'Auf deiner Welle…',
   statusProtected: 'Du bist geschützt',
   statusFailed: 'Verbindung nicht hergestellt',
+  protectOff: 'Nicht geschützt',
+  protectOn: 'Schutz aktiv',
+  protectConnecting: 'Verbinde…',
+  protectDisconnecting: 'Trenne…',
   navSpeedShort: 'Test',
   navSettings: 'Einstellungen',
   settings: 'Einstellungen',
@@ -1801,6 +1827,10 @@ const kFrenchStrings = AppStrings(
   statusOnWave: 'Sur votre vague…',
   statusProtected: 'Vous êtes protégé',
   statusFailed: 'Connexion non établie',
+  protectOff: 'Non protégé',
+  protectOn: 'Protection active',
+  protectConnecting: 'Connexion…',
+  protectDisconnecting: 'Déconnexion…',
   navSpeedShort: 'Test',
   navSettings: 'Réglages',
   settings: 'Réglages',
@@ -2091,6 +2121,10 @@ const kPortugueseStrings = AppStrings(
   statusOnWave: 'Na sua onda…',
   statusProtected: 'Você está protegido',
   statusFailed: 'Conexão não estabelecida',
+  protectOff: 'Sem proteção',
+  protectOn: 'Proteção ativa',
+  protectConnecting: 'Conectando…',
+  protectDisconnecting: 'Desconectando…',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
   account: 'Conta',
@@ -2372,6 +2406,10 @@ const kTurkishStrings = AppStrings(
   statusOnWave: 'Dalganızdasınız…',
   statusProtected: 'Korunuyorsunuz',
   statusFailed: 'Bağlantı kurulamadı',
+  protectOff: 'Korunmuyor',
+  protectOn: 'Koruma etkin',
+  protectConnecting: 'Bağlanıyor…',
+  protectDisconnecting: 'Bağlantı kesiliyor…',
   navSpeedShort: 'Test',
   navSettings: 'Ayarlar',
   settings: 'Ayarlar',

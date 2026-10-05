@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/i18n/language_controller.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/live_metrics.dart';
 import '../immersive/immersive_colors.dart';
@@ -100,7 +103,8 @@ class SideVital extends StatelessWidget {
             child: AnimatedValue(
               value: value,
               format: format,
-              alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+              alignment:
+                  alignEnd ? Alignment.centerRight : Alignment.centerLeft,
               style: const TextStyle(
                 color: Ic.text,
                 fontSize: 22,
@@ -164,21 +168,34 @@ class SessionPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final status =
-        ref.watch(connectionManagerProvider.select((c) => c.status));
+    final status = ref.watch(connectionManagerProvider.select((c) => c.status));
+    final s = ref.watch(stringsProvider);
+    final connectedAt =
+        ref.watch(connectionManagerProvider.select((c) => c.connectedAt));
     final m = ref.watch(liveMetricsProvider);
     final connected = status == ConnectionStatus.connected;
-    final error = status == ConnectionStatus.error;
-    final protectColor = connected
-        ? Ic.arctic
-        : error
-            ? Ic.amber
-            : Ic.textSecondary;
-    final protectText = connected
-        ? 'Защита активна'
-        : error
-            ? 'Защита не активна'
-            : 'Защита — после подключения';
+    final busy = status == ConnectionStatus.requestingProfile ||
+        status == ConnectionStatus.connecting ||
+        status == ConnectionStatus.configPending;
+    final (protectIcon, protectColor, protectText) = switch (status) {
+      ConnectionStatus.connected => (
+          Icons.verified_user_rounded,
+          Ic.arctic,
+          s.protectOn
+        ),
+      ConnectionStatus.disconnecting => (
+          Icons.shield_outlined,
+          Ic.textSecondary,
+          s.protectDisconnecting
+        ),
+      _ when busy => (
+          Icons.shield_outlined,
+          Ic.textSecondary,
+          s.protectConnecting
+        ),
+      ConnectionStatus.error => (Icons.gpp_bad_rounded, Ic.amber, s.protectOff),
+      _ => (Icons.gpp_maybe_outlined, Ic.crimson, s.protectOff),
+    };
     return Column(
       children: [
         _GlassCard(
@@ -188,24 +205,37 @@ class SessionPanel extends ConsumerWidget {
               children: [
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
-                  child: Icon(
-                    connected
-                        ? Icons.verified_user_rounded
-                        : Icons.shield_outlined,
-                    key: ValueKey(connected),
-                    color: protectColor,
-                    size: 22,
-                  ),
+                  child: busy
+                      ? const SizedBox(
+                          key: ValueKey('busy'),
+                          width: 22,
+                          height: 22,
+                          child: Padding(
+                            padding: EdgeInsets.all(3),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Ic.arctic),
+                          ),
+                        )
+                      : Icon(protectIcon,
+                          key: ValueKey(protectIcon),
+                          color: protectColor,
+                          size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 300),
-                    style: TextStyle(color: protectColor, fontSize: 15),
+                    style: TextStyle(
+                        color: protectColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600),
                     child: Text(protectText,
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                 ),
+                // Session time from the real start moment (wall clock).
+                if (connected && connectedAt != null)
+                  _SessionClock(since: connectedAt),
               ],
             ),
           ),
@@ -219,7 +249,8 @@ class SessionPanel extends ConsumerWidget {
                 Expanded(
                   child: _Cell(
                     title: 'Сессия',
-                    value: m.sessionBytes > 0 ? m.sessionBytes.toDouble() : null,
+                    value:
+                        m.sessionBytes > 0 ? m.sessionBytes.toDouble() : null,
                     format: (v) => formatBytes(v.round()),
                   ),
                 ),
@@ -313,6 +344,45 @@ class _GlassCard extends StatelessWidget {
         border: Border.all(color: Ic.glassBorder),
       ),
       child: child,
+    );
+  }
+}
+
+/// hh:mm:ss since [since], ticking once a second; tabular digits so the
+/// row never shifts.
+class _SessionClock extends StatefulWidget {
+  const _SessionClock({required this.since});
+
+  final DateTime since;
+
+  @override
+  State<_SessionClock> createState() => _SessionClockState();
+}
+
+class _SessionClockState extends State<_SessionClock> {
+  late final Timer _timer =
+      Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _timer; // start
+    final d = DateTime.now().difference(widget.since);
+    String two(int v) => v.toString().padLeft(2, '0');
+    final text =
+        '${two(d.inHours)}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}';
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Ic.textSecondary,
+        fontSize: 14,
+        fontFeatures: _tabular,
+      ),
     );
   }
 }
