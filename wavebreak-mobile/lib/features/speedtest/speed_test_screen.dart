@@ -4,27 +4,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/speed_test_controller.dart';
-import '../shared/menu_button.dart';
+import '../home/location_bar.dart';
+import '../immersive/immersive_clock.dart';
+import '../immersive/immersive_colors.dart';
+import '../immersive/tinted_glass.dart';
+import '../shared/flag_icon.dart';
 import '../shared/ocean_background.dart';
-import '../shared/wave_params.dart';
-import '../shared/wb_card.dart';
 import '../shell/app_shell.dart';
-import 'wave_meter.dart';
-
-/// A reasonable ceiling for the meter's fill — most mobile/VPN
-/// connections this app will ever measure land well under this, and a
-/// connection that somehow exceeds it just fills the porthole all the
-/// way rather than needing to rescale live (which would make the fill
-/// level itself misleading — the same 50 Mbps would paint a different
-/// level depending on what else happened during the test).
-const _meterMaxMbps = 250.0;
+import 'wave_tunnel.dart';
 
 String _formatMbps(double? value) {
   if (value == null) return '–';
   return value.toStringAsFixed(value >= 100 ? 0 : 1);
 }
 
+const _tabular = [FontFeature.tabularFigures()];
+
+/// Speed test (V5): the "wave tunnel" scene with the live number in its
+/// calm centre, a three-step stepper (latency → download → upload), the
+/// three results and one action. Real measurements only (see
+/// [SpeedTestController]); the tunnel's flow follows the live throughput.
 class SpeedTestScreen extends ConsumerWidget {
   const SpeedTestScreen({super.key});
 
@@ -33,6 +34,8 @@ class SpeedTestScreen extends ConsumerWidget {
     final s = ref.watch(stringsProvider);
     final state = ref.watch(speedTestControllerProvider);
     final notifier = ref.read(speedTestControllerProvider.notifier);
+    final location =
+        ref.watch(connectionManagerProvider.select((c) => c.location));
 
     final phaseLabel = switch (state.status) {
       SpeedTestStatus.testingLatency => s.speedTestTestingLatency,
@@ -42,330 +45,280 @@ class SpeedTestScreen extends ConsumerWidget {
       SpeedTestStatus.done => s.speedTestDone,
       SpeedTestStatus.failed => s.speedTestFailed,
     };
-
-    final visualState = switch (state.status) {
-      SpeedTestStatus.testingLatency ||
-      SpeedTestStatus.testingDownload ||
-      SpeedTestStatus.testingUpload =>
-        WaveMeterVisualState.running,
-      SpeedTestStatus.idle => WaveMeterVisualState.idle,
-      SpeedTestStatus.done => WaveMeterVisualState.done,
-      SpeedTestStatus.failed => WaveMeterVisualState.failed,
+    final tunnelPhase = switch (state.status) {
+      SpeedTestStatus.testingLatency => TunnelPhase.latency,
+      SpeedTestStatus.testingDownload => TunnelPhase.download,
+      SpeedTestStatus.testingUpload => TunnelPhase.upload,
+      SpeedTestStatus.idle => TunnelPhase.idle,
+      SpeedTestStatus.done => TunnelPhase.done,
+      SpeedTestStatus.failed => TunnelPhase.failed,
     };
+    // Number in the centre: live throughput while a leg runs, the ping
+    // while measuring latency, the download result once done.
+    final (double? centreValue, String centreUnit) = switch (state.status) {
+      SpeedTestStatus.testingLatency => (state.latencyMs?.toDouble(), 'ms'),
+      SpeedTestStatus.testingDownload || SpeedTestStatus.testingUpload => (
+          state.liveMbps,
+          'Mbps'
+        ),
+      SpeedTestStatus.done => (state.downloadMbps, 'Mbps'),
+      _ => (null, 'Mbps'),
+    };
+    final tunnelMbps =
+        state.isRunning && state.status != SpeedTestStatus.testingLatency
+            ? state.liveMbps
+            : state.status == SpeedTestStatus.done
+                ? (state.downloadMbps ?? 0) * 0.25
+                : 0.0;
+    final (place, _) = splitPlaceAndProtocol(location.city);
+    final proto = protocolLabel(location);
 
-    // While running, the meter tracks the live throughput sample (the
-    // latency phase has no throughput of its own, so it just holds at
-    // zero — the phase label and stepper below are what carry "latency
-    // is what's happening right now", not the fill level). Once done, it
-    // settles on whichever leg finished last (download runs first, so
-    // that's upload) rather than snapping back to empty — a completed
-    // test should still visibly show a result in the porthole, not just
-    // in the numbers below it.
-    final meterValue = state.isRunning
-        ? (state.status == SpeedTestStatus.testingLatency
-            ? 0.0
-            : state.liveMbps)
-        : (state.uploadMbps ?? state.downloadMbps ?? 0);
-
-    final waves = ref.watch(appWaveParamsProvider);
-
-    final statusText = Text(
-      switch (state.status) {
-        SpeedTestStatus.idle => s.speedTestIdleHint,
-        SpeedTestStatus.done => s.speedTestDoneHint,
-        SpeedTestStatus.failed => s.speedTestFailedHint,
-        _ => phaseLabel,
-      },
-      style: const TextStyle(color: WbColors.ice60, fontSize: 13),
-    );
-    final meter = WaveMeter(
-      visualState: visualState,
-      valueMbps: meterValue,
-      maxMbps: _meterMaxMbps,
-      unit: 'Mbps',
-      label: phaseLabel,
-    );
-    final results = Row(
-      children: [
-        Expanded(
-          child: _ResultCard(
-            icon: Icons.speed_rounded,
-            label: s.speedTestLatency,
-            value: state.latencyMs != null ? '${state.latencyMs} ms' : '–',
-            highlighted: state.status == SpeedTestStatus.testingLatency,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _ResultCard(
-            icon: Icons.arrow_downward_rounded,
-            label: s.speedTestDownload,
-            value: '${_formatMbps(state.downloadMbps)} Mbps',
-            highlighted: state.status == SpeedTestStatus.testingDownload,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _ResultCard(
-            icon: Icons.arrow_upward_rounded,
-            label: s.speedTestUpload,
-            value: '${_formatMbps(state.uploadMbps)} Mbps',
-            highlighted: state.status == SpeedTestStatus.testingUpload,
-          ),
-        ),
-      ],
-    );
-    final button = SizedBox(
-      width: double.infinity,
-      child: FilledButton(
-        onPressed: state.isRunning ? null : notifier.run,
-        style: FilledButton.styleFrom(
-          backgroundColor: WbColors.waveCyan,
-          foregroundColor: WbColors.midnight,
-          minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        child: Text(
-          state.isRunning
-              ? phaseLabel
-              : state.status == SpeedTestStatus.idle
-                  ? s.speedTestStart
-                  : s.speedTestRetest,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-        ),
-      ),
-    );
-    Widget title({required bool withMenu}) => Row(
+    return OceanBackground(
+      illuminate: true,
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+              20, 12, 20, kMobileBottomBarReserve + 16),
           children: [
-            if (withMenu) ...[
-              const MenuButton(),
-              const SizedBox(width: 12),
-            ],
-            Text(
-              s.speedTest,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+            Text(s.speedTest,
+                style: const TextStyle(fontFamily: 'serif', fontSize: 30)),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                if (!location.isAuto && location.countryCode.isNotEmpty) ...[
+                  FlagIcon(countryCode: location.countryCode, width: 20),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    [
+                      if (place.isNotEmpty) place else location.country,
+                      if (proto != null) proto,
+                    ].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Ic.textMuted, fontSize: 14),
+                  ),
+                ),
+              ],
             ),
-          ],
-        );
-
-    // A real top-level tab now (its own bottom-nav destination — see
-    // app_shell.dart), not a screen pushed on top of another one, so it
-    // matches Home/Settings/Locations' own pattern (OceanBackground +
-    // plain title row, no back button, MenuButton only on desktop where
-    // there's a rail to open) instead of DetailScaffold's back-button
-    // header — that header sat lower and the offline banner overlapped it.
-    return LayoutBuilder(
-      builder: (context, outer) {
-        final isDesktop = outer.maxWidth >= 820;
-        if (isDesktop) {
-          // Desktop: the meter on the left sized to the window's height,
-          // everything else in a column beside it. Stacked like the phone
-          // layout, a full-width square meter plus the rest never fit a
-          // desktop window and the page scrolled.
-          return OceanBackground(
-            illuminate: true,
-            tint: waves.tint,
-            waveSpeed: waves.speed,
-            waveAmplitude: waves.amplitude,
-            maxContentWidth: 1040,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    title(withMenu: true),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, box) {
-                          final side = (box.maxHeight < box.maxWidth * 0.5
-                                  ? box.maxHeight
-                                  : box.maxWidth * 0.5)
-                              .clamp(160.0, 520.0);
-                          return Row(
-                            children: [
-                              SizedBox(width: side, height: side, child: meter),
-                              const SizedBox(width: 36),
-                              Expanded(
-                                child: Center(
-                                  child: SingleChildScrollView(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        statusText,
-                                        const SizedBox(height: 14),
-                                        _PhaseProgress(
-                                            status: state.status,
-                                            progress: state.progress),
-                                        const SizedBox(height: 22),
-                                        _PhaseStepper(state: state, s: s),
-                                        const SizedBox(height: 22),
-                                        results,
-                                        const SizedBox(height: 24),
-                                        button,
-                                      ],
-                                    ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, c) {
+                final side = c.maxWidth.clamp(220.0, 360.0);
+                return Center(
+                  child: SizedBox(
+                    width: side,
+                    height: side,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Positioned.fill(
+                          child: ExcludeSemantics(
+                            child: RepaintBoundary(
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(end: tunnelMbps),
+                                duration: const Duration(milliseconds: 700),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, mbps, _) => CustomPaint(
+                                  painter: WaveTunnelPainter(
+                                    time: ImmersiveClock.of(context),
+                                    phase: tunnelPhase,
+                                    mbps: mbps,
+                                    progress: state.progress,
                                   ),
                                 ),
                               ),
-                            ],
-                          );
-                        },
-                      ),
+                            ),
+                          ),
+                        ),
+                        _CentreReadout(
+                          value: centreValue,
+                          unit: centreUnit,
+                          label: phaseLabel,
+                          done: state.status == SpeedTestStatus.done,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              switch (state.status) {
+                SpeedTestStatus.idle => s.speedTestIdleHint,
+                SpeedTestStatus.done => s.speedTestDoneHint,
+                SpeedTestStatus.failed => s.speedTestFailedHint,
+                _ => ' ',
+              },
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Ic.textMuted, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            _Stepper(state: state, s: s),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _Result(
+                    icon: Icons.speed_rounded,
+                    label: s.speedTestLatency,
+                    text:
+                        state.latencyMs != null ? '${state.latencyMs} ms' : '–',
+                    active: state.status == SpeedTestStatus.testingLatency,
+                    color: const Color(0xFFBFEFEA),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _Result(
+                    icon: Icons.arrow_downward_rounded,
+                    label: s.speedTestDownload,
+                    text: '${_formatMbps(state.downloadMbps)} Mbps',
+                    active: state.status == SpeedTestStatus.testingDownload,
+                    color: Ic.arctic,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _Result(
+                    icon: Icons.arrow_upward_rounded,
+                    label: s.speedTestUpload,
+                    text: '${_formatMbps(state.uploadMbps)} Mbps',
+                    active: state.status == SpeedTestStatus.testingUpload,
+                    color: Ic.crimson,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: state.isRunning ? null : notifier.run,
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52)),
+                child: Text(
+                  state.isRunning
+                      ? phaseLabel
+                      : state.status == SpeedTestStatus.idle
+                          ? s.speedTestStart
+                          : s.speedTestRetest,
                 ),
               ),
             ),
-          );
-        }
-        return OceanBackground(
-          illuminate: true,
-          tint: waves.tint,
-          waveSpeed: waves.speed,
-          waveAmplitude: waves.amplitude,
-          maxContentWidth: 560,
-          child: SafeArea(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                  20, 12, 20, kMobileBottomBarReserve + 12),
-              children: [
-                title(withMenu: false),
-                const SizedBox(height: 8),
-                // Always names what's actively being measured (or that
-                // nothing is yet, or that it's finished/failed) right
-                // under the title — the plain-language version of what the
-                // porthole shows.
-                statusText,
-                const SizedBox(height: 20),
-                AspectRatio(aspectRatio: 1, child: meter),
-                const SizedBox(height: 8),
-                // Determinate progress for whichever leg is running;
-                // latency (one TCP connect) gets an indeterminate bar.
-                _PhaseProgress(status: state.status, progress: state.progress),
-                const SizedBox(height: 20),
-                _PhaseStepper(state: state, s: s),
-                const SizedBox(height: 20),
-                results,
-                const SizedBox(height: 24),
-                button,
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// A determinate bar while download/upload run ([SpeedTestState.progress]
-/// already tracks 0..1 through the current leg — see
-/// SpeedTestService/_ProgressSampler), an indeterminate one for latency
-/// (a single TCP connect has no meaningful sub-progress to report), and
-/// nothing at all once idle/done/failed — a progress bar sitting at some
-/// arbitrary leftover position after the test ends would read as
-/// "unfinished", which is exactly backwards.
-class _PhaseProgress extends StatelessWidget {
-  const _PhaseProgress({required this.status, required this.progress});
-
-  final SpeedTestStatus status;
-  final double progress;
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = status == SpeedTestStatus.testingLatency ||
-        status == SpeedTestStatus.testingDownload ||
-        status == SpeedTestStatus.testingUpload;
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 200),
-      opacity: visible ? 1 : 0,
-      child: SizedBox(
-        height: 4,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: status == SpeedTestStatus.testingLatency ? null : progress,
-            minHeight: 4,
-            backgroundColor: WbColors.ice08,
-            valueColor: const AlwaysStoppedAnimation(WbColors.waveCyan),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Three steps, always visible in the same order latency → download →
-/// upload run in — the "always know what's actively being measured, and
-/// what's still to come" signal a bare phase label alone doesn't give:
-/// seeing "download" highlighted while "upload" still sits dim tells you
-/// there's another whole leg coming, not just what's happening this
-/// instant.
-class _PhaseStepper extends StatelessWidget {
-  const _PhaseStepper({required this.state, required this.s});
+class _CentreReadout extends StatelessWidget {
+  const _CentreReadout({
+    required this.value,
+    required this.unit,
+    required this.label,
+    required this.done,
+  });
+
+  final double? value;
+  final String unit;
+  final String label;
+  final bool done;
+
+  @override
+  Widget build(BuildContext context) {
+    const numberStyle = TextStyle(
+      color: Ic.text,
+      fontSize: 44,
+      height: 1.1,
+      fontWeight: FontWeight.w600,
+      fontFeatures: _tabular,
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 52,
+          child: value == null
+              ? const Text('—', style: numberStyle)
+              : TweenAnimationBuilder<double>(
+                  tween: Tween(end: value),
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, v, __) => Text(
+                    unit == 'ms' ? v.round().toString() : _formatMbps(v),
+                    style: numberStyle,
+                  ),
+                ),
+        ),
+        Text(unit,
+            style: const TextStyle(color: Ic.textSecondary, fontSize: 13)),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (done) ...[
+              const Icon(Icons.check_rounded, color: Ic.arctic, size: 16),
+              const SizedBox(width: 4),
+            ],
+            Text(label,
+                style: TextStyle(
+                    color: done ? Ic.arctic : Ic.textMuted, fontSize: 13)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// latency → download → upload, with done (check) / failed (cross) marks.
+class _Stepper extends StatelessWidget {
+  const _Stepper({required this.state, required this.s});
 
   final SpeedTestState state;
   final AppStrings s;
 
   @override
   Widget build(BuildContext context) {
+    final status = state.status;
+    int order(SpeedTestStatus st) => switch (st) {
+          SpeedTestStatus.testingLatency => 0,
+          SpeedTestStatus.testingDownload => 1,
+          SpeedTestStatus.testingUpload => 2,
+          SpeedTestStatus.done => 3,
+          _ => -1,
+        };
+    final current = order(status);
+    final results = [
+      state.latencyMs != null,
+      state.downloadMbps != null,
+      state.uploadMbps != null,
+    ];
+    final labels = [s.speedTestLatency, s.speedTestDownload, s.speedTestUpload];
     return Row(
       children: [
-        Expanded(
-          child: _StepDot(
-            label: s.speedTestLatency,
-            active: state.status == SpeedTestStatus.testingLatency,
-            done: state.latencyMs != null,
-            failed: false,
+        for (var i = 0; i < 3; i++) ...[
+          if (i > 0)
+            Expanded(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                height: 1.5,
+                color: current >= i || results[i - 1]
+                    ? Ic.arctic.withValues(alpha: 0.6)
+                    : Ic.glassBorder,
+              ),
+            ),
+          _StepDot(
+            label: labels[i],
+            active: current == i,
+            done: results[i] && (current > i || status == SpeedTestStatus.done),
+            failed: status == SpeedTestStatus.failed && !results[i],
           ),
-        ),
-        _StepConnector(
-            lit: state.latencyMs != null ||
-                state.status.index > SpeedTestStatus.testingLatency.index),
-        Expanded(
-          child: _StepDot(
-            label: s.speedTestDownload,
-            active: state.status == SpeedTestStatus.testingDownload,
-            done: state.downloadMbps != null,
-            failed: state.status == SpeedTestStatus.failed &&
-                state.downloadMbps == null,
-          ),
-        ),
-        _StepConnector(
-            lit: state.downloadMbps != null ||
-                state.status.index > SpeedTestStatus.testingDownload.index),
-        Expanded(
-          child: _StepDot(
-            label: s.speedTestUpload,
-            active: state.status == SpeedTestStatus.testingUpload,
-            done: state.uploadMbps != null,
-            failed: state.status == SpeedTestStatus.failed &&
-                state.uploadMbps == null,
-          ),
-        ),
+        ],
       ],
-    );
-  }
-}
-
-class _StepConnector extends StatelessWidget {
-  const _StepConnector({required this.lit});
-
-  final bool lit;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: 20,
-      height: 2,
-      margin: const EdgeInsets.only(bottom: 18),
-      color: lit ? WbColors.waveCyan.withValues(alpha: 0.5) : WbColors.ice08,
     );
   }
 }
@@ -386,97 +339,89 @@ class _StepDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = failed
-        ? WbColors.error
-        : done
-            ? WbColors.oceanTeal
-            : active
-                ? WbColors.waveCyan
-                : WbColors.ice60;
+        ? Ic.amber
+        : done || active
+            ? Ic.arctic
+            : Ic.textMuted;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          width: 22,
-          height: 22,
+          duration: const Duration(milliseconds: 300),
+          width: 30,
+          height: 30,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: (done || active)
-                ? color.withValues(alpha: 0.18)
-                : Colors.transparent,
-            border: Border.all(color: color, width: active ? 2 : 1.4),
+            color: active ? Ic.arctic.withValues(alpha: 0.16) : null,
+            border: Border.all(color: color.withValues(alpha: 0.8), width: 1.5),
           ),
-          child: done
-              ? Icon(Icons.check_rounded, size: 13, color: color)
-              : failed
-                  ? Icon(Icons.close_rounded, size: 13, color: color)
-                  : active
-                      ? Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(color),
-                          ),
-                        )
-                      : null,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
+          child: Icon(
+            failed
+                ? Icons.close_rounded
+                : done
+                    ? Icons.check_rounded
+                    : Icons.circle,
+            size: done || failed ? 16 : 6,
             color: color,
-            letterSpacing: 0.2,
           ),
         ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(color: color, fontSize: 11)),
       ],
     );
   }
 }
 
-class _ResultCard extends StatelessWidget {
-  const _ResultCard({
+class _Result extends StatelessWidget {
+  const _Result({
     required this.icon,
     required this.label,
-    required this.value,
-    required this.highlighted,
+    required this.text,
+    required this.active,
+    required this.color,
   });
 
   final IconData icon;
   final String label;
-  final String value;
-  final bool highlighted;
+  final String text;
+  final bool active;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return WbCard(
-      padding: const EdgeInsets.all(12),
+    return TintedGlass(
+      padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+      tint: active ? color : null,
+      strength: active ? 1.4 : 1.0,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon,
-                  size: 14,
-                  color: highlighted ? WbColors.waveCyan : WbColors.ice60),
-              const SizedBox(width: 5),
+              Icon(icon, size: 15, color: color),
+              const SizedBox(width: 4),
               Expanded(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: highlighted ? WbColors.waveCyan : WbColors.ice60,
-                  ),
-                ),
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: TextStyle(
+                        color: active ? color : WbColors.muted, fontSize: 12)),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            value,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            text,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.fade,
+            style: const TextStyle(
+              color: Ic.text,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              fontFeatures: _tabular,
+            ),
           ),
         ],
       ),
