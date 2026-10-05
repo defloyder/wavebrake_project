@@ -131,5 +131,15 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(self.escalated, ["203.0.113.9"])
 
 
+    def test_allowlisted_relay_is_never_banned(self):
+        """Our own relay: many short sessions from it must not ban or escalate."""
+        relay = next(iter(dpi_guard.ALLOWLIST))
+        for _ in range(dpi_guard.MIN_CONNECTIONS * 5):
+            self.guard.observe(relay, duration=0.1)
+            self.clock.advance(1)
+        self.assertEqual(self.banned, [])
+        self.assertEqual(self.escalated, [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -62,6 +62,10 @@ PRUNE_INTERVAL_SEC = 300 # forget IPs with no recent activity, bound memory
 
 LINE_RE = re.compile(r"DPI-SESSION (\d+\.\d+\.\d+\.\d+) (\d+\.\d+)")
 
+# Our own relays: Istanbul sees every client behind them as one source IP, so
+# reconnect storms look like probing. Never banned by this guard.
+ALLOWLIST = {"158.160.44.116"}
+
 
 def log_event(msg):
     # Deferred import avoids a hard dependency for anything that only wants
@@ -99,6 +103,8 @@ class Guard:
         self._last_prune = self._now()
 
     def observe(self, ip, duration):
+        if ip in ALLOWLIST:
+            return
         now = self._now()
         events = self._events[ip]
         events.append((now, duration))
