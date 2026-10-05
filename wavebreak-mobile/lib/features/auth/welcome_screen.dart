@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/wavebreak_mark.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
@@ -245,10 +246,8 @@ class _SceneCopy extends StatelessWidget {
       children: [
         Align(
           alignment: centered ? Alignment.center : Alignment.centerLeft,
-          child: const Text(
-            'WAVEBREAK',
-            style: TextStyle(color: Ic.text, fontSize: 14, letterSpacing: 5),
-          ),
+          // The real brand wordmark image, same as on Home.
+          child: const WavebreakWordmark(size: 16),
         ),
         SizedBox(height: centered ? 44 : 40),
         Text(
