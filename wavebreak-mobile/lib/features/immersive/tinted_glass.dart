@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/wave_params.dart';
+import 'effects_quality.dart';
 import 'immersive_colors.dart';
 
 /// The V5 surface for every section/card in the app: dark glass with a
@@ -91,7 +92,7 @@ class TintedGlass extends ConsumerWidget {
       ],
     );
 
-    if (blur) {
+    if (blur && !ref.watch(effectsEconomyProvider)) {
       surface = ClipRRect(
         borderRadius: shape,
         child: BackdropFilter(

@@ -6,6 +6,7 @@ import '../../core/theme/personalization_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../shared/detail_scaffold.dart';
 import '../shared/nav_utils.dart';
+import '../immersive/effects_quality.dart';
 import '../shared/wb_card.dart';
 
 class PersonalizationScreen extends ConsumerWidget {
@@ -92,6 +93,47 @@ class PersonalizationScreen extends ConsumerWidget {
                   value: personalization.reduceMotion,
                   activeTrackColor: WbColors.waveCyan,
                   onChanged: notifier.setReduceMotion,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          WbCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.effectsQuality,
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  s.effectsQualityHint,
+                  style:
+                      const TextStyle(color: WbColors.ice60, fontSize: 12.5),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<EffectsQuality>(
+                    showSelectedIcon: false,
+                    segments: [
+                      ButtonSegment(
+                          value: EffectsQuality.auto,
+                          label: Text(s.effectsAuto)),
+                      ButtonSegment(
+                          value: EffectsQuality.high,
+                          label: Text(s.effectsHigh)),
+                      ButtonSegment(
+                          value: EffectsQuality.economy,
+                          label: Text(s.effectsEconomy)),
+                    ],
+                    selected: {ref.watch(effectsQualityProvider)},
+                    onSelectionChanged: (v) => ref
+                        .read(effectsQualityProvider.notifier)
+                        .set(v.first),
+                  ),
                 ),
               ],
             ),

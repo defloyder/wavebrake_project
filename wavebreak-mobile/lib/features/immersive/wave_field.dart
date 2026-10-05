@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'effects_quality.dart';
 import 'immersive_clock.dart';
 import 'immersive_colors.dart';
 
@@ -10,7 +13,7 @@ import 'immersive_colors.dart';
 /// streams with a brighter crest, and a much fainter arctic reflection)
 /// across the lower two thirds of the screen. Pure decoration: no hit
 /// testing, no semantics, sits under the content.
-class WaveField extends StatelessWidget {
+class WaveField extends ConsumerWidget {
   const WaveField(
       {super.key, this.intensity = 1.0, this.layers = 26, this.tint});
 
@@ -23,7 +26,9 @@ class WaveField extends StatelessWidget {
   final Color? tint;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Economy effects (older phones): at most 12 layers, as in the spec.
+    final economy = ref.watch(effectsEconomyProvider);
     return IgnorePointer(
       child: ExcludeSemantics(
         child: RepaintBoundary(
@@ -32,7 +37,7 @@ class WaveField extends StatelessWidget {
             painter: _WaveFieldPainter(
               time: ImmersiveClock.of(context),
               intensity: intensity,
-              layers: layers,
+              layers: economy ? (layers < 12 ? layers : 12) : layers,
               tint: tint,
             ),
           ),
@@ -114,7 +119,9 @@ class _WaveFieldPainter extends CustomPainter {
         final u = x / w;
         final y = base +
             amp * math.sin(u * f1 * math.pi + t * 0.32 + phase) +
-            amp * 0.45 * math.sin(u * f2 * math.pi - t * 0.32 * 0.7 + phase * 1.7);
+            amp *
+                0.45 *
+                math.sin(u * f2 * math.pi - t * 0.32 * 0.7 + phase * 1.7);
         x == 0 ? crest.moveTo(x, y) : crest.lineTo(x, y);
       }
       // Faint volume under the nearer crests.
@@ -127,7 +134,8 @@ class _WaveFieldPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            _lean(Ic.crimson, 0.30).withValues(alpha: 0.035 * k * (0.6 + 0.4 * intensity)),
+            _lean(Ic.crimson, 0.30)
+                .withValues(alpha: 0.035 * k * (0.6 + 0.4 * intensity)),
             Ic.background.withValues(alpha: 0),
           ],
         ).createShader(Rect.fromLTWH(0, base - amp * 1.5, w, h - base));
@@ -136,13 +144,16 @@ class _WaveFieldPainter extends CustomPainter {
       final bright = i == layers - 3 || i == layers - 9;
       stroke
         ..strokeWidth = bright ? 1.4 : 0.5 + 0.6 * k
-        ..color = _lean(Color.lerp(Ic.burgundy, Ic.crimson, k * k)!, 0.30).withValues(
-            alpha: (bright ? 0.55 : 0.10 + 0.22 * k) * (0.7 + 0.3 * intensity));
+        ..color = _lean(Color.lerp(Ic.burgundy, Ic.crimson, k * k)!, 0.30)
+            .withValues(
+                alpha: (bright ? 0.55 : 0.10 + 0.22 * k) *
+                    (0.7 + 0.3 * intensity));
       canvas.drawPath(crest, stroke);
       if (bright) {
         stroke
           ..strokeWidth = 6
-          ..color = _lean(Ic.crimson, 0.30).withValues(alpha: 0.06 * (0.6 + 0.4 * intensity))
+          ..color = _lean(Ic.crimson, 0.30)
+              .withValues(alpha: 0.06 * (0.6 + 0.4 * intensity))
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
         canvas.drawPath(crest, stroke);
         stroke.maskFilter = null;

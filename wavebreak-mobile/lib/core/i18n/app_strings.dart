@@ -131,6 +131,11 @@ class AppStrings {
     required this.orContinueWith,
     required this.authEmail,
     required this.comingSoon,
+    required this.effectsQuality,
+    required this.effectsQualityHint,
+    required this.effectsAuto,
+    required this.effectsHigh,
+    required this.effectsEconomy,
     required this.navSpeedShort,
     required this.navSettings,
     required this.settings,
@@ -415,6 +420,13 @@ class AppStrings {
   final String orContinueWith;
   final String authEmail;
   final String comingSoon;
+
+  /// Personalization: effects quality (blur, wave density).
+  final String effectsQuality;
+  final String effectsQualityHint;
+  final String effectsAuto;
+  final String effectsHigh;
+  final String effectsEconomy;
   final String navSpeedShort;
   final String navSettings;
   final String settings;
@@ -702,6 +714,11 @@ const kEnglishStrings = AppStrings(
   orContinueWith: 'or continue with',
   authEmail: 'Email',
   comingSoon: 'soon',
+  effectsQuality: 'Effects quality',
+  effectsQualityHint: 'Economy turns off glass blur and thins the waves — smoother on older phones. Auto picks it on low-end devices.',
+  effectsAuto: 'Auto',
+  effectsHigh: 'High',
+  effectsEconomy: 'Economy',
   navSpeedShort: 'Test',
   navSettings: 'Settings',
   settings: 'Settings',
@@ -992,6 +1009,11 @@ const kRussianStrings = AppStrings(
   orContinueWith: 'или продолжить с',
   authEmail: 'Почта',
   comingSoon: 'скоро',
+  effectsQuality: 'Качество эффектов',
+  effectsQualityHint: 'Экономный режим отключает размытие стекла и упрощает волны — плавнее на старых телефонах. «Авто» включает его на слабых устройствах.',
+  effectsAuto: 'Авто',
+  effectsHigh: 'Высокое',
+  effectsEconomy: 'Экономный',
   navSpeedShort: 'Тест',
   navSettings: 'Настройки',
   settings: 'Настройки',
@@ -1287,6 +1309,11 @@ const kSpanishStrings = AppStrings(
   orContinueWith: 'o continuar con',
   authEmail: 'Correo',
   comingSoon: 'pronto',
+  effectsQuality: 'Calidad de efectos',
+  effectsQualityHint: 'El modo ahorro quita el desenfoque y simplifica las olas — más fluido en teléfonos antiguos. «Auto» lo activa en equipos modestos.',
+  effectsAuto: 'Auto',
+  effectsHigh: 'Alta',
+  effectsEconomy: 'Ahorro',
   navSpeedShort: 'Test',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
@@ -1585,6 +1612,11 @@ const kGermanStrings = AppStrings(
   orContinueWith: 'oder weiter mit',
   authEmail: 'E-Mail',
   comingSoon: 'bald',
+  effectsQuality: 'Effektqualität',
+  effectsQualityHint: 'Sparmodus schaltet die Unschärfe ab und vereinfacht die Wellen — flüssiger auf älteren Handys. „Auto“ wählt ihn auf schwachen Geräten.',
+  effectsAuto: 'Auto',
+  effectsHigh: 'Hoch',
+  effectsEconomy: 'Sparsam',
   navSpeedShort: 'Test',
   navSettings: 'Einstellungen',
   settings: 'Einstellungen',
@@ -1884,6 +1916,11 @@ const kFrenchStrings = AppStrings(
   orContinueWith: 'ou continuer avec',
   authEmail: 'E-mail',
   comingSoon: 'bientôt',
+  effectsQuality: 'Qualité des effets',
+  effectsQualityHint: 'Le mode économe coupe le flou et simplifie les vagues — plus fluide sur les anciens téléphones. « Auto » l’active sur les appareils modestes.',
+  effectsAuto: 'Auto',
+  effectsHigh: 'Élevée',
+  effectsEconomy: 'Économe',
   navSpeedShort: 'Test',
   navSettings: 'Réglages',
   settings: 'Réglages',
@@ -2185,6 +2222,11 @@ const kPortugueseStrings = AppStrings(
   orContinueWith: 'ou continuar com',
   authEmail: 'E-mail',
   comingSoon: 'em breve',
+  effectsQuality: 'Qualidade dos efeitos',
+  effectsQualityHint: 'O modo econômico tira o desfoque e simplifica as ondas — mais fluido em celulares antigos. «Auto» o ativa em aparelhos fracos.',
+  effectsAuto: 'Auto',
+  effectsHigh: 'Alta',
+  effectsEconomy: 'Econômico',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
   account: 'Conta',
@@ -2477,6 +2519,11 @@ const kTurkishStrings = AppStrings(
   orContinueWith: 'veya şununla devam et',
   authEmail: 'E-posta',
   comingSoon: 'yakında',
+  effectsQuality: 'Efekt kalitesi',
+  effectsQualityHint: 'Tasarruf modu bulanıklığı kapatır ve dalgaları sadeleştirir — eski telefonlarda daha akıcı. “Otomatik” zayıf cihazlarda bunu seçer.',
+  effectsAuto: 'Otomatik',
+  effectsHigh: 'Yüksek',
+  effectsEconomy: 'Tasarruf',
   navSpeedShort: 'Test',
   navSettings: 'Ayarlar',
   settings: 'Ayarlar',
