@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app.dart';
 import 'app/bootstrap.dart';
+import 'core/perf/frame_log.dart';
 
 Future<void> main() async {
   await bootstrap();
@@ -19,4 +20,5 @@ Future<void> main() async {
     ),
   );
   runApp(const ProviderScope(child: WavebreakApp()));
+  startFrameLog();
 }

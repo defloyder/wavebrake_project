@@ -95,7 +95,11 @@ class TintedGlass extends ConsumerWidget {
     if (blur && !ref.watch(effectsEconomyProvider)) {
       surface = ClipRRect(
         borderRadius: shape,
-        child: BackdropFilter(
+        // Grouped: the cards of a page share one backdrop blur pass
+        // (BackdropGroup in OceanBackground) instead of one each — a
+        // separate blur per card cost ~3 ms of GPU per frame on a phone.
+        // Outside a group this is a plain BackdropFilter.
+        child: BackdropFilter.grouped(
           filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: surface,
         ),
@@ -111,4 +115,26 @@ class TintedGlass extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Wraps a screen's content so all its [TintedGlass] cards share one
+/// backdrop blur pass. Keeps the same [BackdropKey] across rebuilds — a
+/// bare `BackdropGroup(...)` makes a new key on every build, which would
+/// rebuild every card on screens that rebuild each frame (metrics).
+/// Cards inside one group must not overlap each other.
+class GlassGroup extends StatefulWidget {
+  const GlassGroup({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<GlassGroup> createState() => _GlassGroupState();
+}
+
+class _GlassGroupState extends State<GlassGroup> {
+  final _key = BackdropKey();
+
+  @override
+  Widget build(BuildContext context) =>
+      BackdropGroup(backdropKey: _key, child: widget.child);
 }

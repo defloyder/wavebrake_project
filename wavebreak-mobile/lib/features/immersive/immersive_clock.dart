@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -10,10 +12,14 @@ import '../../core/theme/personalization_controller.dart';
 /// painters pass as `repaint:`, so a tick repaints only the painters and
 /// never rebuilds widgets.
 ///
-/// Throttled to ~30 fps — decoration doesn't need 60/120 and the battery
-/// does. Frozen (one static frame) when the user turned on "reduce motion"
-/// in the app or the system asks to disable animations. Flutter stops
-/// ticking on its own while the app is in the background.
+/// ~30 fps, and it asks for a frame only 30 times a second. (A Ticker
+/// that merely skipped updates still requested a frame on every vsync —
+/// on a 120 Hz phone Flutter then re-rendered the whole scene, glass
+/// blur included, ~4× more often than the waves changed: the GPU stayed
+/// saturated, scrolling dropped to ~30 fps and minimising lagged.)
+/// Frozen (one static frame) when the user turned on "reduce motion" in
+/// the app or the system asks to disable animations; stopped while the
+/// app is not visible.
 class ImmersiveClock extends ConsumerStatefulWidget {
   const ImmersiveClock({super.key, required this.child});
 
@@ -32,37 +38,68 @@ class ImmersiveClock extends ConsumerStatefulWidget {
 }
 
 class _ImmersiveClockState extends ConsumerState<ImmersiveClock>
-    with SingleTickerProviderStateMixin {
+    with WidgetsBindingObserver {
   final _time = ValueNotifier<double>(0);
-  late final Ticker _ticker = createTicker(_onTick);
-  Duration _lastPaint = Duration.zero;
-  double _offset = 0; // keeps time continuous across freeze/unfreeze
+  final _watch = Stopwatch();
+  Timer? _timer;
+  int? _pendingFrame;
+  double _offset = 0; // keeps time continuous across stop/start
   bool _frozen = false;
+  bool _visible = true;
 
   static const _frame = Duration(milliseconds: 33);
 
-  void _onTick(Duration elapsed) {
-    if (elapsed - _lastPaint < _frame) return;
-    _lastPaint = elapsed;
-    _time.value = _offset + elapsed.inMicroseconds / 1e6;
+  bool get _running => _timer != null;
+
+  void _tick(Timer _) {
+    if (_pendingFrame != null) return;
+    // Update inside a frame callback so the new value lands vsync-aligned.
+    _pendingFrame = SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _pendingFrame = null;
+      _time.value = _offset + _watch.elapsedMicroseconds / 1e6;
+    });
   }
 
-  void _apply(bool frozen) {
-    if (frozen == _frozen && (_ticker.isActive || frozen)) return;
-    _frozen = frozen;
-    if (frozen) {
-      _offset = _time.value;
-      if (_ticker.isActive) _ticker.stop();
-    } else if (!_ticker.isActive) {
-      _offset = _time.value;
-      _lastPaint = Duration.zero;
-      _ticker.start();
+  void _start() {
+    if (_running) return;
+    _offset = _time.value;
+    _watch
+      ..reset()
+      ..start();
+    _timer = Timer.periodic(_frame, _tick);
+  }
+
+  void _stop() {
+    if (!_running) return;
+    _timer!.cancel();
+    _timer = null;
+    if (_pendingFrame != null) {
+      SchedulerBinding.instance.cancelFrameCallbackWithId(_pendingFrame!);
+      _pendingFrame = null;
     }
+    _watch.stop();
+    _time.value = _offset + _watch.elapsedMicroseconds / 1e6;
+  }
+
+  void _apply() => (!_frozen && _visible) ? _start() : _stop();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _visible = state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.inactive;
+    _apply();
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _stop();
     _time.dispose();
     super.dispose();
   }
@@ -72,7 +109,9 @@ class _ImmersiveClockState extends ConsumerState<ImmersiveClock>
     final frozen = ref.watch(personalizationProvider).reduceMotion ||
         MediaQuery.of(context).disableAnimations;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _apply(frozen);
+      if (!mounted) return;
+      _frozen = frozen;
+      _apply();
     });
     return _ClockScope(time: _time, frozen: frozen, child: widget.child);
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/wb_colors.dart';
 import '../immersive/star_field.dart';
+import '../immersive/tinted_glass.dart';
 import '../immersive/wave_field.dart';
 import 'wave_params.dart';
 
@@ -84,7 +85,9 @@ class OceanBackground extends ConsumerWidget {
           Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxContentWidth),
-              child: child,
+              // One shared blur pass for all glass cards on this screen
+              // (TintedGlass uses BackdropFilter.grouped).
+              child: GlassGroup(child: child),
             ),
           ),
         ],

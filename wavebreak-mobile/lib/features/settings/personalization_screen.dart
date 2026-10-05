@@ -121,13 +121,13 @@ class PersonalizationScreen extends ConsumerWidget {
                     segments: [
                       ButtonSegment(
                           value: EffectsQuality.auto,
-                          label: Text(s.effectsAuto)),
+                          label: _OneLine(s.effectsAuto)),
                       ButtonSegment(
                           value: EffectsQuality.high,
-                          label: Text(s.effectsHigh)),
+                          label: _OneLine(s.effectsHigh)),
                       ButtonSegment(
                           value: EffectsQuality.economy,
-                          label: Text(s.effectsEconomy)),
+                          label: _OneLine(s.effectsEconomy)),
                     ],
                     selected: {ref.watch(effectsQualityProvider)},
                     onSelectionChanged: (v) => ref
@@ -273,4 +273,17 @@ class _TextSizeOption extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Segment label that shrinks instead of wrapping ("Экономны-й").
+class _OneLine extends StatelessWidget {
+  const _OneLine(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(text, maxLines: 1, softWrap: false),
+      );
 }

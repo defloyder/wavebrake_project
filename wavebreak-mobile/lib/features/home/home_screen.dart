@@ -36,6 +36,7 @@ import '../shared/wb_card.dart';
 import '../shared/wavebreak_mark.dart';
 import '../immersive/immersive_colors.dart';
 import '../immersive/living_core.dart';
+import '../immersive/tinted_glass.dart';
 import '../immersive/wave_field.dart';
 import 'home_vitals.dart';
 import 'location_bar.dart';
@@ -514,9 +515,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       },
       onChoosePlan: () => context.push('/subscription'),
       onTryOtherProtocol: connection.noTraffic &&
-              ref.read(connectionManagerProvider.notifier).otherProtocol !=
-                  null
-          ? () => ref.read(connectionManagerProvider.notifier).tryOtherProtocol()
+              ref.read(connectionManagerProvider.notifier).otherProtocol != null
+          ? () =>
+              ref.read(connectionManagerProvider.notifier).tryOtherProtocol()
           : null,
     );
 
@@ -559,68 +560,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     // Phone layout, used under the wave field (see below).
     Widget buildMobileBody() => LayoutBuilder(
-                    builder: (context, constraints) {
-                      // A comfortable fixed rhythm for the hero section — no
-                      // Spacer games tied to viewport height, so it looks the
-                      // same whether the screen is short or tall.
-                      final heroTopGap =
-                          (constraints.maxHeight * 0.04).clamp(8.0, 28.0);
-                      final aboveButtonGap =
-                          (constraints.maxHeight * 0.06).clamp(20.0, 56.0);
-                      return SingleChildScrollView(
-                        controller: _scrollController,
-                        // The bottom nav pill now floats over the body
-                        // instead of reserving its own Scaffold slot, so
-                        // this has to leave room for it manually or the
-                        // last row of locations ends up underneath it.
-                        padding: const EdgeInsets.fromLTRB(
-                          20,
-                          0,
-                          20,
-                          kMobileBottomBarReserve + 12,
-                        ),
-                        child: Column(
-                          children: [
-                            SizedBox(height: heroTopGap),
-                            buildTopBar(false),
-                            SizedBox(height: aboveButtonGap * 0.5),
-                            locationHeader,
-                            // The stage already leaves room for the orbit
-                            // waves above and below the sphere.
-                            SizedBox(height: aboveButtonGap * 0.4),
-                            // Real ping / download beside the core
-                            // (dashes until connected — never invented),
-                            // laid over the sphere's wave stage. The empty
-                            // middle lets taps through to the sphere.
-                            CoreStage(
-                              diameter: coreDiameter,
-                              core: livingCore,
-                              overlay: const CoreWithVitals(
-                                  core: SizedBox.shrink()),
-                            ),
-                            const SizedBox(height: 4),
-                            statusCopy,
-                            const SizedBox(height: 20),
-                            const SessionPanel(),
-                            const SizedBox(height: 12),
-                            subscriptionStrip,
-                            const SizedBox(height: 28),
-                            const Divider(color: WbColors.ice08, height: 1),
-                            const SizedBox(height: 20),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                s.chooseLocation,
-                                style: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            locationsSection,
-                          ],
-                        ),
-                      );
-                    },
+          builder: (context, constraints) {
+            // A comfortable fixed rhythm for the hero section — no
+            // Spacer games tied to viewport height, so it looks the
+            // same whether the screen is short or tall.
+            final heroTopGap = (constraints.maxHeight * 0.04).clamp(8.0, 28.0);
+            final aboveButtonGap =
+                (constraints.maxHeight * 0.06).clamp(20.0, 56.0);
+            return SingleChildScrollView(
+              controller: _scrollController,
+              // The bottom nav pill now floats over the body
+              // instead of reserving its own Scaffold slot, so
+              // this has to leave room for it manually or the
+              // last row of locations ends up underneath it.
+              padding: const EdgeInsets.fromLTRB(
+                20,
+                0,
+                20,
+                kMobileBottomBarReserve + 12,
+              ),
+              child: Column(
+                children: [
+                  SizedBox(height: heroTopGap),
+                  buildTopBar(false),
+                  SizedBox(height: aboveButtonGap * 0.5),
+                  locationHeader,
+                  // The stage already leaves room for the orbit
+                  // waves above and below the sphere.
+                  SizedBox(height: aboveButtonGap * 0.4),
+                  // Real ping / download beside the core
+                  // (dashes until connected — never invented),
+                  // laid over the sphere's wave stage. The empty
+                  // middle lets taps through to the sphere.
+                  CoreStage(
+                    diameter: coreDiameter,
+                    core: livingCore,
+                    overlay: const CoreWithVitals(core: SizedBox.shrink()),
+                  ),
+                  const SizedBox(height: 4),
+                  statusCopy,
+                  const SizedBox(height: 20),
+                  const SessionPanel(),
+                  const SizedBox(height: 12),
+                  subscriptionStrip,
+                  const SizedBox(height: 28),
+                  const Divider(color: WbColors.ice08, height: 1),
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      s.chooseLocation,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  locationsSection,
+                ],
+              ),
+            );
+          },
         );
 
     return LayoutBuilder(
@@ -634,11 +633,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               Positioned.fill(
                 child: WaveField(
                   tint: tint,
-                  intensity:
-                      connection.status == ConnectionStatus.connected ? 1 : 0.55,
+                  intensity: connection.status == ConnectionStatus.connected
+                      ? 1
+                      : 0.55,
                 ),
               ),
-              SafeArea(child: buildMobileBody()),
+              GlassGroup(child: SafeArea(child: buildMobileBody())),
             ],
           );
         }
@@ -920,9 +920,8 @@ class _StatusCopy extends StatelessWidget {
     };
     final subtitle = switch (connection.status) {
       ConnectionStatus.idle => s.statusReadyHint,
-      ConnectionStatus.connected when noTraffic => onTryOtherProtocol != null
-          ? s.noTrafficHint
-          : s.noTrafficAllTried,
+      ConnectionStatus.connected when noTraffic =>
+        onTryOtherProtocol != null ? s.noTrafficHint : s.noTrafficAllTried,
       ConnectionStatus.connected => _duration(connection.connectedAt, s),
       ConnectionStatus.configPending => s.configPendingHint,
       ConnectionStatus.error => connection.error?.localized(s) ?? s.tryAgain,
@@ -1120,20 +1119,25 @@ class _SubscriptionStrip extends ConsumerWidget {
     }
     // A location of a subscription someone shared with us is selected:
     // show that subscription (the owner's days and traffic), not ours.
-    final locationId = ref.watch(connectionManagerProvider.select((c) => c.location.id));
+    final locationId =
+        ref.watch(connectionManagerProvider.select((c) => c.location.id));
     CustomSubscriptionGroup? sharedGroup;
     for (final g in ref.watch(customServersProvider)) {
-      if (g.sharedWithMe && g.servers.any((server) => server.id == locationId)) {
+      if (g.sharedWithMe &&
+          g.servers.any((server) => server.id == locationId)) {
         sharedGroup = g;
         break;
       }
     }
     if (sharedGroup != null) {
-      final received =
-          ref.watch(sharingProvider).valueOrNull?.receivedFor(sharedGroup.sourceLink);
+      final received = ref
+          .watch(sharingProvider)
+          .valueOrNull
+          ?.receivedFor(sharedGroup.sourceLink);
       return WbCard(
         tint: tint,
-        child: _SharedSubscriptionStrip(title: sharedGroup.name, received: received, s: s),
+        child: _SharedSubscriptionStrip(
+            title: sharedGroup.name, received: received, s: s),
       );
     }
     return WbCard(
@@ -1225,7 +1229,8 @@ class _SubscriptionStrip extends ConsumerWidget {
 /// Home's strip for a subscription shared with us: its owner's plan, days
 /// and traffic (everyone sharing it uses the same traffic).
 class _SharedSubscriptionStrip extends StatelessWidget {
-  const _SharedSubscriptionStrip({required this.title, required this.received, required this.s});
+  const _SharedSubscriptionStrip(
+      {required this.title, required this.received, required this.s});
 
   final String title;
   final SharedSubscription? received;

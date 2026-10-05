@@ -110,222 +110,225 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
             tint: ref.watch(appWaveParamsProvider).tint,
           ),
         ),
-        SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-                20, 16, 20, kMobileBottomBarReserve + 16),
-            children: [
-              const Text(
-                'Метрики соединения',
-                style: TextStyle(
-                  color: Ic.text,
-                  fontSize: 30,
-                  fontFamily: Ic.fontSerif,
+        GlassGroup(
+          child: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                  20, 16, 20, kMobileBottomBarReserve + 16),
+              children: [
+                const Text(
+                  'Метрики соединения',
+                  style: TextStyle(
+                    color: Ic.text,
+                    fontSize: 30,
+                    fontFamily: Ic.fontSerif,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              _Glass(
-                child: Row(
-                  children: [
-                    if (!loc.isAuto && loc.countryCode.isNotEmpty) ...[
-                      FlagIcon(countryCode: loc.countryCode, width: 28),
-                      const SizedBox(width: 12),
-                    ],
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            splitPlaceAndProtocol(loc.city).$1.isNotEmpty
-                                ? splitPlaceAndProtocol(loc.city).$1
-                                : loc.country,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Ic.text,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            [
-                              loc.country,
-                              if (protocolLabel(loc) != null)
-                                protocolLabel(loc)!
-                            ].join(' · '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Ic.textMuted, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _Badge(
-                      text: m.active
-                          ? 'В эфире'
-                          : hasData
-                              ? 'Последняя сессия'
-                              : 'Нет данных',
-                      color: m.active ? Ic.arctic : Ic.textMuted,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              _Tabs(
-                value: _tab,
-                labels: const ['Метрики', 'Инфо', 'Маршрут', 'Логи'],
-                onChanged: (i) => setState(() => _tab = i),
-              ),
-              const SizedBox(height: 14),
-              if (_tab == 0) ...[
+                const SizedBox(height: 16),
                 _Glass(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text('Скорость соединения',
-                                style: TextStyle(
-                                    color: Ic.text,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600)),
-                          ),
-                          _PeriodToggle(
-                            value: _window,
-                            onChanged: (w) => setState(() => _window = w),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _Legend(
-                              arrow: '↓',
-                              label: 'Приём',
-                              color: Ic.arctic,
-                              mbps: touched != null
-                                  ? touched.downBps / 1e6
-                                  : (m.active ? m.downMbps : null),
+                      if (!loc.isAuto && loc.countryCode.isNotEmpty) ...[
+                        FlagIcon(countryCode: loc.countryCode, width: 28),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              splitPlaceAndProtocol(loc.city).$1.isNotEmpty
+                                  ? splitPlaceAndProtocol(loc.city).$1
+                                  : loc.country,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Ic.text,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600),
                             ),
-                          ),
-                          Expanded(
-                            child: _Legend(
-                              arrow: '↑',
-                              label: 'Отдача',
-                              color: Ic.crimson,
-                              mbps: touched != null
-                                  ? touched.upBps / 1e6
-                                  : (m.active ? m.upMbps : null),
+                            Text(
+                              [
+                                loc.country,
+                                if (protocolLabel(loc) != null)
+                                  protocolLabel(loc)!
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Ic.textMuted, fontSize: 13),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        height: 190,
-                        child: hasData
-                            ? LayoutBuilder(
-                                builder: (context, c) => GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onPanDown: (d) => setState(() => _touchX =
-                                      ((d.localPosition.dx - 34) /
-                                              (c.maxWidth - 34))
-                                          .clamp(0.0, 1.0)),
-                                  onPanUpdate: (d) => setState(() => _touchX =
-                                      ((d.localPosition.dx - 34) /
-                                              (c.maxWidth - 34))
-                                          .clamp(0.0, 1.0)),
-                                  onPanEnd: (_) =>
-                                      setState(() => _touchX = null),
-                                  onPanCancel: () =>
-                                      setState(() => _touchX = null),
-                                  child: CustomPaint(
-                                    size: Size(c.maxWidth, 190),
-                                    painter: ThroughputChartPainter(
-                                      samples: m.rates,
-                                      windowMs: _windowMs,
-                                      renderNowMs: _renderNowMs,
-                                      maxMbps: _maxMbps,
-                                      minutesLabel: _window.inMinutes,
-                                      touchX: _touchX,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : const Center(
-                                child: Text(
-                                  'Подключитесь — здесь появится живой график скорости вашего соединения',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      color: Ic.textMuted,
-                                      fontSize: 14,
-                                      height: 1.4),
-                                ),
-                              ),
+                      _Badge(
+                        text: m.active
+                            ? 'В эфире'
+                            : hasData
+                                ? 'Последняя сессия'
+                                : 'Нет данных',
+                        color: m.active ? Ic.arctic : Ic.textMuted,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 14),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1.35,
-                  children: [
-                    _QualityCard(
-                      title: 'Задержка',
-                      value: m.active ? m.pingMs?.toDouble() : null,
-                      format: (v) => '${v.round()}',
-                      unit: 'мс',
-                      series: [
-                        for (final p in m.pings)
-                          if (p.ms != null) p.ms!.toDouble()
-                      ],
-                      color: Ic.arctic,
-                    ),
-                    _QualityCard(
-                      title: 'Джиттер',
-                      value: m.jitterMs,
-                      format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
-                      unit: 'мс',
-                      series: _jitterSeries(m.pings),
-                      color: Ic.textSecondary,
-                    ),
-                    _QualityCard(
-                      title: 'Потери',
-                      value: m.lossPercent,
-                      format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
-                      unit: '%',
-                      series: [
-                        for (final p in m.pings) p.ms == null ? 100.0 : 0.0
-                      ],
-                      color: Ic.amber,
-                      dashed: true,
-                    ),
-                    _QualityCard(
-                      title: 'Трафик сессии',
-                      value:
-                          m.sessionBytes > 0 ? m.sessionBytes.toDouble() : null,
-                      format: (v) => formatBytes(v.round()),
-                      unit: '',
-                      series: [for (final r in m.rates) r.downBps + r.upBps],
-                      color: Ic.crimson,
-                    ),
-                  ],
+                _Tabs(
+                  value: _tab,
+                  labels: const ['Метрики', 'Инфо', 'Маршрут', 'Логи'],
+                  onChanged: (i) => setState(() => _tab = i),
                 ),
-              ] else if (_tab == 1)
-                InfoTab(connection: connection, metrics: m)
-              else if (_tab == 2)
-                RouteTab(connection: connection, metrics: m)
-              else
-                const LogsTab(),
-            ],
+                const SizedBox(height: 14),
+                if (_tab == 0) ...[
+                  _Glass(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text('Скорость соединения',
+                                  style: TextStyle(
+                                      color: Ic.text,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                            _PeriodToggle(
+                              value: _window,
+                              onChanged: (w) => setState(() => _window = w),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _Legend(
+                                arrow: '↓',
+                                label: 'Приём',
+                                color: Ic.arctic,
+                                mbps: touched != null
+                                    ? touched.downBps / 1e6
+                                    : (m.active ? m.downMbps : null),
+                              ),
+                            ),
+                            Expanded(
+                              child: _Legend(
+                                arrow: '↑',
+                                label: 'Отдача',
+                                color: Ic.crimson,
+                                mbps: touched != null
+                                    ? touched.upBps / 1e6
+                                    : (m.active ? m.upMbps : null),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 190,
+                          child: hasData
+                              ? LayoutBuilder(
+                                  builder: (context, c) => GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onPanDown: (d) => setState(() => _touchX =
+                                        ((d.localPosition.dx - 34) /
+                                                (c.maxWidth - 34))
+                                            .clamp(0.0, 1.0)),
+                                    onPanUpdate: (d) => setState(() => _touchX =
+                                        ((d.localPosition.dx - 34) /
+                                                (c.maxWidth - 34))
+                                            .clamp(0.0, 1.0)),
+                                    onPanEnd: (_) =>
+                                        setState(() => _touchX = null),
+                                    onPanCancel: () =>
+                                        setState(() => _touchX = null),
+                                    child: CustomPaint(
+                                      size: Size(c.maxWidth, 190),
+                                      painter: ThroughputChartPainter(
+                                        samples: m.rates,
+                                        windowMs: _windowMs,
+                                        renderNowMs: _renderNowMs,
+                                        maxMbps: _maxMbps,
+                                        minutesLabel: _window.inMinutes,
+                                        touchX: _touchX,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : const Center(
+                                  child: Text(
+                                    'Подключитесь — здесь появится живой график скорости вашего соединения',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: Ic.textMuted,
+                                        fontSize: 14,
+                                        height: 1.4),
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.35,
+                    children: [
+                      _QualityCard(
+                        title: 'Задержка',
+                        value: m.active ? m.pingMs?.toDouble() : null,
+                        format: (v) => '${v.round()}',
+                        unit: 'мс',
+                        series: [
+                          for (final p in m.pings)
+                            if (p.ms != null) p.ms!.toDouble()
+                        ],
+                        color: Ic.arctic,
+                      ),
+                      _QualityCard(
+                        title: 'Джиттер',
+                        value: m.jitterMs,
+                        format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
+                        unit: 'мс',
+                        series: _jitterSeries(m.pings),
+                        color: Ic.textSecondary,
+                      ),
+                      _QualityCard(
+                        title: 'Потери',
+                        value: m.lossPercent,
+                        format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
+                        unit: '%',
+                        series: [
+                          for (final p in m.pings) p.ms == null ? 100.0 : 0.0
+                        ],
+                        color: Ic.amber,
+                        dashed: true,
+                      ),
+                      _QualityCard(
+                        title: 'Трафик сессии',
+                        value: m.sessionBytes > 0
+                            ? m.sessionBytes.toDouble()
+                            : null,
+                        format: (v) => formatBytes(v.round()),
+                        unit: '',
+                        series: [for (final r in m.rates) r.downBps + r.upBps],
+                        color: Ic.crimson,
+                      ),
+                    ],
+                  ),
+                ] else if (_tab == 1)
+                  InfoTab(connection: connection, metrics: m)
+                else if (_tab == 2)
+                  RouteTab(connection: connection, metrics: m)
+                else
+                  const LogsTab(),
+              ],
+            ),
           ),
         ),
       ],
