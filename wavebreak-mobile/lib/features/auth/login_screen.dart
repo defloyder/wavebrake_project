@@ -195,6 +195,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
       body: OceanBackground(
+        stars: true,
         illuminate: true,
         tint: waves.tint,
         waveSpeed: waves.speed,

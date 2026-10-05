@@ -129,6 +129,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     final notSent = !widget.codeSent && _info == null;
     return Scaffold(
       body: OceanBackground(
+        stars: true,
         illuminate: true,
         tint: waves.tint,
         waveSpeed: waves.speed,
@@ -151,7 +152,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   s.verifyEmailTitle,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w600),
+                      fontFamily: 'serif', fontSize: 26),
                 ),
                 const SizedBox(height: 10),
                 Text(

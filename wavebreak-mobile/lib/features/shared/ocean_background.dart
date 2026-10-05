@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/wb_colors.dart';
+import '../immersive/star_field.dart';
 import '../immersive/wave_field.dart';
 import 'wave_params.dart';
 
@@ -20,7 +21,11 @@ class OceanBackground extends ConsumerWidget {
     this.waveAmplitude = 1.0,
     this.waveLineCount = 4,
     this.maxContentWidth = 560,
+    this.stars = false,
   });
+
+  /// Vector star field over the waves (sign-in screens).
+  final bool stars;
 
   final Widget child;
   final bool illuminate;
@@ -57,6 +62,7 @@ class OceanBackground extends ConsumerWidget {
                     (0.45 + 0.25 * (waveAmplitude - 0.9)).clamp(0.3, 1.0),
               ),
             ),
+          if (stars) const Positioned.fill(child: StarField()),
           if (tint != null)
             Positioned.fill(
               child: IgnorePointer(

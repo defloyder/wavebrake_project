@@ -95,6 +95,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final waves = ref.watch(appWaveParamsProvider);
     return Scaffold(
       body: OceanBackground(
+        stars: true,
         illuminate: true,
         tint: waves.tint,
         waveSpeed: waves.speed,
@@ -120,7 +121,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 Text(
                   s.createAccount,
                   style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w600),
+                      fontFamily: 'serif', fontSize: 26),
                 ),
                 const SizedBox(height: 28),
                 TextField(
