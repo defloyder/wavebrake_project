@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -180,7 +181,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                                 ? () => launchUrl(Uri.parse(sub.manageUrl!))
                                 : () => setState(() => _changingPlan = true),
                             style: FilledButton.styleFrom(
-                              backgroundColor: WbColors.waveCyan,
+                              backgroundColor: context.accent,
                               foregroundColor: WbColors.midnight,
                             ),
                             child: Text(s.manageSubscription),
@@ -293,7 +294,7 @@ class _PlanCard extends StatelessWidget {
           else
             Text(
               s.choosePlan,
-              style: const TextStyle(color: WbColors.waveCyan, fontWeight: FontWeight.w600),
+              style: TextStyle(color: context.accent, fontWeight: FontWeight.w600),
             ),
         ],
       ),

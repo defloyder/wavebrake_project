@@ -21,6 +21,7 @@ class WbColors {
   static const deepOcean = Color(0xFF0C0709);
   static const waveCyan = Color(0xFF7CEEE8); // arctic: quality, protection
   static const oceanTeal = Color(0xFF57CFC8);
+  static const crimson = Color(0xFFFF344E); // brand: waves, sphere
   static const ice = Color(0xFFF5F2F0);
   static const background = Color(0xFF050305);
   static const card = Color(0xFF0C1418);

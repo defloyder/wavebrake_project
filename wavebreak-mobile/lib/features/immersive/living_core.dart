@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n/language_controller.dart';
 import '../../services/vpn/connection_manager.dart';
+import '../shared/wave_params.dart';
 import 'immersive_clock.dart';
 
 /// Sphere size for the screen width (V5 spec: 278 tablet, 240 phone,
@@ -204,7 +205,14 @@ class _LivingCoreState extends ConsumerState<LivingCore>
     final frozen = ImmersiveClock.frozen(context);
     final label = _label();
     final d = widget.diameter;
-    final core = CustomPaint(
+    // The selected location's flag accent, like every other surface; a
+    // location change glides the sphere over to the new color.
+    final target = ref.watch(appWaveParamsProvider).tint;
+    final core = TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: target ?? _CorePainter.baseHue),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutCubic,
+      builder: (context, tint, _) => CustomPaint(
       size: Size.infinite,
       painter: _CorePainter(
         repaint: Listenable.merge([time, _energy, _warn, _press]),
@@ -219,7 +227,9 @@ class _LivingCoreState extends ConsumerState<LivingCore>
         texture: _texture,
         label: _labelFor(label, d),
         enabled: widget.enabled,
+        tint: tint,
       ),
+    ),
     );
     return Stack(
       alignment: Alignment.center,
@@ -316,6 +326,7 @@ class _CorePainter extends CustomPainter {
     required this.texture,
     required this.label,
     required this.enabled,
+    required this.tint,
   }) : super(repaint: repaint);
 
   final ValueListenable<double> time;
@@ -329,6 +340,38 @@ class _CorePainter extends CustomPainter {
   final ui.Image? texture;
   final TextPainter label;
   final bool enabled;
+
+  /// Flag accent to recolor the sphere to (null = keep crimson).
+  final Color? tint;
+
+  /// The hue the sphere is designed in; [tint] rotates away from it.
+  static const baseHue = Color(0xFFFF4C74);
+
+  /// Hue rotation (luminance-preserving matrix) from the designed crimson
+  /// to [tint], faded out while the error amber shows. Null when there's
+  /// nothing to rotate (no tint, a near-grey tint, or ~the same hue).
+  ColorFilter? _tintFilter(double w) {
+    final c = tint;
+    if (c == null) return null;
+    final hsl = HSLColor.fromColor(c);
+    if (hsl.saturation < 0.15) return null;
+    var deg = hsl.hue - HSLColor.fromColor(baseHue).hue;
+    if (deg > 180) deg -= 360;
+    if (deg < -180) deg += 360;
+    deg *= 1 - w;
+    if (deg.abs() < 2) return null;
+    final a = deg * math.pi / 180;
+    final cs = math.cos(a), sn = math.sin(a);
+    return ColorFilter.matrix(<double>[
+      0.213 + cs * 0.787 - sn * 0.213, 0.715 - cs * 0.715 - sn * 0.715,
+      0.072 - cs * 0.072 + sn * 0.928, 0, 0, //
+      0.213 - cs * 0.213 + sn * 0.143, 0.715 + cs * 0.285 + sn * 0.140,
+      0.072 - cs * 0.072 - sn * 0.283, 0, 0, //
+      0.213 - cs * 0.213 - sn * 0.787, 0.715 - cs * 0.715 + sn * 0.715,
+      0.072 + cs * 0.928 + sn * 0.072, 0, 0, //
+      0, 0, 0, 1, 0,
+    ]);
+  }
 
   static const _crimson = Color(0xFFFF4C74);
   static const _amber = Color(0xFFFFA84C);
@@ -378,6 +421,11 @@ class _CorePainter extends CustomPainter {
           Offset.zero & size, Paint()..color = const Color(0x73FFFFFF));
     }
 
+    // Everything but the W emblem and the label follows the flag accent.
+    final tintFilter = _tintFilter(w);
+    if (tintFilter != null) {
+      canvas.saveLayer(Offset.zero & size, Paint()..colorFilter = tintFilter);
+    }
     _aura(canvas, c, r, t, e, w);
     _shell(canvas, c, r, e, w);
 
@@ -395,6 +443,7 @@ class _CorePainter extends CustomPainter {
     _ribbons(canvas, c, r, t, charge, front: true);
     if (connecting && !frozen) _inwardFronts(canvas, c, r, t);
     if (success) _outwardFronts(canvas, c, r, t, since);
+    if (tintFilter != null) canvas.restore();
 
     canvas.save();
     canvas.translate(c.dx, c.dy);
@@ -922,5 +971,6 @@ class _CorePainter extends CustomPainter {
       old.texture != texture ||
       old.label != label ||
       old.enabled != enabled ||
+      old.tint != tint ||
       old.time != time;
 }

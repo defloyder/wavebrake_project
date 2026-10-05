@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -210,7 +211,9 @@ class SupportScreen extends ConsumerWidget {
         onTap: onTap,
         child: Row(
           children: [
-            Icon(icon, color: WbColors.waveCyan),
+            Builder(
+              builder: (context) => Icon(icon, color: context.accent),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

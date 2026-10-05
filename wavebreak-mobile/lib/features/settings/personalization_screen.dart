@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -91,7 +92,7 @@ class PersonalizationScreen extends ConsumerWidget {
                 ),
                 Switch(
                   value: personalization.reduceMotion,
-                  activeTrackColor: WbColors.waveCyan,
+                  activeTrackColor: context.accent,
                   onChanged: notifier.setReduceMotion,
                 ),
               ],
@@ -159,7 +160,7 @@ class _AccentSwatch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = preset.color ?? WbColors.waveCyan;
+    final color = preset.color ?? context.accent;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -255,10 +256,10 @@ class _TextSizeOption extends StatelessWidget {
           alignment: Alignment.center,
           margin: const EdgeInsets.symmetric(horizontal: 2),
           decoration: BoxDecoration(
-            color: selected ? WbColors.waveCyan.withValues(alpha: 0.16) : Colors.transparent,
+            color: selected ? context.accent.withValues(alpha: 0.16) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected ? WbColors.waveCyan.withValues(alpha: 0.4) : WbColors.ice08,
+              color: selected ? context.accent.withValues(alpha: 0.4) : WbColors.ice08,
             ),
           ),
           child: Text(
@@ -266,7 +267,7 @@ class _TextSizeOption extends StatelessWidget {
             style: TextStyle(
               fontSize: 14 * preset.scale,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color: selected ? WbColors.waveCyan : WbColors.ice60,
+              color: selected ? context.accent : WbColors.ice60,
             ),
           ),
         ),

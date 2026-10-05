@@ -60,8 +60,17 @@ class _WaveFieldPainter extends CustomPainter {
   final int layers;
   final Color? tint;
 
-  Color _lean(Color c, double a) =>
-      tint == null ? c : (Color.lerp(c, tint, a) ?? c);
+  /// The designed crimson recolored to the flag accent's hue (keeps its
+  /// depth and saturation, so a blue flag gives deep blue waves, not a
+  /// crimson/blue mix). A near-grey accent leaves the crimson as is.
+  Color _tinted(Color c) {
+    final t = tint;
+    if (t == null) return c;
+    final hsl = HSLColor.fromColor(t);
+    if (hsl.saturation < 0.15) return c;
+    final base = HSLColor.fromColor(c);
+    return base.withHue(hsl.hue).withAlpha(base.alpha).toColor();
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -77,7 +86,7 @@ class _WaveFieldPainter extends CustomPainter {
           center: const Alignment(0.3, 0.55),
           radius: 1.1,
           colors: [
-            _lean(Ic.burgundy, 0.30).withValues(alpha: 0.55),
+            _tinted(Ic.burgundy).withValues(alpha: 0.55),
             Ic.background.withValues(alpha: 0),
           ],
         ).createShader(Offset.zero & size),
@@ -134,7 +143,7 @@ class _WaveFieldPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            _lean(Ic.crimson, 0.30)
+            _tinted(Ic.crimson)
                 .withValues(alpha: 0.035 * k * (0.6 + 0.4 * intensity)),
             Ic.background.withValues(alpha: 0),
           ],
@@ -144,7 +153,7 @@ class _WaveFieldPainter extends CustomPainter {
       final bright = i == layers - 3 || i == layers - 9;
       stroke
         ..strokeWidth = bright ? 1.4 : 0.5 + 0.6 * k
-        ..color = _lean(Color.lerp(Ic.burgundy, Ic.crimson, k * k)!, 0.30)
+        ..color = _tinted(Color.lerp(Ic.burgundy, Ic.crimson, k * k)!)
             .withValues(
                 alpha: (bright ? 0.55 : 0.10 + 0.22 * k) *
                     (0.7 + 0.3 * intensity));
@@ -152,7 +161,7 @@ class _WaveFieldPainter extends CustomPainter {
       if (bright) {
         stroke
           ..strokeWidth = 6
-          ..color = _lean(Ic.crimson, 0.30)
+          ..color = _tinted(Ic.crimson)
               .withValues(alpha: 0.06 * (0.6 + 0.4 * intensity))
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
         canvas.drawPath(crest, stroke);

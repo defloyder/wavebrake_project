@@ -6,7 +6,12 @@ import 'wb_colors.dart';
 class WbTheme {
   const WbTheme._();
 
-  static ThemeData get dark {
+  /// [tint] = the selected location's flag accent (null = the V5 defaults:
+  /// arctic controls, crimson brand). Controls get a readable light
+  /// version of it as `primary`; the raw accent is `tertiary` ([WbAccent]).
+  static ThemeData dark({Color? tint}) {
+    final accent = tint == null ? WbColors.waveCyan : controlAccent(tint);
+    final brand = tint ?? WbColors.crimson;
     final text = GoogleFonts.interTextTheme(
       ThemeData.dark().textTheme,
     ).apply(
@@ -17,9 +22,10 @@ class WbTheme {
     return ThemeData(
       brightness: Brightness.dark,
       scaffoldBackgroundColor: WbColors.midnight,
-      colorScheme: const ColorScheme.dark(
-        primary: WbColors.waveCyan,
-        secondary: WbColors.oceanTeal,
+      colorScheme: ColorScheme.dark(
+        primary: accent,
+        tertiary: brand,
+        secondary: accent,
         surface: WbColors.card,
         error: WbColors.error,
         onPrimary: WbColors.midnight,
@@ -60,10 +66,10 @@ class WbTheme {
       // overlay that reads as a mistake against this dark, cyan-accented
       // theme — every InkWell (including the share icon's) gets a
       // brand-tinted hover/press state instead.
-      hoverColor: WbColors.waveCyan.withValues(alpha: 0.07),
-      splashColor: WbColors.waveCyan.withValues(alpha: 0.12),
-      highlightColor: WbColors.waveCyan.withValues(alpha: 0.06),
-      focusColor: WbColors.waveCyan.withValues(alpha: 0.16),
+      hoverColor: accent.withValues(alpha: 0.07),
+      splashColor: accent.withValues(alpha: 0.12),
+      highlightColor: accent.withValues(alpha: 0.06),
+      focusColor: accent.withValues(alpha: 0.16),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: const Color(0xF20C1418),
         contentTextStyle: text.bodyMedium,
@@ -98,7 +104,7 @@ class WbTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: WbColors.waveCyan,
+          foregroundColor: accent,
           minimumSize: const Size(44, 44),
         ),
       ),
@@ -107,7 +113,7 @@ class WbTheme {
             s.contains(WidgetState.selected) ? WbColors.ice : WbColors.ice60),
         trackColor: WidgetStateProperty.resolveWith((s) =>
             s.contains(WidgetState.selected)
-                ? WbColors.waveCyan.withValues(alpha: 0.55)
+                ? accent.withValues(alpha: 0.55)
                 : WbColors.ice08),
         trackOutlineColor: const WidgetStatePropertyAll(WbColors.hairline),
       ),
@@ -138,7 +144,7 @@ class WbTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: WbColors.waveCyan, width: 1.2),
+          borderSide: BorderSide(color: accent, width: 1.2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -151,4 +157,22 @@ class WbTheme {
       ),
     );
   }
+}
+
+/// A flag accent made readable as a control color on the dark background:
+/// dark flag colors (navy, deep green) are lifted, neon ones calmed.
+Color controlAccent(Color tint) {
+  final hsl = HSLColor.fromColor(tint);
+  return hsl
+      .withLightness(hsl.lightness.clamp(0.62, 0.78))
+      .withSaturation(hsl.saturation.clamp(0.0, 0.85))
+      .toColor();
+}
+
+/// The current accent colors from the theme (they follow the selected
+/// location's flag): [accent] for controls, icons and highlights,
+/// [brand] for the brand-crimson parts (selected segments, nav pill).
+extension WbAccent on BuildContext {
+  Color get accent => Theme.of(this).colorScheme.primary;
+  Color get brand => Theme.of(this).colorScheme.tertiary;
 }

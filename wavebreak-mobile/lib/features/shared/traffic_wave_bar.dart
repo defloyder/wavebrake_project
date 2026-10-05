@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -42,9 +43,9 @@ class TrafficWaveBar extends StatelessWidget {
     // should I be" read as a fuel gauge, at a glance, without reading the
     // numbers first.
     final color = fraction == null
-        ? WbColors.waveCyan
+        ? context.accent
         : Color.lerp(
-            WbColors.waveCyan,
+            context.accent,
             Color.lerp(WbColors.warning, WbColors.error, ((fraction - 0.7) / 0.3).clamp(0.0, 1.0))!,
             (fraction / 0.7).clamp(0.0, 1.0),
           )!;

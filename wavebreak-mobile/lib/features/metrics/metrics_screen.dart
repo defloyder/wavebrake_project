@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'package:flutter/material.dart';
@@ -216,7 +217,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                               child: _Legend(
                                 arrow: '↑',
                                 label: 'Отдача',
-                                color: Ic.crimson,
+                                color: context.brand,
                                 mbps: touched != null
                                     ? touched.upBps / 1e6
                                     : (m.active ? m.upMbps : null),
@@ -247,6 +248,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                                       size: Size(c.maxWidth, 190),
                                       painter: ThroughputChartPainter(
                                         samples: m.rates,
+                                        upColor: context.brand,
                                         windowMs: _windowMs,
                                         renderNowMs: _renderNowMs,
                                         maxMbps: _maxMbps,
@@ -317,7 +319,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                         format: (v) => formatBytes(v.round()),
                         unit: '',
                         series: [for (final r in m.rates) r.downBps + r.upBps],
-                        color: Ic.crimson,
+                        color: context.brand,
                       ),
                     ],
                   ),

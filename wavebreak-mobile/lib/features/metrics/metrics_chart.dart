@@ -50,6 +50,7 @@ class ThroughputChartPainter extends CustomPainter {
     required this.maxMbps,
     required this.minutesLabel,
     this.touchX,
+    this.upColor = Ic.crimson,
   });
 
   final List<RateSample> samples;
@@ -58,6 +59,9 @@ class ThroughputChartPainter extends CustomPainter {
   final double maxMbps;
   final int minutesLabel;
   final double? touchX;
+
+  /// Upload series: the flag accent (the brand color), like the rest.
+  final Color upColor;
 
   static const _left = 34.0, _bottom = 22.0, _top = 8.0;
 
@@ -136,7 +140,7 @@ class ThroughputChartPainter extends CustomPainter {
     _series(
         canvas, plot, [for (final p in pts) at(p.$1, p.$2)], Ic.arctic, 1.0);
     _series(
-        canvas, plot, [for (final p in pts) at(p.$1, p.$3)], Ic.crimson, 0.85);
+        canvas, plot, [for (final p in pts) at(p.$1, p.$3)], upColor, 0.85);
     canvas.restore();
 
     if (touchX != null) {
@@ -276,7 +280,8 @@ class ThroughputChartPainter extends CustomPainter {
       old.renderNowMs != renderNowMs ||
       old.maxMbps != maxMbps ||
       old.minutesLabel != minutesLabel ||
-      old.touchX != touchX;
+      old.touchX != touchX ||
+      old.upColor != upColor;
 }
 
 /// Small sparkline for a quality card; [dashed] for packet loss.

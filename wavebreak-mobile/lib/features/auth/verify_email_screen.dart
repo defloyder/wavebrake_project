@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -174,11 +175,11 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   maxLength: 6,
                   autofillHints: const [AutofillHints.oneTimeCode],
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 28,
                     letterSpacing: 10,
                     fontWeight: FontWeight.w600,
-                    color: WbColors.waveCyan,
+                    color: context.accent,
                   ),
                   decoration: InputDecoration(
                     hintText: s.verifyEmailCodeHint,
@@ -200,7 +201,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   const SizedBox(height: 12),
                   Text(_info!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: WbColors.waveCyan)),
+                      style: TextStyle(color: context.accent)),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(
@@ -209,7 +210,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   child: FilledButton(
                     onPressed: _busy ? null : _submit,
                     style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
+                      backgroundColor: context.accent,
                       foregroundColor: WbColors.midnight,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -232,7 +233,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                         ? s.verifyEmailResendIn.replaceAll('{s}', '$_resendIn')
                         : s.verifyEmailResend,
                     style: TextStyle(
-                      color: _resendIn > 0 ? WbColors.muted : WbColors.waveCyan,
+                      color: _resendIn > 0 ? WbColors.muted : context.accent,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

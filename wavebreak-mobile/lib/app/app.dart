@@ -12,6 +12,7 @@ import '../core/network/connectivity_provider.dart';
 import '../core/theme/personalization_controller.dart';
 import '../core/theme/wb_colors.dart';
 import '../core/theme/wb_theme.dart';
+import '../features/shared/wave_params.dart';
 import '../features/shared/app_lock_gate.dart';
 import '../features/immersive/immersive_clock.dart';
 import '../features/shared/data_providers.dart';
@@ -139,7 +140,7 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
       title: 'WAVEBREAK',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: _scaffoldMessengerKey,
-      theme: WbTheme.dark,
+      theme: WbTheme.dark(tint: ref.watch(appWaveParamsProvider).tint),
       locale: Locale(language.name),
       supportedLocales: const [
         Locale('en'),

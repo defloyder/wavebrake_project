@@ -1,8 +1,8 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../core/theme/wb_colors.dart';
 
 /// A handful of slow, layered sine waves drifting across the bottom of the
 /// screen. [speed] and [amplitude] are multipliers (1.0 = calm default) so
@@ -49,7 +49,7 @@ class _AnimatedWavesState extends State<AnimatedWaves>
 
   @override
   Widget build(BuildContext context) {
-    final tint = widget.tint ?? WbColors.waveCyan;
+    final tint = widget.tint ?? context.accent;
     return IgnorePointer(
       child: AnimatedBuilder(
         animation: _controller,

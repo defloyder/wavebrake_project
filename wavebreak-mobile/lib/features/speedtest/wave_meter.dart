@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -125,7 +126,7 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
 
   Color get _tint => switch (widget.visualState) {
         WaveMeterVisualState.idle => WbColors.ice60,
-        WaveMeterVisualState.running => WbColors.waveCyan,
+        WaveMeterVisualState.running => context.accent,
         // Deliberately a different hue from the running state's cyan —
         // "the number stopped changing" isn't enough on its own to read
         // as done; a genuinely different color is (see class doc).

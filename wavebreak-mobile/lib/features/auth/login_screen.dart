@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart' show CancelToken;
@@ -267,8 +268,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               },
                               child: Text(
                                 s.continueWithOwnLink,
-                                style: const TextStyle(
-                                  color: WbColors.waveCyan,
+                                style: TextStyle(
+                                  color: context.accent,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
                                 ),
@@ -282,7 +283,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             child: FilledButton(
                               onPressed: _busy ? null : _submit,
                               style: FilledButton.styleFrom(
-                                backgroundColor: WbColors.waveCyan,
+                                backgroundColor: context.accent,
                                 foregroundColor: WbColors.midnight,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
@@ -316,8 +317,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 children: [
                                   TextSpan(
                                     text: s.createAccount,
-                                    style: const TextStyle(
-                                        color: WbColors.waveCyan),
+                                    style: TextStyle(
+                                        color: context.accent),
                                   ),
                                 ],
                               ),

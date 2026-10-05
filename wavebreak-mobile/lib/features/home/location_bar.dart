@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/i18n/app_strings.dart';
@@ -167,10 +168,10 @@ class _Segment extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(11),
-            color: selected ? Ic.crimson.withValues(alpha: 0.18) : null,
+            color: selected ? context.brand.withValues(alpha: 0.18) : null,
             border: Border.all(
               color: selected
-                  ? Ic.crimson.withValues(alpha: 0.45)
+                  ? context.brand.withValues(alpha: 0.45)
                   : Colors.transparent,
             ),
           ),

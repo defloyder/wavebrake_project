@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 
@@ -879,7 +880,7 @@ class _StatusCopy extends StatelessWidget {
             FilledButton(
               onPressed: onAddCustom,
               style: FilledButton.styleFrom(
-                backgroundColor: WbColors.waveCyan,
+                backgroundColor: context.accent,
                 foregroundColor: WbColors.midnight,
               ),
               child: Text(s.addSubscription),
@@ -897,7 +898,7 @@ class _StatusCopy extends StatelessWidget {
           FilledButton(
             onPressed: onChoosePlan,
             style: FilledButton.styleFrom(
-              backgroundColor: WbColors.waveCyan,
+              backgroundColor: context.accent,
               foregroundColor: WbColors.midnight,
             ),
             child: Text(s.choosePlan),

@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -179,7 +180,7 @@ class RouteTab extends StatelessWidget {
           ),
           _Link(
             active: connected,
-            color: Ic.crimson,
+            color: context.brand,
             label: connected ? 'выход в интернет' : '',
           ),
           _Node(

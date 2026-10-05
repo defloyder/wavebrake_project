@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -101,7 +102,7 @@ class _ConnectButtonState extends State<ConnectButton>
     final connected = widget.status == ConnectionStatus.connected;
     final connecting = widget.status == ConnectionStatus.connecting ||
         widget.status == ConnectionStatus.requestingProfile;
-    final accent = widget.accentColors ?? const [WbColors.waveCyan, WbColors.oceanTeal];
+    final accent = widget.accentColors ?? [context.accent, WbColors.oceanTeal];
     const diameter = 172.0;
 
     return AnimatedBuilder(

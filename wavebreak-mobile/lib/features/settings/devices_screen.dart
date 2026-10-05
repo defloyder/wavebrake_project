@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -103,7 +104,7 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                             'windows' || 'macos' || 'linux' => Icons.laptop_mac,
                             _ => Icons.phone_android,
                           },
-                          color: WbColors.waveCyan,
+                          color: context.accent,
                         ),
                         const SizedBox(width: 12),
                         Expanded(

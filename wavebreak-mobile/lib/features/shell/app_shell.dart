@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui';
@@ -35,13 +36,9 @@ const _kMobileBranchIndexes = [0, 1, 3, 4, 2];
 /// now that it floats over the body instead of reserving a Scaffold slot.
 const kMobileBottomBarReserve = 74.0;
 
-/// The brand cyan blended a little toward the current location's accent —
-/// used for "selected" nav states everywhere (rail item, bottom-bar tab)
-/// so they read as WAVEBREAK cyan first and flag-tinted second, never the
-/// other way around.
-Color _selectedNavColor(Color? tint) => tint == null
-    ? WbColors.waveCyan
-    : Color.lerp(WbColors.waveCyan, tint, 0.45) ?? WbColors.waveCyan;
+/// Selected nav states (rail item, bottom-bar tab): the theme accent,
+/// which follows the current location's flag.
+Color _selectedNavColor(BuildContext context) => context.accent;
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.navigationShell});
@@ -348,11 +345,11 @@ class _MobileNavButton extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
                 color: selected
-                    ? Ic.crimson.withValues(alpha: 0.16)
+                    ? context.brand.withValues(alpha: 0.16)
                     : Colors.transparent,
                 border: Border.all(
                   color: selected
-                      ? Ic.crimson.withValues(alpha: 0.35)
+                      ? context.brand.withValues(alpha: 0.35)
                       : Colors.transparent,
                 ),
               ),
@@ -372,7 +369,7 @@ class _MobileNavButton extends StatelessWidget {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: WbColors.waveCyan,
+                              color: context.accent,
                               shape: BoxShape.circle,
                               border: Border.all(
                                   color: WbColors.deepOcean, width: 1.5),
@@ -514,7 +511,7 @@ class _RailItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? _selectedNavColor(tint) : WbColors.ice60;
+    final color = selected ? _selectedNavColor(context) : WbColors.ice60;
     final content = Row(
       mainAxisAlignment:
           expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
@@ -532,7 +529,7 @@ class _RailItem extends StatelessWidget {
                   width: 7,
                   height: 7,
                   decoration: BoxDecoration(
-                    color: WbColors.waveCyan,
+                    color: context.accent,
                     shape: BoxShape.circle,
                     border: Border.all(color: WbColors.deepOcean, width: 1.2),
                   ),

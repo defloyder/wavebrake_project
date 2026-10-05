@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -270,7 +271,7 @@ class SessionPanel extends ConsumerWidget {
                     title: '↑ Отдача',
                     value: m.active ? m.upMbps : null,
                     format: (v) => "${formatMbps(v)} Mbps",
-                    color: Ic.crimson,
+                    color: context.brand,
                   ),
                 ),
               ],

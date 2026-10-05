@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -110,7 +111,7 @@ class SettingsScreen extends ConsumerWidget {
         onTap: () => context.push(path),
         child: Row(
           children: [
-            Icon(icon, color: WbColors.waveCyan),
+            Icon(icon, color: context.accent),
             const SizedBox(width: 12),
             Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),
             if (badged) ...[
@@ -118,8 +119,8 @@ class SettingsScreen extends ConsumerWidget {
                 width: 8,
                 height: 8,
                 margin: const EdgeInsets.only(right: 10),
-                decoration: const BoxDecoration(
-                  color: WbColors.waveCyan,
+                decoration: BoxDecoration(
+                  color: context.accent,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -141,7 +142,10 @@ class SettingsScreen extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.gpp_good_outlined, color: WbColors.waveCyan),
+            Builder(
+              builder: (context) =>
+                  Icon(Icons.gpp_good_outlined, color: context.accent),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -178,7 +182,7 @@ class SettingsScreen extends ConsumerWidget {
         onTap: () => _pickLanguage(context, ref, current),
         child: Row(
           children: [
-            const Icon(Icons.language, color: WbColors.waveCyan),
+            Icon(Icons.language, color: context.accent),
             const SizedBox(width: 12),
             Expanded(
                 child: Text(s.language, style: const TextStyle(fontSize: 16))),
@@ -242,8 +246,8 @@ class SettingsScreen extends ConsumerWidget {
                           ListTile(
                             title: Text(stringsFor(lang).languageName),
                             trailing: lang == current
-                                ? const Icon(Icons.check_circle,
-                                    color: WbColors.waveCyan)
+                                ? Icon(Icons.check_circle,
+                                    color: context.accent)
                                 : null,
                             onTap: () => Navigator.pop(context, lang),
                           ),

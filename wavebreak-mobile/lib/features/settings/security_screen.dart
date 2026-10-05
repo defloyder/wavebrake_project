@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -117,7 +118,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
           WbCard(
             child: SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
-              activeTrackColor: WbColors.waveCyan,
+              activeTrackColor: context.accent,
               title: Text(s.faceIdTouchId),
               subtitle: Text(
                 !_bioAvailable

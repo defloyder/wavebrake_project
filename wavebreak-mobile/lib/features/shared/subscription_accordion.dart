@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -95,19 +96,19 @@ class _SubscriptionAccordionState extends State<SubscriptionAccordion> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: WbColors.waveCyan.withValues(alpha: 0.35),
+                  color: context.accent.withValues(alpha: 0.35),
                   style: BorderStyle.solid,
                 ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.add_circle_outline, color: WbColors.waveCyan, size: 18),
+                  Icon(Icons.add_circle_outline, color: context.accent, size: 18),
                   const SizedBox(width: 10),
                   Text(
                     widget.s.addSubscriptionLink,
-                    style: const TextStyle(
-                      color: WbColors.waveCyan,
+                    style: TextStyle(
+                      color: context.accent,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -278,9 +279,9 @@ class _SectionCardState extends State<_SectionCard> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: WbColors.waveCyan.withValues(alpha: 0.12),
+                        color: context.accent.withValues(alpha: 0.12),
                       ),
-                      child: Icon(section.icon, color: WbColors.waveCyan, size: 17),
+                      child: Icon(section.icon, color: context.accent, size: 17),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -532,7 +533,7 @@ class _ServerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? WbColors.waveCyan.withValues(alpha: 0.08) : Colors.transparent,
+      color: selected ? context.accent.withValues(alpha: 0.08) : Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -595,7 +596,7 @@ class _ServerRow extends StatelessWidget {
                           ),
                   ),
                 if (selected)
-                  const Icon(Icons.check_circle, color: WbColors.waveCyan, size: 18),
+                  Icon(Icons.check_circle, color: context.accent, size: 18),
               ],
             ),
           ),

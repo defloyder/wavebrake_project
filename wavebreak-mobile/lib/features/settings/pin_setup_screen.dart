@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -163,7 +164,7 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
                   child: FilledButton(
                     onPressed: _entered.length >= 4 ? _onNext : null,
                     style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
+                      backgroundColor: context.accent,
                       foregroundColor: WbColors.midnight,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

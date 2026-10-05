@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -19,7 +20,7 @@ Future<void> showAddCustomServerSheet(
   final controller = TextEditingController();
   final s = ref.read(stringsProvider);
   final tint = ref.read(appWaveParamsProvider).tint;
-  final scanColor = wbBlend(WbColors.waveCyan, tint, 0.4);
+  final scanColor = wbBlend(context.accent, tint, 0.4);
   String? error;
   bool busy = false;
 
@@ -194,7 +195,7 @@ Future<void> showAddCustomServerSheet(
                   height: 54,
                   child: FilledButton(
                     style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
+                      backgroundColor: context.accent,
                       foregroundColor: WbColors.midnight,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

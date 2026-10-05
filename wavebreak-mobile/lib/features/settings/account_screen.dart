@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -53,7 +54,7 @@ class AccountScreen extends ConsumerWidget {
                   if (context.mounted) context.go('/login');
                 },
                 style: FilledButton.styleFrom(
-                  backgroundColor: WbColors.waveCyan,
+                  backgroundColor: context.accent,
                   foregroundColor: WbColors.midnight,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
@@ -93,7 +94,7 @@ class AccountScreen extends ConsumerWidget {
                   : null,
               child: Row(
                 children: [
-                  const Icon(Icons.email_outlined, color: WbColors.waveCyan),
+                  Icon(Icons.email_outlined, color: context.accent),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -131,9 +132,9 @@ class AccountScreen extends ConsumerWidget {
                               if (canVerify)
                                 Text(
                                   s.verifyEmailConfirm,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 13,
-                                    color: WbColors.waveCyan,
+                                    color: context.accent,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -152,8 +153,8 @@ class AccountScreen extends ConsumerWidget {
             onTap: () => context.push('/subscription'),
             child: Row(
               children: [
-                const Icon(Icons.workspace_premium_outlined,
-                    color: WbColors.waveCyan),
+                Icon(Icons.workspace_premium_outlined,
+                    color: context.accent),
                 const SizedBox(width: 12),
                 Expanded(
                   child: subscription.when(
@@ -175,7 +176,7 @@ class AccountScreen extends ConsumerWidget {
             onTap: () => context.push('/settings/devices'),
             child: Row(
               children: [
-                const Icon(Icons.devices_outlined, color: WbColors.waveCyan),
+                Icon(Icons.devices_outlined, color: context.accent),
                 const SizedBox(width: 12),
                 Expanded(child: Text(s.devices)),
                 const Icon(Icons.chevron_right, color: WbColors.ice60),

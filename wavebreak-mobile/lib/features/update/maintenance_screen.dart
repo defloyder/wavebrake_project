@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,8 +51,8 @@ class MaintenanceScreen extends ConsumerWidget {
                       onPressed: () =>
                           ref.read(sessionControllerProvider.notifier).bootstrapSession(),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: WbColors.waveCyan,
-                        side: const BorderSide(color: WbColors.waveCyan),
+                        foregroundColor: context.accent,
+                        side: BorderSide(color: context.accent),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),

@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -40,7 +41,7 @@ class _ConnectionSettingsScreenState
           WbCard(
             child: SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
-              activeTrackColor: WbColors.waveCyan,
+              activeTrackColor: context.accent,
               title: Text(s.autoConnect),
               value: _autoConnect,
               onChanged: (value) async {
@@ -67,7 +68,7 @@ class _ConnectionSettingsScreenState
               children: [
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
-                  activeTrackColor: WbColors.waveCyan,
+                  activeTrackColor: context.accent,
                   title: Text(s.onAppLaunch),
                   value: _onLaunch,
                   onChanged: _autoConnect
@@ -81,7 +82,7 @@ class _ConnectionSettingsScreenState
                 const Divider(height: 1, color: WbColors.ice08),
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
-                  activeTrackColor: WbColors.waveCyan,
+                  activeTrackColor: context.accent,
                   title: Text(s.onUntrustedWifi),
                   value: _onUntrustedWifi,
                   onChanged: _autoConnect
@@ -102,7 +103,7 @@ class _ConnectionSettingsScreenState
             WbCard(
               child: SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
-                activeTrackColor: WbColors.waveCyan,
+                activeTrackColor: context.accent,
                 title: Text(s.smartRoutingTitle),
                 subtitle: Text(
                   s.smartRoutingHint,
@@ -125,7 +126,7 @@ class _ConnectionSettingsScreenState
           WbCard(
             child: Row(
               children: [
-                const Icon(Icons.bolt_outlined, color: WbColors.waveCyan),
+                Icon(Icons.bolt_outlined, color: context.accent),
                 const SizedBox(width: 12),
                 Expanded(child: Text(s.automatic)),
               ],
@@ -142,8 +143,8 @@ class _ConnectionSettingsScreenState
               },
               child: Row(
                 children: [
-                  const Icon(Icons.battery_charging_full_outlined,
-                      color: WbColors.waveCyan),
+                  Icon(Icons.battery_charging_full_outlined,
+                      color: context.accent),
                   const SizedBox(width: 12),
                   Expanded(child: Text(s.batteryOptSettingsRow)),
                   const Icon(Icons.chevron_right, color: WbColors.ice60),

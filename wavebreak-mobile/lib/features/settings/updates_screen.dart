@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -69,11 +70,11 @@ class UpdatesScreen extends ConsumerWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: WbColors.waveCyan.withValues(alpha: 0.14),
+                    color: context.accent.withValues(alpha: 0.14),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.system_update_rounded,
-                      color: WbColors.waveCyan, size: 22),
+                  child: Icon(Icons.system_update_rounded,
+                      color: context.accent, size: 22),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -99,7 +100,7 @@ class UpdatesScreen extends ConsumerWidget {
                             style: TextStyle(
                               fontSize: 13,
                               color: pendingUpdate != null
-                                  ? WbColors.waveCyan
+                                  ? context.accent
                                   : WbColors.ice60,
                               fontWeight: pendingUpdate != null
                                   ? FontWeight.w600
@@ -131,7 +132,7 @@ class UpdatesScreen extends ConsumerWidget {
                 value: install.progress,
                 minHeight: 6,
                 backgroundColor: WbColors.ice08,
-                valueColor: const AlwaysStoppedAnimation(WbColors.waveCyan),
+                valueColor: AlwaysStoppedAnimation(context.accent),
               ),
             ),
             const SizedBox(height: 10),
@@ -158,7 +159,7 @@ class UpdatesScreen extends ConsumerWidget {
                   }
                 },
                 style: FilledButton.styleFrom(
-                  backgroundColor: WbColors.waveCyan,
+                  backgroundColor: context.accent,
                   foregroundColor: WbColors.midnight,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -281,12 +282,12 @@ class _InstallingIndicatorState extends State<_InstallingIndicator>
                 turns: _controller,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.4,
-                  valueColor: const AlwaysStoppedAnimation(WbColors.waveCyan),
+                  valueColor: AlwaysStoppedAnimation(context.accent),
                   backgroundColor: WbColors.ice08,
                 ),
               ),
-              const Icon(Icons.system_update_rounded,
-                  color: WbColors.waveCyan, size: 18),
+              Icon(Icons.system_update_rounded,
+                  color: context.accent, size: 18),
             ],
           ),
         ),

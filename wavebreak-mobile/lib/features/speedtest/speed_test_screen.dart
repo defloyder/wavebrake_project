@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -307,7 +308,7 @@ class _PhaseProgress extends StatelessWidget {
             value: status == SpeedTestStatus.testingLatency ? null : progress,
             minHeight: 4,
             backgroundColor: WbColors.ice08,
-            valueColor: const AlwaysStoppedAnimation(WbColors.waveCyan),
+            valueColor: AlwaysStoppedAnimation(context.accent),
           ),
         ),
       ),
@@ -380,7 +381,7 @@ class _StepConnector extends StatelessWidget {
       width: 20,
       height: 2,
       margin: const EdgeInsets.only(bottom: 18),
-      color: lit ? WbColors.waveCyan.withValues(alpha: 0.5) : WbColors.ice08,
+      color: lit ? context.accent.withValues(alpha: 0.5) : WbColors.ice08,
     );
   }
 }
@@ -405,7 +406,7 @@ class _StepDot extends StatelessWidget {
         : done
             ? WbColors.oceanTeal
             : active
-                ? WbColors.waveCyan
+                ? context.accent
                 : WbColors.ice60;
     return Column(
       children: [
@@ -473,7 +474,7 @@ class _ResultCard extends StatelessWidget {
             children: [
               Icon(icon,
                   size: 14,
-                  color: highlighted ? WbColors.waveCyan : WbColors.ice60),
+                  color: highlighted ? context.accent : WbColors.ice60),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
@@ -482,7 +483,7 @@ class _ResultCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: highlighted ? WbColors.waveCyan : WbColors.ice60,
+                    color: highlighted ? context.accent : WbColors.ice60,
                   ),
                 ),
               ),
