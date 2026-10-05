@@ -45,6 +45,15 @@ class _EmailCodeScreenState extends ConsumerState<EmailCodeScreen> {
             language: ref.read(languageProvider).name,
           );
     } on AppException catch (error) {
+      // A server without sign-in codes yet (404) or without email (503):
+      // the password sign-in is the way in, not a dead end.
+      if (error.statusCode == 404 ||
+          error.statusCode == 405 ||
+          error.statusCode == 503) {
+        if (mounted) setState(() => _busy = false);
+        if (mounted) context.go('/login');
+        return;
+      }
       // A code went out less than a minute ago: it's still valid, go on
       // to entering it.
       if (error.kind != AppErrorKind.resendTooSoon) {

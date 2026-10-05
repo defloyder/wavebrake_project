@@ -65,14 +65,27 @@ object QuickActions {
     /** Runs [type] on the Dart side; [done] is always called once, on the main thread. */
     fun dispatch(context: Context, type: String, locationId: String? = null, done: (Outcome) -> Unit) {
         main.post {
-            AppEngine.get(context)
-            val args = mapOf("type" to type, "locationId" to locationId)
             var finished = false
             val once: (Outcome) -> Unit = { if (!finished) { finished = true; done(it) } }
+            try {
+                AppEngine.get(context)
+            } catch (t: Throwable) {
+                // No engine (e.g. out of memory on a weak phone): the
+                // app itself is the only way left.
+                Log.w(TAG, "engine start failed", t)
+                once(Outcome(true, null))
+                return@post
+            }
+            val args = mapOf("type" to type, "locationId" to locationId)
             // A Dart side that never answers (crashed boot) must not hang
             // the caller: a broadcast has ~10 s before Android kills it.
             main.postDelayed({ once(Outcome(false, null)) }, 9_000)
-            if (ready) send(args, once) else pending.add(args to once)
+            try {
+                if (ready) send(args, once) else pending.add(args to once)
+            } catch (t: Throwable) {
+                Log.w(TAG, "quick action not delivered", t)
+                once(Outcome(false, null))
+            }
         }
     }
 

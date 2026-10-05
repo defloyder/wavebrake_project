@@ -18,6 +18,10 @@ class SphereAssets {
 
   static Future<SphereAssets?>? _future;
 
+  /// Set when the shader loaded but fails to draw on this GPU: every
+  /// sphere/Earth then uses its plain stand-in for the rest of the run.
+  static bool broken = false;
+
   static Future<SphereAssets?> load() => _future ??= _load();
 
   static Future<SphereAssets?> _load() async {

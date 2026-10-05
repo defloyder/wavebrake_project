@@ -87,6 +87,24 @@ class QuickActions {
     }
 
     switch (type) {
+      // The tile decides from the system's real VPN state (not this
+      // engine's, which can lag behind after a restart) and says which.
+      case 'on':
+        await manager.reconcileWithSystem();
+        final now = _ref.read(connectionManagerProvider);
+        if (now.status == ConnectionStatus.connected || now.isBusy) break;
+        if (!await mayStart(now.location)) return openApp;
+        unawaited(manager.connect(subscriptionActive: canConnect));
+      case 'off':
+        await manager.reconcileWithSystem();
+        final now = _ref.read(connectionManagerProvider);
+        if (now.status == ConnectionStatus.requestingProfile ||
+            now.status == ConnectionStatus.connecting) {
+          await manager.cancelConnect();
+        } else if (now.status != ConnectionStatus.idle &&
+            now.status != ConnectionStatus.disconnecting) {
+          unawaited(manager.disconnect());
+        }
       case 'toggle':
         if (!active && !await mayStart(state.location)) return openApp;
         unawaited(manager.toggle(subscriptionActive: canConnect));

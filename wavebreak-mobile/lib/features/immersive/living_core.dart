@@ -549,23 +549,30 @@ class _CorePainter extends CustomPainter {
       double pulse) {
     final sh = shader;
     final tex = texture;
-    if (sh == null || tex == null) {
+    if (sh == null || tex == null || SphereAssets.broken) {
       _fallbackSphere(canvas, c, r, e, w);
       return;
     }
     // The shader draws its disc at 0.90 of half the rect and a halo
     // outside it, so the rect is a bit larger than the sphere.
     final side = diameter / 0.90;
-    sh
-      ..setFloat(0, side)
-      ..setFloat(1, side)
-      ..setFloat(2, t)
-      ..setFloat(3, t * 2 * math.pi / _revolution)
-      ..setFloat(4, e)
-      ..setFloat(5, pulse)
-      ..setFloat(6, 0)
-      ..setFloat(7, w)
-      ..setImageSampler(0, tex, filterQuality: FilterQuality.low);
+    try {
+      sh
+        ..setFloat(0, side)
+        ..setFloat(1, side)
+        ..setFloat(2, t)
+        ..setFloat(3, t * 2 * math.pi / _revolution)
+        ..setFloat(4, e)
+        ..setFloat(5, pulse)
+        ..setFloat(6, 0)
+        ..setFloat(7, w)
+        ..setImageSampler(0, tex, filterQuality: FilterQuality.low);
+    } catch (_) {
+      // This GPU/driver can't run it: the plain sphere from now on.
+      SphereAssets.broken = true;
+      _fallbackSphere(canvas, c, r, e, w);
+      return;
+    }
     canvas.save();
     canvas.translate(c.dx - side / 2, c.dy - side / 2);
     canvas.drawRect(Rect.fromLTWH(0, 0, side, side), Paint()..shader = sh);
