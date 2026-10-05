@@ -62,3 +62,7 @@ switch_start.txt
 
 # Misc
 *.log
+
+# Screenshot bench output (test_screens/screens_test.dart)
+test_screens/out/
+test_screens/before/

@@ -227,7 +227,9 @@ class SessionPanel extends ConsumerWidget {
                 Expanded(
                   child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 300),
-                    style: TextStyle(
+                    // From the theme: a bare TextStyle here replaced the
+                    // app font (Inter) with the system one.
+                    style: DefaultTextStyle.of(context).style.copyWith(
                         color: protectColor,
                         fontSize: 15,
                         fontWeight: FontWeight.w600),

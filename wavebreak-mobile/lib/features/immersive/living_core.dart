@@ -106,18 +106,25 @@ class _LivingCoreState extends ConsumerState<LivingCore>
   TextPainter? _labelPainter;
   String? _labelText;
   double? _labelDiameter;
+  String? _labelFamily;
 
-  TextPainter _labelFor(String text, double d) {
-    if (_labelPainter != null && _labelText == text && _labelDiameter == d) {
+  TextPainter _labelFor(String text, double d, String? family) {
+    if (_labelPainter != null &&
+        _labelText == text &&
+        _labelDiameter == d &&
+        _labelFamily == family) {
       return _labelPainter!;
     }
     _labelPainter?.dispose();
     _labelText = text;
     _labelDiameter = d;
+    _labelFamily = family;
     return _labelPainter = TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
+          // The app font (a painter has no DefaultTextStyle of its own).
+          fontFamily: family,
           color: const Color(0xFFFFE1E7),
           fontSize: d < 200 ? 10 : 12,
           letterSpacing: 1,
@@ -230,7 +237,7 @@ class _LivingCoreState extends ConsumerState<LivingCore>
         shader: economy ? null : _shader,
         lite: economy,
         texture: _texture,
-        label: _labelFor(label, d),
+        label: _labelFor(label, d, DefaultTextStyle.of(context).style.fontFamily),
         enabled: widget.enabled,
         tint: tint,
       ),
