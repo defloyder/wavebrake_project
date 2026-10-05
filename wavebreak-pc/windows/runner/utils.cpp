@@ -67,3 +67,46 @@ std::string Utf8FromUtf16(const wchar_t* utf16_string) {
   }
   return utf8_string;
 }
+
+namespace {
+
+std::wstring LogDirectory() {
+  wchar_t buf[MAX_PATH];
+  DWORD n = ::GetEnvironmentVariableW(L"LOCALAPPDATA", buf, MAX_PATH);
+  if (n == 0 || n >= MAX_PATH) return L"";
+  std::wstring dir = std::wstring(buf, n) + L"/WAVEBREAK";
+  ::CreateDirectoryW(dir.c_str(), nullptr);
+  dir += L"/logs";
+  ::CreateDirectoryW(dir.c_str(), nullptr);
+  return dir;
+}
+
+LONG WINAPI CrashFilter(EXCEPTION_POINTERS* info) {
+  char line[160];
+  snprintf(line, sizeof(line), "CRASH: exception 0x%08lX at %p",
+           info && info->ExceptionRecord
+               ? info->ExceptionRecord->ExceptionCode
+               : 0UL,
+           info && info->ExceptionRecord
+               ? info->ExceptionRecord->ExceptionAddress
+               : nullptr);
+  NativeLog(line);
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
+}  // namespace
+
+void NativeLog(const std::string& line) {
+  std::wstring dir = LogDirectory();
+  if (dir.empty()) return;
+  std::wstring path = dir + L"/native.log";
+  FILE* f = nullptr;
+  if (_wfopen_s(&f, path.c_str(), L"a") != 0 || !f) return;
+  SYSTEMTIME t;
+  ::GetLocalTime(&t);
+  fprintf(f, "%04d-%02d-%02d %02d:%02d:%02d %s\n", t.wYear, t.wMonth, t.wDay,
+          t.wHour, t.wMinute, t.wSecond, line.c_str());
+  fclose(f);
+}
+
+void InstallCrashLogger() { ::SetUnhandledExceptionFilter(CrashFilter); }

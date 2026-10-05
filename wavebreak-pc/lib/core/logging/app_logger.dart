@@ -1,3 +1,4 @@
+import 'file_log.dart';
 import 'dart:collection';
 import 'dart:io';
 
@@ -37,6 +38,7 @@ class AppLogger {
 
   static void _record(String line) {
     _buffer.addLast('${DateTime.now().toIso8601String()} $line');
+    FileLog.write(line);
     while (_buffer.length > _maxLines) {
       _buffer.removeFirst();
     }
