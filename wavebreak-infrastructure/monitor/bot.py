@@ -430,13 +430,17 @@ class Bot:
         svc = table(["Контейнер", "Состояние"], [
             [("🟢 " if s["ok"] else "🔴 ") + esc(s["name"]), esc(s["status"])] for s in services
         ])
+        bans = mon.active_bans_snapshot()
         dpi = mon.dpi_blocked_snapshot()
-        dpi_html = table(["Показатель", "Значение"], [
-            ["🛡 Заблокировано адресов", f"<b>{dpi['ips']}</b> за {dpi['window_hours']} ч ({dpi['hits']} попыток)"],
-        ]) if dpi["ips"] else "<p>🟢 За последние сутки активных DPI-проб не замечено.</p>"
-        dpi_block = (f"<details><summary>🛡 Антипробинг tcp/443 ({dpi['ips']})</summary>{dpi_html}"
-                     + (table(["IP", "Попыток"], [[esc(ip), str(n)] for ip, n in dpi["top"]]) if dpi["top"] else "")
-                     + "<blockquote>20+ новых соединений на 443 за 60 сек с одного IP — автобан на минуту, окно само снимается.</blockquote></details>")
+        if bans:
+            ban_rows = [[f"<code>{esc(b['ip'])}</code>", esc(b["kind"]), f"{b['left_sec'] // 60} мин"] for b in bans]
+            dpi_html = f"<p>Сейчас в бане: <b>{len(bans)}</b></p>" + table(["IP", "Бан", "Осталось"], ban_rows)
+        else:
+            dpi_html = "<p>🟢 Сейчас никто не забанен.</p>"
+        hist = (f"<blockquote>История за {dpi['window_hours']} ч: {dpi['ips']} адресов, {dpi['hits']} дропов "
+                f"(включая уже снятые баны).</blockquote>") if dpi["ips"] else ""
+        dpi_block = (f"<details><summary>🛡 Антипробинг tcp/443 (в бане: {len(bans)})</summary>{dpi_html}{hist}"
+                     "<blockquote>20+ новых соединений на 443 за 60 сек с одного IP — бан на 5 мин, повторные — на 7 дней.</blockquote></details>")
         html = f"<h3>📊 Мониторинг</h3>{cores}{ports}{dpi_block}<details><summary>🐳 Контейнеры ({len(services)})</summary>{svc}</details>{footer()}"
         kb = [
             [B("📡 Клиенты", "cl")],

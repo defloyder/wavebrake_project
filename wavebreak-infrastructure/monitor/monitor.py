@@ -290,6 +290,21 @@ def xray_logs(n=30):
 DPI_BLOCK_RE = re.compile(r"DPI-PROBE-BLOCK.*SRC=([0-9.]+)")
 
 
+DPI_BAN_SETS = (("dpi_probe_ban", "5 мин"), ("dpi_probe_ban_repeat", "7 дн"))
+
+
+def active_bans_snapshot():
+    """IPs banned right now by the DPI guard, with seconds left on each ban."""
+    bans = []
+    for set_name, label in DPI_BAN_SETS:
+        for line in run(["ipset", "list", set_name], timeout=5).splitlines():
+            parts = line.split()
+            if len(parts) == 3 and parts[1] == "timeout" and parts[2].isdigit():
+                bans.append({"ip": parts[0], "left_sec": int(parts[2]), "kind": label})
+    bans.sort(key=lambda b: -b["left_sec"])
+    return bans
+
+
 def dpi_blocked_snapshot(window_hours=24):
     """Distinct source IPs the connection-rate ban (ufw/before.rules,
     iptables recent module on tcp/443) has actually dropped, counted from

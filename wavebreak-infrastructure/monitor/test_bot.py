@@ -157,18 +157,21 @@ class BotTest(unittest.TestCase):
         home, _ = self.bot.home(OWNER)
         self.assertNotIn("udp/443", home)
 
-    def test_status_shows_dpi_autoban_count(self):
+    def test_status_shows_active_bans_first_and_history_second(self):
         mon.dpi_blocked_snapshot = lambda window_hours=24: {
             "ips": 3, "hits": 57, "window_hours": 24, "top": [("1.2.3.4", 40), ("5.6.7.8", 17)]}
+        mon.active_bans_snapshot = lambda: [{"ip": "9.9.9.9", "left_sec": 240, "kind": "5 мин"}]
         html, _ = self.bot.status_screen()
         self.assertIn("Антипробинг", html)
-        self.assertIn("3</b>", html)
-        self.assertIn("1.2.3.4", html)
+        self.assertIn("в бане: 1", html)
+        self.assertIn("9.9.9.9", html)
+        self.assertIn("История за 24 ч: 3 адресов, 57 дропов", html)
 
     def test_status_dpi_quiet_when_nothing_blocked(self):
         mon.dpi_blocked_snapshot = lambda window_hours=24: {"ips": 0, "hits": 0, "window_hours": 24, "top": []}
+        mon.active_bans_snapshot = lambda: []
         html, _ = self.bot.status_screen()
-        self.assertIn("не замечено", html)
+        self.assertIn("никто не забанен", html)
 
     def test_strangers_and_groups_get_silence(self):
         self.bot.handle_update(msg(STRANGER, "/start"))
