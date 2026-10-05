@@ -21,7 +21,7 @@ class WaveField extends ConsumerWidget {
   final double intensity;
   final int layers;
 
-  /// Location flag accent: the crimson streams lean towards it a little
+  /// Location flag accent: the crimson streams take its hue
   /// (the same flag-tinted mood the rest of the app follows).
   final Color? tint;
 
@@ -39,6 +39,7 @@ class WaveField extends ConsumerWidget {
               intensity: intensity,
               layers: economy ? (layers < 12 ? layers : 12) : layers,
               tint: tint,
+              glow: !economy,
             ),
           ),
         ),
@@ -52,13 +53,17 @@ class _WaveFieldPainter extends CustomPainter {
       {required this.time,
       required this.intensity,
       required this.layers,
-      this.tint})
+      this.tint,
+      this.glow = true})
       : super(repaint: time);
 
   final ValueListenable<double> time;
   final double intensity;
   final int layers;
   final Color? tint;
+
+  /// The blurred glow under the bright crests (off in economy).
+  final bool glow;
 
   /// The designed crimson recolored to the flag accent's hue (keeps its
   /// depth and saturation, so a blue flag gives deep blue waves, not a
@@ -158,7 +163,7 @@ class _WaveFieldPainter extends CustomPainter {
                 alpha: (bright ? 0.55 : 0.10 + 0.22 * k) *
                     (0.7 + 0.3 * intensity));
       canvas.drawPath(crest, stroke);
-      if (bright) {
+      if (bright && glow) {
         stroke
           ..strokeWidth = 6
           ..color = _tinted(Ic.crimson)
@@ -175,5 +180,6 @@ class _WaveFieldPainter extends CustomPainter {
       old.intensity != intensity ||
       old.layers != layers ||
       old.time != time ||
-      old.tint != tint;
+      old.tint != tint ||
+      old.glow != glow;
 }

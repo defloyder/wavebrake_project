@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/personalization_controller.dart';
+import 'effects_quality.dart';
 
 /// One shared clock for every decorative animation (background waves,
 /// sphere, orbits, speed-test scene): seconds as a [ValueListenable] that
@@ -47,7 +48,8 @@ class _ImmersiveClockState extends ConsumerState<ImmersiveClock>
   bool _frozen = false;
   bool _visible = true;
 
-  static const _frame = Duration(milliseconds: 33);
+  // 30 fps; 20 fps with economy effects (older phones).
+  Duration _frame = const Duration(milliseconds: 33);
 
   bool get _running => _timer != null;
 
@@ -106,11 +108,17 @@ class _ImmersiveClockState extends ConsumerState<ImmersiveClock>
 
   @override
   Widget build(BuildContext context) {
+    final economy = ref.watch(effectsEconomyProvider);
     final frozen = ref.watch(personalizationProvider).reduceMotion ||
         MediaQuery.of(context).disableAnimations;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _frozen = frozen;
+      final frame = Duration(milliseconds: economy ? 50 : 33);
+      if (frame != _frame) {
+        _frame = frame;
+        _stop();
+      }
       _apply();
     });
     return _ClockScope(time: _time, frozen: frozen, child: widget.child);

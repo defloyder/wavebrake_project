@@ -13,6 +13,7 @@ import '../core/network/connectivity_provider.dart';
 import '../core/theme/personalization_controller.dart';
 import '../core/theme/wb_colors.dart';
 import '../core/theme/wb_theme.dart';
+import '../features/immersive/effects_quality.dart';
 import '../features/shared/wave_params.dart';
 import '../features/shared/app_lock_gate.dart';
 import '../features/immersive/immersive_clock.dart';
@@ -55,6 +56,8 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
     super.initState();
     // Notification buttons / Quick Settings tile (Android).
     ref.read(quickActionsProvider).start();
+    // Auto effects: switch to economy on a phone that can't keep up.
+    ref.read(frameBudgetWatcherProvider).start();
   }
 
   void _updateNotification(ConnectionStatus status) {

@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../shared/wave_params.dart';
+import 'effects_quality.dart';
 import 'immersive_clock.dart';
 import 'sphere_assets.dart';
 
@@ -209,6 +210,7 @@ class _LivingCoreState extends ConsumerState<LivingCore>
     // The selected location's flag accent, like every other surface; a
     // location change glides the sphere over to the new color.
     final target = ref.watch(appWaveParamsProvider).tint;
+    final economy = ref.watch(effectsEconomyProvider);
     final core = TweenAnimationBuilder<Color?>(
       tween: ColorTween(end: target ?? _CorePainter.baseHue),
       duration: const Duration(milliseconds: 700),
@@ -224,7 +226,9 @@ class _LivingCoreState extends ConsumerState<LivingCore>
         warn: _warn,
         press: _press,
         motion: _motion,
-        shader: _shader,
+        // Economy effects (older phones): the plain sphere, no shader.
+        shader: economy ? null : _shader,
+        lite: economy,
         texture: _texture,
         label: _labelFor(label, d),
         enabled: widget.enabled,
@@ -300,6 +304,7 @@ class _CorePainter extends CustomPainter {
     required this.label,
     required this.enabled,
     required this.tint,
+    this.lite = false,
   }) : super(repaint: repaint);
 
   final ValueListenable<double> time;
@@ -316,6 +321,10 @@ class _CorePainter extends CustomPainter {
 
   /// Flag accent to recolor the sphere to (null = keep crimson).
   final Color? tint;
+
+  /// Economy effects (older phones): coarser orbits, no far halves seen
+  /// through the glass, no blurred glows.
+  final bool lite;
 
   /// The hue the sphere is designed in; [tint] rotates away from it.
   static const baseHue = Color(0xFFFF4C74);
@@ -409,7 +418,7 @@ class _CorePainter extends CustomPainter {
     _outerGlow(canvas, c, r, e, w, pulse);
     _sphere(canvas, c, r, t, e, w, pulse);
     // Far halves of the orbits, faint, seen through the glass.
-    _ribbons(canvas, c, r, t, charge, front: false);
+    if (!lite) _ribbons(canvas, c, r, t, charge, front: false);
     _glass(canvas, c, r, t, e, w);
     canvas.restore();
 
@@ -747,11 +756,12 @@ class _CorePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
+    final vertices = lite ? 84 : _vertices;
     for (var b = _bands - 1; b >= 0; b--) {
       final path = Path();
       var drawing = false;
-      for (var i = 0; i <= _vertices; i++) {
-        final a = i / _vertices * math.pi * 2;
+      for (var i = 0; i <= vertices; i++) {
+        final a = i / vertices * math.pi * 2;
         final p = _point(a, b, t, c, rs, charge);
         final visible = front != _behind(p, c, rs);
         if (!visible) {
@@ -768,7 +778,7 @@ class _CorePainter extends CustomPainter {
       final cold = b == _bands - 1;
       final base = cold ? const Color(0xFF85EBF9) : _crimson;
       final alpha = (front ? 0.34 : 0.08) * (1 - b / (_bands * 1.15));
-      if (b == 0 && front) {
+      if (b == 0 && front && !lite) {
         canvas.drawPath(
           path,
           stroke
@@ -799,7 +809,7 @@ class _CorePainter extends CustomPainter {
       final big = i % 13 == 0;
       final size = (big ? 1.8 : 0.7) * (1 + p.z / rs * 0.25);
       final o = Offset(p.x, p.y);
-      if (big && front) canvas.drawCircle(o, size * 3, glow);
+      if (big && front && !lite) canvas.drawCircle(o, size * 3, glow);
       canvas.drawCircle(
         o,
         size,
@@ -945,5 +955,6 @@ class _CorePainter extends CustomPainter {
       old.label != label ||
       old.enabled != enabled ||
       old.tint != tint ||
+      old.lite != lite ||
       old.time != time;
 }

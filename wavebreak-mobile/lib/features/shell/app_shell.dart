@@ -11,6 +11,7 @@ import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/update/update_service.dart';
+import '../immersive/effects_quality.dart';
 import '../immersive/immersive_colors.dart';
 import '../shared/wave_params.dart';
 import '../shared/wavebreak_mark.dart';
@@ -222,6 +223,8 @@ class _MobileShell extends ConsumerWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(28),
                   child: BackdropFilter(
+                    // Economy effects (older phones): no live blur.
+                    enabled: !ref.watch(effectsEconomyProvider),
                     filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
                     child: Container(
                       height: 64,
