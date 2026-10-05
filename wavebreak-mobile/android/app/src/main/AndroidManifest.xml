@@ -84,6 +84,32 @@
         <receiver
             android:name=".InstallStatusReceiver"
             android:exported="false" />
+        <!-- Quick actions without opening the app (QuickActions.kt): the
+             VPN notification's "protocol" button, the server picker over
+             the current app, and the Quick Settings tile. -->
+        <receiver
+            android:name=".QuickActionReceiver"
+            android:exported="false" />
+        <activity
+            android:name=".LocationPickerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="app.wavebreak.picker"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.Material.Dialog.NoActionBar" />
+        <service
+            android:name=".QuickTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_wavebreak"
+            android:label="WAVEBREAK"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
         <!-- In-app updater fallback path only: exposes the downloaded APK
              (staged in this app's own external-files dir, never public
              storage) to the system package installer via a content://

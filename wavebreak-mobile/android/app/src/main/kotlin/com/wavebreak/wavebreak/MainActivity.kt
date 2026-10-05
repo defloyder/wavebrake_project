@@ -25,16 +25,12 @@ import io.flutter.plugin.common.MethodChannel
 
 // local_auth's BiometricPrompt requires a FragmentActivity host.
 class MainActivity : FlutterFragmentActivity() {
-    private val statusChannelName = "app.wavebreak/status_notification"
-    private val engineChannelName = "app.wavebreak/vpn_engine"
-    private val engineStatusChannelName = "app.wavebreak/vpn_engine/status"
-    private var enginePermissionResult: MethodChannel.Result? = null
-    private var engineStatusReceiver: BroadcastReceiver? = null
 
     private var pausedAtMs: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        currentRef = java.lang.ref.WeakReference(this)
         // Bug 2: background update check (6h) + one check per app start.
         try {
             UpdateCheckWorker.schedule(applicationContext)
@@ -105,376 +101,29 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, statusChannelName)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "show" -> {
-                        val intent = Intent(this, VpnStatusNotificationService::class.java).apply {
-                            putExtra(VpnStatusNotificationService.EXTRA_TITLE, call.argument<String>("title") ?: "WAVEBREAK")
-                            putExtra(VpnStatusNotificationService.EXTRA_TEXT, call.argument<String>("text") ?: "")
-                            putExtra(VpnStatusNotificationService.EXTRA_ONGOING, call.argument<Boolean>("ongoing") ?: true)
-                        }
-                        ContextCompat.startForegroundService(this, intent)
-                        result.success(null)
-                    }
-                    "hide" -> {
-                        val intent = Intent(this, VpnStatusNotificationService::class.java).apply {
-                            action = VpnStatusNotificationService.ACTION_HIDE
-                        }
-                        ContextCompat.startForegroundService(this, intent)
-                        result.success(null)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
+    // The app-wide engine (AppEngine): it outlives this window, so the
+    // notification buttons and the Quick Settings tile can run the Dart
+    // connection logic while the app is closed. Channels live in
+    // AppChannels, registered once on that engine.
+    // The cached-engine path, not provideFlutterEngine(): FlutterFragment
+    // destroyed a provided engine together with the window (seen on the
+    // phone: "FlutterJNI was detached", the shade buttons then went
+    // nowhere). A cached engine is kept (shouldDestroyEngineWithHost
+    // stays false).
+    override fun getCachedEngineId(): String {
+        AppEngine.get(this)
+        return AppEngine.ENGINE_ID
+    }
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/share")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "shareFile" -> {
-                        val path = call.argument<String>("path")
-                        if (path == null) {
-                            result.error("bad_args", "path is required", null)
-                        } else {
-                            try {
-                                result.success(
-                                    FileSharer.share(
-                                        this,
-                                        path,
-                                        call.argument<String>("mimeType") ?: "text/plain",
-                                        call.argument<String>("text"),
-                                    ),
-                                )
-                            } catch (t: Throwable) {
-                                result.error("share_failed", t.message, null)
-                            }
-                        }
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/updater")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "getApkStagingDir" -> result.success(UpdateInstaller.stagingDir(this))
-                    "canRequestInstall" -> result.success(UpdateInstaller.canRequestInstall(this))
-                    // Picks the per-architecture APK (a third of the universal one).
-                    "supportedAbis" -> result.success(Build.SUPPORTED_ABIS.toList())
-                    "openInstallUnknownAppsSettings" -> {
-                        startSettingsScreen(
-                            UpdateInstaller.installUnknownAppsSettingsIntent(this),
-                            Intent(Settings.ACTION_SECURITY_SETTINGS),
-                        )
-                        result.success(null)
-                    }
-                    "installApk" -> {
-                        val path = call.argument<String>("path")
-                        if (path == null) {
-                            result.error("bad_args", "path is required", null)
-                        } else {
-                            result.success(UpdateInstaller.installApk(this, path))
-                        }
-                    }
-                    "showUpdateAvailableNotification" -> {
-                        val versionName = call.argument<String>("versionName") ?: ""
-                        val versionCode = call.argument<Number>("versionCode")?.toLong()
-                        if (versionCode != null) {
-                            UpdateAvailableNotifier.showOnce(this, versionCode, versionName)
-                        } else {
-                            UpdateAvailableNotifier.show(this, versionName)
-                        }
-                        result.success(null)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, engineChannelName)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "requestPermission" -> {
-                        val prepareIntent = VpnService.prepare(this)
-                        if (prepareIntent == null) {
-                            result.success(true)
-                        } else {
-                            enginePermissionResult = result
-                            startActivityForResult(prepareIntent, REQUEST_VPN_PERMISSION)
-                        }
-                    }
-                    "connect" -> {
-                        val link = call.argument<String>("link")
-                        val xrayConfig = call.argument<String>("xrayConfig")
-                        if (link.isNullOrEmpty() && xrayConfig.isNullOrEmpty()) {
-                            result.error("bad_args", "missing link/xrayConfig", null)
-                        } else {
-                            val intent = Intent(this, WaveEngineVpnService::class.java).apply {
-                                if (!link.isNullOrEmpty()) putExtra(WaveEngineVpnService.EXTRA_LINK, link)
-                                if (!xrayConfig.isNullOrEmpty()) {
-                                    putExtra(WaveEngineVpnService.EXTRA_XRAY_CONFIG, xrayConfig)
-                                }
-                            }
-                            ContextCompat.startForegroundService(this, intent)
-                            result.success(null)
-                        }
-                    }
-                    "disconnect" -> {
-                        val intent = Intent(this, WaveEngineVpnService::class.java).apply {
-                            action = WaveEngineVpnService.ACTION_STOP
-                        }
-                        ContextCompat.startForegroundService(this, intent)
-                        result.success(null)
-                    }
-                    "pingHost" -> {
-                        val host = call.argument<String>("host")
-                        val port = call.argument<Int>("port")
-                        val timeoutMs = call.argument<Int>("timeoutMs") ?: 4000
-                        if (host.isNullOrEmpty() || port == null) {
-                            result.error("bad_args", "missing host/port", null)
-                        } else if (!isSystemVpnActive()) {
-                            // Checked here, not left to the service itself:
-                            // WaveEngineVpnService only exists at all while
-                            // a tunnel is up or coming up, and Android
-                            // creates a fresh instance on demand for ANY
-                            // startForegroundService() call targeting it —
-                            // including this one. Without this check, a
-                            // ping request that arrives while genuinely
-                            // disconnected (the location list's own
-                            // background sweep runs regardless of
-                            // connection state) would spin up a real,
-                            // pointless VpnService process complete with
-                            // its own foreground notification just to
-                            // answer "no_service".
-                            result.error("no_service", "vpn not running", null)
-                        } else {
-                            // WaveEngineVpnService runs in its own
-                            // ":RunWaveEngine" process (see its manifest
-                            // entry) — a static `instance` field set there
-                            // is invisible from this process's memory
-                            // entirely, not just stale or racy. Confirmed
-                            // on-device: a direct-reference version of this
-                            // call read null 100% of the time regardless of
-                            // connection state, silently falling back to an
-                            // unprotected socket on every single ping. A
-                            // ResultReceiver is the standard cross-process
-                            // "send a request, get one async result back"
-                            // primitive for exactly this — it's Parcelable,
-                            // so it survives being put in an Intent to a
-                            // different process and calling back into it
-                            // from there.
-                            val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
-                                override fun onReceiveResult(resultCode: Int, resultData: Bundle) {
-                                    val ms = resultData.getInt(WaveEngineVpnService.EXTRA_PING_MS, -1)
-                                    result.success(if (ms >= 0) ms else null)
-                                }
-                            }
-                            val intent = Intent(this, WaveEngineVpnService::class.java).apply {
-                                action = WaveEngineVpnService.ACTION_PING_HOST
-                                putExtra(WaveEngineVpnService.EXTRA_PING_HOST, host)
-                                putExtra(WaveEngineVpnService.EXTRA_PING_PORT, port)
-                                putExtra(WaveEngineVpnService.EXTRA_PING_TIMEOUT_MS, timeoutMs)
-                                putExtra(WaveEngineVpnService.EXTRA_RESULT_RECEIVER, receiver)
-                            }
-                            ContextCompat.startForegroundService(this, intent)
-                        }
-                    }
-                    // Bug 12: latency through the active tunnel (HTTP 204
-                    // via the engine) — same method for every protocol.
-                    "tunnelLatency" -> {
-                        if (!isSystemVpnActive()) {
-                            result.error("no_service", "vpn not running", null)
-                        } else {
-                            val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
-                                override fun onReceiveResult(resultCode: Int, resultData: Bundle) {
-                                    val ms = resultData.getInt(WaveEngineVpnService.EXTRA_PING_MS, -1)
-                                    result.success(if (ms >= 0) ms else null)
-                                }
-                            }
-                            val intent = Intent(this, WaveEngineVpnService::class.java).apply {
-                                action = WaveEngineVpnService.ACTION_TUNNEL_LATENCY
-                                putExtra(WaveEngineVpnService.EXTRA_RESULT_RECEIVER, receiver)
-                            }
-                            ContextCompat.startForegroundService(this, intent)
-                        }
-                    }
-                    "updateNotificationMeta" -> {
-                        // One-way, unlike pingHost: nothing here needs a
-                        // reply, so a plain Intent (the same cross-process-
-                        // safe mechanism every other call to this service
-                        // already uses — connect/disconnect/check-ping)
-                        // is enough on its own, no ResultReceiver needed.
-                        val intent = Intent(this, WaveEngineVpnService::class.java).apply {
-                            action = WaveEngineVpnService.ACTION_UPDATE_NOTIFICATION_META
-                            putExtra("locationLabel", call.argument<String>("locationLabel") ?: "WAVEBREAK")
-                            putExtra("flagEmoji", call.argument<String>("flagEmoji") ?: "")
-                            putExtra("pingHost", call.argument<String>("pingHost"))
-                            call.argument<Int>("pingPort")?.let { putExtra("pingPort", it) }
-                            putExtra("labelConnected", call.argument<String>("labelConnected") ?: "Connected")
-                            putExtra("labelConnecting", call.argument<String>("labelConnecting") ?: "Connecting…")
-                            putExtra("labelFailed", call.argument<String>("labelFailed") ?: "Connection failed")
-                            putExtra("labelDisconnect", call.argument<String>("labelDisconnect") ?: "Disconnect")
-                            putExtra("labelCheckPing", call.argument<String>("labelCheckPing") ?: "Check ping")
-                            putExtra("labelPingUnavailable", call.argument<String>("labelPingUnavailable") ?: "Unavailable")
-                            putExtra("labelMeasuring", call.argument<String>("labelMeasuring") ?: "Measuring…")
-                        }
-                        ContextCompat.startForegroundService(this, intent)
-                        result.success(null)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-
-        // Live throughput for the home/metrics screens, measured by the VPN
-        // service from the TUN bridge counters (see its sampleTunnelSpeed)
-        // and written to a small file every second — the service runs in
-        // the :RunWaveEngine process. Null when the tunnel is down or the
-        // file is stale.
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/metrics")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "liveTraffic" -> {
-                        val f = java.io.File(filesDir, WaveEngineVpnService.LIVE_TRAFFIC_FILE)
-                        val text = runCatching {
-                            if (f.exists() && System.currentTimeMillis() - f.lastModified() < 5000) f.readText() else null
-                        }.getOrNull()
-                        result.success(text)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-
-        // Android's VpnService (any engine — Xray-core or the Hysteria
-        // bridge) runs in its own process and keeps the real tunnel up
-        // even if the user swipes the app away and the Flutter/UI process
-        // gets killed and later relaunched cold. Without this check,
-        // ConnectionManager.build() always starts from `idle` on a fresh
-        // launch, so the UI would show "disconnected" (or, for a guest,
-        // "add your own link") while the system tunnel was genuinely still
-        // running — confirmed by the user reopening the app and finding it
-        // still connected once a server was reselected. Checking for an
-        // active VPN transport network-wide is adapter-agnostic: it works
-        // the same regardless of which engine actually holds the tunnel.
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.wavebreak/vpn_state")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "isSystemVpnActive" -> {
-                        result.success(isSystemVpnActive())
-                    }
-                    "vpnSessionStartedAtMs" -> {
-                        result.success(WaveEngineVpnService.sessionStartedAtMs(this))
-                    }
-                    "networkLabel" -> {
-                        result.success(runCatching { NetworkLabel.describe(this) }.getOrNull())
-                    }
-                    "isIgnoringBatteryOptimizations" -> {
-                        result.success(BatteryOptimization.isIgnoringBatteryOptimizations(this))
-                    }
-                    // Settings > "Block internet without VPN": Android lets
-                    // only the user turn on "Always-on VPN" + "Block
-                    // connections without VPN" — an app can't — so this
-                    // just opens the system VPN screen.
-                    "openVpnSettings" -> {
-                        startSettingsScreen(
-                            Intent(Settings.ACTION_VPN_SETTINGS),
-                            Intent(Settings.ACTION_WIRELESS_SETTINGS),
-                        )
-                        result.success(null)
-                    }
-                    "requestIgnoreBatteryOptimizations" -> {
-                        startSettingsScreen(
-                            BatteryOptimization.requestIgnoreBatteryOptimizationsIntent(this),
-                            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
-                        )
-                        result.success(null)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-
-        EventChannel(flutterEngine.dartExecutor.binaryMessenger, engineStatusChannelName)
-            .setStreamHandler(object : EventChannel.StreamHandler {
-                override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
-                    val receiver = object : BroadcastReceiver() {
-                        override fun onReceive(context: Context, intent: Intent) {
-                            // A Map, not a bare String, so a real
-                            // Xray-core/Hysteria failure detail (see
-                            // WaveEngineVpnService.broadcastState) rides
-                            // along with the state instead of only ever
-                            // reaching Log.e — see AppLogger's diagnostic
-                            // log export, added specifically because a
-                            // real device reporting a transport failure
-                            // may have no USB/adb access at all.
-                            events.success(
-                                mapOf(
-                                    "state" to intent.getStringExtra(WaveEngineVpnService.EXTRA_STATE),
-                                    "detail" to intent.getStringExtra(WaveEngineVpnService.EXTRA_ERROR_DETAIL),
-                                )
-                            )
-                        }
-                    }
-                    engineStatusReceiver = receiver
-                    val filter = IntentFilter(WaveEngineVpnService.ACTION_STATUS)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-                    } else {
-                        registerReceiver(receiver, filter)
-                    }
-                }
-
-                override fun onCancel(arguments: Any?) {
-                    engineStatusReceiver?.let { unregisterReceiver(it) }
-                    engineStatusReceiver = null
-                }
-            })
+    override fun onDestroy() {
+        if (currentRef?.get() === this) currentRef = null
+        super.onDestroy()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_VPN_PERMISSION) {
-            enginePermissionResult?.success(resultCode == RESULT_OK)
-            enginePermissionResult = null
-        }
-    }
-
-    // Adapter-agnostic (works the same regardless of which engine holds
-    // the tunnel) and process-agnostic — unlike anything that would need
-    // to reach into WaveEngineVpnService's own ":RunWaveEngine" process,
-    // this asks the system itself, which is visible from any process.
-    // Bug 12: this used to read cm.activeNetwork — but since 1.1.7 the app
-    // excludes itself from its own tunnel (addDisallowedApplication), so its
-    // active network is never the VPN and this always answered false:
-    // in-app tunnel latency and pingHost always got "no_service" (Hysteria2
-    // showed no ping), and reconcileWithSystem never saw a live tunnel.
-    // Look for a VPN network among all networks instead, and on R+ require
-    // that it is ours (ownerUid) so another VPN app doesn't count.
-    // NetworkCapabilities.getOwnerUid() is API 30 (Android 11): calling it
-    // on Android 10 threw NoSuchMethodError and crashed the app the moment
-    // a VPN came up (field report: Redmi Note 9 Pro, Android 10).
-    @Suppress("DEPRECATION")
-    private fun isSystemVpnActive(): Boolean {
-        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        return cm.allNetworks.any { network ->
-            val caps = cm.getNetworkCapabilities(network) ?: return@any false
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
-                (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || caps.ownerUid == android.os.Process.myUid())
-        }
-    }
-
-    /**
-     * Opens a system settings screen without crashing on ROMs that don't
-     * have it (stripped-down OEM builds, Android Go): [primary] first, then
-     * [fallback], then nothing.
-     */
-    private fun startSettingsScreen(primary: Intent, fallback: Intent) {
-        for (intent in listOf(primary, fallback)) {
-            try {
-                startActivity(intent)
-                return
-            } catch (t: Throwable) {
-                Log.w("WaveBreak", "settings screen unavailable: ${intent.action}", t)
-            }
+            AppChannels.onVpnPermissionResult(resultCode == RESULT_OK)
         }
     }
 
@@ -493,12 +142,18 @@ class MainActivity : FlutterFragmentActivity() {
          */
         fun resumed(): MainActivity? = resumedRef?.get()
 
+        /** This activity while it exists (on screen or not). */
+        @Volatile
+        private var currentRef: java.lang.ref.WeakReference<MainActivity>? = null
+
+        fun current(): MainActivity? = currentRef?.get()
+
         /** The system's install confirmation, held until the app is on screen. */
         @Volatile
         var pendingInstallConfirm: Intent? = null
 
         private const val REQUEST_POST_NOTIFICATIONS = 1001
-        private const val REQUEST_VPN_PERMISSION = 1002
+        private const val REQUEST_VPN_PERMISSION = AppChannels.REQUEST_VPN_PERMISSION
         // A shorter app-switch (checking a notification, glancing at
         // another app) is nowhere near long enough for a carrier/router's
         // idle-UDP NAT mapping to expire — reconnecting on every resume

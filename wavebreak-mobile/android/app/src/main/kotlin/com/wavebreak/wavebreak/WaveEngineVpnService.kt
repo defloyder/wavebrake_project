@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.view.View
 import android.widget.RemoteViews
 import android.net.ConnectivityManager
 import android.net.Network
@@ -292,6 +293,9 @@ class WaveEngineVpnService : VpnService() {
     @Volatile private var notifLabelCheckPing: String = "Check ping"
     @Volatile private var notifLabelPingUnavailable: String = "Unavailable"
     @Volatile private var notifLabelMeasuring: String = "Measuring…"
+    // Quick switching buttons (QuickActions.kt); empty = button hidden.
+    @Volatile private var notifLabelServer: String = ""
+    @Volatile private var notifLabelProtocol: String = ""
 
     private enum class Engine { XRAY, HYSTERIA }
 
@@ -1643,6 +1647,8 @@ class WaveEngineVpnService : VpnService() {
         // rather than an obvious blank.
         if (state == STATE_CONNECTING) notifPingText = ""
         refreshNotification()
+        // The Quick Settings tile shows on/off and the server.
+        QuickTileService.refresh(this)
         val intent = Intent(ACTION_STATUS)
         intent.setPackage(packageName)
         intent.putExtra(EXTRA_STATE, state)
@@ -1699,6 +1705,8 @@ class WaveEngineVpnService : VpnService() {
     // `instance` — this service runs in its own ":RunWaveEngine" process)
     // and forwards to the in-process updateNotificationMeta() above.
     private fun handleUpdateNotificationMetaAction(intent: Intent) {
+        notifLabelServer = intent.getStringExtra("labelServer") ?: ""
+        notifLabelProtocol = intent.getStringExtra("labelProtocol") ?: ""
         updateNotificationMeta(
             locationLabel = intent.getStringExtra("locationLabel") ?: "WAVEBREAK",
             flagEmoji = intent.getStringExtra("flagEmoji") ?: "",
@@ -1831,6 +1839,24 @@ class WaveEngineVpnService : VpnService() {
         }
     }
 
+    private fun immutableFlags(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    } else {
+        PendingIntent.FLAG_UPDATE_CURRENT
+    }
+
+    // To the app process's QuickActionReceiver (no process attribute).
+    private fun quickBroadcast(action: String, requestCode: Int): PendingIntent {
+        val intent = Intent(this, QuickActionReceiver::class.java).apply { this.action = action }
+        return PendingIntent.getBroadcast(this, requestCode, intent, immutableFlags())
+    }
+
+    private fun pickerIntent(): PendingIntent {
+        val intent = Intent(this, LocationPickerActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return PendingIntent.getActivity(this, 5, intent, immutableFlags())
+    }
+
     private fun pendingServiceIntent(action: String, requestCode: Int): PendingIntent {
         val intent = Intent(this, WaveEngineVpnService::class.java).apply { this.action = action }
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -1893,6 +1919,17 @@ class WaveEngineVpnService : VpnService() {
             setTextViewText(R.id.notif_disconnect_label, notifLabelDisconnect)
             setOnClickPendingIntent(R.id.notif_check_ping, pendingServiceIntent(ACTION_CHECK_PING, 2))
             setOnClickPendingIntent(R.id.notif_disconnect_exp, pendingServiceIntent(ACTION_STOP, 1))
+            // Server picker (a small dialog over the current app) and the
+            // other protocol of the same place — both handled by the app
+            // process (QuickActions.kt), no app window opens.
+            val showSwitch = notifLabelServer.isNotEmpty() || notifLabelProtocol.isNotEmpty()
+            setViewVisibility(R.id.notif_switch_row, if (showSwitch) View.VISIBLE else View.GONE)
+            setViewVisibility(R.id.notif_server, if (notifLabelServer.isNotEmpty()) View.VISIBLE else View.GONE)
+            setViewVisibility(R.id.notif_protocol, if (notifLabelProtocol.isNotEmpty()) View.VISIBLE else View.GONE)
+            setTextViewText(R.id.notif_server, notifLabelServer)
+            setTextViewText(R.id.notif_protocol, notifLabelProtocol)
+            setOnClickPendingIntent(R.id.notif_server, pickerIntent())
+            setOnClickPendingIntent(R.id.notif_protocol, quickBroadcast(QuickActions.ACTION_PROTOCOL, 4))
         }
 
         // Builder(context, channelId) is API 26; minSdk is 24 (Android 7).

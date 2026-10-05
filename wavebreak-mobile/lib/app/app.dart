@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/quick/quick_actions.dart';
 import '../core/env/app_env.dart';
 import '../core/i18n/language_controller.dart';
 import '../core/network/connectivity_provider.dart';
@@ -48,6 +49,13 @@ final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 class _WavebreakAppState extends ConsumerState<WavebreakApp> {
   Timer? _pingTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    // Notification buttons / Quick Settings tile (Android).
+    ref.read(quickActionsProvider).start();
+  }
 
   void _updateNotification(ConnectionStatus status) {
     final s = ref.read(stringsProvider);

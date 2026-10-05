@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../services/system/quick_tile.dart';
 import '../../services/update/update_service.dart';
 import '../../services/system/vpn_lockdown.dart';
 import '../shared/menu_button.dart';
@@ -83,6 +84,7 @@ class SettingsScreen extends ConsumerWidget {
                     '/settings/personalization'),
                 _languageRow(context, ref, s, language),
                 if (VpnLockdown.available) _killSwitchCard(s),
+                if (QuickTile.available) _quickTileCard(context, s),
                 _row(context, s.support, Icons.chat_bubble_outline,
                     '/settings/support'),
                 if (Platform.isAndroid || Platform.isWindows)
@@ -164,6 +166,69 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const Icon(Icons.open_in_new_rounded,
                 color: WbColors.ice60, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Adds the WAVEBREAK tile to the phone's Quick Settings (Android 13+
+  /// asks the system; older versions get the manual steps).
+  Widget _quickTileCard(BuildContext context, AppStrings s) {
+    Future<void> add() async {
+      final result = await QuickTile.requestAdd();
+      if (!context.mounted) return;
+      if (result == QuickTileResult.manual) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(s.quickTileTitle),
+            content: Text(s.quickTileManual),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      final text = switch (result) {
+        QuickTileResult.added => s.quickTileAdded,
+        QuickTileResult.alreadyAdded => s.quickTileAlready,
+        _ => null,
+      };
+      if (text != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(text)));
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: WbCard(
+        onTap: add,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.toggle_on_outlined, color: context.accent),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.quickTileTitle, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(
+                    s.quickTileHint,
+                    style: const TextStyle(
+                        fontSize: 13, color: WbColors.muted, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.add_rounded, color: WbColors.ice60, size: 22),
           ],
         ),
       ),
