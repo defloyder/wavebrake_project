@@ -126,6 +126,11 @@ class AppStrings {
     required this.protectDisconnecting,
     required this.killSwitchTitle,
     required this.killSwitchHint,
+    required this.welcomeKicker,
+    required this.welcomeSub,
+    required this.orContinueWith,
+    required this.authEmail,
+    required this.comingSoon,
     required this.navSpeedShort,
     required this.navSettings,
     required this.settings,
@@ -403,6 +408,13 @@ class AppStrings {
   /// Settings: system "block connections without VPN" (kill switch).
   final String killSwitchTitle;
   final String killSwitchHint;
+
+  /// Welcome (V5): kicker over the headline, line under it, social row.
+  final String welcomeKicker;
+  final String welcomeSub;
+  final String orContinueWith;
+  final String authEmail;
+  final String comingSoon;
   final String navSpeedShort;
   final String navSettings;
   final String settings;
@@ -685,6 +697,11 @@ const kEnglishStrings = AppStrings(
   protectDisconnecting: 'Disconnecting…',
   killSwitchTitle: 'Block internet without VPN',
   killSwitchHint: 'Turn on “Always-on VPN” and “Block connections without VPN” for WAVEBREAK — Android will then let no traffic out while the VPN is down.',
+  welcomeKicker: 'YOUR WORLD. YOUR DIRECTION.',
+  welcomeSub: 'Waves of freedom. Protected access to the world — on your terms.',
+  orContinueWith: 'or continue with',
+  authEmail: 'Email',
+  comingSoon: 'soon',
   navSpeedShort: 'Test',
   navSettings: 'Settings',
   settings: 'Settings',
@@ -970,6 +987,11 @@ const kRussianStrings = AppStrings(
   protectDisconnecting: 'Отключение…',
   killSwitchTitle: 'Блокировать интернет без VPN',
   killSwitchHint: 'Включите для WAVEBREAK «Постоянная VPN» и «Блокировать соединения без VPN» — тогда Android не выпустит трафик, пока VPN не подключён.',
+  welcomeKicker: 'ВАШ МИР. ВАШЕ НАПРАВЛЕНИЕ.',
+  welcomeSub: 'Волны свободы. Защищённый доступ к миру — по вашему решению.',
+  orContinueWith: 'или продолжить с',
+  authEmail: 'Почта',
+  comingSoon: 'скоро',
   navSpeedShort: 'Тест',
   navSettings: 'Настройки',
   settings: 'Настройки',
@@ -1260,6 +1282,11 @@ const kSpanishStrings = AppStrings(
   protectDisconnecting: 'Desconectando…',
   killSwitchTitle: 'Bloquear internet sin VPN',
   killSwitchHint: 'Activa «VPN siempre activa» y «Bloquear conexiones sin VPN» para WAVEBREAK — Android no dejará salir tráfico sin la VPN.',
+  welcomeKicker: 'TU MUNDO. TU DIRECCIÓN.',
+  welcomeSub: 'Olas de libertad. Acceso protegido al mundo, a tu manera.',
+  orContinueWith: 'o continuar con',
+  authEmail: 'Correo',
+  comingSoon: 'pronto',
   navSpeedShort: 'Test',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
@@ -1553,6 +1580,11 @@ const kGermanStrings = AppStrings(
   protectDisconnecting: 'Trenne…',
   killSwitchTitle: 'Internet ohne VPN sperren',
   killSwitchHint: 'Aktivieren Sie für WAVEBREAK „Durchgehend aktives VPN“ und „Verbindungen ohne VPN blockieren“ — dann lässt Android ohne VPN keinen Verkehr durch.',
+  welcomeKicker: 'DEINE WELT. DEINE RICHTUNG.',
+  welcomeSub: 'Wellen der Freiheit. Geschützter Zugang zur Welt — nach deinen Regeln.',
+  orContinueWith: 'oder weiter mit',
+  authEmail: 'E-Mail',
+  comingSoon: 'bald',
   navSpeedShort: 'Test',
   navSettings: 'Einstellungen',
   settings: 'Einstellungen',
@@ -1847,6 +1879,11 @@ const kFrenchStrings = AppStrings(
   protectDisconnecting: 'Déconnexion…',
   killSwitchTitle: 'Bloquer Internet sans VPN',
   killSwitchHint: 'Activez « VPN permanent » et « Bloquer les connexions sans VPN » pour WAVEBREAK — Android ne laissera alors rien passer sans VPN.',
+  welcomeKicker: 'VOTRE MONDE. VOTRE DIRECTION.',
+  welcomeSub: 'Des vagues de liberté. Un accès protégé au monde, à votre façon.',
+  orContinueWith: 'ou continuer avec',
+  authEmail: 'E-mail',
+  comingSoon: 'bientôt',
   navSpeedShort: 'Test',
   navSettings: 'Réglages',
   settings: 'Réglages',
@@ -2143,6 +2180,11 @@ const kPortugueseStrings = AppStrings(
   protectDisconnecting: 'Desconectando…',
   killSwitchTitle: 'Bloquear internet sem VPN',
   killSwitchHint: 'Ative “VPN sempre ativa” e “Bloquear conexões sem VPN” para o WAVEBREAK — o Android não deixará o tráfego sair sem a VPN.',
+  welcomeKicker: 'SEU MUNDO. SUA DIREÇÃO.',
+  welcomeSub: 'Ondas de liberdade. Acesso protegido ao mundo, do seu jeito.',
+  orContinueWith: 'ou continuar com',
+  authEmail: 'E-mail',
+  comingSoon: 'em breve',
   navSettings: 'Ajustes',
   settings: 'Ajustes',
   account: 'Conta',
@@ -2430,6 +2472,11 @@ const kTurkishStrings = AppStrings(
   protectDisconnecting: 'Bağlantı kesiliyor…',
   killSwitchTitle: 'VPN olmadan interneti engelle',
   killSwitchHint: 'WAVEBREAK için “Her zaman açık VPN” ve “VPN olmadan bağlantıları engelle” seçeneklerini açın — VPN kapalıyken Android trafiğe izin vermez.',
+  welcomeKicker: 'SENİN DÜNYAN. SENİN YÖNÜN.',
+  welcomeSub: 'Özgürlük dalgaları. Dünyaya korumalı erişim — senin kararınla.',
+  orContinueWith: 'veya şununla devam et',
+  authEmail: 'E-posta',
+  comingSoon: 'yakında',
   navSpeedShort: 'Test',
   navSettings: 'Ayarlar',
   settings: 'Ayarlar',

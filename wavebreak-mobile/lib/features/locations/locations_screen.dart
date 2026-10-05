@@ -56,7 +56,7 @@ class LocationsScreen extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       s.chooseLocation,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontFamily: 'serif', fontSize: 30),
                     ),
                   ),
                   Tooltip(
