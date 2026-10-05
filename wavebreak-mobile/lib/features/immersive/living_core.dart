@@ -10,6 +10,7 @@ import '../../core/i18n/language_controller.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../shared/wave_params.dart';
 import 'immersive_clock.dart';
+import 'sphere_assets.dart';
 
 /// Sphere size for the screen width (V5 spec: 278 tablet, 240 phone,
 /// 210 narrow, 185 at 320 px).
@@ -133,7 +134,7 @@ class _LivingCoreState extends ConsumerState<LivingCore>
   void initState() {
     super.initState();
     _apply(initial: true);
-    _SphereAssets.load().then((assets) {
+    SphereAssets.load().then((assets) {
       if (!mounted || assets == null) return;
       setState(() {
         _shader = assets.program.fragmentShader();
@@ -277,34 +278,6 @@ class _Motion {
   double? lastT;
 
   double get sincePhase => (clock.elapsed - phaseStart).inMicroseconds / 1e6;
-}
-
-/// Shader + texture, loaded once per app run. Null when the platform can't
-/// run fragment shaders — the core then draws its gradient fallback.
-class _SphereAssets {
-  _SphereAssets(this.program, this.texture);
-
-  final ui.FragmentProgram program;
-  final ui.Image texture;
-
-  static Future<_SphereAssets?>? _future;
-
-  static Future<_SphereAssets?> load() => _future ??= _load();
-
-  static Future<_SphereAssets?> _load() async {
-    try {
-      final program =
-          await ui.FragmentProgram.fromAsset('shaders/living_sphere.frag');
-      final data = await rootBundle.load('assets/textures/earth_surface.webp');
-      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
-      final frame = await codec.getNextFrame();
-      codec.dispose();
-      return _SphereAssets(program, frame.image);
-    } catch (e) {
-      debugPrint('LivingCore: sphere shader unavailable ($e)');
-      return null;
-    }
-  }
 }
 
 class _Pt {

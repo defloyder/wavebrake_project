@@ -76,14 +76,18 @@ void main() {
   vec3 col;
   float alpha = 1.0;
   if (uMode > 0.5) {
-    // Natural night Earth.
+    // Natural night Earth, shaded like the V5 mockup (wave-scene-v5.js):
+    // a cold surface (red pulled down, blue kept), lit from the upper
+    // left, darker towards the bottom, a cyan limb with a slow pulse and
+    // warm city lights only where the texture is bright on the night side.
     float lum = dot(tex, vec3(0.299, 0.587, 0.114));
-    vec3 surface = tex * (0.35 + 0.85 * diff);
-    float cities = smoothstep(0.62, 0.9, lum) * (1.0 - diff) * 1.4;
-    col = surface + vec3(1.0, 0.85, 0.55) * cities * 0.35;
-    col += vec3(0.30, 0.70, 1.0) * rim * (0.75 + 0.15 * sin(uTime * 0.6));
-    col += vec3(0.8, 0.95, 1.0) * spec * 0.25;
-    col *= 0.55 + 0.45 * smoothstep(-0.9, 0.4, p.y + p.x * -0.3);
+    float coldLight = 0.22 + 0.5 * max(0.0, dot(n, vec3(-0.32, 0.58, 0.56)));
+    vec3 surface = tex * coldLight * vec3(0.48, 0.80, 1.03);
+    float cities = smoothstep(0.62, 0.9, lum) * (1.0 - diff);
+    col = surface + vec3(1.0, 0.82, 0.52) * cities * 0.18;
+    float limb = pow(1.0 - z, 5.0) * (0.68 + 0.15 * sin(uTime * 0.6 + p.x * 3.0));
+    col += vec3(0.11, 0.62, 0.75) * limb;
+    col += vec3(0.8, 0.95, 1.0) * spec * 0.08;
   } else {
     // Red glass core.
     float lum = dot(tex, vec3(0.299, 0.587, 0.114));
