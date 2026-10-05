@@ -135,6 +135,9 @@ type VLESSConfig struct {
 	DirectTLSHost string
 	DirectTLSPort int
 	DirectTLSPath string
+	// DirectTLSAddress is where the client connects when it differs from the
+	// SNI/Host (DirectTLSHost), e.g. a relay IP fronting the same Istanbul cert.
+	DirectTLSAddress string
 	// DirectTLSLabel overrides the "(Direct-TLS)" suffix of this location's
 	// Direct-TLS link name, e.g. a mirror shown as "YouTube без рекламы".
 	DirectTLSLabel string

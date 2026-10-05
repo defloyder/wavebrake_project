@@ -892,7 +892,11 @@ func buildVLESSDirectTLSLink(vless config.VLESSConfig, grantID, location string)
 		suffix = vless.DirectTLSLabel
 	}
 	label := fmt.Sprintf("%s (%s)", location, suffix)
-	endpoint := net.JoinHostPort(vless.DirectTLSHost, strconv.Itoa(vless.DirectTLSPort))
+	address := vless.DirectTLSHost
+	if vless.DirectTLSAddress != "" {
+		address = vless.DirectTLSAddress
+	}
+	endpoint := net.JoinHostPort(address, strconv.Itoa(vless.DirectTLSPort))
 	path := vless.DirectTLSPath
 	if path == "" {
 		path = "/wvb-dt"

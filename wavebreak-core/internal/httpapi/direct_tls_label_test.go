@@ -14,6 +14,16 @@ func TestDirectTLSLinkDefaultSuffix(t *testing.T) {
 	}
 }
 
+func TestDirectTLSLinkAddressDiffersFromSNI(t *testing.T) {
+	link := buildVLESSDirectTLSLink(config.VLESSConfig{DirectTLSHost: "direct.example", DirectTLSAddress: "203.0.113.7", DirectTLSPort: 443, DirectTLSPath: "/wvb-dt"}, "g1", "loc")
+	if !strings.Contains(link, "@203.0.113.7:443?") {
+		t.Fatalf("address not used: %s", link)
+	}
+	if !strings.Contains(link, "sni=direct.example") || !strings.Contains(link, "host=direct.example") {
+		t.Fatalf("sni/host must stay on the cert name: %s", link)
+	}
+}
+
 func TestDirectTLSLinkCustomSuffix(t *testing.T) {
 	link := buildVLESSDirectTLSLink(config.VLESSConfig{DirectTLSHost: "h.example", DirectTLSPort: 443, DirectTLSLabel: "YouTube без рекламы"}, "g1", "🇷🇺 Russia, Moscow")
 	if !strings.Contains(link, "%28YouTube%20%D0%B1%D0%B5%D0%B7%20%D1%80%D0%B5%D0%BA%D0%BB%D0%B0%D0%BC%D1%8B%29") {
