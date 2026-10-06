@@ -1123,7 +1123,7 @@ func (s *Store) AdminTrafficHistory(ctx context.Context, days int) ([]TrafficDay
 func (s *Store) ListAllPlans(ctx context.Context) ([]Plan, error) {
 	rows, err := s.db.Query(ctx, `
 		select id::text, code, name, description, price_cents, price_minor, currency, interval, duration_days,
-		       device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order
+		       device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order, original_price_minor, badge
 		from plans
 		where deleted_at is null
 		order by sort_order asc, price_minor asc`)
@@ -1134,7 +1134,7 @@ func (s *Store) ListAllPlans(ctx context.Context) ([]Plan, error) {
 	var plans []Plan
 	for rows.Next() {
 		var p Plan
-		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder); err != nil {
+		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder, &p.OriginalPriceMinor, &p.Badge); err != nil {
 			return nil, err
 		}
 		plans = append(plans, p)
@@ -1159,14 +1159,14 @@ func (s *Store) CreatePlan(ctx context.Context, p Plan) (Plan, error) {
 	err := s.db.QueryRow(ctx, `
 		insert into plans (
 			code, name, description, price_cents, price_minor, currency, interval, duration_days,
-			device_limit, traffic_limit_bytes, concurrent_connection_limit, active, is_active, is_public, sort_order
+			device_limit, traffic_limit_bytes, concurrent_connection_limit, active, is_active, is_public, sort_order, original_price_minor, badge
 		)
-		values ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13)
+		values ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15)
 		returning id::text, code, name, description, price_cents, price_minor, currency, interval, duration_days,
-		          device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order`,
+		          device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order, original_price_minor, badge`,
 		p.Code, p.Name, p.Description, p.PriceMinor, p.Currency, p.Interval, p.DurationDays,
-		p.DeviceLimit, p.TrafficLimitBytes, p.ConcurrentConnectionLimit, p.IsActive, p.IsPublic, p.SortOrder,
-	).Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder)
+		p.DeviceLimit, p.TrafficLimitBytes, p.ConcurrentConnectionLimit, p.IsActive, p.IsPublic, p.SortOrder, p.OriginalPriceMinor, p.Badge,
+	).Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder, &p.OriginalPriceMinor, &p.Badge)
 	return p, err
 }
 
@@ -1193,13 +1193,15 @@ func (s *Store) UpdatePlan(ctx context.Context, p Plan) (Plan, error) {
 		    is_active = $12,
 		    is_public = $13,
 		    sort_order = $14,
+		    original_price_minor = $15,
+		    badge = $16,
 		    updated_at = now()
 		where id = $1 and deleted_at is null
 		returning id::text, code, name, description, price_cents, price_minor, currency, interval, duration_days,
-		          device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order`,
+		          device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order, original_price_minor, badge`,
 		p.ID, p.Code, p.Name, p.Description, p.PriceMinor, p.Currency, p.Interval, p.DurationDays,
-		p.DeviceLimit, p.TrafficLimitBytes, p.ConcurrentConnectionLimit, p.IsActive, p.IsPublic, p.SortOrder,
-	).Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder)
+		p.DeviceLimit, p.TrafficLimitBytes, p.ConcurrentConnectionLimit, p.IsActive, p.IsPublic, p.SortOrder, p.OriginalPriceMinor, p.Badge,
+	).Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder, &p.OriginalPriceMinor, &p.Badge)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Plan{}, ErrNotFound
 	}

@@ -53,6 +53,10 @@ type Plan struct {
 	IsActive                  bool   `json:"is_active"`
 	IsPublic                  bool   `json:"is_public"`
 	SortOrder                 int    `json:"sort_order"`
+	// A discount shown on the plan (an "action"): the price before it,
+	// struck through in the app, and a short label ("-20%", "Хит").
+	OriginalPriceMinor *int64 `json:"original_price_minor,omitempty"`
+	Badge              string `json:"badge,omitempty"`
 }
 
 type Subscription struct {
@@ -236,7 +240,7 @@ func (s *Store) RevokeRefreshToken(ctx context.Context, refreshToken, reason str
 func (s *Store) ListPlans(ctx context.Context) ([]Plan, error) {
 	rows, err := s.db.Query(ctx, `
 		select id::text, code, name, description, price_cents, price_minor, currency, interval, duration_days,
-		       device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order
+		       device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order, original_price_minor, badge
 		from plans
 		where is_active = true and is_public = true and deleted_at is null
 		order by sort_order asc, price_minor asc`)
@@ -247,7 +251,7 @@ func (s *Store) ListPlans(ctx context.Context) ([]Plan, error) {
 	var plans []Plan
 	for rows.Next() {
 		var p Plan
-		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder); err != nil {
+		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder, &p.OriginalPriceMinor, &p.Badge); err != nil {
 			return nil, err
 		}
 		plans = append(plans, p)

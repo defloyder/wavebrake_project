@@ -1818,6 +1818,8 @@ func decodePlanRequest(w http.ResponseWriter, r *http.Request) (store.Plan, bool
 		IsActive                  *bool  `json:"is_active"`
 		IsPublic                  *bool  `json:"is_public"`
 		SortOrder                 int    `json:"sort_order"`
+		OriginalPriceMinor        *int64 `json:"original_price_minor"`
+		Badge                     string `json:"badge"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return store.Plan{}, false
@@ -1848,6 +1850,15 @@ func decodePlanRequest(w http.ResponseWriter, r *http.Request) (store.Plan, bool
 	if req.IsPublic != nil {
 		isPublic = *req.IsPublic
 	}
+	// The old price only reads as a discount when it is above the price.
+	if req.OriginalPriceMinor != nil && *req.OriginalPriceMinor <= req.PriceMinor {
+		req.OriginalPriceMinor = nil
+	}
+	badge := strings.TrimSpace(req.Badge)
+	if len([]rune(badge)) > 24 {
+		writeError(w, http.StatusBadRequest, "badge is at most 24 characters")
+		return store.Plan{}, false
+	}
 	return store.Plan{
 		Code:                      req.Code,
 		Name:                      req.Name,
@@ -1862,6 +1873,8 @@ func decodePlanRequest(w http.ResponseWriter, r *http.Request) (store.Plan, bool
 		IsActive:                  isActive,
 		IsPublic:                  isPublic,
 		SortOrder:                 req.SortOrder,
+		OriginalPriceMinor:        req.OriginalPriceMinor,
+		Badge:                     badge,
 	}, true
 }
 

@@ -269,7 +269,10 @@ paths:
           description: Device revoked
   /v1/plans:
     get:
-      summary: Active plans
+      summary: Active public plans
+      description: >
+        Each plan may carry an offer: original_price_minor (the price
+        before the discount, shown struck through) and badge ("-17%").
       responses:
         "200":
           description: Plan list
@@ -285,9 +288,12 @@ paths:
     post:
       security:
         - bearerAuth: []
-      summary: Buy a plan (one subscription per user)
+      summary: Activate a plan without payment (off unless WAVEBREAK_SELF_SERVE_SUBSCRIPTIONS)
       description: >
-        Creates and activates the subscription (201). When the user's
+        Off by default: 402 PAYMENT_REQUIRED (choosing a plan does not grant
+        it; access is issued by the administration until a payment step
+        exists). When enabled: creates and activates the subscription
+        (201). When the user's
         subscription is past_due (period over or traffic exhausted, within
         the grace period) it is renewed in place instead (200): same
         subscription and credential, so the subscription link keeps
@@ -301,6 +307,26 @@ paths:
           description: Subscription created
         "409":
           description: SUBSCRIPTION_ALREADY_ACTIVE
+  /v1/promo-codes/check:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Check a promo code for the signed-in user
+      description: >
+        Body {code, plan_id?}. Codes match case-insensitively, spaces
+        ignored. 200 {code, description, discount_type (percent|fixed),
+        discount_value, currency?, plan_id?, valid_until?, plans: [{plan_id,
+        price_minor, discounted_price_minor, currency}]} for the public plans
+        it applies to. Checking doesn't use up an activation (that happens at
+        the payment step). Rate-limited per IP like login.
+      responses:
+        "200":
+          description: The code applies; prices with the discount
+        "422":
+          description: >
+            PROMO_NOT_FOUND, PROMO_INACTIVE, PROMO_NOT_STARTED, PROMO_EXPIRED,
+            PROMO_EXHAUSTED, PROMO_ALREADY_USED, PROMO_NOT_FOR_PLAN or
+            PROMO_CURRENCY_MISMATCH
   /v1/subscriptions/current:
     get:
       security:
@@ -774,6 +800,59 @@ paths:
       responses:
         "200":
           description: Plan deleted
+  /v1/admin/promo-codes:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Promo codes with their activation counts
+      responses:
+        "200":
+          description: "{promo_codes: [...]}"
+    post:
+      security:
+        - bearerAuth: []
+      summary: Create a promo code
+      description: >
+        Body {code (3-40, A-Z 0-9 - _), description?, discount_type
+        (percent 1-100 | fixed in minor units), discount_value, currency
+        (required for fixed), plan_id? (only for this plan), valid_from?,
+        valid_until?, max_activations?, is_active? (default true)}.
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Invalid fields
+        "409":
+          description: PROMO_CODE_TAKEN
+  /v1/admin/promo-codes/{promoID}:
+    put:
+      security:
+        - bearerAuth: []
+      summary: Update a promo code (same body as create)
+      parameters:
+        - name: promoID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Updated
+    delete:
+      security:
+        - bearerAuth: []
+      summary: Delete a promo code and its activation history
+      parameters:
+        - name: promoID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Deleted
   /v1/admin/subscriptions:
     get:
       security:

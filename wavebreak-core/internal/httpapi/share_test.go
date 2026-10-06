@@ -104,7 +104,7 @@ func TestShareSubscriptionE2E(t *testing.T) {
 	st := store.New(pool)
 	a := &app.App{Config: config.Config{
 		JWTSecret: "e2e-secret", AccessTokenTTL: time.Hour, RefreshTokenTTL: time.Hour,
-		Accounts: config.AccountsConfig{SubscriptionURLBase: "https://api.e2e.test/v1/sub/", AccessProtocol: "vless", SubscriptionGrace: accounts.DefaultGracePeriod},
+		Accounts: config.AccountsConfig{SubscriptionURLBase: "https://api.e2e.test/v1/sub/", AccessProtocol: "vless", SubscriptionGrace: accounts.DefaultGracePeriod, SelfServeSubscriptions: true},
 		VLESS: config.VLESSConfig{
 			PublicHost: "45.15.41.3", PublicPort: 443, RealityPublicKey: "pbk-e2e", RealityShortID: "ab12", RealityServerName: "r.e2e.test",
 			Fingerprint: "chrome", PublishDirect: true,

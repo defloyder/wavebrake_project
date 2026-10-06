@@ -62,7 +62,7 @@ func TestAdminAccountManagementE2E(t *testing.T) {
 	st := store.New(pool)
 	a := &app.App{Config: config.Config{
 		JWTSecret: "e2e-secret", AccessTokenTTL: time.Hour, RefreshTokenTTL: time.Hour,
-		Accounts: config.AccountsConfig{SubscriptionURLBase: "https://api.e2e.test/v1/sub/", PasswordResetURLBase: "https://site.e2e.test/reset", PasswordResetTTL: time.Hour, AccessProtocol: "vless"},
+		Accounts: config.AccountsConfig{SubscriptionURLBase: "https://api.e2e.test/v1/sub/", PasswordResetURLBase: "https://site.e2e.test/reset", PasswordResetTTL: time.Hour, AccessProtocol: "vless", SelfServeSubscriptions: true},
 	}, Store: st}
 	srv := newServer(a)
 	notifier := &captureNotifier{}

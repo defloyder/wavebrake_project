@@ -1,4 +1,3 @@
-
 package httpapi
 
 import (
@@ -15,8 +14,8 @@ import (
 
 	"wavebreak-core/internal/accounts"
 	"wavebreak-core/internal/app"
-	"wavebreak-core/internal/observability"
 	"wavebreak-core/internal/mailer"
+	"wavebreak-core/internal/observability"
 	"wavebreak-core/internal/relays"
 	"wavebreak-core/internal/security"
 	"wavebreak-core/internal/store"
@@ -121,6 +120,8 @@ func (s *Server) router() http.Handler {
 			r.Delete("/me/devices/{deviceID}", s.revokeDevice)
 			r.Post("/subscriptions", s.createSubscription)
 			r.Get("/subscriptions/current", s.currentSubscription)
+			r.With(ipRateLimitMiddleware(s.limiter, "promo", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
+				Post("/promo-codes/check", s.checkPromoCode)
 			r.Get("/locations", s.listLocations)
 			r.Get("/access/grants", s.listAccessGrants)
 			r.Post("/access/grants", s.createAccessGrant)
@@ -156,6 +157,10 @@ func (s *Server) router() http.Handler {
 			r.Post("/admin/plans", s.adminCreatePlan)
 			r.Put("/admin/plans/{planID}", s.adminUpdatePlan)
 			r.Delete("/admin/plans/{planID}", s.adminDeletePlan)
+			r.Get("/admin/promo-codes", s.adminPromoCodes)
+			r.Post("/admin/promo-codes", s.adminCreatePromoCode)
+			r.Put("/admin/promo-codes/{promoID}", s.adminUpdatePromoCode)
+			r.Delete("/admin/promo-codes/{promoID}", s.adminDeletePromoCode)
 			r.Get("/admin/subscriptions", s.adminSubscriptions)
 			r.Post("/admin/subscriptions", s.adminCreateSubscription)
 			r.Post("/admin/subscriptions/manual", s.adminCreateManualSubscription)
@@ -214,6 +219,12 @@ func (s *Server) listPlans(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createSubscription(w http.ResponseWriter, r *http.Request) {
+	// Choosing a plan doesn't grant it: until a payment step exists,
+	// access is issued by the administration (admin API).
+	if !s.app.Config.Accounts.SelfServeSubscriptions {
+		writeError(w, http.StatusPaymentRequired, "PAYMENT_REQUIRED")
+		return
+	}
 	var req struct {
 		PlanID string `json:"plan_id"`
 	}
@@ -486,4 +497,3 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{"error": message, "code": message})
 }
-
