@@ -41,6 +41,7 @@ import '../immersive/tinted_glass.dart';
 import '../immersive/wave_field.dart';
 import 'home_vitals.dart';
 import 'location_bar.dart';
+import '../locations/servers_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -500,7 +501,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       location: current,
       variants: currentPlace?.variants ?? const <LocationItem>[],
       s: s,
-      onOpenServers: () => context.go('/locations'),
+      onOpenServers: () => showServersSheet(context, ref),
       onSelect: (item) => ref
           .read(connectionManagerProvider.notifier)
           .selectLocation(item, subscriptionActive: canConnect),

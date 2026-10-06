@@ -288,6 +288,8 @@ class AppStrings {
     required this.shareInvalid,
     required this.shareOwnSubscription,
     required this.shareOwnerInactive,
+    required this.linkAlreadyAdded,
+    required this.subscriptionForApps,
     required this.sharedAccessTitle,
     required this.qrCode,
     required this.close,
@@ -765,6 +767,8 @@ class AppStrings {
   final String shareInvalid;
   final String shareOwnSubscription;
   final String shareOwnerInactive;
+  final String linkAlreadyAdded;
+  final String subscriptionForApps;
   final String sharedAccessTitle;
   final String qrCode;
   final String close;
@@ -1076,6 +1080,8 @@ const kEnglishStrings = AppStrings(
   shareInvalid: 'This code is invalid or has expired',
   shareOwnSubscription: 'This is your own subscription',
   shareOwnerInactive: 'The owner\'s subscription is not active',
+  linkAlreadyAdded: 'This link is already in the list',
+  subscriptionForApps: 'Link for other apps (Happ, v2rayNG)',
   sharedAccessTitle: 'WAVEBREAK · shared',
   qrCode: 'QR code',
   close: 'Close',
@@ -1469,6 +1475,8 @@ const kRussianStrings = AppStrings(
   shareInvalid: 'Код недействителен или устарел',
   shareOwnSubscription: 'Это ваша собственная подписка',
   shareOwnerInactive: 'Подписка владельца неактивна',
+  linkAlreadyAdded: 'Эта ссылка уже есть в списке',
+  subscriptionForApps: 'Ссылка для других приложений (Happ, v2rayNG)',
   sharedAccessTitle: 'WAVEBREAK · общий доступ',
   qrCode: 'QR-код',
   close: 'Закрыть',
@@ -1864,6 +1872,8 @@ const kSpanishStrings = AppStrings(
   shareInvalid: 'El código no es válido o ha caducado',
   shareOwnSubscription: 'Esta es tu propia suscripción',
   shareOwnerInactive: 'La suscripción del propietario no está activa',
+  linkAlreadyAdded: 'Este enlace ya está en la lista',
+  subscriptionForApps: 'Enlace para otras apps (Happ, v2rayNG)',
   sharedAccessTitle: 'WAVEBREAK · compartido',
   qrCode: 'Código QR',
   close: 'Cerrar',
@@ -2265,6 +2275,8 @@ const kGermanStrings = AppStrings(
   shareInvalid: 'Der Code ist ungültig oder abgelaufen',
   shareOwnSubscription: 'Das ist dein eigenes Abo',
   shareOwnerInactive: 'Das Abo des Inhabers ist nicht aktiv',
+  linkAlreadyAdded: 'Dieser Link ist bereits in der Liste',
+  subscriptionForApps: 'Link für andere Apps (Happ, v2rayNG)',
   sharedAccessTitle: 'WAVEBREAK · geteilt',
   qrCode: 'QR-Code',
   close: 'Schließen',
@@ -2665,6 +2677,8 @@ const kFrenchStrings = AppStrings(
   shareInvalid: 'Ce code est invalide ou a expiré',
   shareOwnSubscription: 'C\'est votre propre abonnement',
   shareOwnerInactive: 'L\'abonnement du propriétaire n\'est pas actif',
+  linkAlreadyAdded: 'Ce lien est déjà dans la liste',
+  subscriptionForApps: 'Lien pour d\'autres applis (Happ, v2rayNG)',
   sharedAccessTitle: 'WAVEBREAK · partagé',
   qrCode: 'Code QR',
   close: 'Fermer',
@@ -3061,6 +3075,8 @@ const kPortugueseStrings = AppStrings(
   shareInvalid: 'Código inválido ou expirado',
   shareOwnSubscription: 'Esta é a sua própria assinatura',
   shareOwnerInactive: 'A assinatura do proprietário não está ativa',
+  linkAlreadyAdded: 'Este link já está na lista',
+  subscriptionForApps: 'Link para outros apps (Happ, v2rayNG)',
   sharedAccessTitle: 'WAVEBREAK · compartilhado',
   qrCode: 'Código QR',
   close: 'Fechar',
@@ -3455,6 +3471,8 @@ const kTurkishStrings = AppStrings(
   shareInvalid: 'Kod geçersiz veya süresi dolmuş',
   shareOwnSubscription: 'Bu sizin kendi aboneliğiniz',
   shareOwnerInactive: 'Sahibin aboneliği aktif değil',
+  linkAlreadyAdded: 'Bu bağlantı zaten listede',
+  subscriptionForApps: 'Diğer uygulamalar için bağlantı (Happ, v2rayNG)',
   sharedAccessTitle: 'WAVEBREAK · paylaşılan',
   qrCode: 'QR kod',
   close: 'Kapat',

@@ -248,8 +248,10 @@ class SpeedTestScreen extends ConsumerWidget {
           maxContentWidth: 560,
           child: SafeArea(
             child: ListView(
+              // The "Repeat test" button is the last thing on the page: a
+              // wider gap so it doesn't sit on the nav bar (owner, 06.10).
               padding: const EdgeInsets.fromLTRB(
-                  20, 12, 20, kMobileBottomBarReserve + 12),
+                  20, 12, 20, kMobileBottomBarReserve + 28),
               children: [
                 title(withMenu: false),
                 const SizedBox(height: 8),

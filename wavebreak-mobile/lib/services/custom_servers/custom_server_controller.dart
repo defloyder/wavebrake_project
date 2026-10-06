@@ -5,7 +5,12 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wavebreak_links/wavebreak_links.dart'
-    show ShareLink, SubscriptionUserInfo, decodeProfileTitle, parseSubscription, parseUpdateIntervalHours;
+    show
+        ShareLink,
+        SubscriptionUserInfo,
+        decodeProfileTitle,
+        parseSubscription,
+        parseUpdateIntervalHours;
 
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/language_controller.dart';
@@ -30,9 +35,13 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     if (raw == null || raw.isEmpty) return const [];
     try {
       final list = jsonDecode(raw) as List;
+      // Copies of one link added before duplicates were refused: the
+      // first one stays.
+      final seen = <String>{};
       final groups = list
           .whereType<Map>()
           .map((e) => _fromStored(Map<String, dynamic>.from(e)))
+          .where((g) => g.sharedWithMe || seen.add(sameLinkKey(g.sourceLink)))
           .toList();
       // Third-party subscriptions past their update interval are re-read
       // once the app has started (in the background; the stored list is
@@ -66,8 +75,13 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     final uri = Uri.tryParse(trimmed);
     if (uri == null || uri.scheme.isEmpty) return 'invalid';
 
+    // One copy of each link (owner, 06.10: the same Germany link pasted
+    // four times made four identical sections).
+    final known = await _knownLinkKeys();
+    if (known.contains(sameLinkKey(trimmed))) return 'duplicate';
+
     if (uri.scheme == 'http' || uri.scheme == 'https') {
-      return _addFromSubscriptionUrl(trimmed, uri);
+      return _addFromSubscriptionUrl(trimmed, uri, known);
     }
     if (!knownShareSchemes.contains(uri.scheme)) return 'invalid';
 
@@ -80,9 +94,14 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     // that, so the identity — a real "Country, City" when the link's
     // fragment decoded to one, otherwise its host — carries the group
     // name on its own.
-    final identity = server.city.isNotEmpty && server.city != uri.scheme.toUpperCase()
-        ? '${server.country} · ${server.city}'
-        : (uri.host.isNotEmpty ? uri.host : server.country);
+    final place = server.city.replaceAll(RegExp(r'\s*\([^)]*\)\s*$'), '');
+    final identity =
+        server.city.isEmpty || server.city == uri.scheme.toUpperCase()
+            ? (uri.host.isNotEmpty ? uri.host : server.country)
+            // "Germany" alone, not "Germany · Germany", when there's no city.
+            : place == server.country
+                ? server.country
+                : '${server.country} · ${server.city}';
     final group = CustomSubscriptionGroup(
       id: const Uuid().v4(),
       name: identity,
@@ -94,7 +113,44 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     return null;
   }
 
-  Future<String?> _addFromSubscriptionUrl(String link, Uri uri) async {
+  /// What makes two links "the same": a single server link without its
+  /// `#label` (same server under another name), a subscription URL with
+  /// its host lowercased and trailing slash dropped — and WAVEBREAK's two
+  /// API hosts (api. behind Cloudflare, core. direct) as one.
+  @visibleForTesting
+  static String sameLinkKey(String link) {
+    final t = link.trim();
+    final uri = Uri.tryParse(t);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return t.split('#').first;
+    }
+    var host = uri.host.toLowerCase();
+    if (host == 'api.wavebreak.com.tr') host = 'core.wavebreak.com.tr';
+    var path = uri.path;
+    while (path.endsWith('/')) {
+      path = path.substring(0, path.length - 1);
+    }
+    return '$host$path?${uri.query}';
+  }
+
+  /// Every link already in the list: added sections, their servers, and
+  /// the account's own WAVEBREAK servers.
+  Future<Set<String>> _knownLinkKeys() async {
+    final own =
+        await PersonalLocations.saved().catchError((_) => <LocationItem>[]);
+    return {
+      for (final g in state) ...[
+        sameLinkKey(g.sourceLink),
+        for (final s in g.servers)
+          if (s.rawLink != null) sameLinkKey(s.rawLink!),
+      ],
+      for (final l in own)
+        if (l.rawLink != null) sameLinkKey(l.rawLink!),
+    };
+  }
+
+  Future<String?> _addFromSubscriptionUrl(
+      String link, Uri uri, Set<String> known) async {
     // Plain http:// is common for self-hosted panels/test deployments
     // (no TLS cert on a bare IP, exactly like the pilot itself) — the
     // real risk worth blocking is a request into the user's own local
@@ -118,8 +174,15 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     } catch (_) {
       return 'unreachable';
     }
-    final group = _groupFrom(fetched, id: const Uuid().v4(), link: link, uri: uri);
+    final group =
+        _groupFrom(fetched, id: const Uuid().v4(), link: link, uri: uri);
     if (group == null) return 'empty';
+    // Another address of a subscription that is already here (e.g. the
+    // account's own WAVEBREAK one): every server is known.
+    if (group.servers.every(
+        (s) => s.rawLink != null && known.contains(sameLinkKey(s.rawLink!)))) {
+      return 'duplicate';
+    }
     state = [...state, group];
     await _persist();
     return null;
@@ -199,7 +262,8 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     final SharedAccess access;
     try {
       final (platform, name) = await DeviceService(gateway).platformInfo();
-      access = await gateway.redeemShare(token: token, deviceName: name, platform: platform);
+      access = await gateway.redeemShare(
+          token: token, deviceName: name, platform: platform);
     } on AppException catch (e) {
       return switch (e.kind) {
         AppErrorKind.deviceLimitReached => 'share_limit',
@@ -215,7 +279,8 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     final servers = _sharedServers(access.links);
     if (servers.isEmpty) return 'empty';
     final source = access.subscriptionUrl ?? '';
-    final existing = state.where((g) => g.sharedWithMe && g.sourceLink == source).toList();
+    final existing =
+        state.where((g) => g.sharedWithMe && g.sourceLink == source).toList();
     final group = CustomSubscriptionGroup(
       id: existing.isNotEmpty ? existing.first.id : const Uuid().v4(),
       name: _sharedName(access.planName),
@@ -247,12 +312,16 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
   String _sharedName(String planName) {
     final plan = planName.trim();
     if (plan.isEmpty) return ref.read(stringsProvider).sharedAccessTitle;
-    return plan.toUpperCase().startsWith('WAVEBREAK') ? plan : 'WAVEBREAK $plan';
+    return plan.toUpperCase().startsWith('WAVEBREAK')
+        ? plan
+        : 'WAVEBREAK $plan';
   }
 
   static List<LocationItem> _sharedServers(List<String> links) =>
       parseSubscriptionBody(links
-          .where((l) => ShareLink.tryParse(l)?.supportedBy(PersonalLocations.engine) ?? false)
+          .where((l) =>
+              ShareLink.tryParse(l)?.supportedBy(PersonalLocations.engine) ??
+              false)
           .join('\n'));
 
   /// Brings redeemed sections in line with Core's GET /me/sharing: plan
@@ -274,7 +343,9 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       // An overview requested before a fresh redeem can arrive after it;
       // it just doesn't know the new slot yet — not a revocation.
       final redeemed = _redeemedAt[g.sourceLink];
-      if (entry == null && redeemed != null && DateTime.now().difference(redeemed) < _redeemGrace) {
+      if (entry == null &&
+          redeemed != null &&
+          DateTime.now().difference(redeemed) < _redeemGrace) {
         next.add(g);
         continue;
       }
@@ -284,7 +355,8 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
                 g.servers.any((s) => s.id == connection.location.id));
         continue;
       }
-      final servers = entry.links.isEmpty ? g.servers : _sharedServers(entry.links);
+      final servers =
+          entry.links.isEmpty ? g.servers : _sharedServers(entry.links);
       next.add(CustomSubscriptionGroup(
         id: g.id,
         name: _sharedName(entry.planName),
@@ -295,11 +367,13 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     }
     state = next;
     await _persist();
-    if (disconnect) await ref.read(connectionManagerProvider.notifier).disconnect();
+    if (disconnect)
+      await ref.read(connectionManagerProvider.notifier).disconnect();
   }
 
   Future<void> refreshGroup(String id) async {
-    final group = state.firstWhere((g) => g.id == id, orElse: () => state.first);
+    final group =
+        state.firstWhere((g) => g.id == id, orElse: () => state.first);
     if (group.sharedWithMe) {
       // Through Core, not the raw subscription URL: that one carries every
       // transport (CDN included) and would rename the section to its host.
@@ -337,7 +411,8 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
               if (g.expiresAt != null) 'expire': g.expiresAt!.toIso8601String(),
               if (g.updateIntervalHours != null)
                 'interval': g.updateIntervalHours,
-              if (g.updatedAt != null) 'updated': g.updatedAt!.toIso8601String(),
+              if (g.updatedAt != null)
+                'updated': g.updatedAt!.toIso8601String(),
               'servers': g.servers
                   .map((s) => {
                         'id': s.id,

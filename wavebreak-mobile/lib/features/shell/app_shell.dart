@@ -201,109 +201,119 @@ class _MobileShell extends ConsumerWidget {
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
 
-    return Scaffold(
-      // No slot-based bottomNavigationBar — that slot paints the
-      // Scaffold's own flat background behind it. Floating the pill over
-      // a full-height body instead means nothing but the pill's own
-      // frosted glass paints anything down there; the screen's real
-      // (moving, tinted) background shows through everywhere else.
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Positioned.fill(child: navigationShell),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
-                  // No backdrop blur: under a 90 % fill it barely showed, and as
-                  // a filter of its own (outside the page's glass group) it cost
-                  // a full extra GPU pass every frame (P5).
-                  child: Container(
-                    height: 64,
-                    // Equal inner gap all round: the active tab's outline
-                    // used to touch the bar's rounded ends (owner, P7).
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      // Same gentle wash as the desktop rail — tinted a
-                      // little toward the selected location's accent
-                      // color instead of a flat, unchanging navy.
-                      color: Ic.glassMid.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: Ic.glassBorder),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        for (final (i, branch, icon, filled, label) in [
-                          (
-                            0,
-                            0,
-                            Icons.home_outlined,
-                            Icons.home_rounded,
-                            s.navHome
+    // System back (gesture or button): pages inside a tab close first
+    // (Settings → its subpages are that tab's own stack), then any other
+    // tab returns to Home, and only Home lets the app close (owner, 06.10:
+    // back on any tab used to leave the app).
+    return PopScope(
+      canPop: navigationShell.currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) navigationShell.goBranch(0);
+      },
+      child: Scaffold(
+        // No slot-based bottomNavigationBar — that slot paints the
+        // Scaffold's own flat background behind it. Floating the pill over
+        // a full-height body instead means nothing but the pill's own
+        // frosted glass paints anything down there; the screen's real
+        // (moving, tinted) background shows through everywhere else.
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Positioned.fill(child: navigationShell),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    // No backdrop blur: under a 90 % fill it barely showed, and as
+                    // a filter of its own (outside the page's glass group) it cost
+                    // a full extra GPU pass every frame (P5).
+                    child: Container(
+                      height: 64,
+                      // Equal inner gap all round: the active tab's outline
+                      // used to touch the bar's rounded ends (owner, P7).
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        // Same gentle wash as the desktop rail — tinted a
+                        // little toward the selected location's accent
+                        // color instead of a flat, unchanging navy.
+                        color: Ic.glassMid.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: Ic.glassBorder),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
                           ),
-                          (
-                            1,
-                            1,
-                            Icons.public_outlined,
-                            Icons.public,
-                            s.navLocations
-                          ),
-                          (
-                            2,
-                            3,
-                            Icons.speed_outlined,
-                            Icons.speed_rounded,
-                            s.navSpeedShort
-                          ),
-                          (
-                            3,
-                            4,
-                            Icons.ssid_chart_outlined,
-                            Icons.ssid_chart_rounded,
-                            s.navMetrics
-                          ),
-                          (
-                            4,
-                            2,
-                            Icons.settings_outlined,
-                            Icons.settings,
-                            s.navSettings
-                          ),
-                        ])
-                          _MobileNavButton(
-                            icon: icon,
-                            filledIcon: filled,
-                            label: label,
-                            selected: activeButton == i,
-                            tint: waveParams.tint,
-                            showBadge: branch == 2 && pendingUpdate != null,
-                            onTap: () => navigationShell.goBranch(
-                              branch,
-                              initialLocation:
-                                  navigationShell.currentIndex == branch,
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          for (final (i, branch, icon, filled, label) in [
+                            (
+                              0,
+                              0,
+                              Icons.home_outlined,
+                              Icons.home_rounded,
+                              s.navHome
                             ),
-                          ),
-                      ],
+                            (
+                              1,
+                              1,
+                              Icons.public_outlined,
+                              Icons.public,
+                              s.navLocations
+                            ),
+                            (
+                              2,
+                              3,
+                              Icons.speed_outlined,
+                              Icons.speed_rounded,
+                              s.navSpeedShort
+                            ),
+                            (
+                              3,
+                              4,
+                              Icons.ssid_chart_outlined,
+                              Icons.ssid_chart_rounded,
+                              s.navMetrics
+                            ),
+                            (
+                              4,
+                              2,
+                              Icons.settings_outlined,
+                              Icons.settings,
+                              s.navSettings
+                            ),
+                          ])
+                            _MobileNavButton(
+                              icon: icon,
+                              filledIcon: filled,
+                              label: label,
+                              selected: activeButton == i,
+                              tint: waveParams.tint,
+                              showBadge: branch == 2 && pendingUpdate != null,
+                              onTap: () => navigationShell.goBranch(
+                                branch,
+                                initialLocation:
+                                    navigationShell.currentIndex == branch,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
