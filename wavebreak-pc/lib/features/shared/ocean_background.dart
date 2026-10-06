@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/wb_colors.dart';
-import 'animated_waves.dart';
+import '../immersive/star_field.dart';
+import '../immersive/tinted_glass.dart';
+import '../immersive/wave_field.dart';
+import 'wave_params.dart';
 
-class OceanBackground extends StatelessWidget {
+/// Screen background. Since V5 every screen that uses it gets the
+/// immersive wave field (crimson streams with depth, leaning towards the
+/// selected location's flag [tint]) plus a soft tinted glow — same API as
+/// before, so all secondary screens follow the new look.
+class OceanBackground extends ConsumerWidget {
   const OceanBackground({
     super.key,
     required this.child,
@@ -14,71 +22,72 @@ class OceanBackground extends StatelessWidget {
     this.waveAmplitude = 1.0,
     this.waveLineCount = 4,
     this.maxContentWidth = 560,
+    this.stars = false,
   });
+
+  /// Vector star field over the waves (sign-in screens).
+  final bool stars;
 
   final Widget child;
   final bool illuminate;
   final bool animateWaves;
 
-  /// Subtle accent for the ambient glow — e.g. the selected location's flag
-  /// color. Kept low-opacity so it never overwhelms the brand background.
+  /// The selected location's flag accent (or null).
   final Color? tint;
 
-  /// Multipliers so callers can tie wave liveliness to app state (e.g.
-  /// faster/bigger while connected) without ever feeling frantic.
+  /// Kept for API compatibility: liveliness now comes from the shared
+  /// immersive clock; amplitude maps to the field's intensity.
   final double waveSpeed;
   final double waveAmplitude;
   final int waveLineCount;
 
   /// Caps how wide the content column ever grows — keeps the mobile layout
-  /// centered and readable on a big desktop window instead of stretching
-  /// edge to edge. Screens with their own desktop-specific layout (e.g. a
-  /// two-column Home) pass a larger value.
+  /// centered and readable on a big desktop window.
   final double maxContentWidth;
 
   @override
-  Widget build(BuildContext context) {
-    final resolvedTint = tint ?? WbColors.waveCyan;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 600),
-      decoration: BoxDecoration(
-        color: WbColors.midnight,
-        // radius is a fraction of the box's SHORTEST side, so on a wide,
-        // short desktop window a small radius traces a visible circle that
-        // terminates well inside the frame — a "spotlight in a dark void"
-        // look (reported as a black hole in the background). Using a much
-        // bigger radius keeps the whole visible area inside the gradient's
-        // smooth falloff, however wide the window gets, so it reads as one
-        // continuous wash instead of a bounded shape.
-        gradient: illuminate
-            ? RadialGradient(
-                center: const Alignment(0, -0.05),
-                radius: 1.8,
-                colors: [
-                  resolvedTint.withValues(alpha: 0.13),
-                  resolvedTint.withValues(alpha: 0.04),
-                  WbColors.midnight,
-                ],
-                stops: const [0, 0.55, 1],
-              )
-            : null,
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    // No explicit tint: follow the selected location like the rest of the app.
+    final tint = this.tint ?? ref.watch(appWaveParamsProvider).tint;
+    return ColoredBox(
+      color: WbColors.midnight,
       child: Stack(
         fit: StackFit.expand,
         children: [
           if (animateWaves)
             Positioned.fill(
-              child: AnimatedWaves(
-                tint: resolvedTint,
-                speed: waveSpeed,
-                amplitude: waveAmplitude,
-                lineCount: waveLineCount,
+              child: WaveField(
+                tint: tint,
+                layers: 18,
+                intensity:
+                    (0.45 + 0.25 * (waveAmplitude - 0.9)).clamp(0.3, 1.0),
+              ),
+            ),
+          if (stars) const Positioned.fill(child: StarField()),
+          if (tint != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 600),
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(0, -0.6),
+                      radius: 1.2,
+                      colors: [
+                        tint.withValues(alpha: illuminate ? 0.10 : 0.06),
+                        tint.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxContentWidth),
-              child: child,
+              // One shared blur pass for all glass cards on this screen
+              // (TintedGlass uses BackdropFilter.grouped).
+              child: GlassGroup(child: child),
             ),
           ),
         ],

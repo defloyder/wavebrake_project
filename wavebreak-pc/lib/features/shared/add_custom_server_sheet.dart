@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -19,7 +20,7 @@ Future<void> showAddCustomServerSheet(
   final controller = TextEditingController();
   final s = ref.read(stringsProvider);
   final tint = ref.read(appWaveParamsProvider).tint;
-  final scanColor = wbBlend(WbColors.waveCyan, tint, 0.4);
+  final scanColor = wbBlend(context.accent, tint, 0.4);
   String? error;
   bool busy = false;
 
@@ -30,7 +31,7 @@ Future<void> showAddCustomServerSheet(
     // since it lives above the branch's nested Navigator, not the root one.
     useRootNavigator: true,
     isScrollControlled: true,
-    backgroundColor: wbBlend(WbColors.card, tint, 0.12),
+    backgroundColor: wbBlend(WbColors.card, tint, WbColors.sheetLean),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -62,6 +63,7 @@ Future<void> showAddCustomServerSheet(
                 'share_invalid' => s.shareInvalid,
                 'share_own' => s.shareOwnSubscription,
                 'share_inactive' => s.shareOwnerInactive,
+                'duplicate' => s.linkAlreadyAdded,
                 _ => s.invalidSubscriptionLink,
               };
             });
@@ -194,7 +196,7 @@ Future<void> showAddCustomServerSheet(
                   height: 54,
                   child: FilledButton(
                     style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
+                      backgroundColor: context.accent,
                       foregroundColor: WbColors.midnight,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

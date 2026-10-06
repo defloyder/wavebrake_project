@@ -7,16 +7,21 @@ import '../../core/errors/app_exception.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../core/theme/wb_theme.dart';
 import '../../services/analytics/analytics.dart';
 import '../../services/core_api/models.dart';
 import '../../services/providers.dart';
+import '../settings/settings_ui.dart';
 import '../shared/data_providers.dart';
-import '../shared/detail_scaffold.dart';
-import '../shared/nav_utils.dart';
 import '../shared/subscription_texts.dart';
+import '../shared/traffic_format.dart';
 import '../shared/traffic_wave_bar.dart';
-import '../shared/wb_card.dart';
+import 'plan_purchase.dart';
 
+/// Subscription (P9): the current subscription, the plans from Core with
+/// their offers, and a promo code field. Choosing a plan goes through
+/// [PlanPurchase] — today that's "contact the administration", never an
+/// activation by itself.
 class SubscriptionScreen extends ConsumerStatefulWidget {
   const SubscriptionScreen({super.key});
 
@@ -25,278 +30,429 @@ class SubscriptionScreen extends ConsumerStatefulWidget {
 }
 
 class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
-  String? _activatingPlanId;
-  bool _changingPlan = false;
+  final _promoField = TextEditingController();
+  PromoCheck? _promo;
+  String? _promoError;
+  bool _checking = false;
 
-  Future<void> _activate(Plan plan) async {
-    setState(() => _activatingPlanId = plan.id);
+  @override
+  void initState() {
+    super.initState();
+    const Analytics().event('subscription_screen_open');
+  }
+
+  @override
+  void dispose() {
+    _promoField.dispose();
+    super.dispose();
+  }
+
+  Future<void> _applyPromo() async {
+    final code = _promoField.text.trim();
+    if (code.isEmpty || _checking) return;
+    final s = ref.read(stringsProvider);
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _checking = true;
+      _promoError = null;
+    });
     try {
-      await ref.read(coreGatewayProvider).createSubscription(plan.id);
-      ref.invalidate(subscriptionProvider);
-      if (mounted) setState(() => _changingPlan = false);
-    } on AppException catch (error) {
-      if (mounted) {
-        final s = ref.read(stringsProvider);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.localized(s))),
-        );
-      }
+      final promo = await ref.read(coreGatewayProvider).checkPromoCode(code);
+      if (mounted) setState(() => _promo = promo);
+    } on AppException catch (e) {
+      // 404: this Core has no promo codes yet (not the code being wrong).
+      final text = e.statusCode == 404 ? s.promoUnavailable : e.localized(s);
+      if (mounted) setState(() => _promoError = text);
+    } catch (_) {
+      if (mounted) setState(() => _promoError = s.errUnavailable);
     } finally {
-      if (mounted) setState(() => _activatingPlanId = null);
+      if (mounted) setState(() => _checking = false);
     }
   }
 
+  void _removePromo() => setState(() {
+        _promo = null;
+        _promoError = null;
+        _promoField.clear();
+      });
+
   @override
   Widget build(BuildContext context) {
-    const Analytics().event('subscription_screen_open');
-    final asyncSub = ref.watch(subscriptionProvider);
-    final asyncDevices = ref.watch(devicesProvider);
-    final usage = ref.watch(trafficUsageProvider).valueOrNull;
     final s = ref.watch(stringsProvider);
-
-    return DetailScaffold(
+    final asyncSub = ref.watch(subscriptionProvider);
+    return SettingsPage(
       title: s.subscription,
-      onBack: () => safePop(context, fallback: '/home'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-                asyncSub.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (error, _) {
-                    // Core returns 404 when the user simply has no active
-                    // subscription yet — that's not a failure, it's the
-                    // entry point into "pick a plan" (POST /v1/subscriptions).
-                    final noActiveSubscription =
-                        error is AppException && error.statusCode == 404;
-                    if (noActiveSubscription) {
-                      return _PlanPicker(
-                        s: s,
-                        activatingPlanId: _activatingPlanId,
-                        onSelect: _activate,
-                      );
-                    }
-                    return Text(
-                      error is AppException ? error.localized(s) : s.errUnavailable,
-                    );
-                  },
-                  data: (sub) {
-                    final until = sub.expiresAt == null
-                        ? '—'
-                        : DateFormat('d MMMM y').format(sub.expiresAt!);
-                    final devicesUsed = asyncDevices.valueOrNull?.length;
-                    final devices = (devicesUsed != null && sub.deviceLimit != null)
-                        ? '$devicesUsed / ${sub.deviceLimit}'
-                        : '—';
-                    if (_changingPlan) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextButton.icon(
-                            onPressed: () => setState(() => _changingPlan = false),
-                            icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                            label: Text(sub.planName),
-                          ),
-                          const SizedBox(height: 8),
-                          _PlanPicker(
-                            s: s,
-                            activatingPlanId: _activatingPlanId,
-                            onSelect: _activate,
-                          ),
-                        ],
-                      );
-                    }
-                    return Column(
-                      children: [
-                        WbCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                sub.planName,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                subscriptionStatusLabel(sub, s),
-                                style: TextStyle(
-                                  color: sub.isActive
-                                      ? WbColors.oceanTeal
-                                      : WbColors.warning,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                s.until,
-                                style: const TextStyle(color: WbColors.ice60),
-                              ),
-                              Text(until),
-                              if (sub.isPastDue) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  renewBeforeLine(sub, s),
-                                  style: const TextStyle(color: WbColors.warning),
-                                ),
-                                Text(
-                                  s.renewResetNote,
-                                  style: const TextStyle(
-                                      color: WbColors.ice60, fontSize: 12),
-                                ),
-                              ],
-                              const SizedBox(height: 12),
-                              Text(
-                                s.devices,
-                                style: const TextStyle(color: WbColors.ice60),
-                              ),
-                              Text(devices),
-                              if (usage != null) ...[
-                                const SizedBox(height: 12),
-                                Text(
-                                  s.traffic,
-                                  style: const TextStyle(color: WbColors.ice60),
-                                ),
-                                const SizedBox(height: 8),
-                                TrafficWaveBar(
-                                  usedBytes: usage.bytesTotal,
-                                  limitBytes: usage.limitBytes ?? sub.trafficLimitBytes,
-                                  s: s,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: FilledButton(
-                            // A real billing portal URL is used when Core
-                            // provides one; otherwise "manage" means
-                            // switching plans in-app, which is always
-                            // possible — never a dead disabled button.
-                            onPressed: sub.manageUrl != null
-                                ? () => launchUrl(Uri.parse(sub.manageUrl!))
-                                : () => setState(() => _changingPlan = true),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: WbColors.waveCyan,
-                              foregroundColor: WbColors.midnight,
-                            ),
-                            child: Text(s.manageSubscription),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PlanPicker extends ConsumerWidget {
-  const _PlanPicker({
-    required this.s,
-    required this.activatingPlanId,
-    required this.onSelect,
-  });
-
-  final AppStrings s;
-  final String? activatingPlanId;
-  final ValueChanged<Plan> onSelect;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final asyncPlans = ref.watch(plansProvider);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      fallback: '/home',
       children: [
-        Text(
-          s.selectPlanHint,
-          style: const TextStyle(color: WbColors.ice60),
-        ),
-        const SizedBox(height: 16),
-        asyncPlans.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Text(
-            error is AppException ? error.localized(s) : s.errUnavailable,
-          ),
-          data: (plans) {
-            final visible = plans.where((p) => p.isPublic && p.isActive).toList()
-              ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-            if (visible.isEmpty) {
-              return Text(s.errUnavailable);
-            }
-            return Column(
-              children: [
-                for (final plan in visible) ...[
-                  _PlanCard(
-                    plan: plan,
-                    activating: activatingPlanId == plan.id,
-                    onTap: activatingPlanId == null ? () => onSelect(plan) : null,
-                    s: s,
-                  ),
-                  const SizedBox(height: 10),
+        ...asyncSub.when(
+          loading: () => const [
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ],
+          // 404 = simply no subscription yet: the plans below are the way in.
+          error: (error, _) => error is AppException && error.statusCode == 404
+              ? const <Widget>[]
+              : [
+                  SettingsFooter(error is AppException
+                      ? error.localized(s)
+                      : s.errUnavailable),
+                  const SizedBox(height: 16),
                 ],
-              ],
-            );
-          },
+          data: (sub) => [_CurrentSubscription(sub: sub, s: s)],
+        ),
+        _PlansGroup(s: s, promo: _promo),
+        SettingsGroup(
+          title: s.promoCodeHint,
+          footer: _promoError,
+          children: [
+            SettingsBlock(
+              child: _promo == null
+                  ? _PromoInput(
+                      controller: _promoField,
+                      checking: _checking,
+                      s: s,
+                      onApply: _applyPromo,
+                    )
+                  : _PromoApplied(promo: _promo!, s: s, onRemove: _removePromo),
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-class _PlanCard extends StatelessWidget {
-  const _PlanCard({
-    required this.plan,
-    required this.activating,
-    required this.onTap,
-    required this.s,
-  });
+class _CurrentSubscription extends ConsumerWidget {
+  const _CurrentSubscription({required this.sub, required this.s});
 
-  final Plan plan;
-  final bool activating;
-  final VoidCallback? onTap;
+  final SubscriptionInfo sub;
   final AppStrings s;
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final usage = ref.watch(trafficUsageProvider).valueOrNull;
+    final devicesUsed = ref.watch(devicesProvider).valueOrNull?.length;
+    final until = sub.expiresAt == null
+        ? '—'
+        : DateFormat('dd.MM.yyyy').format(sub.expiresAt!.toLocal());
+    final devices = (devicesUsed != null && sub.deviceLimit != null)
+        ? '$devicesUsed / ${sub.deviceLimit}'
+        : '—';
+    return SettingsGroup(
+      title: sub.planName,
+      footer: sub.isPastDue
+          ? '${renewBeforeLine(sub, s)}\n${s.renewResetNote}'
+          : null,
+      children: [
+        SettingsRow(
+          icon: Icons.workspace_premium_outlined,
+          title: subscriptionStatusLabel(sub, s),
+          trailing: Icon(
+            sub.isActive ? Icons.check_circle_outline : Icons.error_outline,
+            size: 20,
+            color: sub.isActive ? WbColors.oceanTeal : WbColors.warning,
+          ),
+        ),
+        SettingsRow(
+            icon: Icons.event_outlined, title: s.until, value: until),
+        SettingsRow(
+            icon: Icons.devices_outlined, title: s.devices, value: devices),
+        if (usage != null)
+          SettingsBlock(
+            title: s.traffic,
+            child: TrafficWaveBar(
+              usedBytes: usage.bytesTotal,
+              limitBytes: usage.limitBytes ?? sub.trafficLimitBytes,
+              s: s,
+            ),
+          ),
+        // A billing portal when Core provides one.
+        if (sub.manageUrl != null)
+          SettingsRow(
+            icon: Icons.open_in_new_rounded,
+            title: s.manageSubscription,
+            onTap: () => launchUrl(Uri.parse(sub.manageUrl!)),
+          ),
+      ],
+    );
+  }
+}
+
+class _PlansGroup extends ConsumerWidget {
+  const _PlansGroup({required this.s, required this.promo});
+
+  final AppStrings s;
+  final PromoCheck? promo;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncPlans = ref.watch(plansProvider);
+    return asyncPlans.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => SettingsFooter(
+          error is AppException ? error.localized(s) : s.errUnavailable),
+      data: (plans) {
+        final visible = plans.where((p) => p.isPublic && p.isActive).toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        if (visible.isEmpty) return const SizedBox.shrink();
+        return SettingsGroup(
+          title: s.choosePlan,
+          children: [
+            for (final plan in visible)
+              _PlanTile(
+                plan: plan,
+                promoPrice: promo?.prices[plan.id],
+                s: s,
+                onTap: () => ref
+                    .read(planPurchaseProvider)
+                    .purchase(context, plan, promo: promo),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// One plan: name with its offer label, what it includes, and the price —
+/// the old price struck through when there's an offer or a promo code.
+class _PlanTile extends StatelessWidget {
+  const _PlanTile({
+    required this.plan,
+    required this.promoPrice,
+    required this.s,
+    required this.onTap,
+  });
+
+  final Plan plan;
+  final int? promoPrice;
+  final AppStrings s;
+  final VoidCallback onTap;
+
+  @override
   Widget build(BuildContext context) {
-    return WbCard(
+    final price = promoPrice ?? plan.priceMinor;
+    final was = promoPrice != null && promoPrice! < plan.priceMinor
+        ? plan.priceMinor
+        : (plan.originalPriceMinor != null &&
+                plan.originalPriceMinor! > plan.priceMinor
+            ? plan.originalPriceMinor
+            : null);
+    final traffic = plan.trafficLimitBytes == null
+        ? s.trafficUnlimited
+        : formatBytes(plan.trafficLimitBytes!, s);
+    final includes = [
+      if (plan.deviceLimit != null)
+        s.planDevicesLine.replaceAll('{n}', '${plan.deviceLimit}'),
+      if (plan.durationDays != null)
+        s.planDaysLine.replaceAll('{n}', '${plan.durationDays}'),
+      traffic,
+    ].join(' · ');
+    return InkWell(
       onTap: onTap,
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(plan.name,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
+                      if (plan.badge.isNotEmpty) _Badge(plan.badge),
+                    ],
+                  ),
+                  if (plan.description.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(plan.description,
+                        style: const TextStyle(
+                            fontSize: 13, color: WbColors.ice60, height: 1.3)),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(includes,
+                      style: const TextStyle(
+                          fontSize: 12.5, color: WbColors.muted, height: 1.3)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                if (was != null)
+                  Text(
+                    formatMoney(was, plan.currency),
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: WbColors.muted,
+                      decoration: TextDecoration.lineThrough,
+                      decorationColor: WbColors.muted,
+                    ),
+                  ),
                 Text(
-                  plan.name,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  formatMoney(price, plan.currency),
+                  style: const TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 4),
                 Text(
-                  '${plan.priceMajor.toStringAsFixed(2)} ${plan.currency} / ${plan.interval}',
-                  style: const TextStyle(color: WbColors.ice60, fontSize: 13),
+                  plan.interval == 'year' ? s.planPerYear : s.planPerMonth,
+                  style: const TextStyle(fontSize: 12, color: WbColors.muted),
                 ),
               ],
             ),
-          ),
-          if (activating)
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else
-            Text(
-              s.choosePlan,
-              style: const TextStyle(color: WbColors.waveCyan, fontWeight: FontWeight.w600),
+            const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Icon(Icons.chevron_right_rounded,
+                  color: WbColors.ice60, size: 22),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
+
+/// The offer label of a plan ("-17%") — accent, it is an active state.
+class _Badge extends StatelessWidget {
+  const _Badge(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: context.accent.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: context.accent.withValues(alpha: 0.45)),
+      ),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: context.accent)),
+    );
+  }
+}
+
+class _PromoInput extends StatelessWidget {
+  const _PromoInput({
+    required this.controller,
+    required this.checking,
+    required this.s,
+    required this.onApply,
+  });
+
+  final TextEditingController controller;
+  final bool checking;
+  final AppStrings s;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            textCapitalization: TextCapitalization.characters,
+            autocorrect: false,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => onApply(),
+            decoration: InputDecoration(
+              hintText: s.promoCodeHint,
+              isDense: true,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          height: 46,
+          child: FilledButton(
+            onPressed: checking ? null : onApply,
+            style: FilledButton.styleFrom(
+              backgroundColor: context.accent,
+              foregroundColor: WbColors.midnight,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            child: checking
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(s.promoApply),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PromoApplied extends StatelessWidget {
+  const _PromoApplied({
+    required this.promo,
+    required this.s,
+    required this.onRemove,
+  });
+
+  final PromoCheck promo;
+  final AppStrings s;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final discount = promo.isPercent
+        ? '−${promo.discountValue}%'
+        : '−${formatMoney(promo.discountValue, promo.currency ?? '')}';
+    return Row(
+      children: [
+        const Icon(Icons.local_offer_outlined,
+            size: 20, color: WbColors.oceanTeal),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                s.promoAppliedLine
+                    .replaceAll('{code}', promo.code)
+                    .replaceAll('{discount}', discount),
+                style: const TextStyle(fontSize: 15),
+              ),
+              if (promo.description.isNotEmpty)
+                Text(promo.description,
+                    style:
+                        const TextStyle(fontSize: 12.5, color: WbColors.muted)),
+            ],
+          ),
+        ),
+        TextButton(onPressed: onRemove, child: Text(s.promoRemove)),
+      ],
+    );
+  }
+}
+
+/// "499 ₽", "4.99 $": whole amounts without decimals.
+String formatMoney(int minor, String currency) {
+  const symbols = {'USD': '\$', 'EUR': '€', 'RUB': '₽', 'TRY': '₺'};
+  final amount = minor % 100 == 0
+      ? '${minor ~/ 100}'
+      : (minor / 100).toStringAsFixed(2);
+  final symbol = symbols[currency.toUpperCase()] ?? currency;
+  return symbol.isEmpty ? amount : '$amount $symbol';
 }

@@ -224,7 +224,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     DateTime? now,
   }) {
     final parsed = parseSubscription(fetched.body);
-    final servers = serversFromSubscription(parsed);
+    final servers = serversFromSubscription(parsed, engine: PersonalLocations.engine);
     if (servers.isEmpty) return null;
     final info = SubscriptionUserInfo.parse(
         fetched.headers.value('subscription-userinfo'));

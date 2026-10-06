@@ -13,7 +13,10 @@ import '../core/network/connectivity_provider.dart';
 import '../core/theme/personalization_controller.dart';
 import '../core/theme/wb_colors.dart';
 import '../core/theme/wb_theme.dart';
+import '../features/immersive/effects_quality.dart';
+import '../features/immersive/immersive_clock.dart';
 import '../features/shared/app_lock_gate.dart';
+import '../features/shared/wave_params.dart';
 import '../features/shared/data_providers.dart';
 import '../services/core_api/models.dart';
 import '../services/custom_servers/custom_server_controller.dart';
@@ -224,6 +227,8 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
   void initState() {
     super.initState();
     TrayStatus.onMenuRequested(_showTrayMenu);
+    // Auto effects: economy on a machine that can't keep up.
+    ref.read(frameBudgetWatcherProvider).start();
     _closedVpnsSub = ConflictingVpnCloser.closed.listen((apps) {
       final messenger = _scaffoldMessengerKey.currentState;
       if (messenger == null || apps.isEmpty) return;
@@ -261,7 +266,14 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
       title: 'WAVEBREAK',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: _scaffoldMessengerKey,
-      theme: WbTheme.dark,
+      theme: WbTheme.dark(tint: ref.watch(appWaveParamsProvider).tint).copyWith(
+        // Personalization: compact density tightens lists and cards.
+        visualDensity: ref.watch(personalizationProvider
+                    .select((p) => p.density)) ==
+                UiDensity.compact
+            ? VisualDensity.compact
+            : VisualDensity.standard,
+      ),
       locale: Locale(language.name),
       supportedLocales: const [
         Locale('en'),
@@ -281,8 +293,10 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
       builder: (context, child) => MediaQuery.withClampedTextScaling(
         minScaleFactor: textScale,
         maxScaleFactor: textScale,
-        child: AppLockGate(
-          child: _OfflineBanner(child: child),
+        child: ImmersiveClock(
+          child: AppLockGate(
+            child: _OfflineBanner(child: child),
+          ),
         ),
       ),
     );

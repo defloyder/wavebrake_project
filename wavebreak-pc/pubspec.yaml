@@ -47,6 +47,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/
+    - assets/textures/
+  shaders:
+    - shaders/living_sphere.frag
 
 flutter_launcher_icons:
   android: true

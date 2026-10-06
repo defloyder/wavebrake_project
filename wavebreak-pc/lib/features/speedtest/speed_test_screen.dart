@@ -1,10 +1,13 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/speed_test_controller.dart';
+import '../home/location_bar.dart';
 import '../shared/menu_button.dart';
 import '../shared/ocean_background.dart';
 import '../shared/wave_params.dart';
@@ -68,6 +71,12 @@ class SpeedTestScreen extends ConsumerWidget {
         : (state.uploadMbps ?? state.downloadMbps ?? 0);
 
     final waves = ref.watch(appWaveParamsProvider);
+    final loc = ref.watch(connectionManagerProvider).location;
+    final (place, _) = splitPlaceAndProtocol(loc.city);
+    final serverLine = [
+      if (place.isNotEmpty) place else loc.country,
+      if (protocolLabel(loc) case final p?) p,
+    ].join(' · ');
 
     final statusText = Text(
       switch (state.status) {
@@ -91,7 +100,7 @@ class SpeedTestScreen extends ConsumerWidget {
           child: _ResultCard(
             icon: Icons.speed_rounded,
             label: s.speedTestLatency,
-            value: state.latencyMs != null ? '${state.latencyMs} ms' : '–',
+            value: state.latencyMs != null ? '${state.latencyMs} ${s.unitMs}' : '–',
             highlighted: state.status == SpeedTestStatus.testingLatency,
           ),
         ),
@@ -119,21 +128,13 @@ class SpeedTestScreen extends ConsumerWidget {
       width: double.infinity,
       child: FilledButton(
         onPressed: state.isRunning ? null : notifier.run,
-        style: FilledButton.styleFrom(
-          backgroundColor: WbColors.waveCyan,
-          foregroundColor: WbColors.midnight,
-          minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         child: Text(
           state.isRunning
               ? phaseLabel
               : state.status == SpeedTestStatus.idle
                   ? s.speedTestStart
                   : s.speedTestRetest,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
         ),
       ),
     );
@@ -143,9 +144,24 @@ class SpeedTestScreen extends ConsumerWidget {
               const MenuButton(),
               const SizedBox(width: 12),
             ],
-            Text(
-              s.speedTest,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.speedTest,
+                    style: const TextStyle(fontFamily: 'serif', fontSize: 30),
+                  ),
+                  // Which server is being measured (V5 header line).
+                  Text(
+                    serverLine,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        const TextStyle(color: WbColors.muted, fontSize: 14),
+                  ),
+                ],
+              ),
             ),
           ],
         );
@@ -232,8 +248,10 @@ class SpeedTestScreen extends ConsumerWidget {
           maxContentWidth: 560,
           child: SafeArea(
             child: ListView(
+              // The "Repeat test" button is the last thing on the page: a
+              // wider gap so it doesn't sit on the nav bar (owner, 06.10).
               padding: const EdgeInsets.fromLTRB(
-                  20, 12, 20, kMobileBottomBarReserve + 12),
+                  20, 12, 20, kMobileBottomBarReserve + 28),
               children: [
                 title(withMenu: false),
                 const SizedBox(height: 8),
@@ -292,7 +310,7 @@ class _PhaseProgress extends StatelessWidget {
             value: status == SpeedTestStatus.testingLatency ? null : progress,
             minHeight: 4,
             backgroundColor: WbColors.ice08,
-            valueColor: const AlwaysStoppedAnimation(WbColors.waveCyan),
+            valueColor: AlwaysStoppedAnimation(context.accent),
           ),
         ),
       ),
@@ -365,7 +383,7 @@ class _StepConnector extends StatelessWidget {
       width: 20,
       height: 2,
       margin: const EdgeInsets.only(bottom: 18),
-      color: lit ? WbColors.waveCyan.withValues(alpha: 0.5) : WbColors.ice08,
+      color: lit ? context.accent.withValues(alpha: 0.5) : WbColors.ice08,
     );
   }
 }
@@ -390,7 +408,7 @@ class _StepDot extends StatelessWidget {
         : done
             ? WbColors.oceanTeal
             : active
-                ? WbColors.waveCyan
+                ? context.accent
                 : WbColors.ice60;
     return Column(
       children: [
@@ -458,7 +476,7 @@ class _ResultCard extends StatelessWidget {
             children: [
               Icon(icon,
                   size: 14,
-                  color: highlighted ? WbColors.waveCyan : WbColors.ice60),
+                  color: highlighted ? context.accent : WbColors.ice60),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
@@ -467,16 +485,26 @@ class _ResultCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: highlighted ? WbColors.waveCyan : WbColors.ice60,
+                    color: highlighted ? context.accent : WbColors.ice60,
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          // Shrinks instead of clipping ("16.4 Mbp…").
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
           ),
         ],
       ),

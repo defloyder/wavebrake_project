@@ -918,8 +918,36 @@ class WindowsVpnAdapter implements VpnAdapter {
     }
   }
 
+  // Through the tunnel, like Android's: what Home and Metrics show (it
+  // used to be null here — dashes on Windows).
   @override
-  Future<int?> pingMs() async => null;
+  Future<int?> pingMs() => measureTunnelLatency();
+
+  /// Bytes through sing-box since it started (Clash API `/connections`
+  /// totals) — Windows' source for the live speed and session traffic
+  /// (Android reads its VPN service's counters). Null when it's not up.
+  Future<({int up, int down})?> trafficTotals() async {
+    if (_process == null) return null;
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 2)
+      ..findProxy = (_) => 'DIRECT';
+    try {
+      final request = await client
+          .getUrl(Uri.parse('http://127.0.0.1:$_kClashApiPort/connections'));
+      final response = await request.close().timeout(const Duration(seconds: 3));
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) return null;
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      return (
+        up: (json['uploadTotal'] as num? ?? 0).toInt(),
+        down: (json['downloadTotal'] as num? ?? 0).toInt(),
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
 
   void _emit(VpnNativeState state) {
     if (!_controller.isClosed) _controller.add(state);

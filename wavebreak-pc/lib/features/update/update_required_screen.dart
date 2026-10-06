@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -53,7 +54,7 @@ class UpdateRequiredScreen extends ConsumerWidget {
                           ? null
                           : () => launchUrl(Uri.parse(updateUrl)),
                       style: FilledButton.styleFrom(
-                        backgroundColor: WbColors.waveCyan,
+                        backgroundColor: context.accent,
                         foregroundColor: WbColors.midnight,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),

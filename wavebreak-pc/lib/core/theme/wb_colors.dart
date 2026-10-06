@@ -16,29 +16,45 @@ class WbColors {
   // app's own original palette (dark navy, saturated cyan) — the site and
   // the app are allowed to look like different surfaces of the same
   // brand; explicit product decision, not an oversight.
-  static const midnight = Color(0xFF0B1020);
-  static const deepOcean = Color(0xFF0F1E2E);
-  static const waveCyan = Color(0xFF00D6FF);
-  static const oceanTeal = Color(0xFF00B4C8);
-  static const ice = Color(0xFFE6F2F7);
-  static const background = Color(0xFF0B1020);
-  static const card = Color(0xFF122036);
+  // V5 (immersive) palette — same names, so every screen follows.
+  static const midnight = Color(0xFF050305);
+  static const deepOcean = Color(0xFF0C0709);
+  static const waveCyan = Color(0xFF7CEEE8); // arctic: quality, protection
+  static const oceanTeal = Color(0xFF57CFC8);
+  static const crimson = Color(0xFFFF344E); // brand: waves, sphere
+  static const ice = Color(0xFFF5F2F0);
+  static const background = Color(0xFF050305);
+  static const card = Color(0xFF0C1418);
   static const oceanBlue = Color(0xFF0876C9);
 
   /// Site's `--muted` (#93a4aa) — secondary/dimmed text. New token; the
   /// app's existing screens mostly use [ice60] for this role already, so
   /// this is additive rather than a replacement everywhere.
-  static const muted = Color(0xFF93A4AA);
+  static const muted = Color(0xFF8E929E);
 
   /// Site's `--line` (#1b2b30) — hairline borders/dividers on dark
   /// surfaces. New token, same reasoning as [muted].
-  static const hairline = Color(0xFF1B2B30);
+  static const hairline = Color(0x65506572);
 
-  static const ice60 = Color(0x99F0F5F6);
-  static const ice08 = Color(0x14F0F5F6);
+  static const ice60 = Color(0xA6F5F2F0);
+  static const ice08 = Color(0x18F5F2F0);
 
-  static const warning = Color(0xFFE8B84A);
-  static const error = Color(0xFFE57373);
+  // How far surfaces lean towards the accent (the flag color). The accent
+  // itself is for main actions and active states; cards, sections and
+  // sheets stay neutral with a light tone of it (owner, V5 polish: whole
+  // blocks in the flag color were too saturated).
+
+  /// Glass cards/sections: top of the gradient (fades to ~0 at the bottom).
+  static const surfaceLean = 0.07;
+
+  /// Hairline border of a glass card.
+  static const surfaceBorderLean = 0.14;
+
+  /// Bottom sheets and popups.
+  static const sheetLean = 0.06;
+
+  static const warning = Color(0xFFFFB23F);
+  static const error = Color(0xFFFF5C6C);
 
   static const brandGradient = LinearGradient(
     begin: Alignment.topLeft,

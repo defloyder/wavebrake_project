@@ -65,6 +65,10 @@ List<SubscriptionSectionData> buildSubscriptionSections({
       servers: wavebreakServers,
       // Resolved to a fresh share code from Core when the sheet opens.
       shareLink: kPersonalShareLink,
+      // No per-location share here: a location's link is the account's
+      // own key, usable on any number of devices and apps past the plan's
+      // device limit (owner, 06.10). The share code above takes a slot.
+      shareable: false,
       limitsTraffic: own == null ? null : _trafficLine(own, s),
       limitsDevices: own == null ? null : _deviceLine(own),
     ),
@@ -88,7 +92,9 @@ SubscriptionSectionData _sectionFor(
     canRefresh: g.isSubscriptionUrl,
     shareable: !g.sharedWithMe,
     limitsNote: inactive ? s.shareOwnerInactive : null,
-    limitsTraffic: received != null && !inactive ? _trafficLine(received, s) : null,
+    limitsTraffic: received != null && !inactive
+        ? _trafficLine(received, s)
+        : _providerLine(g, s),
     limitsDevices: received != null && !inactive ? _deviceLine(received) : null,
   );
 }
@@ -103,6 +109,26 @@ String wavebreakSectionTitle(String? planName) {
 /// "2.3 ГБ / 300 ГБ" (or ".../ Без ограничений").
 String _trafficLine(SharedSubscription sub, AppStrings s) =>
     formatTraffic(sub.trafficUsedBytes, sub.trafficLimitBytes, s);
+
+/// A third-party subscription's own traffic and end date, from its
+/// provider's `subscription-userinfo` header: "2.3 ГБ / 100 ГБ · до
+/// 31.10.2026". Null when the provider sends neither.
+String? _providerLine(CustomSubscriptionGroup g, AppStrings s, [DateTime? now]) {
+  final parts = <String>[
+    if (g.usedBytes != null)
+      formatTraffic(g.usedBytes!,
+          (g.totalBytes ?? 0) > 0 ? g.totalBytes : null, s),
+    if (g.expiresAt != null)
+      (g.expiresAt!.isBefore(now ?? DateTime.now())
+              ? s.subscriptionExpiredLine
+              : s.subscriptionUntilLine)
+          .replaceAll('{date}', _date(g.expiresAt!.toLocal())),
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
+}
+
+String _date(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
 /// Compact "1 / 2" for the device count, shown next to a device icon —
 /// short enough to sit on the same line as the traffic. Null for an

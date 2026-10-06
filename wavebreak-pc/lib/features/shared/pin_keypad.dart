@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -21,7 +22,7 @@ class PinDots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = error ? WbColors.error : WbColors.waveCyan;
+    final color = error ? WbColors.error : context.accent;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(total, (i) {
@@ -245,7 +246,7 @@ class _PinEntryState extends State<PinEntry> {
                   ? () => _check(reportMismatch: true)
                   : null,
               style: FilledButton.styleFrom(
-                backgroundColor: WbColors.waveCyan,
+                backgroundColor: context.accent,
                 foregroundColor: WbColors.midnight,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),

@@ -1,8 +1,8 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../core/theme/wb_colors.dart';
 
 /// A handful of soft, glowing light streaks rising through a narrow panel —
 /// stands in for encrypted traffic moving through the tunnel. Used in the
@@ -48,7 +48,7 @@ class _SignalFlowState extends State<SignalFlow> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    final tint = widget.tint ?? WbColors.waveCyan;
+    final tint = widget.tint ?? context.accent;
     return IgnorePointer(
       child: AnimatedBuilder(
         animation: _controller,

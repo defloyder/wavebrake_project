@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -54,6 +55,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     final waves = ref.watch(appWaveParamsProvider);
     return Scaffold(
       body: OceanBackground(
+        stars: true,
         illuminate: true,
         tint: waves.tint,
         waveSpeed: waves.speed,
@@ -75,7 +77,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     s.forgotPassword,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontFamily: 'serif', fontSize: 26),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -107,7 +110,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   child: FilledButton(
                     onPressed: _busy || _sent ? null : _submit,
                     style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
+                      backgroundColor: context.accent,
                       foregroundColor: WbColors.midnight,
                     ),
                     child: Text(s.send),

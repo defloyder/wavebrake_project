@@ -64,6 +64,27 @@ class CoreApi {
     );
   }
 
+  /// Sign-in without the password: Core mails a one-time code to an
+  /// existing account (202 for unknown addresses too).
+  Future<void> requestLoginCode({required String email, String? language}) {
+    return _client.post(
+      '/auth/email/login-code/request',
+      body: {'email': email, if (language != null) 'language': language},
+      parse: (_) {},
+      retryOnConnectionError: true,
+    );
+  }
+
+  /// The mailed sign-in code -> a signed-in session.
+  Future<TokenPair> confirmLoginCode(
+      {required String email, required String code}) {
+    return _client.post(
+      '/auth/email/login-code/confirm',
+      body: {'email': email, 'code': code},
+      parse: _tokens,
+    );
+  }
+
   /// "Forgot password?": Core emails a reset link.
   Future<void> requestPasswordReset({required String email, String? language}) {
     return _client.post(
@@ -152,6 +173,15 @@ class CoreApi {
             .map((e) => Plan.fromJson(e.cast<String, dynamic>()))
             .toList();
       },
+    );
+  }
+
+  /// Whether the signed-in user can use [code]; 422 PROMO_* otherwise.
+  Future<PromoCheck> checkPromoCode(String code, {String? planId}) {
+    return _client.post(
+      '/promo-codes/check',
+      body: {'code': code, if (planId != null) 'plan_id': planId},
+      parse: (data) => PromoCheck.fromJson(_asMap(data)),
     );
   }
 

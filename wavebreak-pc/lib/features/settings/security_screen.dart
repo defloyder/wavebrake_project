@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n/language_controller.dart';
-import '../../core/theme/wb_colors.dart';
 import '../../services/biometric/biometric_service.dart';
 import '../../services/pin/pin_service.dart';
-import '../shared/detail_scaffold.dart';
-import '../shared/nav_utils.dart';
-import '../shared/wb_card.dart';
+import 'settings_ui.dart';
 import 'pin_setup_screen.dart';
 import 'pin_verify_screen.dart';
 
@@ -87,52 +84,40 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(stringsProvider);
-    return DetailScaffold(
+    return SettingsPage(
       title: s.security,
-      onBack: () => safePop(context, fallback: '/settings'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          WbCard(
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.pin_rounded, color: WbColors.ice),
-              title: Text(s.pinCode),
-              subtitle: Text(
-                _pinSet ? s.changePinCode : s.setPinCode,
-                style: const TextStyle(color: WbColors.ice60, fontSize: 12),
-              ),
-              trailing: _pinSet
-                  ? IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded,
-                          color: WbColors.ice60),
-                      onPressed: _removePin,
-                    )
-                  : const Icon(Icons.chevron_right_rounded,
-                      color: WbColors.ice60),
+      children: [
+        SettingsGroup(
+          children: [
+            SettingsRow(
+              icon: Icons.pin_rounded,
+              title: s.pinCode,
+              subtitle: _pinSet ? s.changePinCode : s.setPinCode,
               onTap: _setUpPin,
             ),
-          ),
-          const SizedBox(height: 12),
-          WbCard(
-            child: SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              activeTrackColor: WbColors.waveCyan,
-              title: Text(s.faceIdTouchId),
-              subtitle: Text(
-                !_bioAvailable
-                    ? s.biometricsNotAvailable
-                    : _pinSet
-                        ? s.useBiometricsForQuickUnlock
-                        : s.pinRequiredForBiometric,
-                style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+            if (_pinSet)
+              SettingsRow(
+                icon: Icons.delete_outline_rounded,
+                title: s.removePinCode,
+                destructive: true,
+                chevron: false,
+                onTap: _removePin,
               ),
+            SettingsSwitchRow(
+              icon: Icons.fingerprint_rounded,
+              title: s.faceIdTouchId,
+              subtitle: !_bioAvailable
+                  ? s.biometricsNotAvailable
+                  : _pinSet
+                      ? s.useBiometricsForQuickUnlock
+                      : s.pinRequiredForBiometric,
               value: _bioEnabled,
-              onChanged: (_bioAvailable && _pinSet) ? _toggleBiometric : null,
+              onChanged:
+                  (_bioAvailable && _pinSet) ? _toggleBiometric : null,
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }

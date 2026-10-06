@@ -1,3 +1,6 @@
+import '../../core/theme/wb_theme.dart';
+import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -5,7 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/i18n/language_controller.dart';
+import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../services/update/update_service.dart';
+import '../immersive/immersive_colors.dart';
 import '../shared/wave_params.dart';
 import '../shared/wavebreak_mark.dart';
 
@@ -19,14 +25,10 @@ const _kDesktopBreakpoint = 820.0;
 /// expand, it uses a bottom bar instead.
 final navExpandedProvider = StateProvider<bool>((ref) => false);
 
-/// Locations doesn't get its own bottom-bar destination on mobile —
-/// location picking lives entirely on Home (tap the location header).
-/// The branch/route still exists (desktop's rail still links to it).
-/// Speed Test DOES get one (branch 3, appended after Settings in
-/// router.dart) — it used to be a small text link buried under the ping
-/// row on Home; this is its own proper tab now, in order Home / Speed
-/// Test / Settings.
-const _kMobileBranchIndexes = [0, 3, 2];
+/// Bottom bar order (V5): Home / Servers / Test / Metrics / Settings —
+/// positions in the bar mapped to router branch indexes (Settings is
+/// branch 2, Speed Test 3, Metrics 4 — appended over time).
+const _kMobileBranchIndexes = [0, 1, 3, 4, 2];
 
 /// Height the floating mobile bottom bar occupies (pill content + its
 /// bottom margin, not counting the device's own safe-area inset) — screens
@@ -34,13 +36,9 @@ const _kMobileBranchIndexes = [0, 3, 2];
 /// now that it floats over the body instead of reserving a Scaffold slot.
 const kMobileBottomBarReserve = 74.0;
 
-/// The brand cyan blended a little toward the current location's accent —
-/// used for "selected" nav states everywhere (rail item, bottom-bar tab)
-/// so they read as WAVEBREAK cyan first and flag-tinted second, never the
-/// other way around.
-Color _selectedNavColor(Color? tint) => tint == null
-    ? WbColors.waveCyan
-    : Color.lerp(WbColors.waveCyan, tint, 0.45) ?? WbColors.waveCyan;
+/// Selected nav states (rail item, bottom-bar tab): the theme accent,
+/// which follows the current location's flag.
+Color _selectedNavColor(BuildContext context) => context.accent;
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.navigationShell});
@@ -51,6 +49,28 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
     final waveParams = ref.watch(appWaveParamsProvider);
+    // Android only — see update_service.dart's own doc comment. A small
+    // badge dot on the Settings destination itself, rather than a header
+    // bell: the bell used to collide with the logo/wordmark and the
+    // offline indicator once both needed header space — this is the
+    // same "there's something pending" signal without any header at all.
+    // Settings > Updates (updates_screen.dart) is what it always points to.
+    final pendingUpdate = Platform.isAndroid
+        ? ref.watch(availableUpdateProvider).asData?.value
+        : null;
+    if (Platform.isAndroid) {
+      ref.listen(availableUpdateProvider, (previous, next) {
+        final info = next.asData?.value;
+        if (info == null) return;
+        final lastNotified =
+            PrefsStore.getInt(PrefsStore.lastNotifiedUpdateVersionCode) ?? 0;
+        if (info.versionCode <= lastNotified) return;
+        unawaited(PrefsStore.setInt(
+            PrefsStore.lastNotifiedUpdateVersionCode, info.versionCode));
+        unawaited(showUpdateAvailableNotification(info.versionName,
+            versionCode: info.versionCode));
+      });
+    }
     final items = [
       _NavItemData(
           icon: Icons.home_outlined,
@@ -63,7 +83,8 @@ class AppShell extends ConsumerWidget {
       _NavItemData(
           icon: Icons.settings_outlined,
           filledIcon: Icons.settings,
-          label: s.navSettings),
+          label: s.navSettings,
+          showBadge: pendingUpdate != null),
       // Index 3 — must match router.dart's branch order (appended after
       // Settings) since _SideNav's onSelect maps position i straight to
       // navigationShell.goBranch(i).
@@ -71,6 +92,11 @@ class AppShell extends ConsumerWidget {
           icon: Icons.speed_outlined,
           filledIcon: Icons.speed_rounded,
           label: s.speedTest),
+      // Index 4 — Metrics (router branch 4).
+      _NavItemData(
+          icon: Icons.ssid_chart_outlined,
+          filledIcon: Icons.ssid_chart_rounded,
+          label: s.navMetrics),
     ];
 
     return LayoutBuilder(
@@ -138,11 +164,16 @@ class AppShell extends ConsumerWidget {
 }
 
 class _NavItemData {
-  const _NavItemData(
-      {required this.icon, required this.filledIcon, required this.label});
+  const _NavItemData({
+    required this.icon,
+    required this.filledIcon,
+    required this.label,
+    this.showBadge = false,
+  });
   final IconData icon;
   final IconData filledIcon;
   final String label;
+  final bool showBadge;
 }
 
 /// Mobile layout: content fills the screen, a frosted bottom bar floats
@@ -163,46 +194,60 @@ class _MobileShell extends ConsumerWidget {
     // for it (it's only ever reached via Home's own location picker).
     final activeButton =
         _kMobileBranchIndexes.indexOf(navigationShell.currentIndex);
+    // See AppShell's own copy of this same watch for the full comment —
+    // this one's needed here too since the mobile bottom bar builds its
+    // three buttons directly rather than from the desktop rail's `items`.
+    final pendingUpdate = Platform.isAndroid
+        ? ref.watch(availableUpdateProvider).asData?.value
+        : null;
 
-    return Scaffold(
-      // No slot-based bottomNavigationBar — that slot paints the
-      // Scaffold's own flat background behind it. Floating the pill over
-      // a full-height body instead means nothing but the pill's own
-      // frosted glass paints anything down there; the screen's real
-      // (moving, tinted) background shows through everywhere else.
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Positioned.fill(child: navigationShell),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+    // System back (gesture or button): pages inside a tab close first
+    // (Settings → its subpages are that tab's own stack), then any other
+    // tab returns to Home, and only Home lets the app close (owner, 06.10:
+    // back on any tab used to leave the app).
+    return PopScope(
+      canPop: navigationShell.currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) navigationShell.goBranch(0);
+      },
+      child: Scaffold(
+        // No slot-based bottomNavigationBar — that slot paints the
+        // Scaffold's own flat background behind it. Floating the pill over
+        // a full-height body instead means nothing but the pill's own
+        // frosted glass paints anything down there; the screen's real
+        // (moving, tinted) background shows through everywhere else.
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Positioned.fill(child: navigationShell),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    // No backdrop blur: under a 90 % fill it barely showed, and as
+                    // a filter of its own (outside the page's glass group) it cost
+                    // a full extra GPU pass every frame (P5).
                     child: Container(
                       height: 64,
+                      // Equal inner gap all round: the active tab's outline
+                      // used to touch the bar's rounded ends (owner, P7).
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         // Same gentle wash as the desktop rail — tinted a
                         // little toward the selected location's accent
                         // color instead of a flat, unchanging navy.
-                        color: (waveParams.tint == null
-                                ? WbColors.deepOcean
-                                : Color.lerp(WbColors.deepOcean,
-                                        waveParams.tint, 0.30) ??
-                                    WbColors.deepOcean)
-                            .withValues(alpha: 0.72),
+                        color: Ic.glassMid.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: WbColors.ice08),
+                        border: Border.all(color: Ic.glassBorder),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.35),
+                            color: Colors.black.withValues(alpha: 0.45),
                             blurRadius: 24,
                             offset: const Offset(0, 10),
                           ),
@@ -210,42 +255,56 @@ class _MobileShell extends ConsumerWidget {
                       ),
                       child: Row(
                         children: [
-                          _MobileNavButton(
-                            icon: Icons.home_outlined,
-                            filledIcon: Icons.home_rounded,
-                            label: s.navHome,
-                            selected: activeButton == 0,
-                            tint: waveParams.tint,
-                            onTap: () => navigationShell.goBranch(
+                          for (final (i, branch, icon, filled, label) in [
+                            (
                               0,
-                              initialLocation:
-                                  navigationShell.currentIndex == 0,
+                              0,
+                              Icons.home_outlined,
+                              Icons.home_rounded,
+                              s.navHome
                             ),
-                          ),
-                          _MobileNavButton(
-                            icon: Icons.speed_outlined,
-                            filledIcon: Icons.speed_rounded,
-                            label: s.speedTest,
-                            selected: activeButton == 1,
-                            tint: waveParams.tint,
-                            onTap: () => navigationShell.goBranch(
-                              3,
-                              initialLocation:
-                                  navigationShell.currentIndex == 3,
+                            (
+                              1,
+                              1,
+                              Icons.public_outlined,
+                              Icons.public,
+                              s.navLocations
                             ),
-                          ),
-                          _MobileNavButton(
-                            icon: Icons.settings_outlined,
-                            filledIcon: Icons.settings,
-                            label: s.navSettings,
-                            selected: activeButton == 2,
-                            tint: waveParams.tint,
-                            onTap: () => navigationShell.goBranch(
+                            (
                               2,
-                              initialLocation:
-                                  navigationShell.currentIndex == 2,
+                              3,
+                              Icons.speed_outlined,
+                              Icons.speed_rounded,
+                              s.navSpeedShort
                             ),
-                          ),
+                            (
+                              3,
+                              4,
+                              Icons.ssid_chart_outlined,
+                              Icons.ssid_chart_rounded,
+                              s.navMetrics
+                            ),
+                            (
+                              4,
+                              2,
+                              Icons.settings_outlined,
+                              Icons.settings,
+                              s.navSettings
+                            ),
+                          ])
+                            _MobileNavButton(
+                              icon: icon,
+                              filledIcon: filled,
+                              label: label,
+                              selected: activeButton == i,
+                              tint: waveParams.tint,
+                              showBadge: branch == 2 && pendingUpdate != null,
+                              onTap: () => navigationShell.goBranch(
+                                branch,
+                                initialLocation:
+                                    navigationShell.currentIndex == branch,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -253,8 +312,8 @@ class _MobileShell extends ConsumerWidget {
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -268,6 +327,7 @@ class _MobileNavButton extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.tint,
+    this.showBadge = false,
   });
 
   final IconData icon;
@@ -276,33 +336,84 @@ class _MobileNavButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final Color? tint;
+  final bool showBadge;
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? _selectedNavColor(tint) : WbColors.ice60;
+    final color = selected ? Ic.text : Ic.textMuted;
     return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          // The whole half of the bar is the tap target, not just the
-          // icon+label — a big, easy, unmissable thumb target.
-          child: SizedBox(
-            height: 64,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(selected ? filledIcon : icon, color: color, size: 24),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  ),
+      child: Semantics(
+        selected: selected,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(24),
+            // The whole fifth of the bar is the tap target, not just the
+            // icon+label — a big, easy, unmissable thumb target.
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              height: 56,
+              // Concentric with the bar (28 - its 4 px inner gap).
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                color: selected
+                    ? context.brand.withValues(alpha: 0.16)
+                    : Colors.transparent,
+                border: Border.all(
+                  color: selected
+                      ? context.brand.withValues(alpha: 0.35)
+                      : Colors.transparent,
                 ),
-              ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(selected ? filledIcon : icon,
+                          color: color, size: 24),
+                      if (showBadge)
+                        Positioned(
+                          top: -2,
+                          right: -3,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: context.accent,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: WbColors.deepOcean, width: 1.5),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // Shrinks to fit ("Настройки" was cut on a 320 px phone
+                  // and at a large text size).
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 10.5,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -422,12 +533,32 @@ class _RailItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? _selectedNavColor(tint) : WbColors.ice60;
+    final color = selected ? _selectedNavColor(context) : WbColors.ice60;
     final content = Row(
       mainAxisAlignment:
           expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
       children: [
-        Icon(selected ? data.filledIcon : data.icon, color: color, size: 21),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Icon(selected ? data.filledIcon : data.icon,
+                color: color, size: 21),
+            if (data.showBadge)
+              Positioned(
+                top: -2,
+                right: -3,
+                child: Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: context.accent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: WbColors.deepOcean, width: 1.2),
+                  ),
+                ),
+              ),
+          ],
+        ),
         if (expanded) ...[
           const SizedBox(width: 14),
           Expanded(

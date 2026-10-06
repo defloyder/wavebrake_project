@@ -1,9 +1,12 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/i18n/app_strings.dart';
 import '../../core/theme/wb_colors.dart';
+import '../immersive/immersive_clock.dart';
 import 'traffic_format.dart';
 
 /// A liquid-fill bar for subscription traffic — the level (and its color)
@@ -11,7 +14,11 @@ import 'traffic_format.dart';
 /// fill line instead of a static progress rect. Replaces a plain "12.4 GB /
 /// 100 GB" text line, which read as an afterthought next to the rest of
 /// Home's animated, wave-themed chrome.
-class TrafficWaveBar extends StatefulWidget {
+///
+/// Driven by the shared [ImmersiveClock] (~30 fps, frozen with reduced
+/// motion) — its own repeating controller used to keep Home rendering at
+/// the full display rate.
+class TrafficWaveBar extends StatelessWidget {
   const TrafficWaveBar({
     super.key,
     required this.usedBytes,
@@ -24,42 +31,25 @@ class TrafficWaveBar extends StatefulWidget {
   final AppStrings s;
 
   @override
-  State<TrafficWaveBar> createState() => _TrafficWaveBarState();
-}
-
-class _TrafficWaveBarState extends State<TrafficWaveBar>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 6),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final limit = widget.limitBytes;
+    final limit = limitBytes;
     // Unlimited plans have nothing to fill *against* — a small, steady
     // band instead of a 0%/100% guess, since neither would mean anything.
     final fraction = (limit == null || limit <= 0)
         ? null
-        : (widget.usedBytes / limit).clamp(0.0, 1.0);
+        : (usedBytes / limit).clamp(0.0, 1.0);
     // Low usage reads as calm cyan, climbing usage warms toward amber and
     // then red as the limit actually gets close — the same "how worried
     // should I be" read as a fuel gauge, at a glance, without reading the
     // numbers first.
     final color = fraction == null
-        ? WbColors.waveCyan
+        ? context.accent
         : Color.lerp(
-            WbColors.waveCyan,
+            context.accent,
             Color.lerp(WbColors.warning, WbColors.error, ((fraction - 0.7) / 0.3).clamp(0.0, 1.0))!,
             (fraction / 0.7).clamp(0.0, 1.0),
           )!;
-    final label = formatTraffic(widget.usedBytes, limit, widget.s);
+    final label = formatTraffic(usedBytes, limit, s);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
@@ -69,12 +59,11 @@ class _TrafficWaveBarState extends State<TrafficWaveBar>
           fit: StackFit.expand,
           children: [
             Container(color: WbColors.ice08),
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) => CustomPaint(
+            RepaintBoundary(
+              child: CustomPaint(
                 painter: _WaveFillPainter(
                   fraction: fraction ?? 0.16,
-                  time: _controller.value,
+                  time: ImmersiveClock.of(context),
                   color: color,
                   steady: fraction == null,
                 ),
@@ -108,15 +97,17 @@ class _TrafficWaveBarState extends State<TrafficWaveBar>
 }
 
 class _WaveFillPainter extends CustomPainter {
-  const _WaveFillPainter({
+  _WaveFillPainter({
     required this.fraction,
     required this.time,
     required this.color,
     required this.steady,
-  });
+  }) : super(repaint: time);
 
   final double fraction;
-  final double time;
+
+  /// Seconds; one wave cycle per 6 s (continuous — no jump at a loop).
+  final ValueListenable<double> time;
   final Color color;
   final bool steady;
 
@@ -124,7 +115,7 @@ class _WaveFillPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final level = size.height * (1 - fraction);
     final waveHeight = steady ? 2.5 : 3.5;
-    final phase = time * math.pi * 2;
+    final phase = time.value / 6 * math.pi * 2;
 
     final path = Path()..moveTo(0, size.height);
     const steps = 40;

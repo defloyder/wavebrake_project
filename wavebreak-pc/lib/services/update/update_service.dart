@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -266,3 +267,18 @@ final availableUpdateProvider = StreamProvider<UpdateInfo?>((ref) {
   unawaited(run());
   return controller.stream;
 });
+
+const _updaterChannel = MethodChannel('app.wavebreak/updater');
+
+/// The native "update available" notification — Android only (shared UI
+/// code calls it under `Platform.isAndroid`); a no-op here otherwise.
+Future<void> showUpdateAvailableNotification(String versionName,
+    {int? versionCode}) async {
+  if (!Platform.isAndroid) return;
+  try {
+    await _updaterChannel.invokeMethod('showUpdateAvailableNotification', {
+      'versionName': versionName,
+      if (versionCode != null) 'versionCode': versionCode,
+    });
+  } catch (_) {}
+}

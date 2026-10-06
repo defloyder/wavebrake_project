@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -19,13 +20,20 @@ import '../shared/wavebreak_mark.dart';
 /// user in (Core returns tokens), exactly like a login.
 class VerifyEmailScreen extends ConsumerStatefulWidget {
   const VerifyEmailScreen(
-      {super.key, required this.email, this.codeSent = true});
+      {super.key,
+      required this.email,
+      this.codeSent = true,
+      this.loginCode = false});
 
   final String email;
 
   /// False when Core created the account but the email didn't go out —
   /// the screen then offers "send again" straight away.
   final bool codeSent;
+
+  /// Sign-in with an emailed code (an existing account) instead of
+  /// confirming a new one: same screen, Core's login-code endpoints.
+  final bool loginCode;
 
   @override
   ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
@@ -67,9 +75,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       _info = null;
     });
     try {
-      final tokens = await ref
-          .read(coreGatewayProvider)
-          .verifyEmail(email: widget.email, code: code)
+      final gateway = ref.read(coreGatewayProvider);
+      final tokens = await (widget.loginCode
+              ? gateway.confirmLoginCode(email: widget.email, code: code)
+              : gateway.verifyEmail(email: widget.email, code: code))
           .timeout(const Duration(seconds: 30),
               onTimeout: () => throw AppException(AppErrorKind.unavailable));
       await ref
@@ -95,7 +104,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       _info = null;
     });
     try {
-      await ref.read(coreGatewayProvider).resendEmailCode(
+      final gateway = ref.read(coreGatewayProvider);
+      await (widget.loginCode
+          ? gateway.requestLoginCode
+          : gateway.resendEmailCode)(
             email: widget.email,
             language: ref.read(languageProvider).name,
           );
@@ -129,6 +141,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     final notSent = !widget.codeSent && _info == null;
     return Scaffold(
       body: OceanBackground(
+        stars: true,
         illuminate: true,
         tint: waves.tint,
         waveSpeed: waves.speed,
@@ -141,23 +154,25 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: IconButton(
-                    onPressed: () => safePop(context, fallback: '/login'),
+                    onPressed: () => safePop(context,
+                        fallback: widget.loginCode ? '/email-code' : '/login'),
                     icon: const Icon(Icons.arrow_back_ios_new_rounded),
                   ),
                 ),
                 const WavebreakMark(size: 64),
                 const SizedBox(height: 16),
                 Text(
-                  s.verifyEmailTitle,
+                  widget.loginCode ? s.emailCodeTitle : s.verifyEmailTitle,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w600),
+                      fontFamily: 'serif', fontSize: 26),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   notSent
                       ? s.errEmailSendFailed
-                      : s.verifyEmailBody.replaceAll('{email}', widget.email),
+                      : (widget.loginCode ? s.emailCodeBody : s.verifyEmailBody)
+                          .replaceAll('{email}', widget.email),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: notSent ? WbColors.warning : WbColors.muted,
@@ -173,11 +188,11 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   maxLength: 6,
                   autofillHints: const [AutofillHints.oneTimeCode],
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 28,
                     letterSpacing: 10,
                     fontWeight: FontWeight.w600,
-                    color: WbColors.waveCyan,
+                    color: context.accent,
                   ),
                   decoration: InputDecoration(
                     hintText: s.verifyEmailCodeHint,
@@ -199,7 +214,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   const SizedBox(height: 12),
                   Text(_info!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: WbColors.waveCyan)),
+                      style: TextStyle(color: context.accent)),
                 ],
                 const SizedBox(height: 20),
                 SizedBox(
@@ -208,7 +223,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   child: FilledButton(
                     onPressed: _busy ? null : _submit,
                     style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
+                      backgroundColor: context.accent,
                       foregroundColor: WbColors.midnight,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -220,7 +235,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                             height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2.4),
                           )
-                        : Text(s.verifyEmailConfirm),
+                        : Text(widget.loginCode
+                            ? s.emailCodeSignIn
+                            : s.verifyEmailConfirm),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -231,7 +248,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                         ? s.verifyEmailResendIn.replaceAll('{s}', '$_resendIn')
                         : s.verifyEmailResend,
                     style: TextStyle(
-                      color: _resendIn > 0 ? WbColors.muted : WbColors.waveCyan,
+                      color: _resendIn > 0 ? WbColors.muted : context.accent,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

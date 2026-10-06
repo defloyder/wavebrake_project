@@ -4,33 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
-import '../../core/theme/wb_colors.dart';
 import '../../services/update/update_service.dart';
 import '../shared/menu_button.dart';
 import '../shared/ocean_background.dart';
 import '../shared/wave_params.dart';
-import '../shared/wb_card.dart';
 import '../shell/app_shell.dart';
+import 'settings_ui.dart';
 
+/// Settings, top level (P6): six groups, everything else one level down.
+///
+/// Account · Connection · Security · Appearance · Notifications · Help.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
-    final language = ref.watch(languageProvider);
     final waves = ref.watch(appWaveParamsProvider);
-    // Android and Windows ship outside any app store, so Settings >
-    // Updates is the in-app path to a new build (APK installer on
-    // Android, Inno Setup installer on Windows). iOS has none.
+    // Android and Windows ship outside any app store: Help > Updates is
+    // the in-app path to a new build; the dot on Help says one is waiting.
     final pendingUpdate = (Platform.isAndroid || Platform.isWindows)
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
 
-    // See LocationsScreen — same isDesktop-aware widening so this doesn't
-    // stay a narrow mobile-width list adrift in a big dark window.
     return LayoutBuilder(
       builder: (context, outer) {
         final isDesktop = outer.maxWidth >= 820;
@@ -40,188 +37,85 @@ class SettingsScreen extends ConsumerWidget {
           waveSpeed: waves.speed,
           waveAmplitude: waves.amplitude,
           maxContentWidth: isDesktop ? 640 : 560,
-          child: SafeArea(
-            child: ListView(
-              // Same reason as Home: the bottom nav pill floats over the body
-              // now instead of reserving a Scaffold slot, so mobile needs the
-              // extra bottom padding manually or the last row ends up under it.
-              padding: EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                isDesktop ? 12 : kMobileBottomBarReserve + 12,
-              ),
-              children: [
-                Row(
+          child: SizedBox.expand(
+            child: SafeArea(
+              // Phone: the page sits at the bottom, by the thumb and the nav
+              // bar (owner, 06.10); it scrolls up if it doesn't fit.
+              child: SingleChildScrollView(
+                reverse: !isDesktop,
+                // The bottom nav pill floats over the body (see app_shell).
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  12,
+                  20,
+                  isDesktop ? 12 : kMobileBottomBarReserve + 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // The side rail this toggles only exists on desktop — on
-                    // mobile there's nothing for it to expand, so it's omitted
-                    // rather than left as a dead tap target.
-                    if (isDesktop) ...[
-                      const MenuButton(),
-                      const SizedBox(width: 12),
-                    ],
-                    Text(
-                      s.settings,
-                      style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _row(context, s.account, Icons.person_outline,
-                    '/settings/account'),
-                _row(context, s.connection, Icons.wifi_tethering,
-                    '/settings/connection'),
-                _row(context, s.security, Icons.fingerprint,
-                    '/settings/security'),
-                _row(context, s.notifications, Icons.notifications_none,
-                    '/settings/notifications'),
-                _row(context, s.personalization, Icons.palette_outlined,
-                    '/settings/personalization'),
-                _languageRow(context, ref, s, language),
-                _row(context, s.support, Icons.chat_bubble_outline,
-                    '/settings/support'),
-                if (Platform.isAndroid || Platform.isWindows)
-                  _row(context, s.updates, Icons.system_update_rounded,
-                      '/settings/updates',
-                      badged: pendingUpdate != null),
-                _row(context, s.about, Icons.info_outline, '/settings/about'),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _row(
-    BuildContext context,
-    String title,
-    IconData icon,
-    String path, {
-    bool badged = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: WbCard(
-        onTap: () => context.push(path),
-        child: Row(
-          children: [
-            Icon(icon, color: WbColors.waveCyan),
-            const SizedBox(width: 12),
-            Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),
-            if (badged) ...[
-              Container(
-                width: 8,
-                height: 8,
-                margin: const EdgeInsets.only(right: 10),
-                decoration: const BoxDecoration(
-                  color: WbColors.waveCyan,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
-            const Icon(Icons.chevron_right, color: WbColors.ice60),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _languageRow(
-    BuildContext context,
-    WidgetRef ref,
-    AppStrings s,
-    AppLanguage current,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: WbCard(
-        onTap: () => _pickLanguage(context, ref, current),
-        child: Row(
-          children: [
-            const Icon(Icons.language, color: WbColors.waveCyan),
-            const SizedBox(width: 12),
-            Expanded(
-                child: Text(s.language, style: const TextStyle(fontSize: 16))),
-            Text(
-              stringsFor(current).languageName,
-              style: const TextStyle(color: WbColors.ice60, fontSize: 14),
-            ),
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right, color: WbColors.ice60),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickLanguage(
-    BuildContext context,
-    WidgetRef ref,
-    AppLanguage current,
-  ) async {
-    final tint = ref.read(appWaveParamsProvider).tint;
-    final picked = await showModalBottomSheet<AppLanguage>(
-      context: context,
-      // See share_subscription_sheet.dart — without this the floating
-      // bottom nav pill paints over the sheet's own bottom edge since it
-      // lives above the branch's nested Navigator, not the root one.
-      useRootNavigator: true,
-      isScrollControlled: true,
-      backgroundColor: wbBlend(WbColors.card, tint, 0.12),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: ConstrainedBox(
-              // The list of languages has grown past what always fits on
-              // one screen — cap it and let it scroll rather than silently
-              // clipping the last few entries off the bottom.
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(context).height * 0.7,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: WbColors.ice08,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  Flexible(
-                    child: ListView(
-                      shrinkWrap: true,
+                    Row(
                       children: [
-                        for (final lang in AppLanguage.values)
-                          ListTile(
-                            title: Text(stringsFor(lang).languageName),
-                            trailing: lang == current
-                                ? const Icon(Icons.check_circle,
-                                    color: WbColors.waveCyan)
-                                : null,
-                            onTap: () => Navigator.pop(context, lang),
-                          ),
+                        // The side rail this toggles only exists on desktop.
+                        if (isDesktop) ...[
+                          const MenuButton(),
+                          const SizedBox(width: 12),
+                        ],
+                        Text(
+                          s.settings,
+                          style: const TextStyle(
+                              fontFamily: 'serif', fontSize: 30),
+                        ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    SettingsGroup(children: [
+                      SettingsRow(
+                        icon: Icons.person_outline_rounded,
+                        title: s.account,
+                        subtitle: s.accountRowHint,
+                        onTap: () => context.push('/settings/account'),
+                      ),
+                      SettingsRow(
+                        icon: Icons.wifi_tethering_rounded,
+                        title: s.connection,
+                        subtitle: s.connectionRowHint,
+                        onTap: () => context.push('/settings/connection'),
+                      ),
+                      SettingsRow(
+                        icon: Icons.fingerprint_rounded,
+                        title: s.security,
+                        subtitle: s.securityRowHint,
+                        onTap: () => context.push('/settings/security'),
+                      ),
+                    ]),
+                    SettingsGroup(children: [
+                      SettingsRow(
+                        icon: Icons.palette_outlined,
+                        title: s.appearance,
+                        subtitle: s.appearanceRowHint,
+                        onTap: () => context.push('/settings/personalization'),
+                      ),
+                      SettingsRow(
+                        icon: Icons.notifications_none_rounded,
+                        title: s.notifications,
+                        subtitle: s.notificationsRowHint,
+                        onTap: () => context.push('/settings/notifications'),
+                      ),
+                      SettingsRow(
+                        icon: Icons.help_outline_rounded,
+                        title: s.help,
+                        subtitle: s.helpRowHint,
+                        badge: pendingUpdate != null,
+                        onTap: () => context.push('/settings/help'),
+                      ),
+                    ]),
+                  ],
+                ),
               ),
             ),
           ),
         );
       },
     );
-    if (picked != null) {
-      await ref.read(languageProvider.notifier).setLanguage(picked);
-    }
   }
 }

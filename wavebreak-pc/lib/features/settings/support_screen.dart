@@ -1,7 +1,7 @@
 import 'dart:io' show Platform;
 
-import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart' as fs;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -12,14 +12,11 @@ import '../../core/auth/session_controller.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/logging/app_logger.dart';
-import '../../core/theme/wb_colors.dart';
 import '../../services/core_api/models.dart';
 import '../../services/device/device_service.dart';
 import '../../services/providers.dart';
 import '../../services/vpn/connection_manager.dart';
-import '../shared/detail_scaffold.dart';
-import '../shared/nav_utils.dart';
-import '../shared/wb_card.dart';
+import 'settings_ui.dart';
 
 /// One ready-made request: the subject and the question that opens the
 /// email; the rest of the body is the same for every template.
@@ -37,8 +34,7 @@ class SupportScreen extends ConsumerWidget {
   List<_Template> _templates(AppStrings s) => [
         _Template(Icons.wifi_off_rounded, s.tplNoConnect, s.tplNoConnectHint),
         _Template(Icons.speed_rounded, s.tplSlow, s.tplSlowHint),
-        _Template(Icons.credit_card_rounded, s.tplSubscription,
-            s.tplSubscriptionHint),
+        _Template(Icons.credit_card_rounded, s.tplSubscription, s.tplSubscriptionHint),
         _Template(Icons.devices_rounded, s.tplDevices, s.tplDevicesHint),
         _Template(Icons.lock_outline_rounded, s.tplLogin, s.tplLoginHint),
         _Template(Icons.flag_outlined, s.reportAProblem, s.tplOtherHint),
@@ -50,60 +46,53 @@ class SupportScreen extends ConsumerWidget {
     final s = ref.watch(stringsProvider);
     final email = config.supportEmail ?? kSupportEmail;
 
-    return DetailScaffold(
+    return SettingsPage(
       title: s.support,
-      onBack: () => safePop(context, fallback: '/settings'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (config.helpUrl != null)
-            _row(
-              s.helpCenter,
-              Icons.help_outline,
-              () => launchUrl(Uri.parse(config.helpUrl!)),
-            ),
-          if (config.supportTelegram != null)
-            _row(
-              s.contactSupportTelegram,
-              Icons.send_outlined,
-              () => launchUrl(Uri.parse(config.supportTelegram!)),
-            ),
-          _row(
-            s.contactSupportEmail,
-            Icons.mail_outline,
-            () => _sendEmail(context, s, email),
-            subtitle: email,
-          ),
-          // No fancy in-app log viewer — this is a plain text export
-          // handed straight to the system share sheet, so a report
-          // like "VPN won't connect on my carrier" can come back
-          // with the app's own connection/error trail attached even
-          // from someone with no USB cable or adb access at all.
-          _row(
-            s.exportDiagnosticLogs,
-            Icons.bug_report_outlined,
-            () => _exportLogs(context, s),
-          ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 10),
-            child: Text(
-              s.supportTemplatesTitle,
-              style: const TextStyle(
-                color: WbColors.ice60,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+      fallback: '/settings/help',
+      children: [
+        SettingsGroup(
+          title: s.groupContact,
+          children: [
+            if (config.supportTelegram != null)
+              SettingsRow(
+                icon: Icons.send_outlined,
+                title: s.contactSupportTelegram,
+                onTap: () => launchUrl(Uri.parse(config.supportTelegram!)),
               ),
+            SettingsRow(
+              icon: Icons.mail_outline_rounded,
+              title: s.contactSupportEmail,
+              subtitle: email,
+              onTap: () => _sendEmail(context, s, email),
             ),
-          ),
-          for (final t in _templates(s))
-            _row(
-              t.title,
-              t.icon,
-              () => _sendTemplate(context, ref, s, email, t),
+            if (config.helpUrl != null)
+              SettingsRow(
+                icon: Icons.help_outline_rounded,
+                title: s.helpCenter,
+                onTap: () => launchUrl(Uri.parse(config.helpUrl!)),
+              ),
+            // A plain text export handed to the system share sheet, so a
+            // report like "won't connect on my carrier" can come with the
+            // app's own connection/error trail, no cable or adb needed.
+            SettingsRow(
+              icon: Icons.bug_report_outlined,
+              title: s.exportDiagnosticLogs,
+              onTap: () => _exportLogs(context),
             ),
-        ],
-      ),
+          ],
+        ),
+        SettingsGroup(
+          title: s.supportTemplatesTitle,
+          children: [
+            for (final t in _templates(s))
+              SettingsRow(
+                icon: t.icon,
+                title: t.title,
+                onTap: () => _sendTemplate(context, ref, s, email, t),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -147,8 +136,8 @@ class SupportScreen extends ConsumerWidget {
     ].join('\n');
   }
 
-  Future<void> _sendTemplate(BuildContext context, WidgetRef ref, AppStrings s,
-      String email, _Template t) async {
+  Future<void> _sendTemplate(BuildContext context, WidgetRef ref,
+      AppStrings s, String email, _Template t) async {
     final body = await _templateBody(ref, s, t);
     if (!context.mounted) return;
     await _sendEmail(context, s, email,
@@ -180,12 +169,14 @@ class SupportScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _exportLogs(BuildContext context, AppStrings s) async {
+  Future<void> _exportLogs(BuildContext context) async {
     final file = await AppLogger.exportToFile();
     if (!context.mounted) return;
     if (Platform.isWindows) {
       // Windows: a "Save as" dialog, the file goes to the folder the user
       // picks (the Windows share sheet was no use for sending it on).
+      final s = ProviderScope.containerOf(context, listen: false)
+          .read(stringsProvider);
       final stamp = DateTime.now()
           .toIso8601String()
           .substring(0, 19)
@@ -228,34 +219,4 @@ class SupportScreen extends ConsumerWidget {
     );
   }
 
-  Widget _row(String title, IconData icon, VoidCallback onTap,
-      {String? subtitle}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: WbCard(
-        onTap: onTap,
-        child: Row(
-          children: [
-            Icon(icon, color: WbColors.waveCyan),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontSize: 15)),
-                  if (subtitle != null)
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                          color: WbColors.ice60, fontSize: 12.5),
-                    ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: WbColors.ice60),
-          ],
-        ),
-      ),
-    );
-  }
 }

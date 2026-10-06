@@ -11,7 +11,6 @@ import '../../core/auth/session_controller.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
-import '../../core/theme/flag_colors.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../services/core_api/models.dart';
@@ -22,7 +21,6 @@ import '../../services/update/apk_installer.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../shared/add_custom_server_sheet.dart';
 import '../shared/confirm_dialogs.dart';
-import '../shared/connect_button.dart';
 import '../shared/data_providers.dart';
 import '../shared/traffic_wave_bar.dart';
 import '../shared/traffic_format.dart';
@@ -423,15 +421,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           .toggle(subscriptionActive: canConnect);
     }
 
-    final connectButton = ConnectButton(
-      status: connection.status,
-      enabled: connectEnabled,
-      accentColors: connection.location.isAuto
-          ? null
-          : accentPairFor(connection.location.countryCode),
-      onPressed: onConnectPressed,
-    );
-
     // Phone (V5): the living sphere instead of the glass button. The ping /
     // download readouts sit beside it when the sphere keeps at least 180
     // across between them; on narrower phones they go in a row under it
@@ -660,24 +649,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                 // different Y positions, which read as
                                 // misaligned even though each was correctly
                                 // centered within its own half.
-                                child: Align(
-                                  alignment: Alignment.topCenter,
-                                  child: Column(
-                                    children: [
-                                      const SizedBox(height: 4),
-                                      locationHeader,
-                                      const SizedBox(height: 40),
-                                      connectButton,
-                                      const SizedBox(height: 28),
-                                      statusCopy,
-                                      const SizedBox(height: 36),
-                                      ConstrainedBox(
-                                        constraints:
-                                            const BoxConstraints(maxWidth: 360),
-                                        child: subscriptionStrip,
+                                // The phone's V5 look in a column: the
+                                // living sphere with ping / download beside
+                                // it, the status, and the one session card
+                                // (protection, readouts, subscription).
+                                child: Column(
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    locationHeader,
+                                    Expanded(
+                                      child: LayoutBuilder(
+                                        builder: (context, box) {
+                                          final d = [
+                                            300.0,
+                                            box.maxHeight / 1.27,
+                                            box.maxWidth -
+                                                2 * SideVital.width -
+                                                24,
+                                          ].reduce(math.min);
+                                          return Center(
+                                            child: CoreStage(
+                                              diameter: d,
+                                              core: LivingCore(
+                                                status: connection.status,
+                                                enabled: connectEnabled,
+                                                diameter: d,
+                                                onPressed: onConnectPressed,
+                                              ),
+                                              overlay: const CoreWithVitals(
+                                                  core: SizedBox.shrink()),
+                                            ),
+                                          );
+                                        },
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    statusCopy,
+                                    const SizedBox(height: 14),
+                                    ConstrainedBox(
+                                      constraints:
+                                          const BoxConstraints(maxWidth: 480),
+                                      child: Column(
+                                        children: [
+                                          SessionPanel(
+                                            footer: compactSubscription
+                                                ? _SubscriptionFooter(
+                                                    sub: sub,
+                                                    s: s,
+                                                    onOpen: () => context
+                                                        .push('/subscription'),
+                                                  )
+                                                : null,
+                                          ),
+                                          if (!compactSubscription) ...[
+                                            const SizedBox(height: 12),
+                                            subscriptionStrip,
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
                                 ),
                               ),
                               const SizedBox(width: 8),

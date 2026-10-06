@@ -7,6 +7,7 @@ import '../core/storage/prefs_store.dart';
 import '../features/auth/forgot_password_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
+import '../features/auth/email_code_screen.dart';
 import '../features/auth/verify_email_screen.dart';
 import '../features/auth/welcome_screen.dart';
 import '../features/home/home_screen.dart';
@@ -16,6 +17,7 @@ import '../features/settings/account_screen.dart';
 import '../features/settings/connection_settings_screen.dart';
 import '../features/settings/devices_screen.dart';
 import '../features/settings/notifications_screen.dart';
+import '../features/settings/help_screen.dart';
 import '../features/settings/personalization_screen.dart';
 import '../features/settings/security_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -23,6 +25,7 @@ import '../features/settings/support_screen.dart';
 import '../features/settings/updates_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/speedtest/speed_test_screen.dart';
+import '../features/metrics/metrics_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/subscription/subscription_screen.dart';
 import '../features/update/maintenance_screen.dart';
@@ -51,7 +54,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuth = loc == '/login' ||
           loc == '/register' ||
           loc == '/forgot' ||
-          loc == '/verify-email';
+          loc == '/verify-email' ||
+          loc == '/email-code';
       final isUpdate = loc == '/update-required';
       final isMaintenance = loc == '/maintenance';
 
@@ -98,6 +102,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             fadeThroughPage(state, const RegisterScreen()),
       ),
       GoRoute(
+        path: '/email-code',
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const EmailCodeScreen()),
+      ),
+      GoRoute(
         path: '/verify-email',
         pageBuilder: (_, state) {
           final extra = state.extra is Map ? state.extra as Map : const {};
@@ -106,6 +115,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             VerifyEmailScreen(
               email: (extra['email'] ?? '').toString(),
               codeSent: extra['sent'] != false,
+              loginCode: extra['login'] == true,
             ),
           );
         },
@@ -190,6 +200,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                         fadeThroughPage(state, const PersonalizationScreen()),
                   ),
                   GoRoute(
+                    path: 'help',
+                    pageBuilder: (_, state) =>
+                        fadeThroughPage(state, const HelpScreen()),
+                  ),
+                  GoRoute(
                     path: 'support',
                     pageBuilder: (_, state) =>
                         fadeThroughPage(state, const SupportScreen()),
@@ -219,6 +234,17 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/speed-test',
                 pageBuilder: (_, __) => const NoTransitionPage(
                   child: SpeedTestScreen(),
+                ),
+              ),
+            ],
+          ),
+          // Branch 4: connection metrics (measured throughput, quality).
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/metrics',
+                pageBuilder: (_, __) => const NoTransitionPage(
+                  child: MetricsScreen(),
                 ),
               ),
             ],

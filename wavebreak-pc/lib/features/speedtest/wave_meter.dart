@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -125,7 +126,7 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
 
   Color get _tint => switch (widget.visualState) {
         WaveMeterVisualState.idle => WbColors.ice60,
-        WaveMeterVisualState.running => WbColors.waveCyan,
+        WaveMeterVisualState.running => context.accent,
         // Deliberately a different hue from the running state's cyan —
         // "the number stopped changing" isn't enough on its own to read
         // as done; a genuinely different color is (see class doc).
@@ -150,7 +151,9 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
         // instead of each one cutting off the previous animation.
         _animatedFraction += (target - _animatedFraction) * 0.08;
         final nowSeconds = DateTime.now().millisecondsSinceEpoch / 1000;
-        final dt = (_lastFrameSeconds == null ? 1 / 60 : nowSeconds - _lastFrameSeconds!)
+        final dt = (_lastFrameSeconds == null
+                ? 1 / 60
+                : nowSeconds - _lastFrameSeconds!)
             .clamp(0.0, 0.25);
         _lastFrameSeconds = nowSeconds;
         if (widget.visualState == WaveMeterVisualState.running) {
@@ -570,11 +573,14 @@ class _WaveMeterPainter extends CustomPainter {
       final y = crestYAtX + 6 + seed.y * (floor - crestYAtX);
       final twinkle = math.sin(time * 2.4 + seed.phase) * 0.5 + 0.5;
       if (twinkle <= threshold) continue;
-      final strength = ((twinkle - threshold) / (1 - threshold)).clamp(0.0, 1.0);
+      final strength =
+          ((twinkle - threshold) / (1 - threshold)).clamp(0.0, 1.0);
       canvas.drawCircle(
         Offset(size.width * seed.x, y),
         0.7 + strength * 1.5,
-        Paint()..color = Colors.white.withValues(alpha: (strength * 0.85).clamp(0.0, 0.85)),
+        Paint()
+          ..color = Colors.white
+              .withValues(alpha: (strength * 0.85).clamp(0.0, 0.85)),
       );
     }
   }
@@ -589,7 +595,9 @@ class _WaveMeterPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(size.width * drop.x, size.height * drop.y),
         drop.size * (0.4 + fade * 0.6),
-        Paint()..color = Colors.white.withValues(alpha: (fade * 0.9).clamp(0.0, 0.9)),
+        Paint()
+          ..color =
+              Colors.white.withValues(alpha: (fade * 0.9).clamp(0.0, 0.9)),
       );
     }
   }

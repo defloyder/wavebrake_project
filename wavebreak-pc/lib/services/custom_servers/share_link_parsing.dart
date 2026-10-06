@@ -24,6 +24,47 @@ List<LocationItem> parseSubscriptionBody(String body) {
   return servers;
 }
 
+/// Every node of a third-party subscription (any format, see
+/// [parseSubscription]). Nodes this phone's engine can't run (TUIC on
+/// Xray, types the profile lists that have no share link) stay in the list
+/// greyed out (available: false) instead of disappearing.
+List<LocationItem> serversFromSubscription(ParsedSubscription parsed,
+    {TunnelEngine engine = TunnelEngine.xray}) {
+  return [
+    for (final link in parsed.links)
+      () {
+        final uri = Uri.tryParse(link);
+        if (uri == null) return null;
+        final item = locationFromUri(uri, link);
+        final runs = ShareLink.tryParse(link)?.supportedBy(engine) ?? false;
+        return runs ? item : _unavailable(item);
+      }(),
+    for (final node in parsed.unsupported)
+      () {
+        final countryCode = flagCodeFromLabel(node.name);
+        final parsedLabel = splitCountryCity(node.name, countryCode != null);
+        return LocationItem(
+          id: stableLocationId('unsupported:${node.type}:${node.name}'),
+          countryCode: countryCode ?? '',
+          country: parsedLabel.$1,
+          city: parsedLabel.$2 ?? node.type.toUpperCase(),
+          available: false,
+          isCustom: true,
+        );
+      }(),
+  ].whereType<LocationItem>().toList();
+}
+
+LocationItem _unavailable(LocationItem l) => LocationItem(
+      id: l.id,
+      countryCode: l.countryCode,
+      country: l.country,
+      city: l.city,
+      available: false,
+      isCustom: true,
+      rawLink: l.rawLink,
+    );
+
 LocationItem locationFromUri(Uri uri, String rawLink) {
   final label = uri.fragment.isNotEmpty
       ? Uri.decodeComponent(uri.fragment)
@@ -122,6 +163,13 @@ int? _surrogatePair(int high, int low) {
     final country = text.substring(0, commaIndex).trim();
     final city = text.substring(commaIndex + 1).trim();
     return (country, note.isEmpty ? city : '$city $note');
+  }
+  // "🇷🇺 Russia (Direct-TLS)": a flag and a country, no city. The country
+  // is the place too — before, the whole label (flag included) became the
+  // country and the scheme ("VLESS") the place name.
+  final country = text.trim();
+  if (hadFlag && country.isNotEmpty) {
+    return (country, note.isEmpty ? country : '$country $note');
   }
   return (label, null);
 }
