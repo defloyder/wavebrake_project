@@ -15,97 +15,96 @@ import '../shared/wave_params.dart';
 
 /// The server list (sections, places, protocols) — the Servers tab and
 /// the pop-up from Home's location header show this same widget.
+///
+/// Anchored to the bottom, near the thumb (owner, 06.10): a short list sits
+/// right above the nav bar, a long one opens at its end ("add your link")
+/// and scrolls up. [hero] fills whatever height is left above the list
+/// (the Servers tab: the server in use) and scrolls away with a long one.
 class ServersList extends ConsumerWidget {
   const ServersList({
     super.key,
-    this.controller,
     this.bottomPadding = 16,
     this.onPicked,
-    this.header,
+    this.hero,
   });
 
-  final ScrollController? controller;
   final double bottomPadding;
 
   /// After a server was chosen (the pop-up closes itself here).
   final VoidCallback? onPicked;
 
-  /// Above the list, scrolling with it (the Servers tab's title: with the
-  /// list anchored to the bottom it sits right on top of it).
-  final Widget? header;
+  final Widget? hero;
 
-  Widget _withHeader(Widget body) => header == null
-      ? body
-      : Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [header!, Expanded(child: body)],
-        );
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(connectionManagerProvider).location;
     final locations = ref.watch(locationsProvider);
     final s = ref.watch(stringsProvider);
     final canConnect = ref.watch(canConnectProvider);
+    Widget scroll(Widget list) => CustomScrollView(
+          reverse: true,
+          // In the pop-up it sizes to the list (up to its own max height).
+          shrinkWrap: hero == null,
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.only(bottom: bottomPadding),
+              sliver: SliverToBoxAdapter(child: list),
+            ),
+            if (hero != null)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: hero,
+                  ),
+                ),
+              ),
+          ],
+        );
     return locations.when(
-      loading: () =>
-          _withHeader(const Center(child: CircularProgressIndicator())),
-      error: (error, _) => _withHeader(Center(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => Center(
         child: Text(
           error is AppException ? error.localized(s) : s.errUnavailable,
           textAlign: TextAlign.center,
         ),
-      )),
+      ),
       data: (_) {
         final sections = ref.watch(serverCatalogProvider);
-        return SingleChildScrollView(
-          // Anchored to the bottom, near the thumb (owner, 06.10): a short
-          // list sits right above the nav bar, a long one opens at its
-          // end ("add your link") and scrolls up.
-          reverse: true,
-          controller: controller,
-          padding: EdgeInsets.only(bottom: bottomPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (header != null) header!,
-              SubscriptionAccordion(
-                sections: sections,
-                current: selected,
-                s: s,
-                shrinkWrap: true,
-                onSelect: (item) {
-                  ref
-                      .read(connectionManagerProvider.notifier)
-                      .selectLocation(item, subscriptionActive: canConnect);
-                  onPicked?.call();
-                },
-                onAddCustom: () => showAddCustomServerSheet(context, ref),
-                onRemove: (id) async {
-                  if (!await confirmRemoveCustomGroup(context, s)) return;
-                  // removeGroup() alone never reaches ConnectionManager: a
-                  // tunnel running on a just-deleted server would keep going
-                  // with nothing left in the UI to disconnect it from.
-                  final connection = ref.read(connectionManagerProvider);
-                  final matches =
-                      ref.read(customServersProvider).where((g) => g.id == id);
-                  final group = matches.isEmpty ? null : matches.first;
-                  final connectedToThisGroup = group != null &&
-                      connection.status != ConnectionStatus.idle &&
-                      group.servers
-                          .any((server) => server.id == connection.location.id);
-                  ref.read(customServersProvider.notifier).removeGroup(id);
-                  if (connectedToThisGroup) {
-                    await ref
-                        .read(connectionManagerProvider.notifier)
-                        .disconnect();
-                  }
-                },
-                onRefresh: (id) =>
-                    ref.read(customServersProvider.notifier).refreshGroup(id),
-              ),
-            ],
-          ),
-        );
+        return scroll(SubscriptionAccordion(
+          sections: sections,
+          current: selected,
+          s: s,
+          shrinkWrap: true,
+          onSelect: (item) {
+            ref
+                .read(connectionManagerProvider.notifier)
+                .selectLocation(item, subscriptionActive: canConnect);
+            onPicked?.call();
+          },
+          onAddCustom: () => showAddCustomServerSheet(context, ref),
+          onRemove: (id) async {
+            if (!await confirmRemoveCustomGroup(context, s)) return;
+            // removeGroup() alone never reaches ConnectionManager: a
+            // tunnel running on a just-deleted server would keep going
+            // with nothing left in the UI to disconnect it from.
+            final connection = ref.read(connectionManagerProvider);
+            final matches =
+                ref.read(customServersProvider).where((g) => g.id == id);
+            final group = matches.isEmpty ? null : matches.first;
+            final connectedToThisGroup = group != null &&
+                connection.status != ConnectionStatus.idle &&
+                group.servers
+                    .any((server) => server.id == connection.location.id);
+            ref.read(customServersProvider.notifier).removeGroup(id);
+            if (connectedToThisGroup) {
+              await ref.read(connectionManagerProvider.notifier).disconnect();
+            }
+          },
+          onRefresh: (id) =>
+              ref.read(customServersProvider.notifier).refreshGroup(id),
+        ));
       },
     );
   }

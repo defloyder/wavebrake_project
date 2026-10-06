@@ -6,6 +6,7 @@ import '../../core/theme/wb_colors.dart';
 import '../shared/data_providers.dart';
 import '../shared/menu_button.dart';
 import '../shared/ocean_background.dart';
+import '../shared/page_hero.dart';
 import '../shell/app_shell.dart';
 import '../shared/wave_params.dart';
 import 'servers_sheet.dart';
@@ -24,34 +25,6 @@ class LocationsScreen extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, outer) {
         final isDesktop = outer.maxWidth >= 820;
-        // The title travels with the list: the list sits at the bottom by
-        // the thumb, and a title pinned to the top left a big empty gap
-        // between them (owner, 06.10).
-        final title = Padding(
-          padding: const EdgeInsets.only(top: 12, bottom: 8),
-          child: Row(
-            children: [
-              if (isDesktop) ...[
-                const MenuButton(),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: Text(
-                  s.chooseLocation,
-                  style: const TextStyle(fontFamily: 'serif', fontSize: 30),
-                ),
-              ),
-              Tooltip(
-                message: s.refreshServers,
-                child: IconButton(
-                  onPressed: () => ref.invalidate(locationsProvider),
-                  icon:
-                      const Icon(Icons.refresh_rounded, color: WbColors.ice60),
-                ),
-              ),
-            ],
-          ),
-        );
         return OceanBackground(
           illuminate: true,
           tint: waves.tint,
@@ -59,16 +32,51 @@ class LocationsScreen extends ConsumerWidget {
           waveAmplitude: waves.amplitude,
           maxContentWidth: isDesktop ? 720 : 560,
           // Full height: the background centers its child, and a
-          // shrink-wrapped list would float mid-screen instead of sitting
-          // at the bottom.
+          // shrink-wrapped page would float mid-screen.
           child: SizedBox.expand(
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: ServersList(
-                  header: title,
-                  // Room for the floating bottom bar on phones.
-                  bottomPadding: isDesktop ? 16 : kMobileBottomBarReserve + 12,
+                // Title at the top, the list at the bottom by the thumb, and
+                // the server in use filling the space between (owner, 06.10:
+                // an empty page with the title pressed down on the list
+                // looked unfinished).
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (isDesktop) ...[
+                          const MenuButton(),
+                          const SizedBox(width: 12),
+                        ],
+                        Expanded(
+                          child: Text(
+                            s.chooseLocation,
+                            style: const TextStyle(
+                                fontFamily: 'serif', fontSize: 30),
+                          ),
+                        ),
+                        Tooltip(
+                          message: s.refreshServers,
+                          child: IconButton(
+                            onPressed: () => ref.invalidate(locationsProvider),
+                            icon: const Icon(Icons.refresh_rounded,
+                                color: WbColors.ice60),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Expanded(
+                      child: ServersList(
+                        hero: const SelectedServerHero(),
+                        // Room for the floating bottom bar on phones.
+                        bottomPadding:
+                            isDesktop ? 16 : kMobileBottomBarReserve + 12,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
