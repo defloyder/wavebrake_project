@@ -36,7 +36,7 @@ Future<void> showShareSubscriptionSheet(
     return showDialog<void>(
       context: context,
       builder: (context) => Dialog(
-        backgroundColor: wbBlend(WbColors.card, tint, 0.12),
+        backgroundColor: wbBlend(WbColors.card, tint, WbColors.sheetLean),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
           side: BorderSide(color: borderColor),
@@ -90,7 +90,7 @@ Future<void> showShareSubscriptionSheet(
             height: cardHeight,
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
             decoration: BoxDecoration(
-              color: wbBlend(WbColors.card, tint, 0.12),
+              color: wbBlend(WbColors.card, tint, WbColors.sheetLean),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: borderColor),
             ),

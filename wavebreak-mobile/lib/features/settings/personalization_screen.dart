@@ -1,145 +1,187 @@
-import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/personalization_controller.dart';
 import '../../core/theme/wb_colors.dart';
-import '../shared/detail_scaffold.dart';
-import '../shared/nav_utils.dart';
+import '../../core/theme/wb_theme.dart';
 import '../immersive/effects_quality.dart';
-import '../shared/wb_card.dart';
+import '../shared/wave_params.dart';
+import 'settings_ui.dart';
 
+/// Settings > Appearance: language, accent, text size, motion, effects.
 class PersonalizationScreen extends ConsumerWidget {
   const PersonalizationScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
+    final language = ref.watch(languageProvider);
     final personalization = ref.watch(personalizationProvider);
     final notifier = ref.read(personalizationProvider.notifier);
 
-    return DetailScaffold(
-      title: s.personalization,
-      onBack: () => safePop(context, fallback: '/settings'),
-      child: ListView(
-        children: [
-          Text(
-            s.accentColor,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+    return SettingsPage(
+      title: s.appearance,
+      children: [
+        SettingsGroup(children: [
+          SettingsRow(
+            icon: Icons.language_rounded,
+            title: s.language,
+            value: stringsFor(language).languageName,
+            onTap: () => _pickLanguage(context, ref, language),
           ),
-          const SizedBox(height: 4),
-          Text(
-            s.accentColorHint,
-            style: const TextStyle(color: WbColors.ice60, fontSize: 12.5),
-          ),
-          const SizedBox(height: 14),
-          WbCard(
-            child: Wrap(
-              spacing: 14,
-              runSpacing: 14,
-              children: [
-                for (final preset in AccentPreset.values)
-                  _AccentSwatch(
-                    preset: preset,
-                    selected: personalization.accent == preset,
-                    label: preset == AccentPreset.auto ? s.automatic : null,
-                    onTap: () => notifier.setAccent(preset),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            s.textSize,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 14),
-          WbCard(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              children: [
-                for (final preset in TextScalePreset.values)
-                  Expanded(
-                    child: _TextSizeOption(
+        ]),
+        SettingsGroup(
+          title: s.accentColor,
+          footer: s.accentColorHint,
+          children: [
+            SettingsBlock(
+              child: Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: [
+                  for (final preset in AccentPreset.values)
+                    _AccentSwatch(
                       preset: preset,
-                      selected: personalization.textScale == preset,
-                      onTap: () => notifier.setTextScale(preset),
+                      selected: personalization.accent == preset,
+                      label: preset == AccentPreset.auto ? s.automatic : null,
+                      onTap: () => notifier.setAccent(preset),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          WbCard(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        s.reduceMotion,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ],
+        ),
+        SettingsGroup(
+          title: s.groupInterface,
+          children: [
+            SettingsBlock(
+              title: s.textSize,
+              child: Row(
+                children: [
+                  for (final preset in TextScalePreset.values)
+                    Expanded(
+                      child: _TextSizeOption(
+                        preset: preset,
+                        selected: personalization.textScale == preset,
+                        onTap: () => notifier.setTextScale(preset),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        s.reduceMotionHint,
-                        style: const TextStyle(color: WbColors.ice60, fontSize: 12.5),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        SettingsGroup(
+          title: s.groupMotion,
+          children: [
+            SettingsSwitchRow(
+              icon: Icons.motion_photos_off_outlined,
+              title: s.reduceMotion,
+              subtitle: s.reduceMotionHint,
+              value: personalization.reduceMotion,
+              onChanged: notifier.setReduceMotion,
+            ),
+            SettingsBlock(
+              title: s.effectsQuality,
+              subtitle: s.effectsQualityHint,
+              child: SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<EffectsQuality>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(
+                        value: EffectsQuality.auto,
+                        label: _OneLine(s.effectsAuto)),
+                    ButtonSegment(
+                        value: EffectsQuality.high,
+                        label: _OneLine(s.effectsHigh)),
+                    ButtonSegment(
+                        value: EffectsQuality.economy,
+                        label: _OneLine(s.effectsEconomy)),
+                  ],
+                  selected: {ref.watch(effectsQualityProvider)},
+                  onSelectionChanged: (v) =>
+                      ref.read(effectsQualityProvider.notifier).set(v.first),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickLanguage(
+    BuildContext context,
+    WidgetRef ref,
+    AppLanguage current,
+  ) async {
+    final tint = ref.read(appWaveParamsProvider).tint;
+    final picked = await showModalBottomSheet<AppLanguage>(
+      context: context,
+      // The floating bottom nav pill lives above the branch's nested
+      // Navigator: on the root one the sheet isn't painted over by it.
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: wbBlend(WbColors.card, tint, WbColors.sheetLean),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => _LanguageSheet(current: current),
+    );
+    if (picked != null) {
+      await ref.read(languageProvider.notifier).setLanguage(picked);
+    }
+  }
+}
+
+class _LanguageSheet extends StatelessWidget {
+  const _LanguageSheet({required this.current});
+
+  final AppLanguage current;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: ConstrainedBox(
+          // More languages than always fit: capped, scrolls.
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: WbColors.ice08,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final lang in AppLanguage.values)
+                      ListTile(
+                        title: Text(stringsFor(lang).languageName),
+                        trailing: lang == current
+                            ? Icon(Icons.check_circle, color: context.accent)
+                            : null,
+                        onTap: () => Navigator.pop(context, lang),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-                Switch(
-                  value: personalization.reduceMotion,
-                  activeTrackColor: context.accent,
-                  onChanged: notifier.setReduceMotion,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          WbCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.effectsQuality,
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  s.effectsQualityHint,
-                  style:
-                      const TextStyle(color: WbColors.ice60, fontSize: 12.5),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: SegmentedButton<EffectsQuality>(
-                    showSelectedIcon: false,
-                    segments: [
-                      ButtonSegment(
-                          value: EffectsQuality.auto,
-                          label: _OneLine(s.effectsAuto)),
-                      ButtonSegment(
-                          value: EffectsQuality.high,
-                          label: _OneLine(s.effectsHigh)),
-                      ButtonSegment(
-                          value: EffectsQuality.economy,
-                          label: _OneLine(s.effectsEconomy)),
-                    ],
-                    selected: {ref.watch(effectsQualityProvider)},
-                    onSelectionChanged: (v) => ref
-                        .read(effectsQualityProvider.notifier)
-                        .set(v.first),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

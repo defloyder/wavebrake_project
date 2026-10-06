@@ -7,11 +7,11 @@ import '../../core/auth/session_controller.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
-import '../shared/detail_scaffold.dart';
-import '../shared/nav_utils.dart';
 import '../shared/wavebreak_mark.dart';
-import '../shared/wb_card.dart';
+import 'settings_ui.dart';
 
+/// About (P15): the mark, the version, the documents. Nothing else —
+/// updates have their own page next to this one (Help).
 class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
 
@@ -21,64 +21,59 @@ class AboutScreen extends ConsumerWidget {
     final s = ref.watch(stringsProvider);
     final language = ref.watch(languageProvider);
 
-    return DetailScaffold(
+    return SettingsPage(
       title: s.about,
-      onBack: () => safePop(context, fallback: '/settings'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 8),
-          const Center(child: WavebreakMark(size: 64, glow: true)),
-          const SizedBox(height: 16),
-          const Center(child: WavebreakWordmark()),
-          const SizedBox(height: 8),
-          Center(
-            child: FutureBuilder<PackageInfo>(
-              future: PackageInfo.fromPlatform(),
-              builder: (context, snapshot) {
-                final version = snapshot.data?.version ?? '1.0.0';
-                return Text(
-                  '${s.version} $version',
-                  style: const TextStyle(color: WbColors.ice60),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 28),
-          // Update checking/installing now lives in its own consolidated
-          // Settings > Updates screen (see updates_screen.dart) — having
-          // the same status live here too was the actual bug the header
-          // bell's layout complaint traced back to, not just its position.
-          // The legal pages the site publishes (privacy / personal data,
-          // terms of use), in the app's language where the site has it.
-          _row(s.privacyPolicy,
-              () => launchUrl(Uri.parse(legalPageUrl('privacy', language)))),
-          _row(s.termsOfService,
-              () => launchUrl(Uri.parse(legalPageUrl('terms', language)))),
-          if (config.websiteUrl != null)
-            _row(s.website, () => launchUrl(Uri.parse(config.websiteUrl!))),
-        ],
-      ),
-    );
-  }
-
-  Widget _row(String title, VoidCallback? onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: WbCard(
-        onTap: onTap,
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 15, color: WbColors.ice),
+      fallback: '/settings/help',
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(0, 4, 0, 24),
+          child: Column(
+            children: [
+              const WavebreakMark(size: 56, glow: true),
+              const SizedBox(height: 14),
+              const WavebreakWordmark(),
+              const SizedBox(height: 8),
+              FutureBuilder<PackageInfo>(
+                future: PackageInfo.fromPlatform(),
+                builder: (context, snapshot) {
+                  final info = snapshot.data;
+                  return Text(
+                    info == null
+                        ? s.version
+                        : '${s.version} ${info.version} (${info.buildNumber})',
+                    style: const TextStyle(color: WbColors.muted),
+                  );
+                },
               ),
+            ],
+          ),
+        ),
+        SettingsGroup(
+          title: s.groupLegal,
+          children: [
+            // The legal pages the site publishes, in the app's language
+            // where the site has it.
+            SettingsRow(
+              icon: Icons.privacy_tip_outlined,
+              title: s.privacyPolicy,
+              onTap: () =>
+                  launchUrl(Uri.parse(legalPageUrl('privacy', language))),
             ),
-            const Icon(Icons.chevron_right, color: WbColors.ice60),
+            SettingsRow(
+              icon: Icons.description_outlined,
+              title: s.termsOfService,
+              onTap: () =>
+                  launchUrl(Uri.parse(legalPageUrl('terms', language))),
+            ),
+            if (config.websiteUrl != null)
+              SettingsRow(
+                icon: Icons.language_rounded,
+                title: s.website,
+                onTap: () => launchUrl(Uri.parse(config.websiteUrl!)),
+              ),
           ],
         ),
-      ),
+      ],
     );
   }
 }

@@ -136,6 +136,15 @@ void main() {
             messenger.setMockStreamHandler(
                 const EventChannel('dev.fluttercommunity.plus/connectivity_status'),
                 MockStreamHandler.inline(onListen: (_, sink) => sink.success(['wifi'])));
+            // The version shown in Settings/About/Updates.
+            messenger.setMockMethodCallHandler(
+                const MethodChannel('dev.fluttercommunity.plus/package_info'),
+                (call) async => {
+                      'appName': 'WAVEBREAK',
+                      'packageName': 'com.wavebreak.wavebreak',
+                      'version': '1.3.0',
+                      'buildNumber': '57',
+                    });
             // Platform plugins don't exist under flutter_tester: ignore those.
             final originalOnError = FlutterError.onError;
             FlutterError.onError = (details) {

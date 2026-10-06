@@ -17,6 +17,7 @@ import '../features/settings/account_screen.dart';
 import '../features/settings/connection_settings_screen.dart';
 import '../features/settings/devices_screen.dart';
 import '../features/settings/notifications_screen.dart';
+import '../features/settings/help_screen.dart';
 import '../features/settings/personalization_screen.dart';
 import '../features/settings/security_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -197,6 +198,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'personalization',
                     pageBuilder: (_, state) =>
                         fadeThroughPage(state, const PersonalizationScreen()),
+                  ),
+                  GoRoute(
+                    path: 'help',
+                    pageBuilder: (_, state) =>
+                        fadeThroughPage(state, const HelpScreen()),
                   ),
                   GoRoute(
                     path: 'support',

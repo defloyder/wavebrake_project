@@ -298,7 +298,36 @@ class AppStrings {
     required this.batteryOptPromptTitle,
     required this.batteryOptPromptBody,
     required this.batteryOptSettingsRow,
+    required this.appearance,
+    required this.help,
+    required this.accountRowHint,
+    required this.connectionRowHint,
+    required this.securityRowHint,
+    required this.appearanceRowHint,
+    required this.notificationsRowHint,
+    required this.helpRowHint,
+    required this.groupRouting,
+    required this.groupSystem,
+    required this.groupContact,
+    required this.groupLegal,
+    required this.groupInterface,
+    required this.groupMotion,
   });
+
+  final String appearance;
+  final String help;
+  final String accountRowHint;
+  final String connectionRowHint;
+  final String securityRowHint;
+  final String appearanceRowHint;
+  final String notificationsRowHint;
+  final String helpRowHint;
+  final String groupRouting;
+  final String groupSystem;
+  final String groupContact;
+  final String groupLegal;
+  final String groupInterface;
+  final String groupMotion;
 
   final String languageName;
   final String email;
@@ -850,7 +879,7 @@ const kEnglishStrings = AppStrings(
   quickTileManual: 'Pull down the shade, tap the pencil (edit) and drag the WAVEBREAK tile up.',
   quickTileAdded: 'Tile added',
   quickTileAlready: 'The tile is already in Quick Settings',
-  quickTileInfo: 'Adds a WAVEBREAK tile to Quick Settings in the shade — next to Wi-Fi, mobile data and the flashlight. A tap on the tile turns the VPN on and off without opening the app, and the line under it shows the current server. You can change the server or protocol right in the VPN notification.',
+  quickTileInfo: 'Adds a WAVEBREAK tile to Quick Settings in the shade — next to Wi-Fi, mobile data and the flashlight. A tap on the tile turns the VPN on and off without opening the app, and the line under it shows the current server.',
   unitMs: 'ms',
   sessionTitle: 'Session',
   trafficDown: 'Received',
@@ -929,6 +958,20 @@ const kEnglishStrings = AppStrings(
   batteryOptPromptBody:
       "Android's battery saver can pause always-on VPN apps during long idle periods, causing dropped connections. Allow unrestricted battery use for more reliable always-on protection.",
   batteryOptSettingsRow: 'Unrestricted battery use',
+  appearance: 'Appearance',
+  help: 'Help',
+  accountRowHint: 'Email, subscription, devices',
+  connectionRowHint: 'Auto-connect, routing, kill switch',
+  securityRowHint: 'PIN code and biometrics',
+  appearanceRowHint: 'Language, colors, text size, effects',
+  notificationsRowHint: 'Connection and subscription',
+  helpRowHint: 'Support, updates, about the app',
+  groupRouting: 'Routing',
+  groupSystem: 'System',
+  groupContact: 'Contact us',
+  groupLegal: 'Documents',
+  groupInterface: 'Interface',
+  groupMotion: 'Animation',
 );
 
 const kRussianStrings = AppStrings(
@@ -1166,7 +1209,7 @@ const kRussianStrings = AppStrings(
   quickTileManual: 'Опустите шторку, нажмите на карандаш (изменить) и перетащите плитку WAVEBREAK наверх.',
   quickTileAdded: 'Плитка добавлена',
   quickTileAlready: 'Плитка уже есть в быстрых настройках',
-  quickTileInfo: 'Добавляет плитку WAVEBREAK в быстрые настройки шторки — рядом с Wi-Fi, мобильным интернетом и фонариком. Нажатие на плитку включает и выключает VPN, не открывая приложение, а подпись под ней показывает текущий сервер. Сменить сервер или протокол можно прямо в уведомлении VPN.',
+  quickTileInfo: 'Добавляет плитку WAVEBREAK в быстрые настройки шторки — рядом с Wi-Fi, мобильным интернетом и фонариком. Нажатие на плитку включает и выключает VPN, не открывая приложение, а подпись под ней показывает текущий сервер.',
   unitMs: 'мс',
   sessionTitle: 'Сессия',
   trafficDown: 'Приём',
@@ -1246,6 +1289,20 @@ const kRussianStrings = AppStrings(
   batteryOptPromptBody:
       'Экономия заряда Android может приостанавливать работу постоянно включённых VPN-приложений при длительном простое, что приводит к обрывам соединения. Разрешите неограниченное использование батареи для более надёжной защиты.',
   batteryOptSettingsRow: 'Неограниченное использование батареи',
+  appearance: 'Оформление',
+  help: 'Помощь',
+  accountRowHint: 'Почта, подписка, устройства',
+  connectionRowHint: 'Автоподключение, маршрутизация, блокировка без VPN',
+  securityRowHint: 'PIN-код и биометрия',
+  appearanceRowHint: 'Язык, цвета, размер текста, эффекты',
+  notificationsRowHint: 'Подключение и подписка',
+  helpRowHint: 'Поддержка, обновления, о приложении',
+  groupRouting: 'Маршрутизация',
+  groupSystem: 'Система',
+  groupContact: 'Связаться с нами',
+  groupLegal: 'Документы',
+  groupInterface: 'Интерфейс',
+  groupMotion: 'Анимация',
 );
 
 const kSpanishStrings = AppStrings(
@@ -1485,7 +1542,7 @@ const kSpanishStrings = AppStrings(
   quickTileManual: 'Desliza el panel, toca el lápiz (editar) y arrastra el mosaico WAVEBREAK hacia arriba.',
   quickTileAdded: 'Mosaico añadido',
   quickTileAlready: 'El mosaico ya está en Ajustes rápidos',
-  quickTileInfo: 'Añade un mosaico de WAVEBREAK a los Ajustes rápidos del panel, junto al Wi-Fi, los datos móviles y la linterna. Al tocarlo, la VPN se activa o se desactiva sin abrir la app, y debajo se ve el servidor actual. El servidor o el protocolo se cambian directamente en la notificación de la VPN.',
+  quickTileInfo: 'Añade un mosaico de WAVEBREAK a los Ajustes rápidos del panel, junto al Wi-Fi, los datos móviles y la linterna. Al tocarlo, la VPN se activa o se desactiva sin abrir la app, y debajo se ve el servidor actual.',
   unitMs: 'ms',
   sessionTitle: 'Sesión',
   trafficDown: 'Recibido',
@@ -1566,6 +1623,20 @@ const kSpanishStrings = AppStrings(
   batteryOptPromptBody:
       'El ahorro de batería de Android puede pausar las apps VPN siempre activas durante períodos de inactividad prolongados, causando desconexiones. Permite el uso ilimitado de batería para una protección más fiable.',
   batteryOptSettingsRow: 'Uso de batería sin restricciones',
+  appearance: 'Apariencia',
+  help: 'Ayuda',
+  accountRowHint: 'Correo, suscripción, dispositivos',
+  connectionRowHint: 'Conexión automática, enrutamiento, bloqueo sin VPN',
+  securityRowHint: 'Código PIN y biometría',
+  appearanceRowHint: 'Idioma, colores, tamaño del texto, efectos',
+  notificationsRowHint: 'Conexión y suscripción',
+  helpRowHint: 'Soporte, actualizaciones, acerca de',
+  groupRouting: 'Enrutamiento',
+  groupSystem: 'Sistema',
+  groupContact: 'Contáctanos',
+  groupLegal: 'Documentos',
+  groupInterface: 'Interfaz',
+  groupMotion: 'Animación',
 );
 
 const kGermanStrings = AppStrings(
@@ -1808,7 +1879,7 @@ const kGermanStrings = AppStrings(
   quickTileManual: 'Ziehe die Leiste herunter, tippe auf den Stift (Bearbeiten) und ziehe die Kachel WAVEBREAK nach oben.',
   quickTileAdded: 'Kachel hinzugefügt',
   quickTileAlready: 'Die Kachel ist bereits in den Schnelleinstellungen',
-  quickTileInfo: 'Fügt den Schnelleinstellungen eine WAVEBREAK-Kachel hinzu – neben WLAN, mobilen Daten und Taschenlampe. Ein Tippen schaltet das VPN ein und aus, ohne die App zu öffnen, darunter steht der aktuelle Server. Server oder Protokoll wechselst du direkt in der VPN-Benachrichtigung.',
+  quickTileInfo: 'Fügt den Schnelleinstellungen eine WAVEBREAK-Kachel hinzu – neben WLAN, mobilen Daten und Taschenlampe. Ein Tippen schaltet das VPN ein und aus, ohne die App zu öffnen, darunter steht der aktuelle Server.',
   unitMs: 'ms',
   sessionTitle: 'Sitzung',
   trafficDown: 'Empfangen',
@@ -1890,6 +1961,20 @@ const kGermanStrings = AppStrings(
   batteryOptPromptBody:
       'Der Akkusparmodus von Android kann dauerhaft aktive VPN-Apps bei längerer Inaktivität pausieren, was zu Verbindungsabbrüchen führt. Erlaube uneingeschränkten Akkuverbrauch für zuverlässigeren Dauerschutz.',
   batteryOptSettingsRow: 'Uneingeschränkter Akkuverbrauch',
+  appearance: 'Darstellung',
+  help: 'Hilfe',
+  accountRowHint: 'E-Mail, Abo, Geräte',
+  connectionRowHint: 'Automatisch verbinden, Routing, Sperre ohne VPN',
+  securityRowHint: 'PIN-Code und Biometrie',
+  appearanceRowHint: 'Sprache, Farben, Textgröße, Effekte',
+  notificationsRowHint: 'Verbindung und Abo',
+  helpRowHint: 'Support, Updates, über die App',
+  groupRouting: 'Routing',
+  groupSystem: 'System',
+  groupContact: 'Kontakt',
+  groupLegal: 'Dokumente',
+  groupInterface: 'Oberfläche',
+  groupMotion: 'Animation',
 );
 
 const kFrenchStrings = AppStrings(
@@ -2133,7 +2218,7 @@ const kFrenchStrings = AppStrings(
   quickTileManual: 'Abaissez le volet, touchez le crayon (modifier) et faites glisser la tuile WAVEBREAK vers le haut.',
   quickTileAdded: 'Tuile ajoutée',
   quickTileAlready: 'La tuile est déjà dans les réglages rapides',
-  quickTileInfo: 'Ajoute une tuile WAVEBREAK aux réglages rapides du volet, à côté du Wi-Fi, des données mobiles et de la lampe. Une pression active ou coupe le VPN sans ouvrir l’appli, et le serveur actuel s’affiche en dessous. Le serveur ou le protocole se changent directement depuis la notification du VPN.',
+  quickTileInfo: 'Ajoute une tuile WAVEBREAK aux réglages rapides du volet, à côté du Wi-Fi, des données mobiles et de la lampe. Une pression active ou coupe le VPN sans ouvrir l’appli, et le serveur actuel s’affiche en dessous.',
   unitMs: 'ms',
   sessionTitle: 'Session',
   trafficDown: 'Reçu',
@@ -2214,6 +2299,20 @@ const kFrenchStrings = AppStrings(
   batteryOptPromptBody:
       "L'économiseur de batterie d'Android peut mettre en pause les applications VPN permanentes lors de longues périodes d'inactivité, provoquant des déconnexions. Autorisez une utilisation illimitée de la batterie pour une protection permanente plus fiable.",
   batteryOptSettingsRow: 'Utilisation de la batterie sans restriction',
+  appearance: 'Apparence',
+  help: 'Aide',
+  accountRowHint: 'E-mail, abonnement, appareils',
+  connectionRowHint: 'Connexion auto, routage, blocage sans VPN',
+  securityRowHint: 'Code PIN et biométrie',
+  appearanceRowHint: 'Langue, couleurs, taille du texte, effets',
+  notificationsRowHint: 'Connexion et abonnement',
+  helpRowHint: 'Assistance, mises à jour, à propos',
+  groupRouting: 'Routage',
+  groupSystem: 'Système',
+  groupContact: 'Nous contacter',
+  groupLegal: 'Documents',
+  groupInterface: 'Interface',
+  groupMotion: 'Animation',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -2454,7 +2553,7 @@ const kPortugueseStrings = AppStrings(
   quickTileManual: 'Puxe a barra, toque no lápis (editar) e arraste o bloco WAVEBREAK para cima.',
   quickTileAdded: 'Bloco adicionado',
   quickTileAlready: 'O bloco já está nas Configurações rápidas',
-  quickTileInfo: 'Adiciona um bloco do WAVEBREAK às Configurações rápidas da barra, ao lado do Wi-Fi, dos dados móveis e da lanterna. Um toque liga e desliga a VPN sem abrir o app, e abaixo aparece o servidor atual. Servidor ou protocolo mudam direto na notificação da VPN.',
+  quickTileInfo: 'Adiciona um bloco do WAVEBREAK às Configurações rápidas da barra, ao lado do Wi-Fi, dos dados móveis e da lanterna. Um toque liga e desliga a VPN sem abrir o app, e abaixo aparece o servidor atual.',
   unitMs: 'ms',
   sessionTitle: 'Sessão',
   trafficDown: 'Recebido',
@@ -2534,6 +2633,20 @@ const kPortugueseStrings = AppStrings(
   batteryOptPromptBody:
       'A economia de bateria do Android pode pausar apps de VPN sempre ativos durante longos períodos de inatividade, causando desconexões. Permita o uso irrestrito de bateria para uma proteção mais confiável.',
   batteryOptSettingsRow: 'Uso de bateria sem restrições',
+  appearance: 'Aparência',
+  help: 'Ajuda',
+  accountRowHint: 'E-mail, assinatura, dispositivos',
+  connectionRowHint: 'Conexão automática, roteamento, bloqueio sem VPN',
+  securityRowHint: 'Código PIN e biometria',
+  appearanceRowHint: 'Idioma, cores, tamanho do texto, efeitos',
+  notificationsRowHint: 'Conexão e assinatura',
+  helpRowHint: 'Suporte, atualizações, sobre o app',
+  groupRouting: 'Roteamento',
+  groupSystem: 'Sistema',
+  groupContact: 'Fale conosco',
+  groupLegal: 'Documentos',
+  groupInterface: 'Interface',
+  groupMotion: 'Animação',
 );
 
 const kTurkishStrings = AppStrings(
@@ -2771,7 +2884,7 @@ const kTurkishStrings = AppStrings(
   quickTileManual: 'Bildirim panelini indirin, kaleme (düzenle) dokunun ve WAVEBREAK kutucuğunu yukarı sürükleyin.',
   quickTileAdded: 'Kutucuk eklendi',
   quickTileAlready: 'Kutucuk zaten hızlı ayarlarda',
-  quickTileInfo: 'Hızlı ayarlara bir WAVEBREAK kutucuğu ekler: Wi-Fi, mobil veri ve fenerin yanına. Kutucuğa dokunmak uygulamayı açmadan VPN’i açar ve kapatır, altında geçerli sunucu görünür. Sunucuyu veya protokolü doğrudan VPN bildiriminden değiştirebilirsiniz.',
+  quickTileInfo: 'Hızlı ayarlara bir WAVEBREAK kutucuğu ekler: Wi-Fi, mobil veri ve fenerin yanına. Kutucuğa dokunmak uygulamayı açmadan VPN’i açar ve kapatır, altında geçerli sunucu görünür.',
   unitMs: 'ms',
   sessionTitle: 'Oturum',
   trafficDown: 'Alınan',
@@ -2852,6 +2965,20 @@ const kTurkishStrings = AppStrings(
   batteryOptPromptBody:
       "Android'in pil tasarrufu, uzun boşta kalma sürelerinde her zaman açık VPN uygulamalarını duraklatabilir ve bağlantı kopmalarına neden olabilir. Daha güvenilir kesintisiz koruma için sınırsız pil kullanımına izin verin.",
   batteryOptSettingsRow: 'Sınırsız pil kullanımı',
+  appearance: 'Görünüm',
+  help: 'Yardım',
+  accountRowHint: 'E-posta, abonelik, cihazlar',
+  connectionRowHint: 'Otomatik bağlantı, yönlendirme, VPN\'siz engelleme',
+  securityRowHint: 'PIN kodu ve biyometri',
+  appearanceRowHint: 'Dil, renkler, yazı boyutu, efektler',
+  notificationsRowHint: 'Bağlantı ve abonelik',
+  helpRowHint: 'Destek, güncellemeler, uygulama hakkında',
+  groupRouting: 'Yönlendirme',
+  groupSystem: 'Sistem',
+  groupContact: 'Bize ulaşın',
+  groupLegal: 'Belgeler',
+  groupInterface: 'Arayüz',
+  groupMotion: 'Animasyon',
 );
 
 AppStrings stringsFor(AppLanguage language) {

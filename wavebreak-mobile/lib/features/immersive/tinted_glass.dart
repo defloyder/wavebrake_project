@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/wb_colors.dart';
 import '../shared/wave_params.dart';
 import 'effects_quality.dart';
 import 'immersive_colors.dart';
@@ -58,12 +59,12 @@ class TintedGlass extends ConsumerWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            lean(Ic.glassTop, 0.20),
-            lean(Ic.glassMid, 0.07),
-            lean(Ic.glassBottom, 0.03),
+            lean(Ic.glassTop, WbColors.surfaceLean),
+            lean(Ic.glassMid, WbColors.surfaceLean * 0.35),
+            lean(Ic.glassBottom, WbColors.surfaceLean * 0.15),
           ],
         ),
-        border: Border.all(color: lean(Ic.glassBorder, 0.40)),
+        border: Border.all(color: lean(Ic.glassBorder, WbColors.surfaceBorderLean)),
       ),
       child: child,
     );
@@ -82,7 +83,7 @@ class TintedGlass extends ConsumerWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [
                   Colors.transparent,
-                  lean(const Color(0x30D4F7F0), 0.3),
+                  lean(const Color(0x30D4F7F0), 0.1),
                   Colors.transparent,
                 ]),
               ),

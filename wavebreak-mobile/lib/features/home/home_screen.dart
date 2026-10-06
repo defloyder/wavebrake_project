@@ -1027,17 +1027,11 @@ class _SubscriptionStrip extends ConsumerWidget {
       return WbCard(
         onTap: onSignIn,
         tint: tint,
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                s.signInToUnlock,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: WbColors.ice60),
-          ],
+        child: _StripHeader(
+          icon: Icons.person_outline_rounded,
+          iconColor: WbColors.ice,
+          title: s.signIn,
+          subtitle: s.signInToUnlock,
         ),
       );
     }
@@ -1081,40 +1075,20 @@ class _SubscriptionStrip extends ConsumerWidget {
         ),
         data: (sub) {
           if (sub.isPastDue) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.subscriptionPastDueTitle,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  renewBeforeLine(sub, s),
-                  style: const TextStyle(color: WbColors.warning, fontSize: 13),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  s.renewResetNote,
-                  style: const TextStyle(color: WbColors.ice60, fontSize: 12),
-                ),
-              ],
+            return _StripHeader(
+              icon: Icons.error_outline_rounded,
+              iconColor: WbColors.warning,
+              title: s.subscriptionPastDueTitle,
+              subtitle: '${renewBeforeLine(sub, s)}\n${s.renewResetNote}',
+              subtitleColor: WbColors.warning,
             );
           }
           if (sub.isExpired || !sub.isActive) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.subscriptionExpiredTitle,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  s.chooseAPlanToConnect,
-                  style: const TextStyle(color: WbColors.ice60, fontSize: 13),
-                ),
-              ],
+            return _StripHeader(
+              icon: Icons.workspace_premium_outlined,
+              iconColor: WbColors.warning,
+              title: s.subscriptionExpiredTitle,
+              subtitle: s.chooseAPlanToConnect,
             );
           }
           final days = sub.daysRemaining;
@@ -1125,17 +1099,16 @@ class _SubscriptionStrip extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                s.subscriptionActive,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                days == null ? s.active : '$days ${s.daysRemaining}',
-                style: const TextStyle(color: WbColors.ice60, fontSize: 13),
+              _StripHeader(
+                icon: Icons.workspace_premium_outlined,
+                iconColor: WbColors.oceanTeal,
+                title: s.subscriptionActive,
+                subtitle: days == null
+                    ? sub.planName
+                    : '${sub.planName} · $days ${s.daysRemaining}',
               ),
               if (usage != null) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 TrafficWaveBar(
                   usedBytes: usage.bytesTotal,
                   limitBytes: usage.limitBytes ?? sub.trafficLimitBytes,
@@ -1146,6 +1119,61 @@ class _SubscriptionStrip extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// The subscription section's head on Home: a neutral icon tile (the
+/// state in its color), title, one muted line, a chevron to the plan.
+class _StripHeader extends StatelessWidget {
+  const _StripHeader({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    this.subtitleColor = WbColors.ice60,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final Color subtitleColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: WbColors.ice08,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 20, color: iconColor),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(color: subtitleColor, fontSize: 13, height: 1.3),
+              ),
+            ],
+          ),
+        ),
+        const Icon(Icons.chevron_right_rounded, color: WbColors.ice60),
+      ],
     );
   }
 }

@@ -31,7 +31,7 @@ Future<void> showAddCustomServerSheet(
     // since it lives above the branch's nested Navigator, not the root one.
     useRootNavigator: true,
     isScrollControlled: true,
-    backgroundColor: wbBlend(WbColors.card, tint, 0.12),
+    backgroundColor: wbBlend(WbColors.card, tint, WbColors.sheetLean),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
