@@ -275,6 +275,8 @@ object AppChannels {
                 "networkLabel" -> result.success(runCatching { NetworkLabel.describe(app) }.getOrNull())
                 // The VPN service's on-disk log (EngineLog), for the diagnostic export.
                 "engineLog" -> result.success(EngineLog.read(app))
+                // Device registration id kept outside backups (see InstallId).
+                "installId" -> result.success(runCatching { InstallId.get(app) }.getOrNull())
                 "isIgnoringBatteryOptimizations" ->
                     result.success(BatteryOptimization.isIgnoringBatteryOptimizations(app))
                 // Only the user can turn on "Always-on VPN" + "Block

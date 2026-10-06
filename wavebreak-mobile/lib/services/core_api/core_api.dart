@@ -261,15 +261,28 @@ class CoreApi {
     );
   }
 
+  /// With [installId] Core returns this installation's existing device
+  /// instead of taking another slot. A Core without that field rejects the
+  /// body as a whole (400, unknown fields are refused) — then the plain
+  /// registration is sent.
   Future<DeviceItem> registerDevice({
     required String platform,
     required String name,
-  }) {
-    return _client.post(
-      '/me/devices',
-      body: {'name': name, 'platform': platform},
-      parse: (data) => DeviceItem.fromJson(_asMap(data)),
-    );
+    String? installId,
+  }) async {
+    Future<DeviceItem> post(Map<String, dynamic> body) => _client.post(
+          '/me/devices',
+          body: body,
+          parse: (data) => DeviceItem.fromJson(_asMap(data)),
+        );
+    final body = {'name': name, 'platform': platform};
+    if (installId == null || installId.isEmpty) return post(body);
+    try {
+      return await post({...body, 'install_id': installId});
+    } on AppException catch (e) {
+      if (e.statusCode != 400) rethrow;
+      return post(body);
+    }
   }
 
   Future<DeviceItem> updateDevice({

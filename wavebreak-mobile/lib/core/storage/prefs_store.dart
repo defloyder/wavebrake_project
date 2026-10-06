@@ -20,6 +20,10 @@ class PrefsStore {
   // The selected location's name (country|city), to find it again when
   // its link — and with it its id — changed on the server.
   static const lastLocationKey = 'last_location_key';
+
+  /// This installation's id for Core's device registration — kept across
+  /// sign-outs on purpose (see DeviceService.installId).
+  static const installId = 'install_id';
   static const autoConnect = 'auto_connect';
   static const autoConnectOnLaunch = 'auto_connect_on_launch';
   static const autoConnectUntrustedWifi = 'auto_connect_untrusted_wifi';

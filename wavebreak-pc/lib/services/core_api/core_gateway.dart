@@ -194,11 +194,13 @@ class CoreGateway {
   Future<DeviceItem> registerDevice({
     required String platform,
     required String name,
+    String? installId,
   }) {
     if (useMock) {
       return mock.registerDevice(platform: platform, name: name);
     }
-    return live.registerDevice(platform: platform, name: name);
+    return live.registerDevice(
+        platform: platform, name: name, installId: installId);
   }
 
   Future<List<DeviceItem>> devices() async {

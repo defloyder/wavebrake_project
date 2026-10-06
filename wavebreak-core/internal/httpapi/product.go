@@ -131,6 +131,10 @@ func (s *Server) createDevice(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name     string `json:"name"`
 		Platform string `json:"platform"`
+		// The app's own id of this installation, kept across sign-outs:
+		// registering again returns the same device instead of taking
+		// another slot. Optional (older apps don't send it).
+		InstallID string `json:"install_id"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
@@ -140,7 +144,12 @@ func (s *Server) createDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "device name is required")
 		return
 	}
-	device, err := s.app.Store.CreateDevice(r.Context(), currentUser(r.Context()).ID, req.Name, strings.TrimSpace(req.Platform))
+	req.InstallID = strings.TrimSpace(req.InstallID)
+	if len(req.InstallID) > 128 {
+		writeError(w, http.StatusBadRequest, "install_id is too long")
+		return
+	}
+	device, reused, err := s.app.Store.RegisterDevice(r.Context(), currentUser(r.Context()).ID, req.Name, strings.TrimSpace(req.Platform), req.InstallID)
 	if errors.Is(err, store.ErrLimitReached) {
 		writeError(w, http.StatusForbidden, "DEVICE_LIMIT_REACHED")
 		return
@@ -149,7 +158,11 @@ func (s *Server) createDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "could not create device")
 		return
 	}
-	writeJSON(w, http.StatusCreated, device)
+	status := http.StatusCreated
+	if reused {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, device)
 }
 
 func (s *Server) updateDevice(w http.ResponseWriter, r *http.Request) {

@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/logging/app_logger.dart';
+import '../../core/storage/prefs_store.dart';
 import '../../core/storage/secure_store.dart';
 import '../core_api/core_gateway.dart';
 import '../core_api/models.dart';
@@ -14,8 +19,8 @@ class DeviceService {
   /// Core's server-assigned device id — this is the `device_id` an access
   /// grant is created with. Registers the device with Core on first call
   /// and caches the id afterward, so repeat app launches never create a
-  /// duplicate device row (Core has no idempotent "upsert by client id"
-  /// path; the client only finds out the id after Core creates it).
+  /// duplicate device row. A sign-out forgets it; [installId] then lets
+  /// Core hand the same device back.
   Future<String> deviceId() async {
     final existing = await SecureStore.read(SecureStore.deviceId);
     if (existing != null && existing.isNotEmpty) return existing;
@@ -33,10 +38,39 @@ class DeviceService {
     }
   }
 
+  /// This installation's own id, sent with every registration. Unlike the
+  /// device id above it survives sign-out: signing in again — to any
+  /// account — re-registers with the same id and Core hands back the
+  /// device it already has instead of taking another slot of the
+  /// subscription (owner, 06.10: every sign-in took a slot).
+  ///
+  /// On Android it lives in the native side's no-backup storage
+  /// (InstallId.kt): preferences are restored onto a new phone from the
+  /// Google backup, and two phones with one id would share one device.
+  static Future<String> installId() async {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final id = await const MethodChannel('app.wavebreak/vpn_state')
+            .invokeMethod<String>('installId')
+            .timeout(const Duration(seconds: 3));
+        if (id != null && id.isNotEmpty) return id;
+      } catch (_) {}
+    }
+    final existing = PrefsStore.getString(PrefsStore.installId);
+    if (existing != null && existing.isNotEmpty) return existing;
+    final rnd = Random.secure();
+    final id = [
+      for (var i = 0; i < 16; i++)
+        rnd.nextInt(256).toRadixString(16).padLeft(2, '0')
+    ].join();
+    unawaited(PrefsStore.setString(PrefsStore.installId, id));
+    return id;
+  }
+
   Future<DeviceItem> _register() async {
     final (platform, name) = await _platformInfo();
-    final device =
-        await _gateway.registerDevice(platform: platform, name: name);
+    final device = await _gateway.registerDevice(
+        platform: platform, name: name, installId: await installId());
     await SecureStore.write(SecureStore.deviceId, device.id);
     await SecureStore.write(SecureStore.devicePublicId, device.publicId);
     return device;

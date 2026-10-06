@@ -344,12 +344,59 @@ func (s *Store) ListDevices(ctx context.Context, userID string) ([]Device, error
 }
 
 func (s *Store) CreateDevice(ctx context.Context, userID, name, platform string) (Device, error) {
+	d, _, err := s.RegisterDevice(ctx, userID, name, platform, "")
+	return d, err
+}
+
+// RegisterDevice creates a device for the user, or — when installID (the
+// app's own id of this installation, kept across sign-outs) matches an
+// active device of the user — returns that device with reused=true and
+// takes no new slot. Apps used to forget their device id on every
+// sign-out and register again, so one phone filled several slots of the
+// subscription (owner, 06.10). The id lives in devices.fingerprint, a
+// column that was never used before. The user row is locked so two
+// concurrent registrations of one installation can't both insert.
+func (s *Store) RegisterDevice(ctx context.Context, userID, name, platform, installID string) (Device, bool, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
-		return Device{}, err
+		return Device{}, false, err
 	}
 	defer tx.Rollback(ctx)
 
+	if installID != "" {
+		if _, err := tx.Exec(ctx, `select 1 from users where id = $1 for update`, userID); err != nil {
+			return Device{}, false, err
+		}
+		var d Device
+		err := tx.QueryRow(ctx, `
+			update devices set name = $3, platform = coalesce(nullif($4, ''), platform),
+			       last_seen_at = now(), updated_at = now(),
+			       subscription_id = coalesce(
+			           (select id from subscriptions
+			            where user_id = $1 and status in ('pending', 'trialing', 'active', 'past_due', 'suspended')
+			            order by created_at desc limit 1),
+			           subscription_id)
+			where id = (select id from devices
+			            where user_id = $1 and fingerprint = $2 and revoked_at is null
+			            order by created_at desc limit 1)
+			returning id::text, user_id::text, coalesce(device_public_id, ''), name, platform, created_at, updated_at, last_seen_at, revoked_at`,
+			userID, installID, name, platform,
+		).Scan(&d.ID, &d.UserID, &d.DevicePublicID, &d.Name, &d.Platform, &d.CreatedAt, &d.UpdatedAt, &d.LastSeenAt, &d.RevokedAt)
+		if err == nil {
+			return d, true, tx.Commit(ctx)
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return Device{}, false, err
+		}
+	}
+	d, err := createDeviceTx(ctx, tx, userID, name, platform, installID)
+	if err != nil {
+		return Device{}, false, err
+	}
+	return d, false, tx.Commit(ctx)
+}
+
+func createDeviceTx(ctx context.Context, tx pgx.Tx, userID, name, platform, installID string) (Device, error) {
 	limit, err := effectiveDeviceLimit(ctx, tx, userID)
 	if err != nil {
 		return Device{}, err
@@ -364,14 +411,14 @@ func (s *Store) CreateDevice(ctx context.Context, userID, name, platform string)
 
 	var d Device
 	err = tx.QueryRow(ctx, `
-		insert into devices (user_id, name, platform, subscription_id, last_seen_at)
+		insert into devices (user_id, name, platform, subscription_id, last_seen_at, fingerprint)
 		values ($1, $2, nullif($3, ''),
 		        (select id from subscriptions
 		         where user_id = $1 and status in ('pending', 'trialing', 'active', 'past_due', 'suspended')
 		         order by created_at desc limit 1),
-		        now())
+		        now(), nullif($4, ''))
 		returning id::text, user_id::text, coalesce(device_public_id, ''), name, platform, created_at, updated_at, last_seen_at, revoked_at`,
-		userID, name, platform,
+		userID, name, platform, installID,
 	).Scan(&d.ID, &d.UserID, &d.DevicePublicID, &d.Name, &d.Platform, &d.CreatedAt, &d.UpdatedAt, &d.LastSeenAt, &d.RevokedAt)
 	if err != nil {
 		return Device{}, err
@@ -380,7 +427,7 @@ func (s *Store) CreateDevice(ctx context.Context, userID, name, platform string)
 		return Device{}, err
 	}
 	d.DevicePublicID = d.ID
-	return d, tx.Commit(ctx)
+	return d, nil
 }
 
 // ClaimSharedDevice takes one device slot of the owner's subscription for

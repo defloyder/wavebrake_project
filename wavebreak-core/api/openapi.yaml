@@ -233,7 +233,29 @@ paths:
       security:
         - bearerAuth: []
       summary: Register a current user device while enforcing subscription device limits
+      description: >-
+        With install_id (the app's id of its installation, kept across
+        sign-outs) an active device of this user with the same install_id is
+        returned (200) instead of creating another one — signing in again
+        never takes a new slot. A revoked device is not brought back.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                platform:
+                  type: string
+                install_id:
+                  type: string
+                  maxLength: 128
       responses:
+        "200":
+          description: Existing device of this installation returned
         "201":
           description: Device created
         "403":
