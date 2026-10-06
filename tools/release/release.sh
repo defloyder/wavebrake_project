@@ -309,6 +309,7 @@ cmd_publish() {
 }
 
 case "${1:-}" in
+  build-tv) powershell.exe -NoProfile -File "$(cygpath -w "$ROOT/tools/release/tv.ps1")" "${@:2}" ;;
   check)   preflight "${2:-all}"
            [ "${2:-all}" != windows ] && echo "Следующий Android: $(rel next android)"
            [ "${2:-all}" != android ] && echo "Следующий Windows: $(rel next windows)"; true ;;

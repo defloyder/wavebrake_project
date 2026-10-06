@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.util.Base64
 import java.io.FileInputStream
 
 plugins {
@@ -24,11 +25,29 @@ plugins {
 // actual secret never has to be a committed file.
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
+// Flutter forwards dart-defines as an explicit Gradle property. Do not rely
+// on a process environment flag being visible to a reused Gradle daemon.
+val buildDefines = providers.gradleProperty("dart-defines").orNull.orEmpty()
+    .split(",").filter { it.isNotBlank() }
+    .map { String(Base64.getDecoder().decode(it), Charsets.UTF_8) }
+val wavebreakTv = buildDefines.contains("WAVEBREAK_TV=true")
+val buildTarget = providers.gradleProperty("target").orNull.orEmpty().replace('\\', '/')
+val tvEntryPoint = buildTarget == "main_tv.dart" || buildTarget.endsWith("/main_tv.dart")
+if (tvEntryPoint != wavebreakTv) {
+    throw GradleException("TV builds require both main_tv.dart and --dart-define=WAVEBREAK_TV=true")
+}
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
+if (wavebreakTv && !keystorePropertiesFile.exists()) {
+    throw GradleException("TV preview requires the WAVEBREAK release signing key")
+}
 
 android {
+    buildFeatures { buildConfig = true }
+    if (wavebreakTv) {
+        sourceSets.getByName("release").manifest.srcFile("src/tv/AndroidManifest.xml")
+    }
     namespace = "com.wavebreak.wavebreak"
     compileSdk = flutter.compileSdkVersion
     // Pinned above flutter.ndkVersion: several plugins (connectivity_plus,
@@ -43,7 +62,8 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.wavebreak.wavebreak"
+        applicationId = if (wavebreakTv) "com.wavebreak.wavebreak.tv" else "com.wavebreak.wavebreak"
+        buildConfigField("boolean", "WAVEBREAK_TV", wavebreakTv.toString())
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // Android 7.1 (API 25) and up. Android 7.0 doesn't trust ISRG Root X1
