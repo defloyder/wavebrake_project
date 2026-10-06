@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WAVEBREAK Lite</title>
+<style>
+  :root {
+    --bg: #07090c; --card: #11161c; --line: #1e2731; --text: #e8eef4;
+    --muted: #8a97a6; --accent: #39d5c3; --warn: #ffb23f; --bad: #ff5d5d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: radial-gradient(1200px 600px at 50% -10%, #0f2a2e 0%, var(--bg) 60%);
+    color: var(--text); font: 15px/1.45 "Segoe UI", Tahoma, sans-serif;
+    display: flex; justify-content: center; padding: 32px 16px;
+  }
+  main { width: 100%; max-width: 440px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 22px; }
+  .logo { letter-spacing: .32em; font-weight: 600; font-size: 18px; }
+  .ver { color: var(--muted); font-size: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 14px; }
+  h2 { margin: 0 0 14px; font-size: 17px; font-weight: 600; }
+  label { display: block; color: var(--muted); font-size: 13px; margin: 10px 0 4px; }
+  input {
+    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: #0b0f14; color: var(--text); font: inherit; outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  button {
+    font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line);
+    background: #16202a; color: var(--text); padding: 10px 14px;
+  }
+  button:hover { border-color: #2c3a48; }
+  button.primary { background: var(--accent); color: #04110f; border: none; font-weight: 600; width: 100%; margin-top: 16px; padding: 12px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .err { color: var(--bad); font-size: 13px; margin-top: 10px; min-height: 1em; }
+  .hint { color: var(--muted); font-size: 13px; }
+  .power { display: flex; flex-direction: column; align-items: center; padding: 26px 20px; }
+  .ring {
+    width: 150px; height: 150px; border-radius: 50%; border: 2px solid var(--line);
+    background: radial-gradient(circle at 50% 40%, #18222c, #0b0f14);
+    color: var(--text); font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+    transition: box-shadow .4s, border-color .4s;
+  }
+  .ring.on { border-color: var(--accent); box-shadow: 0 0 40px rgba(57,213,195,.35); }
+  .ring.busy { border-color: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
+  .ring.bad { border-color: var(--bad); }
+  @keyframes pulse { 50% { box-shadow: 0 0 34px rgba(255,178,63,.35); } }
+  .status { margin-top: 14px; font-weight: 600; }
+  .status.on { color: var(--accent); } .status.bad { color: var(--bad); }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; text-align: center; min-height: 1.2em; }
+  .servers { display: flex; flex-direction: column; gap: 8px; }
+  .srv {
+    display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 12px;
+    border: 1px solid var(--line); background: #0d1218; cursor: pointer; text-align: left; width: 100%;
+  }
+  .srv.sel { border-color: var(--accent); }
+  .cc { width: 34px; height: 24px; border-radius: 5px; background: #1c2731; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .srv .p { flex: 1; } .srv .proto { color: var(--muted); font-size: 13px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row button { flex: 1; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <header><span class="logo">WAVEBREAK</span><span class="ver" id="ver">Lite</span></header>
+
+  <section class="card hidden" id="login">
+    <h2>Вход</h2>
+    <form id="loginForm">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="password">Пароль</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button class="primary" id="loginBtn" type="submit">Войти</button>
+      <div class="err" id="loginErr"></div>
+    </form>
+    <p class="hint">Аккаунта нет? Зарегистрируйтесь в приложении WAVEBREAK на телефоне или на сайте wavebreak.com.tr.</p>
+  </section>
+
+  <section class="card hidden" id="verify">
+    <h2>Подтвердите email</h2>
+    <p class="hint">Мы отправили код на <b id="pendingEmail"></b>.</p>
+    <form id="verifyForm">
+      <label for="code">Код из письма</label>
+      <input id="code" inputmode="numeric" autocomplete="one-time-code" required>
+      <button class="primary" type="submit">Подтвердить</button>
+      <div class="err" id="verifyErr"></div>
+    </form>
+    <div class="row" style="margin-top:10px"><button id="resend" type="button">Отправить код снова</button></div>
+  </section>
+
+  <section id="app" class="hidden">
+    <div class="card power">
+      <button class="ring" id="power" type="button">Подключить</button>
+      <div class="status" id="status">Не подключено</div>
+      <div class="sub" id="detail"></div>
+    </div>
+    <div class="card">
+      <h2>Серверы</h2>
+      <div class="servers" id="servers"></div>
+      <div class="err" id="loadErr"></div>
+      <div class="row" style="margin-top:12px"><button id="reload" type="button">Обновить список</button></div>
+    </div>
+    <div class="card">
+      <div class="hint" id="who"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="logout" type="button">Выйти из аккаунта</button>
+        <button id="quit" type="button">Закрыть программу</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="closed"><h2>WAVEBREAK Lite закрыт</h2><p class="hint">VPN отключён. Эту вкладку можно закрыть.</p></section>
+</main>
+<script>
+  const token = new URLSearchParams(location.search).get('t') || '';
+  const $ = (id) => document.getElementById(id);
+  let state = null, closed = false;
+
+  async function call(path, body) {
+    const r = await fetch('/api/' + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Lite-Token': token },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Ошибка');
+    return data;
+  }
+
+  function show(id) {
+    for (const s of ['login', 'verify', 'app', 'closed']) $(s).classList.toggle('hidden', s !== id);
+  }
+
+  function since(ts) {
+    const s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+    const p = (n) => String(n).padStart(2, '0');
+    return p(Math.floor(s / 3600)) + ':' + p(Math.floor(s / 60) % 60) + ':' + p(s % 60);
+  }
+
+  function render() {
+    if (closed) return show('closed');
+    const st = state;
+    $('ver').textContent = 'Lite ' + st.version;
+    if (!st.signed_in) {
+      if (st.pending) { $('pendingEmail').textContent = st.pending; return show('verify'); }
+      return show('login');
+    }
+    show('app');
+    const t = st.tunnel, ring = $('power'), status = $('status');
+    ring.className = 'ring'; status.className = 'status';
+    if (t.state === 'connected') {
+      ring.classList.add('on'); ring.textContent = 'Отключить';
+      status.classList.add('on'); status.textContent = 'Защита активна';
+      $('detail').textContent = since(t.since) + (t.ping_ms ? ' · ' + t.ping_ms + ' мс' : '');
+    } else if (t.state === 'connecting') {
+      ring.classList.add('busy'); ring.textContent = 'Отмена';
+      status.textContent = 'Подключение…'; $('detail').textContent = '';
+    } else {
+      if (t.state === 'error') { ring.classList.add('bad'); status.classList.add('bad'); }
+      ring.textContent = 'Подключить';
+      status.textContent = t.state === 'error' ? 'Не удалось подключиться' : 'Не подключено';
+      $('detail').textContent = t.state === 'error' ? (t.error || '') : '';
+    }
+    const list = $('servers');
+    const sel = st.selected || (st.servers[0] && st.servers[0].id);
+    list.replaceChildren(...(st.servers || []).map((s) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'srv' + (s.id === sel ? ' sel' : '');
+      const cc = document.createElement('span'); cc.className = 'cc'; cc.textContent = s.country || '··';
+      const p = document.createElement('span'); p.className = 'p'; p.textContent = s.place;
+      const pr = document.createElement('span'); pr.className = 'proto'; pr.textContent = s.protocol;
+      b.append(cc, p, pr);
+      b.onclick = () => call('select', { id: s.id }).then(poll).catch((e) => ($('loadErr').textContent = e.message));
+      return b;
+    }));
+    $('loadErr').textContent = st.busy ? 'Загрузка…' : (st.load_err || '');
+    $('who').textContent = st.email ? 'Аккаунт: ' + st.email : '';
+  }
+
+  async function poll() {
+    if (closed) return;
+    try { state = await call('state'); render(); } catch (e) { /* the app is closing */ }
+  }
+
+  $('loginForm').onsubmit = async (e) => {
+    e.preventDefault(); $('loginErr').textContent = ''; $('loginBtn').disabled = true;
+    try { await call('login', { email: $('email').value, password: $('password').value }); $('password').value = ''; await poll(); }
+    catch (err) { $('loginErr').textContent = err.message; }
+    finally { $('loginBtn').disabled = false; }
+  };
+  $('verifyForm').onsubmit = async (e) => {
+    e.preventDefault(); $('verifyErr').textContent = '';
+    try { await call('verify', { code: $('code').value }); await poll(); }
+    catch (err) { $('verifyErr').textContent = err.message; }
+  };
+  $('resend').onclick = () => call('resend').then(() => ($('verifyErr').textContent = 'Код отправлен.')).catch((e) => ($('verifyErr').textContent = e.message));
+  $('power').onclick = async () => {
+    const st = state && state.tunnel.state;
+    try { await call(st === 'connected' || st === 'connecting' ? 'disconnect' : 'connect'); } catch (e) { $('detail').textContent = e.message; }
+    poll();
+  };
+  $('reload').onclick = () => call('reload').then(poll).catch((e) => ($('loadErr').textContent = e.message));
+  $('logout').onclick = () => { if (confirm('Выйти из аккаунта? VPN отключится.')) call('logout').then(poll); };
+  $('quit').onclick = () => { if (confirm('Закрыть WAVEBREAK Lite? VPN отключится.')) call('quit').then(() => { closed = true; render(); }); };
+
+  poll();
+  setInterval(poll, 1500);
+</script>
+</body>
+</html>
