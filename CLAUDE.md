@@ -52,5 +52,8 @@ tools/release/release.sh publish   # только после «публикуй�
 | Отчёт об изменениях на серверах | `docs/2026-10-01-changes-report.md` |
 | Белые списки (задание) | `docs/whitelist-handoff-for-colleague.md` |
 | Cloak (маскировка Hysteria) | `docs/CLOAK-TECHNICAL-OVERVIEW.md` |
+| Android TV (то же приложение, пакет `.tv`, вход по QR) | `docs/TV-SUPPORT.md` |
+| Windows 32 бит — WAVEBREAK Lite | `wavebreak-lite/README.md` |
+| Общий интерфейс Android/Windows: что править где | `docs/PROJECT-STATE.md` → «Общий код» |
 
 Общаться с владельцем — по-русски.
