@@ -31,6 +31,7 @@ import '../shell/app_shell.dart';
 import '../shared/ocean_background.dart';
 import '../shared/subscription_accordion.dart';
 import '../shared/subscription_texts.dart';
+import '../shared/toast.dart';
 import '../shared/wave_params.dart';
 import '../shared/wb_card.dart';
 import '../shared/wavebreak_mark.dart';
@@ -232,28 +233,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  Future<void> _refresh() async {
-    ref.invalidate(locationsProvider);
-    ref.invalidate(subscriptionProvider);
+  bool _refreshing = false;
+
+  /// Reloads the servers and the subscription — the refresh button and
+  /// pull-down on Home. Taps while a reload is running are ignored; the
+  /// message comes once it is done (and only for the button: the pull-down
+  /// spinner already says it).
+  Future<void> _refresh({bool toast = true}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+    final messenger = ScaffoldMessenger.of(context);
     final s = ref.read(stringsProvider);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(s.serversUpdated),
-            duration: const Duration(seconds: 2)),
-      );
+    try {
+      ref.invalidate(locationsProvider);
+      ref.invalidate(subscriptionProvider);
+      await Future.wait([
+        ref.read(locationsProvider.future),
+        ref.read(subscriptionProvider.future),
+      ]).timeout(const Duration(seconds: 20));
+    } catch (_) {
+      // Errors show on the screen itself (offline icon, server list).
+    } finally {
+      _refreshing = false;
     }
+    if (mounted && toast) showToast(messenger, s.serversUpdated);
   }
 
   Future<void> _restart() async {
     final s = ref.read(stringsProvider);
     final canConnect = ref.read(canConnectProvider);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(s.restarting), duration: const Duration(seconds: 2)),
-      );
-    }
+    if (mounted) showToast(ScaffoldMessenger.of(context), s.restarting);
     await ref
         .read(connectionManagerProvider.notifier)
         .restart(subscriptionActive: canConnect);
@@ -506,7 +515,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             final heroTopGap = (constraints.maxHeight * 0.04).clamp(8.0, 28.0);
             final aboveButtonGap =
                 (constraints.maxHeight * 0.06).clamp(20.0, 56.0);
-            return SingleChildScrollView(
+            // Pull down to reload the servers and the subscription, like
+            // the refresh button (owner, 06.10). Always scrollable, or a
+            // screen whose content fits would never start the pull.
+            return RefreshIndicator(
+              onRefresh: () => _refresh(toast: false),
+              color: Ic.text,
+              backgroundColor: const Color(0xE6101418),
+              child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               controller: _scrollController,
               // The bottom nav pill now floats over the body
               // instead of reserving its own Scaffold slot, so
@@ -547,6 +564,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   subscriptionStrip,
                 ],
               ),
+            ),
             );
           },
         );
