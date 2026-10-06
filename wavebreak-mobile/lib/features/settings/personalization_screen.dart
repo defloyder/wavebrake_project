@@ -54,8 +54,48 @@ class PersonalizationScreen extends ConsumerWidget {
           ],
         ),
         SettingsGroup(
+          title: s.sphereStyleTitle,
+          footer: s.sphereStyleHint,
+          children: [
+            SettingsBlock(
+              child: _Segments<SphereStyle>(
+                value: personalization.sphereStyle,
+                options: {
+                  SphereStyle.earth: s.sphereEarth,
+                  SphereStyle.glass: s.sphereGlass,
+                  SphereStyle.minimal: s.sphereMinimal,
+                },
+                onChanged: notifier.setSphereStyle,
+              ),
+            ),
+          ],
+        ),
+        SettingsGroup(
           title: s.groupInterface,
           children: [
+            SettingsBlock(
+              title: s.backgroundTitle,
+              child: _Segments<BackgroundIntensity>(
+                value: personalization.background,
+                options: {
+                  BackgroundIntensity.calm: s.backgroundCalm,
+                  BackgroundIntensity.normal: s.backgroundNormal,
+                  BackgroundIntensity.vivid: s.backgroundVivid,
+                },
+                onChanged: notifier.setBackground,
+              ),
+            ),
+            SettingsBlock(
+              title: s.densityTitle,
+              child: _Segments<UiDensity>(
+                value: personalization.density,
+                options: {
+                  UiDensity.normal: s.densityNormal,
+                  UiDensity.compact: s.densityCompact,
+                },
+                onChanged: notifier.setDensity,
+              ),
+            ),
             SettingsBlock(
               title: s.textSize,
               child: Row(
@@ -203,7 +243,9 @@ class _AccentSwatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = preset.color ?? context.accent;
-    return Material(
+    // "Automatic" is a tooltip, not a caption: a caption widened its cell
+    // and broke the swatch grid.
+    final swatch = Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
@@ -263,15 +305,12 @@ class _AccentSwatch extends StatelessWidget {
                         ? const Icon(Icons.check_rounded, size: 20, color: Colors.white)
                         : null),
               ),
-              if (label != null) ...[
-                const SizedBox(height: 6),
-                Text(label!, style: const TextStyle(fontSize: 11, color: WbColors.ice60)),
-              ],
             ],
           ),
         ),
       ),
     );
+    return label == null ? swatch : Tooltip(message: label!, child: swatch);
   }
 }
 
@@ -313,6 +352,35 @@ class _TextSizeOption extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One choice of a few, as segments (labels shrink instead of wrapping).
+class _Segments<T> extends StatelessWidget {
+  const _Segments({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final T value;
+  final Map<T, String> options;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<T>(
+        showSelectedIcon: false,
+        segments: [
+          for (final e in options.entries)
+            ButtonSegment(value: e.key, label: _OneLine(e.value)),
+        ],
+        selected: {value},
+        onSelectionChanged: (v) => onChanged(v.first),
       ),
     );
   }

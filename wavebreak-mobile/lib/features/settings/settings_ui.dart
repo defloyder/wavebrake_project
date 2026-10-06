@@ -65,7 +65,8 @@ class SettingsGroup extends StatelessWidget {
       rows.add(child);
     }
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: EdgeInsets.only(
+          bottom: Theme.of(context).visualDensity.vertical < 0 ? 14 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -162,9 +163,11 @@ class SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final titleColor = destructive ? WbColors.error : WbColors.ice;
     final showChevron = chevron ?? (onTap != null && trailing == null);
+    // Personalization: compact density (VisualDensity.compact).
+    final v = Theme.of(context).visualDensity.vertical < 0 ? 8.0 : 12.0;
     final row = Padding(
       padding: EdgeInsets.fromLTRB(
-          16, 12, showChevron || trailing != null || info != null ? 8 : 16, 12),
+          16, v, showChevron || trailing != null || info != null ? 8 : 16, v),
       child: Row(
         children: [
           if (icon != null) ...[

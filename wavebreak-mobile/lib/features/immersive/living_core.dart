@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n/language_controller.dart';
+import '../../core/theme/personalization_controller.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../shared/wave_params.dart';
 import 'effects_quality.dart';
@@ -240,6 +241,8 @@ class _LivingCoreState extends ConsumerState<LivingCore>
     // location change glides the sphere over to the new color.
     final target = ref.watch(appWaveParamsProvider).tint;
     final economy = ref.watch(effectsEconomyProvider);
+    // Personalization: Earth (full), Glass (no texture), Minimal (a ring).
+    final style = ref.watch(personalizationProvider).sphereStyle;
     final core = TweenAnimationBuilder<Color?>(
       tween: ColorTween(end: target ?? _CorePainter.baseHue),
       duration: const Duration(milliseconds: 700),
@@ -256,8 +259,9 @@ class _LivingCoreState extends ConsumerState<LivingCore>
         press: _press,
         motion: _motion,
         // Economy effects (older phones): the plain sphere, no shader.
-        shader: economy ? null : _shader,
+        shader: economy || style != SphereStyle.earth ? null : _shader,
         lite: economy,
+        minimal: style == SphereStyle.minimal,
         texture: _texture,
         mark: _mark,
         label: _labelFor(label, d, DefaultTextStyle.of(context).style.fontFamily),
@@ -332,6 +336,7 @@ class _CorePainter extends CustomPainter {
     required this.enabled,
     required this.tint,
     this.lite = false,
+    this.minimal = false,
   }) : super(repaint: repaint);
 
   final ValueListenable<double> time;
@@ -355,6 +360,10 @@ class _CorePainter extends CustomPainter {
   /// Economy effects (older phones): coarser orbits, no far halves seen
   /// through the glass, no blurred glows.
   final bool lite;
+
+  /// Personalization "Minimal": a light ring around the mark instead of
+  /// the sphere, its glass and orbits (cheap on any phone).
+  final bool minimal;
 
   /// The hue the sphere is designed in; [tint] rotates away from it.
   static const baseHue = Color(0xFFFF4C74);
@@ -461,27 +470,36 @@ class _CorePainter extends CustomPainter {
     // without an offscreen buffer the size of the effects every frame.
     _m = _tintMatrix(tint, w);
 
-    // Orbit geometry once for both passes.
-    motion.orbits
-      ..setFrame(t: t, center: c, rs: r * 0.97, charge: charge)
-      ..fillBands(lite ? 84 : _vertices)
-      ..fillParticles(_particles, motion.particleAngle);
-
     _aura(canvas, c, r, t, e, w);
     _shell(canvas, c, r, e, w);
 
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.scale(scale);
-    canvas.translate(-c.dx, -c.dy);
-    _outerGlow(canvas, c, r, e, w, pulse);
-    _sphere(canvas, c, r, t, e, w, pulse);
-    // Far halves of the orbits, faint, seen through the glass.
-    if (!lite) _ribbons(canvas, r, front: false);
-    _glass(canvas, c, r, t, e, w);
-    canvas.restore();
+    if (minimal) {
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.scale(scale);
+      canvas.translate(-c.dx, -c.dy);
+      _ring(canvas, c, r, e, w, pulse);
+      canvas.restore();
+    } else {
+      // Orbit geometry once for both passes.
+      motion.orbits
+        ..setFrame(t: t, center: c, rs: r * 0.97, charge: charge)
+        ..fillBands(lite ? 84 : _vertices)
+        ..fillParticles(_particles, motion.particleAngle);
 
-    _ribbons(canvas, r, front: true);
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.scale(scale);
+      canvas.translate(-c.dx, -c.dy);
+      _outerGlow(canvas, c, r, e, w, pulse);
+      _sphere(canvas, c, r, t, e, w, pulse);
+      // Far halves of the orbits, faint, seen through the glass.
+      if (!lite) _ribbons(canvas, r, front: false);
+      _glass(canvas, c, r, t, e, w);
+      canvas.restore();
+
+      _ribbons(canvas, r, front: true);
+    }
     if (connecting && !frozen) _inwardFronts(canvas, c, r, t);
     if (success) _outwardFronts(canvas, c, r, t, since);
 
@@ -600,6 +618,41 @@ class _CorePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4 + e
         ..color = ring1,
+    );
+  }
+
+  /// "Minimal" style: a dark disc behind the mark and one lit ring that
+  /// brightens with the connection (and pulses while connecting).
+  void _ring(
+      Canvas canvas, Offset c, double r, double e, double w, double pulse) {
+    final color = _tc(Color.lerp(const Color(0xFFFF4C74), _amber, w)!);
+    canvas.drawCircle(
+      c,
+      r * 0.96,
+      Paint()
+        ..shader = RadialGradient(colors: [
+          _tc(const Color(0x33200810)),
+          _tc(const Color(0x10200810)),
+        ]).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    if (!lite) {
+      canvas.drawCircle(
+        c,
+        r * 0.96,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 6
+          ..color = color.withValues(alpha: 0.18 + 0.2 * e + 0.15 * pulse)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+    }
+    canvas.drawCircle(
+      c,
+      r * 0.96,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6 + e
+        ..color = color.withValues(alpha: 0.55 + 0.35 * e),
     );
   }
 
@@ -1013,5 +1066,6 @@ class _CorePainter extends CustomPainter {
       old.enabled != enabled ||
       old.tint != tint ||
       old.lite != lite ||
+      old.minimal != minimal ||
       old.time != time;
 }

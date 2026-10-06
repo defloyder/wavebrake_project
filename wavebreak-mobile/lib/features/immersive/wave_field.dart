@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/personalization_controller.dart';
 import 'effects_quality.dart';
 import 'immersive_clock.dart';
 import 'immersive_colors.dart';
@@ -29,6 +30,9 @@ class WaveField extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Economy effects (older phones): at most 12 layers, as in the spec.
     final economy = ref.watch(effectsEconomyProvider);
+    // Personalization: how visible the waves are (calm draws fewer lines).
+    final background = ref.watch(personalizationProvider).background;
+    final wanted = (layers * background.layerFactor).round().clamp(6, layers);
     return IgnorePointer(
       child: ExcludeSemantics(
         child: RepaintBoundary(
@@ -37,7 +41,8 @@ class WaveField extends ConsumerWidget {
             painter: _WaveFieldPainter(
               time: ImmersiveClock.of(context),
               intensity: intensity,
-              layers: economy ? (layers < 12 ? layers : 12) : layers,
+              layers: economy ? (wanted < 12 ? wanted : 12) : wanted,
+              strength: background.strength,
               tint: tint,
               glow: !economy,
             ),
@@ -54,7 +59,8 @@ class _WaveFieldPainter extends CustomPainter {
       required this.intensity,
       required this.layers,
       this.tint,
-      this.glow = true})
+      this.glow = true,
+      this.strength = 1.0})
       : super(repaint: time);
 
   final ValueListenable<double> time;
@@ -64,6 +70,11 @@ class _WaveFieldPainter extends CustomPainter {
 
   /// The blurred glow under the bright crests (off in economy).
   final bool glow;
+
+  /// Brightness multiplier from Personalization (BackgroundIntensity).
+  final double strength;
+
+  double _a(double alpha) => (alpha * strength).clamp(0.0, 1.0);
 
   /// The designed crimson recolored to the flag accent's hue (keeps its
   /// depth and saturation, so a blue flag gives deep blue waves, not a
@@ -116,7 +127,7 @@ class _WaveFieldPainter extends CustomPainter {
       }
       stroke
         ..strokeWidth = 0.7
-        ..color = Ic.arctic.withValues(alpha: 0.045 + 0.02 * intensity);
+        ..color = Ic.arctic.withValues(alpha: _a(0.045 + 0.02 * intensity));
       canvas.drawPath(path, stroke);
     }
 
@@ -149,7 +160,7 @@ class _WaveFieldPainter extends CustomPainter {
           end: Alignment.bottomCenter,
           colors: [
             _tinted(Ic.crimson)
-                .withValues(alpha: 0.035 * k * (0.6 + 0.4 * intensity)),
+                .withValues(alpha: _a(0.035 * k * (0.6 + 0.4 * intensity))),
             Ic.background.withValues(alpha: 0),
           ],
         ).createShader(Rect.fromLTWH(0, base - amp * 1.5, w, h - base));
@@ -160,14 +171,14 @@ class _WaveFieldPainter extends CustomPainter {
         ..strokeWidth = bright ? 1.4 : 0.5 + 0.6 * k
         ..color = _tinted(Color.lerp(Ic.burgundy, Ic.crimson, k * k)!)
             .withValues(
-                alpha: (bright ? 0.55 : 0.10 + 0.22 * k) *
-                    (0.7 + 0.3 * intensity));
+                alpha: _a((bright ? 0.55 : 0.10 + 0.22 * k) *
+                    (0.7 + 0.3 * intensity)));
       canvas.drawPath(crest, stroke);
       if (bright && glow) {
         stroke
           ..strokeWidth = 6
           ..color = _tinted(Ic.crimson)
-              .withValues(alpha: 0.06 * (0.6 + 0.4 * intensity))
+              .withValues(alpha: _a(0.06 * (0.6 + 0.4 * intensity)))
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
         canvas.drawPath(crest, stroke);
         stroke.maskFilter = null;
@@ -181,5 +192,6 @@ class _WaveFieldPainter extends CustomPainter {
       old.layers != layers ||
       old.time != time ||
       old.tint != tint ||
-      old.glow != glow;
+      old.glow != glow ||
+      old.strength != strength;
 }

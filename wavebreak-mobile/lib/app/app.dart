@@ -151,7 +151,14 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
       title: 'WAVEBREAK',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: _scaffoldMessengerKey,
-      theme: WbTheme.dark(tint: ref.watch(appWaveParamsProvider).tint),
+      theme: WbTheme.dark(tint: ref.watch(appWaveParamsProvider).tint).copyWith(
+        // Personalization: compact density tightens lists and cards.
+        visualDensity: ref.watch(personalizationProvider
+                    .select((p) => p.density)) ==
+                UiDensity.compact
+            ? VisualDensity.compact
+            : VisualDensity.standard,
+      ),
       locale: Locale(language.name),
       supportedLocales: const [
         Locale('en'),

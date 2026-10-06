@@ -24,8 +24,12 @@ class WbCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Personalization: compact density trims the default padding.
+    final compact = Theme.of(context).visualDensity.vertical < 0;
     return TintedGlass(
-      padding: padding,
+      padding: compact && padding == const EdgeInsets.all(16)
+          ? const EdgeInsets.all(12)
+          : padding,
       radius: 18,
       onTap: onTap,
       tint: tint,

@@ -18,6 +18,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wavebreak/core/storage/prefs_store.dart';
 import 'package:wavebreak/features/immersive/effects_quality.dart';
 import 'package:wavebreak/features/immersive/living_core.dart';
 import 'package:wavebreak/features/immersive/sphere_assets.dart';
@@ -27,11 +28,13 @@ import 'package:wavebreak/services/vpn/connection_manager.dart';
 import '../test/test_helpers.dart';
 
 class _Case {
-  const _Case(this.name, this.status, {this.tint, this.economy = false});
+  const _Case(this.name, this.status,
+      {this.tint, this.economy = false, this.style = 'earth'});
   final String name;
   final ConnectionStatus status;
   final Color? tint;
   final bool economy;
+  final String style;
 }
 
 const _cases = [
@@ -40,6 +43,7 @@ const _cases = [
       tint: Color(0xFF2F6BFF)),
   _Case('economy-green', ConnectionStatus.connected,
       tint: Color(0xFF1FB45A), economy: true),
+  _Case('minimal', ConnectionStatus.connected, style: 'minimal'),
 ];
 
 const _size = Size(412, 320);
@@ -52,6 +56,7 @@ void main() {
 
   for (final k in _cases) {
     testWidgets('sphere ${k.name}', (tester) async {
+      await PrefsStore.setString(PrefsStore.sphereStyle, k.style);
       await tester.pumpWidget(ProviderScope(
         overrides: [
           effectsEconomyProvider.overrideWithValue(k.economy),

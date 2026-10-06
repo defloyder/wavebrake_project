@@ -336,7 +336,32 @@ class AppStrings {
     required this.notSupportedMark,
     required this.subscriptionUntilLine,
     required this.subscriptionExpiredLine,
+    required this.sphereStyleTitle,
+    required this.sphereStyleHint,
+    required this.sphereEarth,
+    required this.sphereGlass,
+    required this.sphereMinimal,
+    required this.backgroundTitle,
+    required this.backgroundCalm,
+    required this.backgroundNormal,
+    required this.backgroundVivid,
+    required this.densityTitle,
+    required this.densityNormal,
+    required this.densityCompact,
   });
+
+  final String sphereStyleTitle;
+  final String sphereStyleHint;
+  final String sphereEarth;
+  final String sphereGlass;
+  final String sphereMinimal;
+  final String backgroundTitle;
+  final String backgroundCalm;
+  final String backgroundNormal;
+  final String backgroundVivid;
+  final String densityTitle;
+  final String densityNormal;
+  final String densityCompact;
 
   final String notSupportedMark;
   final String subscriptionUntilLine;
@@ -1047,6 +1072,18 @@ const kEnglishStrings = AppStrings(
   notSupportedMark: 'not supported',
   subscriptionUntilLine: 'until {date}',
   subscriptionExpiredLine: 'expired {date}',
+  sphereStyleTitle: 'Connect sphere',
+  sphereStyleHint: 'On Economy effects, Earth is shown as Glass.',
+  sphereEarth: 'Earth',
+  sphereGlass: 'Glass',
+  sphereMinimal: 'Minimal',
+  backgroundTitle: 'Background waves',
+  backgroundCalm: 'Calm',
+  backgroundNormal: 'Normal',
+  backgroundVivid: 'Vivid',
+  densityTitle: 'Density',
+  densityNormal: 'Standard',
+  densityCompact: 'Compact',
 );
 
 const kRussianStrings = AppStrings(
@@ -1402,6 +1439,18 @@ const kRussianStrings = AppStrings(
   notSupportedMark: 'не поддерживается',
   subscriptionUntilLine: 'до {date}',
   subscriptionExpiredLine: 'истекла {date}',
+  sphereStyleTitle: 'Сфера подключения',
+  sphereStyleHint: 'При «Экономном» качестве эффектов «Земля» показывается как «Стекло».',
+  sphereEarth: 'Земля',
+  sphereGlass: 'Стекло',
+  sphereMinimal: 'Минимум',
+  backgroundTitle: 'Волны фона',
+  backgroundCalm: 'Тихие',
+  backgroundNormal: 'Обычные',
+  backgroundVivid: 'Яркие',
+  densityTitle: 'Плотность',
+  densityNormal: 'Обычная',
+  densityCompact: 'Компактная',
 );
 
 const kSpanishStrings = AppStrings(
@@ -1760,6 +1809,18 @@ const kSpanishStrings = AppStrings(
   notSupportedMark: 'no compatible',
   subscriptionUntilLine: 'hasta {date}',
   subscriptionExpiredLine: 'caducó el {date}',
+  sphereStyleTitle: 'Esfera de conexión',
+  sphereStyleHint: 'Con efectos en Ahorro, Tierra se muestra como Cristal.',
+  sphereEarth: 'Tierra',
+  sphereGlass: 'Cristal',
+  sphereMinimal: 'Mínimo',
+  backgroundTitle: 'Ondas de fondo',
+  backgroundCalm: 'Suaves',
+  backgroundNormal: 'Normales',
+  backgroundVivid: 'Intensas',
+  densityTitle: 'Densidad',
+  densityNormal: 'Estándar',
+  densityCompact: 'Compacta',
 );
 
 const kGermanStrings = AppStrings(
@@ -2122,6 +2183,18 @@ const kGermanStrings = AppStrings(
   notSupportedMark: 'nicht unterstützt',
   subscriptionUntilLine: 'bis {date}',
   subscriptionExpiredLine: 'abgelaufen am {date}',
+  sphereStyleTitle: 'Verbindungskugel',
+  sphereStyleHint: 'Bei sparsamen Effekten wird „Erde“ als „Glas“ gezeigt.',
+  sphereEarth: 'Erde',
+  sphereGlass: 'Glas',
+  sphereMinimal: 'Minimal',
+  backgroundTitle: 'Hintergrundwellen',
+  backgroundCalm: 'Ruhig',
+  backgroundNormal: 'Normal',
+  backgroundVivid: 'Kräftig',
+  densityTitle: 'Dichte',
+  densityNormal: 'Standard',
+  densityCompact: 'Kompakt',
 );
 
 const kFrenchStrings = AppStrings(
@@ -2484,6 +2557,18 @@ const kFrenchStrings = AppStrings(
   notSupportedMark: 'non pris en charge',
   subscriptionUntilLine: 'jusqu\'au {date}',
   subscriptionExpiredLine: 'expiré le {date}',
+  sphereStyleTitle: 'Sphère de connexion',
+  sphereStyleHint: 'En effets Économie, Terre s\'affiche comme Verre.',
+  sphereEarth: 'Terre',
+  sphereGlass: 'Verre',
+  sphereMinimal: 'Minimal',
+  backgroundTitle: 'Vagues d\'arrière-plan',
+  backgroundCalm: 'Calmes',
+  backgroundNormal: 'Normales',
+  backgroundVivid: 'Vives',
+  densityTitle: 'Densité',
+  densityNormal: 'Standard',
+  densityCompact: 'Compacte',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -2842,6 +2927,18 @@ const kPortugueseStrings = AppStrings(
   notSupportedMark: 'não suportado',
   subscriptionUntilLine: 'até {date}',
   subscriptionExpiredLine: 'expirou em {date}',
+  sphereStyleTitle: 'Esfera de conexão',
+  sphereStyleHint: 'Com efeitos em Economia, Terra aparece como Vidro.',
+  sphereEarth: 'Terra',
+  sphereGlass: 'Vidro',
+  sphereMinimal: 'Mínimo',
+  backgroundTitle: 'Ondas do fundo',
+  backgroundCalm: 'Suaves',
+  backgroundNormal: 'Normais',
+  backgroundVivid: 'Intensas',
+  densityTitle: 'Densidade',
+  densityNormal: 'Padrão',
+  densityCompact: 'Compacta',
 );
 
 const kTurkishStrings = AppStrings(
@@ -3198,6 +3295,18 @@ const kTurkishStrings = AppStrings(
   notSupportedMark: 'desteklenmiyor',
   subscriptionUntilLine: '{date} tarihine kadar',
   subscriptionExpiredLine: '{date} tarihinde sona erdi',
+  sphereStyleTitle: 'Bağlantı küresi',
+  sphereStyleHint: 'Tasarruflu efektlerde Dünya, Cam olarak gösterilir.',
+  sphereEarth: 'Dünya',
+  sphereGlass: 'Cam',
+  sphereMinimal: 'Sade',
+  backgroundTitle: 'Arka plan dalgaları',
+  backgroundCalm: 'Sakin',
+  backgroundNormal: 'Normal',
+  backgroundVivid: 'Canlı',
+  densityTitle: 'Yoğunluk',
+  densityNormal: 'Standart',
+  densityCompact: 'Kompakt',
 );
 
 AppStrings stringsFor(AppLanguage language) {

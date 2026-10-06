@@ -39,6 +39,9 @@ class PrefsStore {
   static const accentOverride = 'accent_override';
   static const textScale = 'text_scale';
   static const reduceMotion = 'reduce_motion';
+  static const sphereStyle = 'sphere_style';
+  static const backgroundIntensity = 'background_intensity';
+  static const uiDensity = 'ui_density';
 
   // Last-known-good snapshots of Core data, used to render something
   // real instead of a blank/error screen when a refresh fails offline —
