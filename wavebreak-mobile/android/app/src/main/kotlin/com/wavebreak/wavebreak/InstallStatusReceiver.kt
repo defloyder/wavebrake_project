@@ -22,6 +22,8 @@ class InstallStatusReceiver : BroadcastReceiver() {
             PackageInstaller.EXTRA_STATUS,
             PackageInstaller.STATUS_FAILURE,
         )
+        UpdateInstaller.unanswered.remove(intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1))
+        val apkPath = intent.getStringExtra(UpdateInstaller.EXTRA_APK_PATH)
         when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 // Normal, expected path for any app without the
@@ -37,7 +39,10 @@ class InstallStatusReceiver : BroadcastReceiver() {
                 } else {
                     intent.getParcelableExtra(Intent.EXTRA_INTENT)
                 }
-                if (confirmIntent == null) return
+                if (confirmIntent == null) {
+                    UpdateInstaller.fallbackToActionView(context, apkPath, "no confirmation screen")
+                    return
+                }
                 // From the app's own on-screen activity when there is one:
                 // started from this receiver it's a background start, and
                 // MIUI drops those without an error unless the user turned
@@ -49,21 +54,7 @@ class InstallStatusReceiver : BroadcastReceiver() {
                 // another app while the update downloaded gets it the
                 // moment they come back (field report: back from Telegram,
                 // "Installing update…" forever, no prompt).
-                val activity = MainActivity.resumed()
-                if (activity != null) {
-                    activity.runOnUiThread {
-                        try {
-                            activity.startActivity(confirmIntent)
-                        } catch (t: Throwable) {
-                            Log.e(TAG, "install confirmation from the activity failed", t)
-                            MainActivity.pendingInstallConfirm = confirmIntent
-                            UpdateAvailableNotifier.showInstallReady(activity, confirmIntent)
-                        }
-                    }
-                } else {
-                    MainActivity.pendingInstallConfirm = confirmIntent
-                    UpdateAvailableNotifier.showInstallReady(context, confirmIntent)
-                }
+                UpdateInstaller.present(context, confirmIntent)
             }
             PackageInstaller.STATUS_SUCCESS -> {
                 Log.d(TAG, "update installed successfully")
@@ -71,6 +62,13 @@ class InstallStatusReceiver : BroadcastReceiver() {
             else -> {
                 val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                 Log.e(TAG, "update install failed: status=$status message=$message")
+                // Cancelled by the user: their choice. Anything else — the
+                // firmware refused the session (owner, Android 10:
+                // "installing update…" and no prompt) — gets the classic
+                // system installer on the same APK.
+                if (status != PackageInstaller.STATUS_FAILURE_ABORTED) {
+                    UpdateInstaller.fallbackToActionView(context, apkPath, "status $status: $message")
+                }
             }
         }
     }

@@ -52,14 +52,6 @@ class PersonalLocations {
 
   /// The locations from the last access Core returned, without asking
   /// Core — empty when nothing is saved.
-  /// The account's own subscription URL (`/v1/sub/…`, one per
-  /// subscription) from the last access Core returned — what other apps
-  /// (Happ, v2rayNG) take. Null when nothing is saved.
-  static Future<String?> subscriptionUrl() async {
-    final url = (await _saved())?.subscriptionUrl;
-    return url == null || url.isEmpty ? null : url;
-  }
-
   static Future<List<LocationItem>> saved() async {
     final access = await _saved();
     return access == null ? const [] : _parse(access);

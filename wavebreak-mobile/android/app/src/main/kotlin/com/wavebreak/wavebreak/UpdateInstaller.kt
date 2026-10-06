@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
@@ -120,6 +122,7 @@ object UpdateInstaller {
                 }
             }
             val statusIntent = Intent(context, InstallStatusReceiver::class.java)
+                .putExtra(EXTRA_APK_PATH, file.absolutePath)
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 // Android 12+ requires every PendingIntent to declare
                 // mutability explicitly — MUTABLE because the system
@@ -130,27 +133,83 @@ object UpdateInstaller {
                 PendingIntent.FLAG_UPDATE_CURRENT
             }
             val pendingIntent = PendingIntent.getBroadcast(context, sessionId, statusIntent, flags)
+            unanswered.add(sessionId)
             s.commit(pendingIntent.intentSender)
+            EngineLog.write(context, "update: install session $sessionId committed (Android ${Build.VERSION.SDK_INT})")
+            // Owner, 06.10 (Android 10, 1.2.4.5): "installing update…" and
+            // nothing — the session's answer never led to a prompt. If the
+            // system doesn't answer at all, open the APK the classic way.
+            val app = context.applicationContext
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (unanswered.remove(sessionId)) {
+                    fallbackToActionView(app, file.absolutePath, "no answer from the installer in 15 s")
+                }
+            }, SESSION_ANSWER_TIMEOUT_MS)
+        }
+    }
+
+    /** Sessions the system hasn't answered yet (see the watchdog above). */
+    val unanswered: MutableSet<Int> = java.util.Collections.synchronizedSet(mutableSetOf())
+
+    /**
+     * Shows a system install screen: from the app's own on-screen activity
+     * when there is one (a start from a receiver is a background start,
+     * which MIUI drops silently), otherwise as a notification whose tap
+     * opens it — and kept for MainActivity.onResume.
+     */
+    fun present(context: Context, intent: Intent) {
+        val activity = MainActivity.resumed()
+        if (activity != null) {
+            activity.runOnUiThread {
+                try {
+                    activity.startActivity(intent)
+                } catch (t: Throwable) {
+                    Log.e(TAG, "install screen from the activity failed", t)
+                    MainActivity.pendingInstallConfirm = intent
+                    UpdateAvailableNotifier.showInstallReady(activity, intent)
+                }
+            }
+        } else {
+            MainActivity.pendingInstallConfirm = intent
+            UpdateAvailableNotifier.showInstallReady(context, intent)
         }
     }
 
     /**
-     * The original ACTION_VIEW path — kept only as a fallback for the
-     * rare device/OEM where the Session API itself misbehaves, not as the
-     * normal route any more.
+     * The classic route: the system package installer opened on the APK
+     * (ACTION_VIEW). Used when the session install fails or hangs — some
+     * firmwares (seen on Android 10) refuse session installs from apps.
+     */
+    fun fallbackToActionView(context: Context, apkPath: String?, reason: String) {
+        EngineLog.write(context, "update: session install failed ($reason) — opening the APK in the system installer")
+        val file = apkPath?.let(::File)
+        if (file == null || !file.exists()) return
+        try {
+            present(context, actionViewIntent(context, file))
+        } catch (t: Throwable) {
+            EngineLog.write(context, "update: system installer fallback failed: ${t.message}")
+        }
+    }
+
+    private fun actionViewIntent(context: Context, file: File): Intent {
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file,
+        )
+        return Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
+    /**
+     * The original ACTION_VIEW path — when creating the session itself
+     * throws.
      */
     private fun installViaActionView(context: Context, file: File): Boolean {
         return try {
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                file,
-            )
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(intent)
+            context.startActivity(actionViewIntent(context, file))
             true
         } catch (t: Throwable) {
             Log.e(TAG, "ACTION_VIEW install fallback also failed", t)
@@ -158,5 +217,7 @@ object UpdateInstaller {
         }
     }
 
+    const val EXTRA_APK_PATH = "com.wavebreak.wavebreak.APK_PATH"
+    private const val SESSION_ANSWER_TIMEOUT_MS = 15_000L
     private const val TAG = "UpdateInstaller"
 }

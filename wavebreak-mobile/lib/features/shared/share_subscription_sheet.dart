@@ -9,7 +9,6 @@ import '../../core/i18n/app_strings.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/core_api/models.dart';
 import '../../services/providers.dart';
-import '../../services/vpn/personal_locations.dart';
 import 'subscription_section.dart';
 import 'toast.dart';
 import 'traffic_format.dart';
@@ -160,7 +159,6 @@ class _PersonalShareBody extends StatefulWidget {
 
 class _PersonalShareBodyState extends State<_PersonalShareBody> {
   late Future<ShareInfo> _share = _load();
-  final Future<String?> _appsLink = PersonalLocations.subscriptionUrl();
 
   Future<ShareInfo> _load() => ProviderScope.containerOf(context, listen: false)
       .read(coreGatewayProvider)
@@ -169,8 +167,9 @@ class _PersonalShareBodyState extends State<_PersonalShareBody> {
   String _errorText(Object error) {
     final s = widget.s;
     if (error is AppException) {
-      if (error.statusCode == 404 || error.statusCode == 422)
+      if (error.statusCode == 404 || error.statusCode == 422) {
         return s.shareNoSubscription;
+      }
       return error.localized(s);
     }
     return s.errUnavailable;
@@ -265,34 +264,7 @@ class _PersonalShareBodyState extends State<_PersonalShareBody> {
         }
         final pill = info == null
             ? const SizedBox.shrink()
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _CopyLinkPill(link: info.shareUrl, s: s, tint: widget.tint),
-                  // The subscription URL itself, for Happ, v2rayNG and the
-                  // like — the share code above only works in WAVEBREAK.
-                  FutureBuilder<String?>(
-                    future: _appsLink,
-                    builder: (context, link) => link.data == null
-                        ? const SizedBox.shrink()
-                        : Padding(
-                            padding: const EdgeInsets.only(top: 14),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(s.subscriptionForApps,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                        color: WbColors.ice60, fontSize: 12)),
-                                const SizedBox(height: 8),
-                                _CopyLinkPill(
-                                    link: link.data!, s: s, tint: widget.tint),
-                              ],
-                            ),
-                          ),
-                  ),
-                ],
-              );
+            : _CopyLinkPill(link: info.shareUrl, s: s, tint: widget.tint);
         if (!widget.expand) {
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -464,7 +436,8 @@ class _Pill extends StatelessWidget {
 /// Same path, same content on both hosts.
 String publicSubscriptionLink(String link) {
   final uri = Uri.tryParse(link.trim());
-  if (uri == null || uri.host.toLowerCase() != 'api.wavebreak.com.tr')
+  if (uri == null || uri.host.toLowerCase() != 'api.wavebreak.com.tr') {
     return link.trim();
+  }
   return uri.replace(host: 'core.wavebreak.com.tr').toString();
 }

@@ -65,6 +65,10 @@ List<SubscriptionSectionData> buildSubscriptionSections({
       servers: wavebreakServers,
       // Resolved to a fresh share code from Core when the sheet opens.
       shareLink: kPersonalShareLink,
+      // No per-location share here: a location's link is the account's
+      // own key, usable on any number of devices and apps past the plan's
+      // device limit (owner, 06.10). The share code above takes a slot.
+      shareable: false,
       limitsTraffic: own == null ? null : _trafficLine(own, s),
       limitsDevices: own == null ? null : _deviceLine(own),
     ),

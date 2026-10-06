@@ -367,8 +367,9 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     }
     state = next;
     await _persist();
-    if (disconnect)
+    if (disconnect) {
       await ref.read(connectionManagerProvider.notifier).disconnect();
+    }
   }
 
   Future<void> refreshGroup(String id) async {

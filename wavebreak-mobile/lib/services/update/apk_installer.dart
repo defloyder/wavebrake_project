@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -97,6 +98,12 @@ class ApkInstallController extends Notifier<ApkInstallState> {
     // confirmation right on resume (MainActivity.onResume).
     if (!Platform.isAndroid) return const ApkInstallState();
     final lifecycle = AppLifecycleListener(onResume: () {
+      // Back from "allow installs from this app": carry on with the
+      // install right away instead of waiting for another tap.
+      if (state.status == ApkInstallStatus.needsPermission) {
+        unawaited(retryInstallIfAllowed());
+        return;
+      }
       if (state.status != ApkInstallStatus.installing) return;
       Future<void>.delayed(const Duration(milliseconds: 1500), () {
         if (state.status == ApkInstallStatus.installing &&
@@ -257,6 +264,18 @@ class ApkInstallController extends Notifier<ApkInstallState> {
       await _tryInstall(path, code);
     } else {
       await _channel.invokeMethod('openInstallUnknownAppsSettings');
+    }
+  }
+
+  /// Installs the staged APK if installing is allowed now; otherwise
+  /// leaves the "allow installs" state as it is.
+  Future<void> retryInstallIfAllowed() async {
+    final path = state.filePath;
+    if (path == null) return;
+    final canInstall =
+        await _channel.invokeMethod<bool>('canRequestInstall') ?? false;
+    if (canInstall && state.status == ApkInstallStatus.needsPermission) {
+      await retryInstallOrOpenSettings();
     }
   }
 
