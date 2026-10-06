@@ -1,16 +1,23 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/session_controller.dart';
+import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../core/theme/wb_theme.dart';
 import '../../services/biometric/biometric_service.dart';
 import '../../services/pin/pin_service.dart';
+import '../immersive/immersive_clock.dart';
+import '../immersive/tinted_glass.dart';
+import '../immersive/wave_field.dart';
 import '../settings/pin_setup_screen.dart';
-import 'ocean_background.dart';
 import 'pin_keypad.dart';
+import 'wave_params.dart';
 import 'wavebreak_mark.dart';
 
 /// Whether App Lock can actually engage — it needs *some* unlock method
@@ -112,6 +119,16 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   }
 }
 
+/// Where the scan emblem is: at rest, a biometric prompt open, the
+/// moment of success (rings burst outward) or a failed scan (amber).
+enum _Scan { idle, scanning, success, failed }
+
+/// The V5 lock screen (P13). The system BiometricPrompt can't be styled,
+/// so this screen is built around it: the WAVEBREAK mark in scanning
+/// rings, a status line saying what's happening (prompt open / not
+/// recognized), the PIN pad, and a short burst of the rings on success
+/// before the app shows. With "reduce motion" the rings stand still and
+/// the app opens at once.
 class _LockScreen extends ConsumerStatefulWidget {
   const _LockScreen({required this.onUnlocked});
 
@@ -121,15 +138,38 @@ class _LockScreen extends ConsumerStatefulWidget {
   ConsumerState<_LockScreen> createState() => _LockScreenState();
 }
 
-class _LockScreenState extends ConsumerState<_LockScreen> {
+class _LockScreenState extends ConsumerState<_LockScreen>
+    with SingleTickerProviderStateMixin {
   final _bio = BiometricService();
   final _pin = const PinService();
   bool _biometricBusy = false;
+  _Scan _scan = _Scan.idle;
+
+  /// One-shot (success burst / failure shake) — never repeating; the
+  /// idle and scanning motion runs on the shared ImmersiveClock.
+  late final _burst = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 260));
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _tryBiometric());
+  }
+
+  @override
+  void dispose() {
+    _burst.dispose();
+    super.dispose();
+  }
+
+  Future<void> _succeed() async {
+    if (ImmersiveClock.frozen(context)) {
+      widget.onUnlocked();
+      return;
+    }
+    setState(() => _scan = _Scan.success);
+    await _burst.forward(from: 0);
+    if (mounted) widget.onUnlocked();
   }
 
   Future<void> _tryBiometric() async {
@@ -138,11 +178,21 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
     // than a tap, so this guards that path too against ever overlapping
     // with a manual retry.
     if (!_bio.isEnabled || _biometricBusy) return;
-    setState(() => _biometricBusy = true);
-    final ok = await _bio.authenticate(reason: 'Unlock WAVEBREAK');
+    final s = ref.read(stringsProvider);
+    setState(() {
+      _biometricBusy = true;
+      _scan = _Scan.scanning;
+    });
+    final ok = await _bio.authenticate(reason: s.unlockWavebreak);
     if (!mounted) return;
-    setState(() => _biometricBusy = false);
-    if (!ok) return;
+    setState(() {
+      _biometricBusy = false;
+      _scan = ok ? _Scan.idle : _Scan.failed;
+    });
+    if (!ok) {
+      if (!ImmersiveClock.frozen(context)) unawaited(_burst.forward(from: 0));
+      return;
+    }
     if (!_pin.isSet) {
       // Migration path: biometric lock could be turned on before a PIN
       // was a mandatory fallback (see security_screen.dart's own
@@ -155,118 +205,297 @@ class _LockScreenState extends ConsumerState<_LockScreen> {
       final saved = await showPinSetupScreen(
         context,
         dismissible: false,
-        subtitle: ref.read(stringsProvider).pinRequiredForBiometric,
+        subtitle: s.pinRequiredForBiometric,
       );
       if (!mounted || saved != true) return;
     }
-    widget.onUnlocked();
+    await _succeed();
   }
 
-  /// Escape hatch for the state this whole change exists to fix: an
-  /// install where biometric lock is on, no PIN was ever set (either it
-  /// never got the mandatory-PIN migration prompt above because biometric
-  /// itself has stopped authenticating at all, or this build is the very
-  /// first one to reach the device), and the fingerprint/face scan simply
-  /// won't succeed. Logging out doesn't bypass anything security-wise —
-  /// it requires the same real credentials a fresh install would — but it
-  /// unconditionally clears the local biometric flag (see
-  /// SessionController.forceLogout), so app lock has nothing left to
-  /// enforce and the user gets back into their own account rather than
-  /// being stuck forever short of reinstalling.
+  /// Escape hatch for an install where biometric lock is on, no PIN was
+  /// ever set and the scan simply won't succeed, or for a forgotten PIN.
+  /// Logging out doesn't bypass anything security-wise — getting back in
+  /// needs the real account password — but it clears the local PIN and
+  /// biometric flag (see SessionController.forceLogout), so the user gets
+  /// back into their own account instead of reinstalling.
   Future<void> _logOutToEscape() async {
-    // Also the escape from a forgotten PIN (bug 7): the PIN goes with the
-    // session, and getting back in needs the real account password.
     await _pin.clear();
     await ref.read(sessionControllerProvider.notifier).forceLogout();
     if (!mounted) return;
     widget.onUnlocked();
   }
 
+  String _status(AppStrings s, bool showPinPad) => switch (_scan) {
+        _Scan.scanning => s.lockScanning,
+        _Scan.failed => s.lockScanFailed,
+        _ => showPinPad ? s.enterPin : s.lockUseBiometric,
+      };
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(stringsProvider);
+    final tint = ref.watch(appWaveParamsProvider).tint;
     final showPinPad = _pin.isSet;
     return Material(
       color: WbColors.midnight,
-      child: OceanBackground(
-        illuminate: true,
-        animateWaves: true,
-        child: SafeArea(
-          // Scrolls instead of overflowing on short screens (the PIN pad
-          // plus the log-out escape don't fit everywhere); on normal
-          // screens IntrinsicHeight keeps the Spacers' centered layout.
-          child: LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 56),
-                      const WavebreakMark(size: 56, glow: true),
-                      const SizedBox(height: 20),
-                      Text(
-                        s.unlockWavebreak,
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w600),
-                      ),
-                      const Spacer(),
-                      if (showPinPad) ...[
-                        PinEntry(s: s, onVerified: widget.onUnlocked),
-                        if (_bio.isEnabled) ...[
-                          const SizedBox(height: 12),
-                          TextButton.icon(
-                            onPressed: _biometricBusy ? null : _tryBiometric,
-                            icon:
-                                const Icon(Icons.fingerprint_rounded, size: 20),
-                            label: Text(s.faceIdTouchId),
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: _biometricBusy ? null : _logOutToEscape,
-                          child: Text(
-                            s.troubleUnlockingLogOut,
-                            style: const TextStyle(
-                                color: WbColors.ice60, fontSize: 13),
-                          ),
-                        ),
-                      ] else ...[
-                        _biometricBusy
-                            ? const CircularProgressIndicator(strokeWidth: 2)
-                            : TextButton.icon(
-                                onPressed: _tryBiometric,
-                                icon: const Icon(Icons.fingerprint_rounded,
-                                    size: 22),
-                                label: Text(s.tryAgain),
+      child: Stack(
+        children: [
+          Positioned.fill(child: WaveField(tint: tint, intensity: 0.45)),
+          SafeArea(
+            // Scrolls instead of overflowing on short screens; on normal
+            // screens IntrinsicHeight keeps the Spacers' centered layout.
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxHeight < 700;
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          children: [
+                            SizedBox(height: compact ? 4 : 48),
+                            _ScanEmblem(
+                              scan: _scan,
+                              burst: _burst,
+                              size: compact ? 64 : 128,
+                            ),
+                            SizedBox(height: compact ? 4 : 16),
+                            Text(
+                              s.unlockWavebreak,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontFamily: 'serif', fontSize: 24),
+                            ),
+                            const SizedBox(height: 6),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 200),
+                              child: Text(
+                                _status(s, showPinPad),
+                                key: ValueKey(_scan),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  height: 1.35,
+                                  color: _scan == _Scan.failed
+                                      ? WbColors.warning
+                                      : WbColors.muted,
+                                ),
                               ),
-                        // Biometric-only lock, no PIN ever set — this is exactly
-                        // the "permanently locked out" state a flaky scan used to
-                        // leave someone in with no way back short of reinstalling.
-                        // Always visible here, not tucked behind repeated failures
-                        // — a user who already knows the scan isn't working
-                        // shouldn't have to keep failing it first to find the way
-                        // out.
-                        const SizedBox(height: 20),
-                        TextButton(
-                          onPressed: _biometricBusy ? null : _logOutToEscape,
-                          child: Text(
-                            s.troubleUnlockingLogOut,
-                            style: const TextStyle(
-                                color: WbColors.ice60, fontSize: 13),
-                          ),
+                            ),
+                            const Spacer(),
+                            SizedBox(height: compact ? 4 : 24),
+                            if (showPinPad)
+                              PinEntry(s: s, onVerified: _succeed),
+                            if (_bio.isEnabled) ...[
+                              const SizedBox(height: 12),
+                              _BiometricButton(
+                                label: showPinPad
+                                    ? s.lockBiometricButton
+                                    : s.tryAgain,
+                                busy: _biometricBusy,
+                                onPressed: _tryBiometric,
+                              ),
+                            ],
+                            // The way out is always visible, not hidden
+                            // behind repeated failed scans.
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed:
+                                  _biometricBusy ? null : _logOutToEscape,
+                              child: Text(
+                                s.troubleUnlockingLogOut,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    color: WbColors.ice60, fontSize: 13),
+                              ),
+                            ),
+                            const Spacer(),
+                            SizedBox(height: compact ? 0 : 16),
+                          ],
                         ),
-                      ],
-                      const Spacer(),
-                      const SizedBox(height: 24),
-                    ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fingerprint button: a glass pill under the PIN pad.
+class _BiometricButton extends StatelessWidget {
+  const _BiometricButton({
+    required this.label,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicWidth(
+      child: TintedGlass(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        radius: 999,
+        onTap: busy ? null : onPressed,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.fingerprint_rounded,
+                size: 22, color: busy ? WbColors.ice60 : context.accent),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(label,
+                  style: const TextStyle(fontSize: 15),
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+/// The WAVEBREAK mark inside scanning rings. Idle: three rings breathe
+/// slowly. Scanning: they brighten and a scan line sweeps the disc.
+/// Success: they burst outward in teal. Failed: amber, a short shake.
+/// Driven by the shared ImmersiveClock (frozen with reduce motion).
+class _ScanEmblem extends StatelessWidget {
+  const _ScanEmblem({
+    required this.scan,
+    required this.burst,
+    required this.size,
+  });
+
+  final _Scan scan;
+  final Animation<double> burst;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final time = ImmersiveClock.of(context);
+    return SizedBox(
+      width: size * 1.5,
+      height: size * 1.5,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: RepaintBoundary(
+              child: CustomPaint(
+                painter: _ScanPainter(
+                  repaint: Listenable.merge([time, burst]),
+                  time: time,
+                  burst: burst,
+                  scan: scan,
+                  accent: context.accent,
+                  core: size / 2,
+                ),
+              ),
+            ),
+          ),
+          WavebreakMark(size: size * 0.5, glow: true),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScanPainter extends CustomPainter {
+  _ScanPainter({
+    required Listenable repaint,
+    required this.time,
+    required this.burst,
+    required this.scan,
+    required this.accent,
+    required this.core,
+  }) : super(repaint: repaint);
+
+  final ValueListenable<double> time;
+  final Animation<double> burst;
+  final _Scan scan;
+  final Color accent;
+
+  /// Radius of the inner ring.
+  final double core;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = time.value;
+    final b = burst.value;
+    var c = size.center(Offset.zero);
+    final color = switch (scan) {
+      _Scan.success => WbColors.oceanTeal,
+      _Scan.failed => WbColors.warning,
+      _ => accent,
+    };
+    if (scan == _Scan.failed && b > 0 && b < 1) {
+      c = c.translate(math.sin(b * math.pi * 6) * 6 * (1 - b), 0);
+    }
+    final active = scan == _Scan.scanning;
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    // Soft disc behind the mark.
+    canvas.drawCircle(
+      c,
+      core,
+      Paint()
+        ..shader = RadialGradient(colors: [
+          color.withValues(alpha: active ? 0.20 : 0.12),
+          color.withValues(alpha: 0),
+        ]).createShader(Rect.fromCircle(center: c, radius: core)),
+    );
+
+    for (var i = 0; i < 3; i++) {
+      final phase = t * (active ? 1.6 : 0.6) + i * 2.1;
+      var r = core * (0.74 + i * 0.16) + math.sin(phase) * core * 0.03;
+      var alpha = (active ? 0.55 : 0.28) - i * 0.07;
+      if (scan == _Scan.success) {
+        r *= 1 + b * (0.35 + i * 0.15);
+        alpha *= 1 - b;
+      }
+      canvas.drawCircle(
+          c, r, ring..color = color.withValues(alpha: alpha.clamp(0.0, 1.0)));
+    }
+
+    if (active) {
+      // A scan line sweeping the disc up and down.
+      final y = math.sin(t * 2.4) * core * 0.72;
+      final half = math.sqrt(math.max(0, core * core * 0.6 - y * y));
+      if (half > 1) {
+        final line = Rect.fromCenter(
+            center: c.translate(0, y), width: half * 2, height: 14);
+        canvas.drawRect(
+          line,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                color.withValues(alpha: 0),
+                color.withValues(alpha: 0.35),
+                color.withValues(alpha: 0),
+              ],
+            ).createShader(line),
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ScanPainter old) =>
+      old.scan != scan || old.accent != accent || old.core != core;
 }

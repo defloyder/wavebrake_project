@@ -312,7 +312,16 @@ class AppStrings {
     required this.groupLegal,
     required this.groupInterface,
     required this.groupMotion,
+    required this.lockScanning,
+    required this.lockScanFailed,
+    required this.lockUseBiometric,
+    required this.lockBiometricButton,
   });
+
+  final String lockScanning;
+  final String lockScanFailed;
+  final String lockUseBiometric;
+  final String lockBiometricButton;
 
   final String appearance;
   final String help;
@@ -972,6 +981,10 @@ const kEnglishStrings = AppStrings(
   groupLegal: 'Documents',
   groupInterface: 'Interface',
   groupMotion: 'Animation',
+  lockScanning: 'Confirm with your fingerprint or face',
+  lockScanFailed: 'Not recognized. Try again or enter your PIN',
+  lockUseBiometric: 'Confirm it\'s you to open the app',
+  lockBiometricButton: 'Use biometrics',
 );
 
 const kRussianStrings = AppStrings(
@@ -1303,6 +1316,10 @@ const kRussianStrings = AppStrings(
   groupLegal: 'Документы',
   groupInterface: 'Интерфейс',
   groupMotion: 'Анимация',
+  lockScanning: 'Подтвердите отпечатком или лицом',
+  lockScanFailed: 'Не распознано. Попробуйте ещё раз или введите PIN',
+  lockUseBiometric: 'Подтвердите, что это вы, чтобы открыть приложение',
+  lockBiometricButton: 'Войти по биометрии',
 );
 
 const kSpanishStrings = AppStrings(
@@ -1637,6 +1654,10 @@ const kSpanishStrings = AppStrings(
   groupLegal: 'Documentos',
   groupInterface: 'Interfaz',
   groupMotion: 'Animación',
+  lockScanning: 'Confirma con tu huella o tu rostro',
+  lockScanFailed: 'No reconocido. Inténtalo de nuevo o introduce el PIN',
+  lockUseBiometric: 'Confirma que eres tú para abrir la app',
+  lockBiometricButton: 'Usar biometría',
 );
 
 const kGermanStrings = AppStrings(
@@ -1975,6 +1996,10 @@ const kGermanStrings = AppStrings(
   groupLegal: 'Dokumente',
   groupInterface: 'Oberfläche',
   groupMotion: 'Animation',
+  lockScanning: 'Mit Fingerabdruck oder Gesicht bestätigen',
+  lockScanFailed: 'Nicht erkannt. Erneut versuchen oder PIN eingeben',
+  lockUseBiometric: 'Bestätige, dass du es bist, um die App zu öffnen',
+  lockBiometricButton: 'Biometrie verwenden',
 );
 
 const kFrenchStrings = AppStrings(
@@ -2313,6 +2338,10 @@ const kFrenchStrings = AppStrings(
   groupLegal: 'Documents',
   groupInterface: 'Interface',
   groupMotion: 'Animation',
+  lockScanning: 'Confirmez avec votre empreinte ou votre visage',
+  lockScanFailed: 'Non reconnu. Réessayez ou saisissez votre PIN',
+  lockUseBiometric: 'Confirmez votre identité pour ouvrir l\'appli',
+  lockBiometricButton: 'Utiliser la biométrie',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -2647,6 +2676,10 @@ const kPortugueseStrings = AppStrings(
   groupLegal: 'Documentos',
   groupInterface: 'Interface',
   groupMotion: 'Animação',
+  lockScanning: 'Confirme com a digital ou o rosto',
+  lockScanFailed: 'Não reconhecido. Tente de novo ou digite o PIN',
+  lockUseBiometric: 'Confirme que é você para abrir o app',
+  lockBiometricButton: 'Usar biometria',
 );
 
 const kTurkishStrings = AppStrings(
@@ -2979,6 +3012,10 @@ const kTurkishStrings = AppStrings(
   groupLegal: 'Belgeler',
   groupInterface: 'Arayüz',
   groupMotion: 'Animasyon',
+  lockScanning: 'Parmak iziniz veya yüzünüzle onaylayın',
+  lockScanFailed: 'Tanınmadı. Tekrar deneyin veya PIN girin',
+  lockUseBiometric: 'Uygulamayı açmak için kimliğinizi doğrulayın',
+  lockBiometricButton: 'Biyometri kullan',
 );
 
 AppStrings stringsFor(AppLanguage language) {

@@ -29,12 +29,13 @@ import 'package:wavebreak/core/storage/prefs_store.dart';
 import 'package:wavebreak/core/storage/secure_store.dart';
 import 'package:wavebreak/services/core_api/mock_backend.dart';
 import 'package:wavebreak/services/core_api/models.dart';
+import 'package:wavebreak/services/pin/pin_service.dart';
 
 import '../test/test_helpers.dart';
 
 class Shot {
   const Shot(this.name, this.path,
-      {this.signedIn = true, this.firstRun = false, this.locationId});
+      {this.signedIn = true, this.firstRun = false, this.locationId, this.pin = false});
   final String name;
   final String path;
   final bool signedIn;
@@ -44,6 +45,9 @@ class Shot {
 
   /// The selected location (saved as the last one).
   final String? locationId;
+
+  /// A PIN is set: the lock screen covers the app.
+  final bool pin;
 }
 
 const shots = [
@@ -51,6 +55,7 @@ const shots = [
   Shot('login', '/login', signedIn: false),
   Shot('email-code', '/email-code', signedIn: false),
   Shot('home', '/home'),
+  Shot('lock', '/home', pin: true),
   Shot('home-5proto', '/home', locationId: 'hel-r'),
   Shot('servers', '/locations'),
   Shot('test', '/speed-test'),
@@ -158,6 +163,7 @@ void main() {
               await PrefsStore.setString(
                   PrefsStore.lastLocationId, shot.locationId!);
             }
+            if (shot.pin) await const PinService().setPin('1234');
             if (shot.signedIn) {
               await SecureStore.write(SecureStore.accessToken, 'mock-access');
               await SecureStore.write(SecureStore.refreshToken, 'mock-refresh');
