@@ -437,8 +437,15 @@ class Bot:
             dpi_html = f"<p>Сейчас в бане: <b>{len(bans)}</b></p>" + table(["IP", "Бан", "Осталось"], ban_rows)
         else:
             dpi_html = "<p>🟢 Сейчас никто не забанен.</p>"
-        hist = (f"<blockquote>История за {dpi['window_hours']} ч: {dpi['ips']} адресов, {dpi['hits']} дропов "
-                f"(включая уже снятые баны).</blockquote>") if dpi["ips"] else ""
+        hist_bans = mon.ban_history_snapshot()
+        if hist_bans["rows"]:
+            allow = getattr(mon, "DPI_ALLOWLIST_LABELS", {})
+            hist_rows = [[f"<code>{esc(r['ip'])}</code>" + (f" {esc(allow[r['ip']])}" if r["ip"] in allow else ""),
+                          str(r["count"]), esc(r["last"].replace("T", " ")[5:16])] for r in hist_bans["rows"]]
+            hist = (f"<p><b>За {hist_bans['window_hours']} ч:</b> {len(hist_bans['rows'])} адресов, "
+                    f"{hist_bans['bans']} банов</p>" + table(["IP", "Банов", "Последний"], hist_rows))
+        else:
+            hist = f"<p>За {hist_bans['window_hours']} ч банов не было.</p>"
         dpi_block = (f"<details><summary>🛡 Антипробинг tcp/443 (в бане: {len(bans)})</summary>{dpi_html}{hist}"
                      "<blockquote>20+ новых соединений на 443 за 60 сек с одного IP — бан на 5 мин, повторные — на 7 дней.</blockquote></details>")
         html = f"<h3>📊 Мониторинг</h3>{cores}{ports}{dpi_block}<details><summary>🐳 Контейнеры ({len(services)})</summary>{svc}</details>{footer()}"

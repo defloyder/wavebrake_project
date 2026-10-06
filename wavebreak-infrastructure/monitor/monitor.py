@@ -293,6 +293,31 @@ DPI_BLOCK_RE = re.compile(r"DPI-PROBE-BLOCK.*SRC=([0-9.]+)")
 DPI_BAN_SETS = (("dpi_probe_ban", "5 мин"), ("dpi_probe_ban_repeat", "7 дн"))
 
 
+BAN_LINE_RE = re.compile(r"^(\S+) DPI_GUARD BANNED ip=([0-9.]+)")
+DPI_ALLOWLIST_LABELS = {"158.160.44.116": "(наш релей, исключён)"}
+
+
+def ban_history_snapshot(window_hours=24):
+    """Per-IP ban counts over the window, from the guard's event log (current
+    and rotated files), newest first. Each IP's last ban time is included."""
+    cutoff = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(time.time() - window_hours * 3600))
+    files = [EVENTS_LOG + ".1"] + [EVENTS_LOG] if os.path.exists(EVENTS_LOG + ".1") else [EVENTS_LOG]
+    counts, last = collections.Counter(), {}
+    for path in files:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    m = BAN_LINE_RE.match(line)
+                    if m and m.group(1) >= cutoff:
+                        counts[m.group(2)] += 1
+                        last[m.group(2)] = m.group(1)
+        except FileNotFoundError:
+            continue
+    rows = [{"ip": ip, "count": n, "last": last[ip]} for ip, n in counts.most_common()]
+    rows.sort(key=lambda r: r["last"], reverse=True)
+    return {"rows": rows, "window_hours": window_hours, "bans": sum(counts.values())}
+
+
 def active_bans_snapshot():
     """IPs banned right now by the DPI guard, with seconds left on each ban."""
     bans = []

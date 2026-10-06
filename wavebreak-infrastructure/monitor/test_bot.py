@@ -161,11 +161,15 @@ class BotTest(unittest.TestCase):
         mon.dpi_blocked_snapshot = lambda window_hours=24: {
             "ips": 3, "hits": 57, "window_hours": 24, "top": [("1.2.3.4", 40), ("5.6.7.8", 17)]}
         mon.active_bans_snapshot = lambda: [{"ip": "9.9.9.9", "left_sec": 240, "kind": "5 мин"}]
+        mon.ban_history_snapshot = lambda window_hours=24: {"window_hours": 24, "bans": 3, "rows": [
+            {"ip": "1.2.3.4", "count": 2, "last": "2026-10-06T09:00:00"},
+            {"ip": "5.6.7.8", "count": 1, "last": "2026-10-06T08:00:00"}]}
         html, _ = self.bot.status_screen()
         self.assertIn("Антипробинг", html)
         self.assertIn("в бане: 1", html)
         self.assertIn("9.9.9.9", html)
-        self.assertIn("История за 24 ч: 3 адресов, 57 дропов", html)
+        self.assertIn("1.2.3.4", html)
+        self.assertIn("За 24 ч:", html)
 
     def test_status_dpi_quiet_when_nothing_blocked(self):
         mon.dpi_blocked_snapshot = lambda window_hours=24: {"ips": 0, "hits": 0, "window_hours": 24, "top": []}
