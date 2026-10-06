@@ -70,7 +70,10 @@ class LocationsScreen extends ConsumerWidget {
                     ),
                     Expanded(
                       child: ServersList(
-                        hero: const SelectedServerHero(),
+                        // Only where there is room (a TV is 540 px tall).
+                        hero: MediaQuery.sizeOf(context).height >= 600
+                            ? const SelectedServerHero()
+                            : null,
                         // Room for the floating bottom bar on phones.
                         bottomPadding:
                             isDesktop ? 16 : kMobileBottomBarReserve + 12,

@@ -128,15 +128,18 @@ class SettingsScreen extends ConsumerWidget {
                               ),
                             ),
                           ),
-                          SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: Center(
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                child: AccountHero(),
+                          // The account only where there is room (a TV is
+                          // 540 px tall).
+                          if (MediaQuery.sizeOf(context).height >= 600)
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: AccountHero(),
+                                ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ),

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/personalization_controller.dart';
 import '../../services/vpn/connection_manager.dart';
@@ -95,6 +96,9 @@ _Phase _phaseOf(ConnectionStatus s) => switch (s) {
 
 class _LivingCoreState extends ConsumerState<LivingCore>
     with TickerProviderStateMixin {
+  /// The remote / keyboard focus is on the sphere (a ring shows it).
+  bool _focused = false;
+
   late final _energy = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 650));
   late final _warn = AnimationController(
@@ -283,19 +287,43 @@ class _LivingCoreState extends ConsumerState<LivingCore>
           button: true,
           enabled: widget.enabled,
           label: label,
-          child: ClipOval(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: widget.enabled ? (_) => _press.forward() : null,
-              onTapUp: widget.enabled ? (_) => _press.reverse() : null,
-              onTapCancel: widget.enabled ? () => _press.reverse() : null,
-              onTap: widget.enabled
-                  ? () {
-                      HapticFeedback.lightImpact();
-                      widget.onPressed();
-                    }
-                  : null,
-              child: SizedBox(width: d, height: d),
+          // A TV remote / keyboard reaches the sphere too: OK / Enter
+          // presses it, a ring shows it has the focus. On a TV it takes
+          // the focus first — connecting is what Home is for.
+          child: FocusableActionDetector(
+            enabled: widget.enabled,
+            autofocus: AppEnv.isTv,
+            onShowFocusHighlight: (v) => setState(() => _focused = v),
+            actions: {
+              ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
+                widget.onPressed();
+                return null;
+              }),
+            },
+            child: ClipOval(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: widget.enabled ? (_) => _press.forward() : null,
+                onTapUp: widget.enabled ? (_) => _press.reverse() : null,
+                onTapCancel: widget.enabled ? () => _press.reverse() : null,
+                onTap: widget.enabled
+                    ? () {
+                        HapticFeedback.lightImpact();
+                        widget.onPressed();
+                      }
+                    : null,
+                child: Container(
+                  width: d,
+                  height: d,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _focused ? Colors.white : Colors.transparent,
+                      width: 3,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),

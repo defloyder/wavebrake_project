@@ -48,7 +48,7 @@ class CoreGateway {
   // Email verification. The mock backend has none: sign-up there signs in
   // directly, so these only ever run against Core.
   Future<TokenPair> verifyEmail({required String email, required String code}) {
-    if (useMock) return mock.login(email, '');
+    if (useMock) return mock.login(email, 'mock-password');
     return live.verifyEmail(email: email, code: code);
   }
 
@@ -67,7 +67,7 @@ class CoreGateway {
 
   Future<TokenPair> confirmLoginCode(
       {required String email, required String code}) {
-    if (useMock) return mock.login(email, '');
+    if (useMock) return mock.login(email, 'mock-password');
     return live.confirmLoginCode(email: email, code: code);
   }
 
@@ -158,6 +158,36 @@ class CoreGateway {
       if (error.statusCode == 404 || error.statusCode == 422) return null;
       rethrow;
     }
+  }
+
+  // QR sign-in of another device. The mock signs the TV in at the first
+  // poll and approves any code.
+  Future<DeviceLoginStart> startDeviceLogin(
+      {required String deviceName, required String platform}) async {
+    if (useMock) {
+      return const DeviceLoginStart(
+          code: 'MOCK2345',
+          pollToken: 'mock',
+          url: 'https://core.test/v1/device-login/MOCK2345',
+          expiresIn: 600,
+          interval: 3);
+    }
+    return live.startDeviceLogin(deviceName: deviceName, platform: platform);
+  }
+
+  Future<TokenPair?> pollDeviceLogin(String pollToken) async {
+    if (useMock) return mock.login('tv@mock.test', 'mock-password');
+    return live.pollDeviceLogin(pollToken);
+  }
+
+  Future<String> inspectDeviceLogin(String code) async {
+    if (useMock) return 'Android TV';
+    return live.inspectDeviceLogin(code);
+  }
+
+  Future<void> approveDeviceLogin(String code) async {
+    if (useMock) return;
+    return live.approveDeviceLogin(code);
   }
 
   /// Share code for the account's own subscription; the mock backend has

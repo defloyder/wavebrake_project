@@ -137,8 +137,8 @@ class AccountHero extends ConsumerWidget {
         formatTraffic(usage.bytesTotal, usage.limitBytes ?? sub.trafficLimitBytes, s),
     ];
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
       onTap: () => context.push('/settings/account'),
       child: Column(
         mainAxisSize: MainAxisSize.min,

@@ -9,6 +9,7 @@ import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/custom_servers/custom_server_controller.dart';
 import 'data_providers.dart';
+import '../settings/device_login_approve.dart';
 import 'qr_scan_screen.dart';
 import 'wave_params.dart';
 
@@ -23,6 +24,7 @@ Future<void> showAddCustomServerSheet(
   final scanColor = wbBlend(context.accent, tint, 0.4);
   String? error;
   bool busy = false;
+  final hostContext = context;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -40,6 +42,16 @@ Future<void> showAddCustomServerSheet(
         builder: (context, setState) {
           Future<void> submit() async {
             if (controller.text.trim().isEmpty) return;
+            // A TV's sign-in QR scanned here: sign the TV in instead.
+            final tvCode =
+                deviceLoginCode(controller.text, allowBare: false);
+            if (tvCode != null) {
+              Navigator.pop(context);
+              if (hostContext.mounted) {
+                await approveDeviceLoginCode(hostContext, ref, tvCode);
+              }
+              return;
+            }
             setState(() {
               busy = true;
               error = null;

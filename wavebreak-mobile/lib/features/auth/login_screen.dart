@@ -217,14 +217,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             curve: Curves.easeOutCubic,
                             child: keyboardOpen
                                 ? const SizedBox(height: 16)
-                                : Column(
-                                    children: [
-                                      const SizedBox(height: 48),
-                                      const WavebreakMark(size: 72, glow: true),
-                                      const SizedBox(height: 20),
-                                      const WavebreakWordmark(),
-                                    ],
-                                  ),
+                                // A short screen (a TV is 540 px tall): the
+                                // mark alone — the wordmark ran into the
+                                // e-mail field.
+                                : constraints.maxHeight < 640
+                                    ? const Column(
+                                        children: [
+                                          SizedBox(height: 16),
+                                          WavebreakMark(size: 56, glow: true),
+                                          SizedBox(height: 16),
+                                        ],
+                                      )
+                                    : const Column(
+                                        children: [
+                                          SizedBox(height: 48),
+                                          WavebreakMark(size: 72, glow: true),
+                                          SizedBox(height: 20),
+                                          WavebreakWordmark(),
+                                        ],
+                                      ),
                           ),
                           const Spacer(),
                           TextField(

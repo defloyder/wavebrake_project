@@ -1,11 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'main.dart' as app;
 
-import 'app/bootstrap.dart';
-import 'features/tv/tv_app.dart';
-
-/// Dedicated entry point; the phone application keeps its portrait UI.
-Future<void> main() async {
-  await bootstrap();
-  runApp(const ProviderScope(child: WavebreakTvApp()));
-}
+/// The Android TV build's entry point: the same app as on phones (one
+/// codebase, same screens and features), built with
+/// --dart-define=WAVEBREAK_TV=true — see AppEnv.isTv for what changes on a
+/// TV. The Gradle build checks the entry point and the define match.
+Future<void> main() => app.main();

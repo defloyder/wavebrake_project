@@ -7,6 +7,8 @@ import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../core/theme/wb_theme.dart';
 import '../shared/data_providers.dart';
+import '../../core/env/app_env.dart';
+import 'device_login_approve.dart';
 import 'email_verify_sheet.dart';
 import 'settings_ui.dart';
 
@@ -111,6 +113,14 @@ class AccountScreen extends ConsumerWidget {
             title: s.devices,
             onTap: () => context.push('/settings/devices'),
           ),
+          // Sign a TV in by its QR code (no typing on a remote).
+          if (!AppEnv.isTv)
+            SettingsRow(
+              icon: Icons.qr_code_scanner_rounded,
+              title: s.signInOtherDevice,
+              subtitle: s.signInOtherDeviceHint,
+              onTap: () => startDeviceLoginApproval(context, ref),
+            ),
         ]),
         SettingsGroup(children: [
           SettingsRow(

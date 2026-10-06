@@ -1,3 +1,4 @@
+import '../../core/env/app_env.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -225,6 +226,8 @@ Future<({bool checked, UpdateInfo? update})> _checkOnce() async {
 /// a StreamProvider restarts its whole async* body, which re-yields
 /// immediately and resumes the same polling cadence from there.
 final availableUpdateProvider = StreamProvider<UpdateInfo?>((ref) {
+  // The TV build is its own package: the phone's APK is never offered.
+  if (AppEnv.isTv) return Stream.value(null);
   final controller = StreamController<UpdateInfo?>();
   Timer? timer;
   var running = false;

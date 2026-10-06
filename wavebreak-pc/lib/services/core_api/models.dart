@@ -1030,6 +1030,35 @@ class PersonalAccess {
 
 /// A share code for the account's own subscription (POST /me/share): the
 /// URL shown as a QR plus the limits everyone who scans it shares.
+/// A QR sign-in waiting on the TV (POST /v1/auth/device-login/start).
+class DeviceLoginStart {
+  const DeviceLoginStart({
+    required this.code,
+    required this.pollToken,
+    required this.url,
+    required this.expiresIn,
+    required this.interval,
+  });
+
+  /// 8 characters; also shown as text ("ABCD-EFGH") for typing on a PC.
+  final String code;
+  final String pollToken;
+
+  /// What the QR holds: Core's /v1/device-login/CODE address.
+  final String url;
+  final int expiresIn;
+  final int interval;
+
+  factory DeviceLoginStart.fromJson(Map<String, dynamic> json) =>
+      DeviceLoginStart(
+        code: (json['code'] ?? '').toString(),
+        pollToken: (json['poll_token'] ?? '').toString(),
+        url: (json['url'] ?? '').toString(),
+        expiresIn: _asInt(json['expires_in']) ?? 600,
+        interval: _asInt(json['interval']) ?? 3,
+      );
+}
+
 class ShareInfo {
   const ShareInfo({
     required this.shareUrl,

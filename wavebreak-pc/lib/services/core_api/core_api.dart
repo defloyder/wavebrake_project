@@ -206,6 +206,50 @@ class CoreApi {
     );
   }
 
+  // ---- QR sign-in of another device (TV) -------------------------------
+
+  /// The TV side: a code to show as a QR and a secret token to poll with.
+  Future<DeviceLoginStart> startDeviceLogin(
+      {required String deviceName, required String platform}) {
+    return _client.post(
+      '/auth/device-login/start',
+      body: {'device_name': deviceName, 'platform': platform},
+      parse: (data) => DeviceLoginStart.fromJson(_asMap(data)),
+      retryOnConnectionError: true,
+    );
+  }
+
+  /// The TV side: null while the code waits for approval, the session
+  /// once a phone approved it. 410 (AppException) when it expired.
+  Future<TokenPair?> pollDeviceLogin(String pollToken) {
+    return _client.post(
+      '/auth/device-login/poll',
+      body: {'poll_token': pollToken},
+      parse: (data) {
+        final map = _asMap(data);
+        return map['status'] == 'approved' ? _tokens(map) : null;
+      },
+    );
+  }
+
+  /// The phone side: which device asks to be signed in (its name).
+  Future<String> inspectDeviceLogin(String code) {
+    return _client.get(
+      '/me/device-login/$code',
+      parse: (data) => (_asMap(data)['device_name'] ?? '').toString(),
+    );
+  }
+
+  /// The phone side: signs the device in to this account. The device gets
+  /// a session of its own; this one stays signed in.
+  Future<void> approveDeviceLogin(String code) {
+    return _client.post(
+      '/me/device-login/$code/approve',
+      body: const <String, dynamic>{},
+      parse: (_) {},
+    );
+  }
+
   /// A fresh share code for the account's own subscription. 404/422
   /// without an active subscription, like [myAccess].
   Future<ShareInfo> myShare() {

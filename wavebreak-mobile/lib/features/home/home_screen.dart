@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/app_strings.dart';
@@ -138,7 +139,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // during onboarding, and at most once a week while the app is still not
   // exempt; Settings > Connection offers it at any time.
   Future<void> _maybeOfferBatteryOptimizationExemption() async {
-    if (!Platform.isAndroid) return;
+    if (!Platform.isAndroid || AppEnv.isTv) return;
     // Re-offered weekly while still not exempt (bug 1: the tunnel's
     // watchdog is only reliable in the background with the exemption).
     const reofferAfter = Duration(days: 7);

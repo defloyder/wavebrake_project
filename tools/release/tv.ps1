@@ -57,7 +57,7 @@ try {
         $env:ANDROID_HOME = $sdkPath
         Set-Location $mobileRoot
         Invoke-Checked $Flutter @('pub', 'get')
-        Invoke-Checked $Flutter @('analyze', '--no-pub', 'lib/main_tv.dart', 'lib/features/tv', 'test/tv_app_test.dart')
+        Invoke-Checked $Flutter @('analyze', '--no-pub', 'lib/main_tv.dart', 'lib/features/tv', 'test/tv_login_test.dart')
         Invoke-Checked $Flutter @('test', '--no-pub')
         Invoke-Checked $Flutter @('build', 'apk', '--release', '--no-pub', '--target=lib/main_tv.dart',
             '--target-platform=android-arm,android-arm64,android-x64',

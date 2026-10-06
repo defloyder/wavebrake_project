@@ -8,6 +8,8 @@ import '../features/auth/forgot_password_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
 import '../features/auth/email_code_screen.dart';
+import '../features/tv/tv_login_screen.dart';
+import '../core/env/app_env.dart';
 import '../features/auth/verify_email_screen.dart';
 import '../features/auth/welcome_screen.dart';
 import '../features/home/home_screen.dart';
@@ -55,7 +57,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc == '/register' ||
           loc == '/forgot' ||
           loc == '/verify-email' ||
-          loc == '/email-code';
+          loc == '/email-code' ||
+          loc == '/tv-login';
       final isUpdate = loc == '/update-required';
       final isMaintenance = loc == '/maintenance';
 
@@ -69,6 +72,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         return isUpdate ? null : '/update-required';
       }
       if (session.phase == SessionPhase.unauthenticated) {
+        // TV: sign in by QR from the phone (typing on a remote is a pain);
+        // e-mail and password stay one button away.
+        if (AppEnv.isTv) return isAuth ? null : '/tv-login';
         // A fresh install (or first time back at "no session") lands on
         // the guest-vs-account choice before ever seeing a login form —
         // once that choice is made once, later visits go straight to
@@ -91,6 +97,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/welcome',
         pageBuilder: (_, state) =>
             fadeThroughPage(state, const WelcomeScreen()),
+      ),
+      GoRoute(
+        path: '/tv-login',
+        pageBuilder: (_, state) => fadeThroughPage(state, const TvLoginScreen()),
       ),
       GoRoute(
         path: '/login',

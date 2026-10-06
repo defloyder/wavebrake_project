@@ -63,6 +63,7 @@ class Shot {
 const shots = [
   Shot('welcome', '/welcome', signedIn: false, firstRun: true),
   Shot('login', '/login', signedIn: false),
+  Shot('tv-login', '/tv-login', signedIn: false),
   Shot('email-code', '/email-code', signedIn: false),
   Shot('home', '/home'),
   Shot('lock', '/home', pin: true),
@@ -89,6 +90,8 @@ const sizes = <String, Size>{
   '320x568': Size(320, 568),
   '360x640': Size(360, 640),
   '412x915': Size(412, 915),
+  // A TV (1080p at 2x, 720p at 1.33x): run with --dart-define=WAVEBREAK_TV=true.
+  '960x540': Size(960, 540),
   '800x1280': Size(800, 1280),
   '1280x800': Size(1280, 800),
 };
