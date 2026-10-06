@@ -34,6 +34,8 @@ type Server struct {
 	// check fails open) when Redis isn't configured, same as how the rest
 	// of this codebase treats Redis as a best-effort accelerator.
 	limiter rateLimiter
+	// deviceLogins: pending QR sign-ins of TVs (device_login.go).
+	deviceLogins *deviceLoginStore
 }
 
 func New(app *app.App) http.Handler {
@@ -50,7 +52,7 @@ func newServer(app *app.App) *Server {
 	if app.Redis != nil {
 		limiter = app.Redis
 	}
-	return &Server{app: app, accounts: newAccountServices(app, resetMailer{mail: mail, store: app.Store}), relays: registry, mail: mail, limiter: limiter}
+	return &Server{app: app, accounts: newAccountServices(app, resetMailer{mail: mail, store: app.Store}), relays: registry, mail: mail, limiter: limiter, deviceLogins: newDeviceLoginStore()}
 }
 
 func (s *Server) router() http.Handler {
@@ -88,6 +90,10 @@ func (s *Server) router() http.Handler {
 		r.Post("/node/enroll", s.nodeEnrollWithToken)
 		r.Get("/sub/{grantID}", s.subscriptionByGrant)
 		r.Get("/share/{token}", s.shareLanding)
+		r.Get("/device-login/{code}", s.deviceLoginLanding)
+		r.With(ipRateLimitMiddleware(s.limiter, "device-login", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
+			Post("/auth/device-login/start", s.startDeviceLogin)
+		r.Post("/auth/device-login/poll", s.pollDeviceLogin)
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.nodeAuthRequired)
@@ -113,6 +119,9 @@ func (s *Server) router() http.Handler {
 			r.Post("/me/share", s.meShare)
 			r.Get("/me/sharing", s.meSharing)
 			r.Post("/share/redeem", s.redeemShare)
+			r.Get("/me/device-login/{code}", s.inspectDeviceLogin)
+			r.With(ipRateLimitMiddleware(s.limiter, "device-login-approve", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
+				Post("/me/device-login/{code}/approve", s.approveDeviceLogin)
 			r.Get("/me/usage/history", s.meUsageHistory)
 			r.Get("/me/devices", s.listDevices)
 			r.Post("/me/devices", s.createDevice)

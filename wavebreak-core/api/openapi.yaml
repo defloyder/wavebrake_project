@@ -221,6 +221,59 @@ paths:
       responses:
         "200":
           description: Usage history
+  /v1/auth/device-login/start:
+    post:
+      summary: Start a QR sign-in for a device without a keyboard (TV)
+      description: >-
+        Returns a code (shown as a QR of `url` and as text) and a secret
+        poll_token. A signed-in WAVEBREAK app approves the code; the device
+        then polls for its own session. Pending for 10 minutes.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_name: {type: string}
+                platform: {type: string}
+      responses:
+        "200":
+          description: "{code, poll_token, url, expires_in, interval}"
+  /v1/auth/device-login/poll:
+    post:
+      summary: Poll a QR sign-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                poll_token: {type: string}
+      responses:
+        "200":
+          description: "{status: pending} or {status: approved, tokens}; the tokens are handed over once"
+        "410":
+          description: device_login_expired
+  /v1/me/device-login/{code}:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Which device asks to be signed in with this code
+      responses:
+        "200":
+          description: "{device_name, platform, expires_in}"
+        "404":
+          description: device_login_not_found
+  /v1/me/device-login/{code}/approve:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Sign the device in to the caller's account (a new session of its own; the caller's session is untouched)
+      responses:
+        "200":
+          description: Approved
+        "404":
+          description: device_login_not_found
   /v1/me/devices:
     get:
       security:
