@@ -46,6 +46,10 @@ class ServersList extends ConsumerWidget {
       data: (_) {
         final sections = ref.watch(serverCatalogProvider);
         return SingleChildScrollView(
+          // Anchored to the bottom, near the thumb (owner, 06.10): a short
+          // list sits right above the nav bar, a long one opens at its
+          // end ("add your link") and scrolls up.
+          reverse: true,
           controller: controller,
           padding: EdgeInsets.only(bottom: bottomPadding),
           child: SubscriptionAccordion(
@@ -89,7 +93,10 @@ class ServersList extends ConsumerWidget {
 
 /// The server list as a pop-up over Home (owner, 06.10: tapping the
 /// location on Home used to jump to the Servers tab; before that it was a
-/// pop-up, which is what they want). Drag down or pick a server to close.
+/// pop-up, which is what they want). Every subscription is in it, the list
+/// scrolls inside, and a swipe doesn't close it — scrolling a long list
+/// used to drag the sheet away. Closes with ✕, a tap outside, back, or
+/// picking a server.
 Future<void> showServersSheet(BuildContext context, WidgetRef ref) {
   final s = ref.read(stringsProvider);
   final tint = ref.read(appWaveParamsProvider).tint;
@@ -98,60 +105,63 @@ Future<void> showServersSheet(BuildContext context, WidgetRef ref) {
     // Above the floating bottom bar (it paints over the branch navigator).
     useRootNavigator: true,
     isScrollControlled: true,
+    enableDrag: false,
     backgroundColor: Colors.transparent,
-    builder: (sheetContext) => DraggableScrollableSheet(
-      initialChildSize: 0.78,
-      minChildSize: 0.4,
-      maxChildSize: 0.94,
-      expand: false,
-      builder: (context, scroll) => Container(
-        margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-        decoration: BoxDecoration(
-          color: wbBlend(WbColors.card, tint, WbColors.sheetLean),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-              color:
-                  tint == null ? WbColors.ice08 : tint.withValues(alpha: 0.28)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: WbColors.ice08,
-                borderRadius: BorderRadius.circular(999),
+    builder: (sheetContext) {
+      final media = MediaQuery.of(sheetContext);
+      return SafeArea(
+        child: Container(
+          constraints: BoxConstraints(maxHeight: media.size.height * 0.88),
+          margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+          decoration: BoxDecoration(
+            color: wbBlend(WbColors.card, tint, WbColors.sheetLean),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+                color: tint == null
+                    ? WbColors.ice08
+                    : tint.withValues(alpha: 0.28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      s.chooseLocation,
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: s.refreshServers,
+                    onPressed: () => ref.invalidate(locationsProvider),
+                    icon: const Icon(Icons.refresh_rounded,
+                        color: WbColors.ice60),
+                  ),
+                  IconButton(
+                    tooltip: MaterialLocalizations.of(sheetContext)
+                        .closeButtonTooltip,
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    icon:
+                        const Icon(Icons.close_rounded, color: WbColors.ice60),
+                  ),
+                ],
               ),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    s.chooseLocation,
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w600),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ServersList(
+                    bottomPadding: 16,
+                    onPicked: () => Navigator.of(sheetContext).pop(),
                   ),
                 ),
-                IconButton(
-                  tooltip: s.refreshServers,
-                  onPressed: () => ref.invalidate(locationsProvider),
-                  icon:
-                      const Icon(Icons.refresh_rounded, color: WbColors.ice60),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: ServersList(
-                controller: scroll,
-                bottomPadding: MediaQuery.paddingOf(sheetContext).bottom + 16,
-                onPicked: () => Navigator.of(sheetContext).pop(),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }

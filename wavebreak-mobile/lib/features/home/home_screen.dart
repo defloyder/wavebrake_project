@@ -25,6 +25,7 @@ import '../shared/confirm_dialogs.dart';
 import '../shared/connect_button.dart';
 import '../shared/data_providers.dart';
 import '../shared/traffic_wave_bar.dart';
+import '../shared/traffic_format.dart';
 import '../../services/vpn/server_catalog.dart';
 import '../shared/menu_button.dart';
 import '../shell/app_shell.dart';
@@ -441,12 +442,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final coreDiameter = vitalsBeside
         ? math.min(livingCoreDiameter(screenWidth), betweenVitals)
         : livingCoreDiameter(screenWidth);
-    final livingCore = LivingCore(
-      status: connection.status,
-      enabled: connectEnabled,
-      diameter: coreDiameter,
-      onPressed: onConnectPressed,
-    );
 
     final statusCopy = _StatusCopy(
       connection: connection,
@@ -507,15 +502,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           .selectLocation(item, subscriptionActive: canConnect),
     );
 
-    // Phone layout, used under the wave field (see below).
+    // Own active subscription: it fits as one line at the bottom of the
+    // session card. Anything that needs action (guest, expired, unpaid,
+    // a shared subscription selected) keeps its own card under it.
+    final sub = subscription.valueOrNull;
+    final sharedSelected = ref.watch(customServersProvider).any((g) =>
+        g.sharedWithMe && g.servers.any((v) => v.id == connection.location.id));
+    final compactSubscription = !isGuest &&
+        !sharedSelected &&
+        sub != null &&
+        sub.isActive &&
+        !sub.isExpired &&
+        !sub.isPastDue;
+
+    // Phone layout, used under the wave field (see below). No scrolling
+    // (owner, 06.10): the sphere takes whatever height the rest leaves,
+    // up to its normal size. Very short screens (< 600 px of body) still
+    // scroll rather than squeeze the sphere to nothing.
     Widget buildMobileBody() => LayoutBuilder(
           builder: (context, constraints) {
-            // A comfortable fixed rhythm for the hero section — no
-            // Spacer games tied to viewport height, so it looks the
-            // same whether the screen is short or tall.
-            final heroTopGap = (constraints.maxHeight * 0.04).clamp(8.0, 28.0);
-            final aboveButtonGap =
-                (constraints.maxHeight * 0.06).clamp(20.0, 56.0);
+            final heroTopGap = (constraints.maxHeight * 0.03).clamp(8.0, 22.0);
+            final height = math.max(constraints.maxHeight, 600.0);
             // Pull down to reload the servers and the subscription, like
             // the refresh button (owner, 06.10). Always scrollable, or a
             // screen whose content fits would never start the pull.
@@ -524,48 +531,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               color: Ic.text,
               backgroundColor: const Color(0xE6101418),
               child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              controller: _scrollController,
-              // The bottom nav pill now floats over the body
-              // instead of reserving its own Scaffold slot, so
-              // this has to leave room for it manually or the
-              // last row of locations ends up underneath it.
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                0,
-                20,
-                kMobileBottomBarReserve + 12,
-              ),
-              child: Column(
-                children: [
-                  SizedBox(height: heroTopGap),
-                  buildTopBar(false),
-                  SizedBox(height: aboveButtonGap * 0.5),
-                  locationHeader,
-                  // The stage already leaves room for the orbit
-                  // waves above and below the sphere.
-                  SizedBox(height: aboveButtonGap * 0.4),
-                  // Real ping / download beside the core
-                  // (dashes until connected — never invented),
-                  // laid over the sphere's wave stage. The empty
-                  // middle lets taps through to the sphere.
-                  CoreStage(
-                    diameter: coreDiameter,
-                    core: livingCore,
-                    overlay: vitalsBeside
-                        ? const CoreWithVitals(core: SizedBox.shrink())
-                        : null,
+                physics: const AlwaysScrollableScrollPhysics(),
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: SizedBox(
+                  height: height,
+                  child: Column(
+                    children: [
+                      SizedBox(height: heroTopGap),
+                      buildTopBar(false),
+                      const SizedBox(height: 10),
+                      locationHeader,
+                      // Real ping / download beside the core (dashes until
+                      // connected — never invented), laid over the
+                      // sphere's wave stage. The empty middle lets taps
+                      // through to the sphere.
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, box) {
+                            final d =
+                                math.min(coreDiameter, box.maxHeight / 1.27);
+                            return Center(
+                              child: CoreStage(
+                                diameter: d,
+                                core: LivingCore(
+                                  status: connection.status,
+                                  enabled: connectEnabled,
+                                  diameter: d,
+                                  onPressed: onConnectPressed,
+                                ),
+                                overlay: vitalsBeside
+                                    ? const CoreWithVitals(
+                                        core: SizedBox.shrink())
+                                    : null,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      if (!vitalsBeside) const VitalsRow(),
+                      const SizedBox(height: 4),
+                      statusCopy,
+                      const SizedBox(height: 14),
+                      SessionPanel(
+                        footer: compactSubscription
+                            ? _SubscriptionFooter(
+                                sub: sub,
+                                s: s,
+                                onOpen: () => context.push('/subscription'),
+                              )
+                            : null,
+                      ),
+                      if (!compactSubscription) ...[
+                        const SizedBox(height: 12),
+                        subscriptionStrip,
+                      ],
+                      // The bottom nav pill floats over the body.
+                      const SizedBox(height: kMobileBottomBarReserve + 12),
+                    ],
                   ),
-                  if (!vitalsBeside) const VitalsRow(),
-                  const SizedBox(height: 4),
-                  statusCopy,
-                  const SizedBox(height: 20),
-                  const SessionPanel(),
-                  const SizedBox(height: 12),
-                  subscriptionStrip,
-                ],
+                ),
               ),
-            ),
             );
           },
         );
@@ -1186,7 +1212,8 @@ class _StripHeader extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: TextStyle(color: subtitleColor, fontSize: 13, height: 1.3),
+                style:
+                    TextStyle(color: subtitleColor, fontSize: 13, height: 1.3),
               ),
             ],
           ),
@@ -1242,6 +1269,89 @@ class _SharedSubscriptionStrip extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// The own active subscription as the last line of Home's session card
+/// (owner, 06.10: one card instead of three, no scrolling): plan, days
+/// left, traffic. A limited plan gets a thin bar; close to the limit
+/// (80 %+) the bar becomes the water-with-waves one, impossible to miss.
+class _SubscriptionFooter extends ConsumerWidget {
+  const _SubscriptionFooter({
+    required this.sub,
+    required this.s,
+    required this.onOpen,
+  });
+
+  final SubscriptionInfo sub;
+  final AppStrings s;
+  final VoidCallback onOpen;
+
+  static const _nearLimit = 0.8;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final usage = ref.watch(trafficUsageProvider).valueOrNull;
+    final days = sub.daysRemaining;
+    final used = usage?.bytesTotal;
+    final limit = usage?.limitBytes ?? sub.trafficLimitBytes;
+    final fraction = used == null || limit == null || limit <= 0
+        ? null
+        : (used / limit).clamp(0.0, 1.0);
+    final nearLimit = fraction != null && fraction >= _nearLimit;
+    const muted = TextStyle(color: WbColors.ice60, fontSize: 12.5);
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.workspace_premium_outlined,
+                    size: 16, color: WbColors.oceanTeal),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    days == null
+                        ? sub.planName
+                        : '${sub.planName} · $days ${s.daysRemaining}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: muted,
+                  ),
+                ),
+                if (used != null && !nearLimit) ...[
+                  const SizedBox(width: 8),
+                  Text(formatTraffic(used, limit, s),
+                      style: muted.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()])),
+                ],
+                const Icon(Icons.chevron_right_rounded,
+                    size: 18, color: WbColors.ice60),
+              ],
+            ),
+            if (nearLimit) ...[
+              const SizedBox(height: 8),
+              TrafficWaveBar(usedBytes: used!, limitBytes: limit, s: s),
+            ] else if (fraction != null) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: fraction,
+                  minHeight: 4,
+                  backgroundColor: WbColors.ice08,
+                  color: context.accent,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

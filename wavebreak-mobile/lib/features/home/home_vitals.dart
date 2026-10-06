@@ -226,8 +226,8 @@ class _AnimatedValueState extends State<AnimatedValue> {
           children: [
             Transform.translate(
               offset: Offset(0, _dir * shift * (1 - e)),
-              child: Text(newMid,
-                  style: faded(e), maxLines: 1, softWrap: false),
+              child:
+                  Text(newMid, style: faded(e), maxLines: 1, softWrap: false),
             ),
             Positioned(
               left: widget.alignment.x > 0 ? null : 0,
@@ -251,8 +251,8 @@ class _AnimatedValueState extends State<AnimatedValue> {
   Widget build(BuildContext context) {
     final text = _text;
     // Equal-width digits: a changing number doesn't shift sideways.
-    final style = widget.style.copyWith(
-        fontFeatures: const [FontFeature.tabularFigures()]);
+    final style = widget.style
+        .copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
     final child = text == null
         ? Text('—', key: const ValueKey('dash'), style: style)
         : KeyedSubtree(
@@ -321,7 +321,8 @@ class SideVital extends StatelessWidget {
     final along = alignEnd ? Alignment.centerRight : Alignment.centerLeft;
     Widget fit(Widget child) => SizedBox(
           width: width,
-          child: FittedBox(fit: BoxFit.scaleDown, alignment: along, child: child),
+          child:
+              FittedBox(fit: BoxFit.scaleDown, alignment: along, child: child),
         );
     return SizedBox(
       width: width,
@@ -428,10 +429,14 @@ class _DownVital extends ConsumerWidget {
   }
 }
 
-/// "Protection" row and the session card under the status. Both keep the
-/// same height in every state.
+/// One card under the status: the "protection" line with the session
+/// clock, the session readouts, and [footer] (Home puts the subscription
+/// line there). Owner, 06.10: two separate cards plus the subscription
+/// card made Home scroll. Rows keep their height in every state.
 class SessionPanel extends ConsumerWidget {
-  const SessionPanel({super.key});
+  const SessionPanel({super.key, this.footer});
+
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -463,10 +468,11 @@ class SessionPanel extends ConsumerWidget {
       ConnectionStatus.error => (Icons.gpp_bad_rounded, Ic.amber, s.protectOff),
       _ => (Icons.gpp_maybe_outlined, Ic.crimson, s.protectOff),
     };
-    return Column(
-      children: [
-        _GlassCard(
-          child: SizedBox(
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
             // Fixed (values never resize the card), but scaled with the
             // app text size — at 1.3 a fixed 24/46 overflowed.
             height: MediaQuery.textScalerOf(context).scale(24),
@@ -510,10 +516,10 @@ class SessionPanel extends ConsumerWidget {
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        _GlassCard(
-          child: SizedBox(
+          const SizedBox(height: 10),
+          Container(height: 1, color: Ic.glassBorder),
+          const SizedBox(height: 10),
+          SizedBox(
             height: MediaQuery.textScalerOf(context).scale(46),
             child: Row(
               children: [
@@ -546,8 +552,14 @@ class SessionPanel extends ConsumerWidget {
               ],
             ),
           ),
-        ),
-      ],
+          if (footer != null) ...[
+            const SizedBox(height: 10),
+            Container(height: 1, color: Ic.glassBorder),
+            const SizedBox(height: 10),
+            footer!,
+          ],
+        ],
+      ),
     );
   }
 }
