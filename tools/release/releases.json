@@ -4,6 +4,17 @@
     "maxCode": 62,
     "releases": [
       {
+        "name": "1.3.2",
+        "code": 61,
+        "commit": "d2a7dab",
+        "rollback": {
+          "name": "1.3.1",
+          "code": 62,
+          "commit": "eb64951"
+        },
+        "published": "2026-10-07"
+      },
+      {
         "name": "1.3.1",
         "code": 58,
         "commit": "eb64951",
@@ -63,6 +74,17 @@
   "windows": {
     "maxCode": 30,
     "releases": [
+      {
+        "name": "1.0.13",
+        "code": 29,
+        "commit": "d2a7dab",
+        "rollback": {
+          "name": "1.0.12",
+          "code": 30,
+          "commit": "eb64951"
+        },
+        "published": "2026-10-07"
+      },
       {
         "name": "1.0.12",
         "code": 27,
