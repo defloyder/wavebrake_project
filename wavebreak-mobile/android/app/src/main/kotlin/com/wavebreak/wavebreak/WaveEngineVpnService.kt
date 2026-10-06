@@ -125,6 +125,11 @@ class WaveEngineVpnService : VpnService() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var trackedNetwork: Network? = null
     private var userPresentReceiver: BroadcastReceiver? = null
+
+    // Screen off -> on: when the screen went off and how much the tunnel
+    // had downloaded then (see onWake()).
+    private var screenOffAtMs = 0L
+    private var downloadAtScreenOff = -1L
     private val reconnectHandler = Handler(Looper.getMainLooper())
     private var pendingReconnect: Runnable? = null
     private var pendingFdCheck: Runnable? = null
@@ -506,7 +511,7 @@ class WaveEngineVpnService : VpnService() {
             if (isReconnect && !stopping && reconnectRetryCount < RECONNECT_MAX_RETRIES) {
                 val delay = RECONNECT_BACKOFF_MS.getOrElse(reconnectRetryCount) { RECONNECT_BACKOFF_MS.last() }
                 reconnectRetryCount++
-                Log.w(TAG, "reconnect watchdog timeout, retrying in ${delay}ms ($reconnectRetryCount/$RECONNECT_MAX_RETRIES)")
+                elog("reconnect watchdog timeout, retrying in ${delay}ms ($reconnectRetryCount/$RECONNECT_MAX_RETRIES)")
                 // Every automatic reconnect trigger goes through
                 // reconnectEngineOnly() now (see its own doc comment) —
                 // isReconnect is only ever true for those, so retrying via
@@ -573,7 +578,7 @@ class WaveEngineVpnService : VpnService() {
                 // Only physical networks count.
                 val caps = cm.getNetworkCapabilities(network)
                 val isVpn = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
-                Log.d(TAG, "default network available: $network vpn=$isVpn tracked=$trackedNetwork")
+                elog("default network available: $network vpn=$isVpn tracked=$trackedNetwork")
                 if (isVpn) return
                 val previous = trackedNetwork ?: lostNetwork
                 val wasLost = lostNetwork != null
@@ -583,7 +588,7 @@ class WaveEngineVpnService : VpnService() {
                 if (networkChangeNeedsReconnect(previous, network, wasLost, outageMs)) {
                     scheduleReconnect("network changed")
                 } else if (wasLost) {
-                    Log.d(TAG, "same network back after ${outageMs} ms: no reconnect")
+                    elog("same network back after ${outageMs} ms: no reconnect")
                 }
             }
 
@@ -592,7 +597,7 @@ class WaveEngineVpnService : VpnService() {
                     trackedNetwork = null
                     lostNetwork = network
                     lostAtMs = SystemClock.elapsedRealtime()
-                    Log.d(TAG, "default network lost, waiting for a new one")
+                    elog("default network lost, waiting for a new one")
                 }
             }
         }
@@ -605,17 +610,26 @@ class WaveEngineVpnService : VpnService() {
         }
         // Unlock is when the user is about to need the tunnel: verify it
         // right away (by probe) instead of only when our own UI is opened.
+        // Screen off/on too: see onWake().
         if (userPresentReceiver == null) {
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
-                    verifyTunnelThenMaybeReconnect("screen unlocked")
+                    when (intent.action) {
+                        Intent.ACTION_SCREEN_OFF -> onScreenOff()
+                        Intent.ACTION_SCREEN_ON -> onWake("screen on")
+                        else -> onWake("screen unlocked")
+                    }
                 }
             }
             try {
                 ContextCompat.registerReceiver(
                     this,
                     receiver,
-                    IntentFilter(Intent.ACTION_USER_PRESENT),
+                    IntentFilter().apply {
+                        addAction(Intent.ACTION_USER_PRESENT)
+                        addAction(Intent.ACTION_SCREEN_ON)
+                        addAction(Intent.ACTION_SCREEN_OFF)
+                    },
                     ContextCompat.RECEIVER_NOT_EXPORTED,
                 )
                 userPresentReceiver = receiver
@@ -664,6 +678,7 @@ class WaveEngineVpnService : VpnService() {
     // reconnectEngineOnly() below.
     private fun scheduleReconnect(reason: String) {
         if (stopping || activeEngine == null) return
+        elog("reconnect scheduled: $reason")
         pendingReconnect?.let { reconnectHandler.removeCallbacks(it) }
         val runnable = Runnable { reconnectEngineOnly(reason) }
         pendingReconnect = runnable
@@ -713,7 +728,7 @@ class WaveEngineVpnService : VpnService() {
     // assumed.
     private fun reconnectEngineOnly(reason: String) {
         if (stopping || activeEngine == null) return
-        Log.d(TAG, "engine-only reconnect after $reason (TUN + tun2socks untouched)")
+        elog("engine-only reconnect after $reason")
         logStateTransition(STATE_RECONNECTING, reason)
         val generation = ++connectGeneration
         scheduleConnectWatchdog(generation, isReconnect = true, preserveTun = true)
@@ -835,15 +850,17 @@ class WaveEngineVpnService : VpnService() {
             override fun run() {
                 if (stopping || activeEngine == null) return
                 Thread({
-                    val alive = probeTunnelAlive()
+                    val ms = measureTunnelLatencyMs()
+                    val alive = ms != null
                     reconnectHandler.post {
                         if (stopping || activeEngine == null) return@post
                         if (alive) {
+                            elog("health check ok $ms ms")
                             consecutiveHealthCheckFailures = 0
                             reconnectHandler.postDelayed(this, HEALTH_CHECK_INTERVAL_MS)
                         } else {
                             consecutiveHealthCheckFailures++
-                            Log.w(TAG, "tunnel health check failed ($consecutiveHealthCheckFailures/$HEALTH_CHECK_FAILURE_THRESHOLD)")
+                            elog("health check failed ($consecutiveHealthCheckFailures/$HEALTH_CHECK_FAILURE_THRESHOLD)")
                             if (consecutiveHealthCheckFailures >= HEALTH_CHECK_FAILURE_THRESHOLD) {
                                 consecutiveHealthCheckFailures = 0
                                 scheduleReconnect("health check failed")
@@ -917,6 +934,51 @@ class WaveEngineVpnService : VpnService() {
     // the unconditional engine restart on app-foreground/unlock (bugs 1/4:
     // logcat 00:55:33 — that restart is what took down a tunnel that had
     // survived 13 minutes of sleep fine).
+    private fun onScreenOff() {
+        screenOffAtMs = SystemClock.elapsedRealtime()
+        downloadAtScreenOff = runCatching { Bridge.tunnelDownloadTotal() }.getOrDefault(-1L)
+        elog("screen off")
+    }
+
+    // Owner, 06.10: after the phone sleeps, ping on Direct climbs, many
+    // connections stall, sometimes for minutes. While the phone sleeps with
+    // nothing passing, the carrier drops its NAT entries for the tunnel's
+    // TCP connections to the server — above all the few long-lived ones
+    // every app connection is multiplexed into (mux, smart routing over
+    // WebSocket). Xray keeps writing new streams into them; nothing fails
+    // until the kernel gives up on the connection minutes later, and a
+    // probe can even pass on a fresh dial while the old ones are dead. So:
+    // when the screen was off for a while and (almost) nothing came in
+    // meanwhile, the engine is restarted at once on wake (TUN untouched,
+    // ~0.3 s) — every connection is redialled fresh. If traffic kept
+    // flowing (music, a download), those connections are alive; then only
+    // the probe runs, as before.
+    private fun onWake(reason: String) {
+        val offAt = screenOffAtMs
+        screenOffAtMs = 0L
+        if (offAt == 0L) {
+            // Already handled for this wake (screen on, then unlocked).
+            if (reason == "screen unlocked") verifyTunnelThenMaybeReconnect(reason)
+            return
+        }
+        val offForMs = SystemClock.elapsedRealtime() - offAt
+        val downNow = runCatching { Bridge.tunnelDownloadTotal() }.getOrDefault(-1L)
+        val received = if (downNow >= 0 && downloadAtScreenOff >= 0) downNow - downloadAtScreenOff else -1L
+        elog("$reason after ${offForMs / 1000} s off, received ${received / 1024} KB meanwhile")
+        if (stopping || activeEngine == null) return
+        if (offForMs >= WAKE_RESTART_AFTER_MS && received in 0 until WAKE_IDLE_BYTES) {
+            scheduleReconnect("woke after ${offForMs / 1000} s idle")
+        } else {
+            verifyTunnelThenMaybeReconnect(reason)
+        }
+    }
+
+    // logcat + the on-disk engine log (EngineLog), for what matters when
+    // a stall has to be explained later.
+    private fun elog(message: String) {
+        EngineLog.write(this, message)
+    }
+
     private fun verifyTunnelThenMaybeReconnect(reason: String) {
         if (stopping || activeEngine == null || pendingConnectWatchdog != null) return
         Thread({
@@ -928,7 +990,7 @@ class WaveEngineVpnService : VpnService() {
             reconnectHandler.post {
                 if (stopping || activeEngine == null) return@post
                 if (alive) {
-                    Log.d(TAG, "tunnel verified alive after $reason")
+                    elog("tunnel verified alive after $reason")
                 } else {
                     scheduleReconnect("$reason, tunnel probe failed")
                 }
@@ -1601,13 +1663,13 @@ class WaveEngineVpnService : VpnService() {
     //            but still a real stop that needs a reason in the log
     //            rather than silence.
     private fun logStop(reason: String, detail: String? = null) {
-        Log.i(TAG, "service_stop reason=$reason${if (detail != null) " detail=$detail" else ""}")
+        elog("service_stop reason=$reason${if (detail != null) " detail=$detail" else ""}")
     }
 
     // Engine steps into the diagnostic log (Dart logs "engine: ..."): a
     // hang or failure between two steps then shows where it stopped.
     private fun trace(step: String) {
-        Log.i(TAG, "trace $step")
+        elog("trace $step")
         val intent = Intent(ACTION_STATUS)
         intent.setPackage(packageName)
         intent.putExtra(EXTRA_STATE, STATE_TRACE)
@@ -1975,6 +2037,11 @@ class WaveEngineVpnService : VpnService() {
         private const val HEALTH_CHECK_RETRY_MS = 10_000L
         private const val HEALTH_CHECK_RETRY_AFTER_FAILURE_MS = 3_000L
         private const val HEALTH_CHECK_FAILURE_THRESHOLD = 2
+
+        // onWake(): restart the engine when the screen was off at least
+        // this long and less than this much came through meanwhile.
+        private const val WAKE_RESTART_AFTER_MS = 60_000L
+        private const val WAKE_IDLE_BYTES = 64L * 1024
 
         // See scheduleConnectWatchdog's own comment for the full "stuck
         // on Connecting forever with WiFi off" investigation. Generous

@@ -420,6 +420,23 @@ void main() {
       expect(tls['serverName'], 'direct.wavebreak.com.tr');
     });
 
+    test('TCP outbounds give up an unacknowledged connection after 20 s', () {
+      // After sleep the carrier has dropped idle connections; this makes
+      // the engine redial in seconds instead of minutes (owner, 06.10).
+      for (final link in [_directTls, _reality]) {
+        final outs = (config(link)['outbounds'] as List).cast<Map>();
+        Map<String, dynamic>? sockopt(String tag) => ((outs.firstWhere(
+                (o) => o['tag'] == tag)['streamSettings'] as Map?)?['sockopt'])
+            ?.cast<String, dynamic>();
+        expect(sockopt('proxy')?['tcpUserTimeout'], kTcpUserTimeoutMs, reason: link);
+        expect(sockopt('direct')?['tcpUserTimeout'], kTcpUserTimeoutMs);
+        expect(sockopt('fragment-out')?['tcpUserTimeout'], kTcpUserTimeoutMs);
+      }
+      final hy = (config(_hysteria)['outbounds'] as List).first as Map;
+      expect(((hy['streamSettings'] as Map?)?['sockopt'] as Map?)?['tcpUserTimeout'], isNull,
+          reason: 'QUIC, not TCP');
+    });
+
     test('WireGuard builds an Xray wireguard outbound', () {
       final out = (config('wg://K@w.example:51820?publickey=P&address=10.0.0.2')['outbounds']
               as List)

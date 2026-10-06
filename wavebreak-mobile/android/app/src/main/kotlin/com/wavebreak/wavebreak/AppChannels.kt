@@ -273,6 +273,8 @@ object AppChannels {
                 "isSystemVpnActive" -> result.success(isSystemVpnActive(app))
                 "vpnSessionStartedAtMs" -> result.success(WaveEngineVpnService.sessionStartedAtMs(app))
                 "networkLabel" -> result.success(runCatching { NetworkLabel.describe(app) }.getOrNull())
+                // The VPN service's on-disk log (EngineLog), for the diagnostic export.
+                "engineLog" -> result.success(EngineLog.read(app))
                 "isIgnoringBatteryOptimizations" ->
                     result.success(BatteryOptimization.isIgnoringBatteryOptimizations(app))
                 // Only the user can turn on "Always-on VPN" + "Block

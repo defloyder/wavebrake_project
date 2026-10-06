@@ -1,5 +1,6 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,11 +35,11 @@ String formatBytes(int bytes) {
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
 }
 
-/// A number that glides to its new value (~0.9 s) instead of jumping.
+/// A number that glides to its new value (~1 s to settle) instead of jumping.
 /// Null shows a dash; dash ⇄ number cross-fades.
 ///
 /// The glide runs on the shared ImmersiveClock (30 fps), not on its own
-/// ticker: five readouts updated every second each started a 0.9 s
+/// ticker: five readouts updated every second each started its own
 /// animation at the display rate, which kept Home drawing ~60 frames a
 /// second while connected — twice the GPU work (P5, owner's phone).
 class AnimatedValue extends StatefulWidget {
@@ -60,22 +61,31 @@ class AnimatedValue extends StatefulWidget {
 }
 
 class _AnimatedValueState extends State<AnimatedValue> {
-  static const _seconds = 0.9;
-  double _from = 0, _to = 0;
-  double? _startT;
-  bool _snap = true;
+  /// Time constant of the glide: ~63 % of the way in 0.45 s, ~90 % in 1 s.
+  /// The value follows its target continuously — a new reading (rates come
+  /// twice a second) bends the glide instead of restarting it, so the
+  /// digits drift instead of racing (owner: "too fast, smooth it, but not
+  /// sluggish").
+  static const _tau = 0.45;
+  double _shown = 0, _to = 0;
+  double? _lastT;
 
-  double _at(double t) {
-    final start = _startT;
-    if (_snap || start == null) return _to;
-    final p = ((t - start) / _seconds).clamp(0.0, 1.0);
-    return _from + (_to - _from) * Curves.easeOutCubic.transform(p);
+  double _advance(double t, bool frozen) {
+    final last = _lastT;
+    _lastT = t;
+    if (frozen || last == null) return _shown = _to;
+    final dt = (t - last).clamp(0.0, 0.25);
+    _shown += (_to - _shown) * (1 - math.exp(-dt / _tau));
+    if ((_to - _shown).abs() <= (_to.abs() * 0.002).clamp(0.001, double.infinity)) {
+      _shown = _to;
+    }
+    return _shown;
   }
 
   @override
   void initState() {
     super.initState();
-    _to = widget.value ?? 0;
+    _shown = _to = widget.value ?? 0;
   }
 
   @override
@@ -83,29 +93,28 @@ class _AnimatedValueState extends State<AnimatedValue> {
     super.didUpdateWidget(old);
     final v = widget.value;
     if (v == null || v == old.value) return;
-    final clock = ImmersiveClock.of(context);
-    if (old.value == null) {
-      // Dash -> number: no glide from a stale value.
-      _to = v;
-      _snap = true;
-      return;
-    }
-    _from = _at(clock.value);
     _to = v;
-    _startT = clock.value;
-    _snap = ImmersiveClock.frozen(context);
+    // Dash -> number: show the number right away, no glide from a stale one.
+    if (old.value == null) {
+      _shown = v;
+      _lastT = null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final value = widget.value;
+    final frozen = ImmersiveClock.frozen(context);
+    // Equal-width digits: a changing number doesn't shift sideways.
+    final style = widget.style.copyWith(
+        fontFeatures: const [FontFeature.tabularFigures()]);
     final child = value == null
-        ? Text('—', key: const ValueKey('dash'), style: widget.style)
+        ? Text('—', key: const ValueKey('dash'), style: style)
         : ValueListenableBuilder<double>(
             key: const ValueKey('value'),
             valueListenable: ImmersiveClock.of(context),
-            builder: (_, t, __) => Text(widget.format(_at(t)),
-                style: widget.style, maxLines: 1, softWrap: false),
+            builder: (_, t, __) => Text(widget.format(_advance(t, frozen)),
+                style: style, maxLines: 1, softWrap: false),
           );
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 400),

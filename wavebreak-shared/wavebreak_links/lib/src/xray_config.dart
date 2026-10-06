@@ -16,6 +16,15 @@ import 'dart:convert';
 
 import 'share_link.dart';
 
+/// TCP_USER_TIMEOUT for the engine's outbound TCP connections: data left
+/// unacknowledged this long closes the connection, so a new one is
+/// dialled. While the phone sleeps the carrier drops its NAT entries for
+/// idle connections; without this a connection that died that way (above
+/// all a multiplexed one every app connection rides on) was only given
+/// up by the kernel minutes later — the "after sleep everything stalls
+/// for minutes" the owner saw (06.10).
+const kTcpUserTimeoutMs = 20000;
+
 abstract class V2RayURL {
   V2RayURL({required this.url});
   final String url;
@@ -57,6 +66,10 @@ abstract class V2RayURL {
 
   Map<String, dynamic> outbound2 = {
     "tag": "direct",
+    // Direct (smart-routing) connections die in sleep the same way.
+    "streamSettings": {
+      "sockopt": {"tcpUserTimeout": kTcpUserTimeoutMs},
+    },
     "protocol": "freedom",
     "settings": {
       "vnext": null,
@@ -72,7 +85,6 @@ abstract class V2RayURL {
       "secretKey": null,
       "peers": null
     },
-    "streamSettings": null,
     "proxySettings": null,
     "sendThrough": null,
     "mux": null
@@ -166,7 +178,7 @@ abstract class V2RayURL {
           },
         },
         "streamSettings": {
-          "sockopt": {"tcpNoDelay": true},
+          "sockopt": {"tcpNoDelay": true, "tcpUserTimeout": kTcpUserTimeoutMs},
         },
       };
 
@@ -182,6 +194,13 @@ abstract class V2RayURL {
 
   Map<String, dynamic> get fullConfiguration {
     final proxyOut = outbound1;
+    final proxyStream = proxyOut['streamSettings'] as Map<String, dynamic>?;
+    if (proxyStream != null && proxyStream['network'] != 'hysteria') {
+      proxyStream['sockopt'] = {
+        ...?proxyStream['sockopt'] as Map<String, dynamic>?,
+        'tcpUserTimeout': kTcpUserTimeoutMs,
+      };
+    }
     if (_usesFragment) {
       // outbound1's own streamSettings IS streamSetting (same mutable map
       // in every subclass below) — safe to set this here since nothing

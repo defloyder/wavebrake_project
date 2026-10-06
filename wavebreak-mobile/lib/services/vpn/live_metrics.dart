@@ -123,7 +123,13 @@ class LiveMetrics extends Notifier<LiveMetricsState> {
       },
       fireImmediately: true,
     );
-    return const LiveMetricsState();
+    // Created while already connected (e.g. the VPN was turned on from the
+    // Quick Settings tile before the app was opened): fireImmediately has
+    // just started the timers — returning a blank state here would mark
+    // the running session inactive (dashes on Home, "last session").
+    return _rateTimer != null
+        ? const LiveMetricsState(active: true)
+        : const LiveMetricsState();
   }
 
   void _start() {
