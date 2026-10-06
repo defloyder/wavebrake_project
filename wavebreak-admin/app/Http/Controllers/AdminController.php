@@ -12,7 +12,9 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -211,6 +213,64 @@ class AdminController extends Controller
         return $this->coreAction($request, '/plans', 'Тариф удалён.', fn ($token) => $this->core->deletePlan($token, $planId));
     }
 
+    public function createPromoCode(Request $request): RedirectResponse|JsonResponse
+    {
+        $data = $this->validatedPromoCode($request);
+
+        return $this->coreAction($request, '/promo-codes', 'Промокод создан.', fn ($token) => $this->core->createPromoCode($token, $data));
+    }
+
+    public function updatePromoCode(Request $request, string $promoId): RedirectResponse|JsonResponse
+    {
+        $data = $this->validatedPromoCode($request);
+
+        return $this->coreAction($request, '/promo-codes', 'Промокод сохранён.', fn ($token) => $this->core->updatePromoCode($token, $promoId, $data));
+    }
+
+    public function deletePromoCode(Request $request, string $promoId): RedirectResponse|JsonResponse
+    {
+        return $this->coreAction($request, '/promo-codes', 'Промокод удалён.', fn ($token) => $this->core->deletePromoCode($token, $promoId));
+    }
+
+    /**
+     * The promo form speaks operator units (a fixed discount in currency,
+     * local dates); Core stores minor units and RFC 3339 times.
+     */
+    private function validatedPromoCode(Request $request): array
+    {
+        $data = $request->validate([
+            'code' => ['required', 'string', 'min:3', 'max:40', 'regex:/^[A-Za-z0-9_-]+$/'],
+            'description' => ['nullable', 'string', 'max:200'],
+            'discount_type' => ['required', 'string', 'in:percent,fixed'],
+            'discount_value' => ['required', 'numeric', 'min:0.01', 'max:1000000'],
+            'currency' => ['nullable', 'required_if:discount_type,fixed', 'string', 'in:USD,EUR,RUB,TRY'],
+            'plan_id' => ['nullable', 'string', 'max:64'],
+            'valid_from' => ['nullable', 'date'],
+            'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],
+            'max_activations' => ['nullable', 'integer', 'min:1', 'max:1000000'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+        $percent = $data['discount_type'] === 'percent';
+        if ($percent && ((float) $data['discount_value'] < 1 || (float) $data['discount_value'] > 100 || floor((float) $data['discount_value']) != (float) $data['discount_value'])) {
+            throw ValidationException::withMessages(['discount_value' => 'Скидка в процентах — целое число от 1 до 100.']);
+        }
+        $tz = (string) config('services.wavebreak.display_timezone', 'Europe/Istanbul');
+        $time = fn (?string $v, bool $end = false) => $v ? ($end ? Carbon::parse($v, $tz)->endOfDay() : Carbon::parse($v, $tz)->startOfDay())->utc()->toRfc3339String() : null;
+
+        return [
+            'code' => strtoupper(trim($data['code'])),
+            'description' => trim($data['description'] ?? ''),
+            'discount_type' => $data['discount_type'],
+            'discount_value' => $percent ? (int) $data['discount_value'] : (int) round(((float) $data['discount_value']) * 100),
+            'currency' => $percent ? '' : $data['currency'],
+            'plan_id' => trim($data['plan_id'] ?? ''),
+            'valid_from' => $time($data['valid_from'] ?? null),
+            'valid_until' => $time($data['valid_until'] ?? null, true),
+            'max_activations' => isset($data['max_activations']) ? (int) $data['max_activations'] : null,
+            'is_active' => $request->boolean('is_active'),
+        ];
+    }
+
     /**
      * The plan form speaks operator units (price in currency, traffic in
      * ГБ); Core stores minor units and bytes.
@@ -229,6 +289,8 @@ class AdminController extends Controller
             'traffic_limit_gb' => ['nullable', 'numeric', 'min:0.01', 'max:1048576'],
             'is_active' => ['nullable', 'boolean'],
             'is_public' => ['nullable', 'boolean'],
+            'original_price' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            'badge' => ['nullable', 'string', 'max:24'],
         ]);
 
         return [
@@ -243,6 +305,9 @@ class AdminController extends Controller
             'traffic_limit_bytes' => isset($data['traffic_limit_gb']) ? (int) round(((float) $data['traffic_limit_gb']) * ByteFormatter::GIB) : null,
             'is_active' => $request->boolean('is_active'),
             'is_public' => $request->boolean('is_public'),
+            // An offer: the price before the discount, struck through in the apps.
+            'original_price_minor' => isset($data['original_price']) && $data['original_price'] !== '' ? (int) round(((float) $data['original_price']) * 100) : null,
+            'badge' => trim($data['badge'] ?? ''),
             'sort_order' => 0,
         ];
     }

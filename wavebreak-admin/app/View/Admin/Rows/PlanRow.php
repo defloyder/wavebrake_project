@@ -23,6 +23,7 @@ final readonly class PlanRow
         public string $traffic,
         public StatusBadge $status,
         public bool $public,
+        public string $offer,
         public array $editable,
     ) {}
 
@@ -47,6 +48,7 @@ final readonly class PlanRow
             traffic: ByteFormatter::format(isset($plan['traffic_limit_bytes']) && $plan['traffic_limit_bytes'] ? (int) $plan['traffic_limit_bytes'] : null),
             status: StatusBadge::plan((bool) ($plan['is_active'] ?? true)),
             public: (bool) ($plan['is_public'] ?? true),
+            offer: self::offer($plan),
             editable: [
                 'id' => $plan['id'],
                 'code' => $plan['code'] ?? '',
@@ -60,8 +62,24 @@ final readonly class PlanRow
                 'traffic_limit_gb' => ByteFormatter::gigabytesInput(isset($plan['traffic_limit_bytes']) ? (int) $plan['traffic_limit_bytes'] : null),
                 'is_active' => (bool) ($plan['is_active'] ?? true),
                 'is_public' => (bool) ($plan['is_public'] ?? true),
+                'original_price' => isset($plan['original_price_minor']) ? number_format(((int) $plan['original_price_minor']) / 100, 2, '.', '') : '',
+                'badge' => $plan['badge'] ?? '',
             ],
         );
+    }
+
+    /** "было 599,00 ₽ · -17%" — the plan's offer, or "" without one. */
+    private static function offer(array $plan): string
+    {
+        $parts = [];
+        if (isset($plan['original_price_minor'])) {
+            $parts[] = 'было '.self::money((int) $plan['original_price_minor'], (string) ($plan['currency'] ?? 'USD'));
+        }
+        if (($plan['badge'] ?? '') !== '') {
+            $parts[] = (string) $plan['badge'];
+        }
+
+        return implode(' · ', $parts);
     }
 
     public static function money(int $minor, string $currency): string

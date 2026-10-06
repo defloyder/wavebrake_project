@@ -25,6 +25,7 @@ final class CoreErrorMessages
         'PASSWORD_RESET_FAILED' => 'Не удалось создать ссылку для восстановления пароля.',
         'DEVICE_LIMIT_REACHED' => 'Достигнут лимит устройств.',
         'TRAFFIC_LIMIT_REACHED' => 'Трафик по подписке исчерпан.',
+        'PROMO_CODE_TAKEN' => 'Промокод с таким кодом уже есть.',
         'VALIDATION_FAILED' => 'Проверьте заполнение формы.',
         'INTERNAL_ERROR' => 'Внутренняя ошибка Core. Повторите попытку позже.',
     ];
@@ -52,6 +53,10 @@ final class CoreErrorMessages
         'could not update plan' => 'Не удалось сохранить тариф.',
         'code, name, price_minor and device_limit are required' => 'Заполните код, название, цену и лимит устройств.',
         'interval must be month or year' => 'Период тарифа — месяц или год.',
+        'could not save promo code' => 'Не удалось сохранить промокод.',
+        'promo code not found' => 'Промокод не найден.',
+        'could not delete promo code' => 'Не удалось удалить промокод.',
+        'badge is at most 24 characters' => 'Метка тарифа — не длиннее 24 символов.',
         'could not enroll node' => 'Не удалось зарегистрировать ноду.',
     ];
 

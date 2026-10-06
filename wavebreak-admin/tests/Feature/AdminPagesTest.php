@@ -51,6 +51,10 @@ class AdminPagesTest extends TestCase
             '*/v1/admin/traffic/history*' => Http::response(['history' => []]),
             '*/v1/admin/devices' => Http::response(['devices' => [['id' => 'd1', 'user_id' => self::USER_ID, 'name' => 'Pixel 9', 'platform' => 'android', 'created_at' => '2026-09-20T00:00:00Z', 'last_seen_at' => null]]]),
             '*/v1/admin/audit' => Http::response(['events' => [['id' => 'e1', 'actor_user_id' => 'admin-1', 'action' => 'user.disabled', 'target_type' => 'user', 'target_id' => self::USER_ID, 'metadata' => [], 'created_at' => '2026-09-27T09:15:00Z']]]),
+            '*/v1/admin/promo-codes' => Http::response(['promo_codes' => [[
+                'id' => 'p1', 'code' => 'SPRING20', 'description' => 'Весна', 'discount_type' => 'percent', 'discount_value' => 20,
+                'plan_id' => self::PLAN_ID, 'valid_until' => '2099-10-31T20:59:59Z', 'max_activations' => 100, 'activations_count' => 3, 'is_active' => true,
+            ]]]),
             '*' => Http::response([], 404),
         ]);
     }
@@ -138,7 +142,7 @@ class AdminPagesTest extends TestCase
     {
         $this->fakeCore();
 
-        foreach (['dashboard', 'users', 'subscriptions', 'plans', 'nodes', 'grants', 'devices', 'traffic', 'audit', 'enroll'] as $section) {
+        foreach (['dashboard', 'users', 'subscriptions', 'plans', 'promo-codes', 'nodes', 'grants', 'devices', 'traffic', 'audit', 'enroll'] as $section) {
             $this->asAdmin()->get('/'.$section)->assertOk()->assertSee('adm-section-title', false);
         }
     }
@@ -148,5 +152,45 @@ class AdminPagesTest extends TestCase
         Http::fake(['*/healthz' => Http::response(['status' => 'ok'])]);
 
         $this->get('/users')->assertOk()->assertSee('name="password"', false)->assertDontSee('adm-user-card', false);
+    }
+
+    public function test_promo_codes_show_discount_plan_and_activations(): void
+    {
+        $this->fakeCore();
+
+        $this->asAdmin()->get('/promo-codes')->assertOk()
+            ->assertSee('SPRING20')->assertSee('Весна')->assertSee('−20%')
+            ->assertSee('Plus')->assertSee('3 / 100')->assertSee('Активен')
+            ->assertSee('data-open-promo=', false);
+    }
+
+    public function test_promo_page_says_when_core_lacks_promo_codes(): void
+    {
+        $this->fakeCore(['*/v1/admin/promo-codes' => Http::response(['error' => 'not found'], 404)]);
+
+        $this->asAdmin()->get('/promo-codes')->assertOk()->assertSee('нужен деплой Core');
+    }
+
+    public function test_promo_form_converts_operator_units(): void
+    {
+        $this->fakeCore(['*/v1/admin/promo-codes' => Http::response(['id' => 'p2', 'code' => 'WB100'], 201)]);
+
+        $this->asAdmin()->postJson('/promo-codes', [
+            'code' => 'wb100', 'discount_type' => 'fixed', 'discount_value' => '100.50', 'currency' => 'RUB',
+            'valid_until' => '2026-10-31', 'is_active' => '1',
+        ])->assertOk();
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'POST' && str_ends_with($r->url(), '/v1/admin/promo-codes')
+            && $r['code'] === 'WB100' && $r['discount_value'] === 10050 && $r['currency'] === 'RUB'
+            && $r['valid_until'] === '2026-10-31T20:59:59+00:00' && $r['is_active'] === true);
+    }
+
+    public function test_percent_promo_must_be_whole_1_to_100(): void
+    {
+        $this->fakeCore();
+
+        $this->asAdmin()->postJson('/promo-codes', ['code' => 'BAD', 'discount_type' => 'percent', 'discount_value' => '150'])
+            ->assertStatus(422);
+        Http::assertNotSent(fn (Request $r) => $r->method() === 'POST' && str_contains($r->url(), '/v1/admin/promo-codes'));
     }
 }

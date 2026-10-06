@@ -24,7 +24,10 @@
                         <span class="adm-cell-title">{{ $row->name }}</span>
                         <span class="adm-cell-sub">{{ $row->description ?: $row->code }}</span>
                     </td>
-                    <td data-label="Цена" class="num-cell" data-sort="{{ $row->priceSort }}">{{ $row->price }}</td>
+                    <td data-label="Цена" class="num-cell" data-sort="{{ $row->priceSort }}">
+                        {{ $row->price }}
+                        @if($row->offer !== '')<span class="adm-cell-sub">{{ $row->offer }}</span>@endif
+                    </td>
                     <td data-label="Период">{{ $row->term }}</td>
                     <td data-label="Трафик">{{ $row->traffic }}</td>
                     <td data-label="Устройств" class="num-cell">{{ $row->devices }}</td>
@@ -64,6 +67,10 @@
                     @foreach(['USD', 'EUR', 'RUB', 'TRY'] as $currency)<option value="{{ $currency }}">{{ $currency }}</option>@endforeach
                 </select>
             </label>
+        </div>
+        <div class="adm-form-row">
+            <label>Старая цена <span class="adm-optional">акция, необязательно</span><input name="original_price" data-plan-field="original_price" type="number" step="0.01" min="0" class="adm-input" placeholder="без скидки"><small class="adm-hint">Выше цены — в приложении зачёркнута.</small></label>
+            <label>Метка <span class="adm-optional">необязательно</span><input name="badge" data-plan-field="badge" class="adm-input" maxlength="24" placeholder="-17%, Хит"></label>
         </div>
         <div class="adm-form-row">
             <label>Трафик, ГБ<input name="traffic_limit_gb" data-plan-field="traffic_limit_gb" type="number" step="0.01" min="0.01" class="adm-input" placeholder="безлимит"><small class="adm-hint">Пусто — без лимита. 1 ГБ = 1024³ байт.</small></label>
