@@ -141,5 +141,24 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(self.escalated, [])
 
 
+    def test_person_with_recent_long_session_is_not_banned(self):
+        """A real phone held one long session, then its app retried in a burst:
+        the burst alone must not ban it."""
+        ip = "5.228.113.146"
+        self.guard.observe(ip, duration=120.0)
+        self.clock.advance(1)
+        for _ in range(dpi_guard.MIN_CONNECTIONS):
+            self.guard.observe(ip, duration=0.1)
+            self.clock.advance(1)
+        self.assertEqual(self.banned, [])
+
+    def test_pure_prober_without_long_sessions_still_banned(self):
+        ip = "203.0.113.50"
+        for _ in range(dpi_guard.MIN_CONNECTIONS):
+            self.guard.observe(ip, duration=0.1)
+            self.clock.advance(1)
+        self.assertEqual(self.banned, [ip])
+
+
 if __name__ == "__main__":
     unittest.main()

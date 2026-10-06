@@ -66,6 +66,12 @@ LINE_RE = re.compile(r"DPI-SESSION (\d+\.\d+\.\d+\.\d+) (\d+\.\d+)")
 # reconnect storms look like probing. Never banned by this guard.
 ALLOWLIST = {"158.160.44.116"}
 
+# An IP that held a real session this long recently is a person, not a probe:
+# a prober never keeps a session open. Its short-burst pattern (app retries
+# after drops) alone must not ban it.
+PROVEN_SESSION_SEC = 60
+PROVEN_WINDOW_SEC = 3600
+
 
 def log_event(msg):
     # Deferred import avoids a hard dependency for anything that only wants
@@ -100,12 +106,15 @@ class Guard:
         self._now = now_fn
         self._ban = ban_fn
         self._escalate = escalate_fn
+        self._proven = {}  # ip -> last time it held a real, long session
         self._last_prune = self._now()
 
     def observe(self, ip, duration):
         if ip in ALLOWLIST:
             return
         now = self._now()
+        if duration >= PROVEN_SESSION_SEC:
+            self._proven[ip] = now
         events = self._events[ip]
         events.append((now, duration))
         cutoff = now - WINDOW_SEC
@@ -115,6 +124,12 @@ class Guard:
         if len(events) >= MIN_CONNECTIONS:
             short = sum(1 for _, d in events if d < SHORT_SESSION_SEC)
             if short / len(events) >= SHORT_FRACTION:
+                proven = self._proven.get(ip)
+                if proven is not None and now - proven < PROVEN_WINDOW_SEC:
+                    events.clear()  # real user who also retried a lot: not a probe
+                    if now - self._last_prune >= PRUNE_INTERVAL_SEC:
+                        self._prune(now)
+                    return
                 self._ban(ip)
                 self._record_offense(ip, now)
                 events.clear()  # don't re-trigger every subsequent connection during the ban
