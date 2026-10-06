@@ -373,7 +373,10 @@ class AppStrings {
     required this.mDirect,
     required this.unitMin,
     required this.mNow,
+    required this.promoUnavailable,
   });
+
+  final String promoUnavailable;
 
   final String mTitle;
   final String mLive;
@@ -1160,6 +1163,7 @@ const kEnglishStrings = AppStrings(
   mDirect: 'directly, unprotected',
   unitMin: 'min',
   mNow: 'now',
+  promoUnavailable: 'Promo codes aren\'t available yet',
 );
 
 const kRussianStrings = AppStrings(
@@ -1552,6 +1556,7 @@ const kRussianStrings = AppStrings(
   mDirect: 'напрямую, без защиты',
   unitMin: 'мин',
   mNow: 'сейчас',
+  promoUnavailable: 'Промокоды пока недоступны',
 );
 
 const kSpanishStrings = AppStrings(
@@ -1947,6 +1952,7 @@ const kSpanishStrings = AppStrings(
   mDirect: 'directo, sin protección',
   unitMin: 'min',
   mNow: 'ahora',
+  promoUnavailable: 'Los códigos promocionales aún no están disponibles',
 );
 
 const kGermanStrings = AppStrings(
@@ -2346,6 +2352,7 @@ const kGermanStrings = AppStrings(
   mDirect: 'direkt, ungeschützt',
   unitMin: 'Min.',
   mNow: 'jetzt',
+  promoUnavailable: 'Promocodes sind noch nicht verfügbar',
 );
 
 const kFrenchStrings = AppStrings(
@@ -2745,6 +2752,7 @@ const kFrenchStrings = AppStrings(
   mDirect: 'en direct, sans protection',
   unitMin: 'min',
   mNow: 'maintenant',
+  promoUnavailable: 'Les codes promo ne sont pas encore disponibles',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -3140,6 +3148,7 @@ const kPortugueseStrings = AppStrings(
   mDirect: 'direto, sem proteção',
   unitMin: 'min',
   mNow: 'agora',
+  promoUnavailable: 'Códigos promocionais ainda não estão disponíveis',
 );
 
 const kTurkishStrings = AppStrings(
@@ -3533,6 +3542,7 @@ const kTurkishStrings = AppStrings(
   mDirect: 'doğrudan, korumasız',
   unitMin: 'dk',
   mNow: 'şimdi',
+  promoUnavailable: 'Promosyon kodları henüz kullanılamıyor',
 );
 
 AppStrings stringsFor(AppLanguage language) {

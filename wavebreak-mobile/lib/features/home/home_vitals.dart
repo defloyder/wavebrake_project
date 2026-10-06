@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/live_metrics.dart';
+import '../immersive/immersive_clock.dart';
 import '../immersive/immersive_colors.dart';
 import '../immersive/tinted_glass.dart';
 
@@ -35,7 +36,12 @@ String formatBytes(int bytes) {
 
 /// A number that glides to its new value (~0.9 s) instead of jumping.
 /// Null shows a dash; dash ⇄ number cross-fades.
-class AnimatedValue extends StatelessWidget {
+///
+/// The glide runs on the shared ImmersiveClock (30 fps), not on its own
+/// ticker: five readouts updated every second each started a 0.9 s
+/// animation at the display rate, which kept Home drawing ~60 frames a
+/// second while connected — twice the GPU work (P5, owner's phone).
+class AnimatedValue extends StatefulWidget {
   const AnimatedValue({
     super.key,
     required this.value,
@@ -50,21 +56,61 @@ class AnimatedValue extends StatelessWidget {
   final Alignment alignment;
 
   @override
+  State<AnimatedValue> createState() => _AnimatedValueState();
+}
+
+class _AnimatedValueState extends State<AnimatedValue> {
+  static const _seconds = 0.9;
+  double _from = 0, _to = 0;
+  double? _startT;
+  bool _snap = true;
+
+  double _at(double t) {
+    final start = _startT;
+    if (_snap || start == null) return _to;
+    final p = ((t - start) / _seconds).clamp(0.0, 1.0);
+    return _from + (_to - _from) * Curves.easeOutCubic.transform(p);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _to = widget.value ?? 0;
+  }
+
+  @override
+  void didUpdateWidget(covariant AnimatedValue old) {
+    super.didUpdateWidget(old);
+    final v = widget.value;
+    if (v == null || v == old.value) return;
+    final clock = ImmersiveClock.of(context);
+    if (old.value == null) {
+      // Dash -> number: no glide from a stale value.
+      _to = v;
+      _snap = true;
+      return;
+    }
+    _from = _at(clock.value);
+    _to = v;
+    _startT = clock.value;
+    _snap = ImmersiveClock.frozen(context);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final value = widget.value;
     final child = value == null
-        ? Text('—', key: const ValueKey('dash'), style: style)
-        : TweenAnimationBuilder<double>(
+        ? Text('—', key: const ValueKey('dash'), style: widget.style)
+        : ValueListenableBuilder<double>(
             key: const ValueKey('value'),
-            tween: Tween(end: value),
-            duration: const Duration(milliseconds: 900),
-            curve: Curves.easeOutCubic,
-            builder: (_, v, __) =>
-                Text(format(v), style: style, maxLines: 1, softWrap: false),
+            valueListenable: ImmersiveClock.of(context),
+            builder: (_, t, __) => Text(widget.format(_at(t)),
+                style: widget.style, maxLines: 1, softWrap: false),
           );
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 400),
       layoutBuilder: (current, previous) => Stack(
-        alignment: alignment,
+        alignment: widget.alignment,
         children: [...previous, if (current != null) current],
       ),
       child: child,

@@ -13,6 +13,7 @@ import '../shared/wave_params.dart';
 import 'effects_quality.dart';
 import 'immersive_clock.dart';
 import 'orbit_frame.dart';
+import 'soft_glow.dart';
 import 'sphere_assets.dart';
 
 /// Sphere size for the screen width (V5 spec: 278 tablet, 240 phone,
@@ -538,15 +539,8 @@ class _CorePainter extends CustomPainter {
   void _shell(Canvas canvas, Offset c, double r, double e, double w) {
     final shellR = r * 1.14;
     final tone = _tc(Color.lerp(const Color(0xFFE15467), _amber, w)!);
-    canvas.drawCircle(
-      c,
-      shellR,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 10
-        ..color = _tc(const Color(0xFFFA1830).withValues(alpha: 0.05 + 0.04 * e))
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
+    drawSoftRing(canvas, c, shellR,
+        _tc(const Color(0xFFFA1830).withValues(alpha: 0.05 + 0.04 * e)), 10, 8);
     canvas.drawCircle(
       c,
       shellR,
@@ -581,21 +575,11 @@ class _CorePainter extends CustomPainter {
       Canvas canvas, Offset c, double r, double e, double w, double pulse) {
     final glow = _tc(Color.lerp(const Color(0xFFFF154B), _amber, w)!);
     // Wide soft glow (0 0 40px idle -> 0 0 34px + 85px connected).
-    canvas.drawCircle(
-      c,
-      r * 1.02,
-      Paint()
-        ..color = glow.withValues(alpha: 0.22 + 0.25 * e + 0.15 * pulse)
-        ..maskFilter = MaskFilter.blur(BlurStyle.outer, 16 + 10 * e),
-    );
+    drawOuterGlow(canvas, c, r * 1.02,
+        glow.withValues(alpha: 0.22 + 0.25 * e + 0.15 * pulse), 16 + 10 * e);
     if (e > 0.01) {
-      canvas.drawCircle(
-        c,
-        r * 1.05,
-        Paint()
-          ..color = _tc(const Color(0xFFE82744).withValues(alpha: 0.23 * e))
-          ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 40),
-      );
+      drawOuterGlow(canvas, c, r * 1.05,
+          _tc(const Color(0xFFE82744).withValues(alpha: 0.23 * e)), 40);
     }
     // Two thin halo rings just outside the rim (box-shadow spreads).
     final ring2 =
@@ -636,15 +620,8 @@ class _CorePainter extends CustomPainter {
         ]).createShader(Rect.fromCircle(center: c, radius: r)),
     );
     if (!lite) {
-      canvas.drawCircle(
-        c,
-        r * 0.96,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 6
-          ..color = color.withValues(alpha: 0.18 + 0.2 * e + 0.15 * pulse)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-      );
+      drawSoftRing(canvas, c, r * 0.96,
+          color.withValues(alpha: 0.18 + 0.2 * e + 0.15 * pulse), 6, 8);
     }
     canvas.drawCircle(
       c,
@@ -859,36 +836,33 @@ class _CorePainter extends CustomPainter {
     final xs = o.xs, ys = o.ys, behind = o.behind;
     final hidden = front ? 1 : 0;
     for (var b = _bands - 1; b >= 0; b--) {
+      // One addPolygon per visible run instead of a moveTo/lineTo call
+      // per vertex: the same path, a fraction of the engine calls (on a
+      // phone those per-point calls were most of the sphere's UI time).
       final path = Path();
-      var drawing = false;
+      var run = <Offset>[];
       final base = b * n;
       for (var i = 0; i < n; i++) {
         final k = base + i;
         if (behind[k] == hidden) {
-          drawing = false;
+          if (run.length > 1) path.addPolygon(run, false);
+          run = <Offset>[];
           continue;
         }
-        if (!drawing) {
-          path.moveTo(xs[k], ys[k]);
-          drawing = true;
-        } else {
-          path.lineTo(xs[k], ys[k]);
-        }
+        run.add(Offset(xs[k], ys[k]));
       }
+      if (run.length > 1) path.addPolygon(run, false);
       final cold = b == _bands - 1;
       final color = cold ? const Color(0xFF85EBF9) : _crimson;
       final alpha = (front ? 0.34 : 0.08) * (1 - b / (_bands * 1.15));
       if (b == 0 && front && !lite) {
-        canvas.drawPath(
-          path,
-          stroke
-            ..strokeWidth = 4
-            ..color = _tc(
-                (cold ? const Color(0xFF45E9FF) : const Color(0xFFFF174C))
-                    .withValues(alpha: 0.35))
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-        );
-        stroke.maskFilter = null;
+        drawSoftPath(
+            canvas,
+            path,
+            _tc((cold ? const Color(0xFF45E9FF) : const Color(0xFFFF174C))
+                .withValues(alpha: 0.35)),
+            4,
+            6);
       }
       canvas.drawPath(
         path,
@@ -916,14 +890,16 @@ class _CorePainter extends CustomPainter {
 
   void _front(Canvas canvas, Offset c, double rr, double t, int i, Color color,
       double alpha) {
-    final path = Path();
-    for (var j = 0; j <= 160; j++) {
-      final a = j / 160 * math.pi * 2;
-      final rip = 1 + math.sin(a * 5 - t * 2 + i) * 0.023;
-      final x = c.dx + math.cos(a) * rr * rip;
-      final y = c.dy + math.sin(a) * rr * rip * 0.84;
-      j == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
-    }
+    final points = <Offset>[
+      for (var j = 0; j <= 160; j++)
+        () {
+          final a = j / 160 * math.pi * 2;
+          final rip = 1 + math.sin(a * 5 - t * 2 + i) * 0.023;
+          return Offset(c.dx + math.cos(a) * rr * rip,
+              c.dy + math.sin(a) * rr * rip * 0.84);
+        }(),
+    ];
+    final path = Path()..addPolygon(points, false);
     canvas.drawPath(
       path,
       Paint()

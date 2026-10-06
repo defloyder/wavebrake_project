@@ -438,7 +438,7 @@ class _Legend extends StatelessWidget {
                 height: 30,
                 child: AnimatedValue(
                   value: mbps,
-                  format: (v) => '${formatMbps(v)} Mbps',
+                  format: (v) => '${formatRate(v)} ${rateUnit(v)}',
                   style: const TextStyle(
                     color: Ic.text,
                     fontSize: 22,

@@ -26,13 +26,22 @@ class ImmersiveClock extends ConsumerStatefulWidget {
 
   final Widget child;
 
-  static ValueListenable<double> of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<_ClockScope>()?.time ??
-      const _FrozenTime();
+  /// The shared time. Hidden screens get a time that never ticks: go_router
+  /// keeps inactive tabs mounted with TickerMode off, and a Timer-driven
+  /// clock doesn't see TickerMode — the hidden tabs' waves, sphere and
+  /// charts kept rebuilding every frame (UI time on Home doubled after
+  /// visiting the other tabs, measured on the owner's phone).
+  static ValueListenable<double> of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<_ClockScope>();
+    if (scope == null || !TickerMode.valuesOf(context).enabled) return const _FrozenTime();
+    return scope.time;
+  }
 
   /// True when animations are frozen — painters may skip extra work.
   static bool frozen(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<_ClockScope>()?.frozen ?? true;
+      (context.dependOnInheritedWidgetOfExactType<_ClockScope>()?.frozen ??
+          true) ||
+      !TickerMode.valuesOf(context).enabled;
 
   @override
   ConsumerState<ImmersiveClock> createState() => _ImmersiveClockState();

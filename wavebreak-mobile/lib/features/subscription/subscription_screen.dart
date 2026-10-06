@@ -60,7 +60,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       final promo = await ref.read(coreGatewayProvider).checkPromoCode(code);
       if (mounted) setState(() => _promo = promo);
     } on AppException catch (e) {
-      if (mounted) setState(() => _promoError = e.localized(s));
+      // 404: this Core has no promo codes yet (not the code being wrong).
+      final text = e.statusCode == 404 ? s.promoUnavailable : e.localized(s);
+      if (mounted) setState(() => _promoError = text);
     } catch (_) {
       if (mounted) setState(() => _promoError = s.errUnavailable);
     } finally {
@@ -134,7 +136,7 @@ class _CurrentSubscription extends ConsumerWidget {
     final devicesUsed = ref.watch(devicesProvider).valueOrNull?.length;
     final until = sub.expiresAt == null
         ? '—'
-        : DateFormat('d MMMM y').format(sub.expiresAt!);
+        : DateFormat('dd.MM.yyyy').format(sub.expiresAt!.toLocal());
     final devices = (devicesUsed != null && sub.deviceLimit != null)
         ? '$devicesUsed / ${sub.deviceLimit}'
         : '—';
@@ -200,7 +202,6 @@ class _PlansGroup extends ConsumerWidget {
         if (visible.isEmpty) return const SizedBox.shrink();
         return SettingsGroup(
           title: s.choosePlan,
-          footer: s.selectPlanHint,
           children: [
             for (final plan in visible)
               _PlanTile(

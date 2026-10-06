@@ -164,6 +164,13 @@ int? _surrogatePair(int high, int low) {
     final city = text.substring(commaIndex + 1).trim();
     return (country, note.isEmpty ? city : '$city $note');
   }
+  // "🇷🇺 Russia (Direct-TLS)": a flag and a country, no city. The country
+  // is the place too — before, the whole label (flag included) became the
+  // country and the scheme ("VLESS") the place name.
+  final country = text.trim();
+  if (hadFlag && country.isNotEmpty) {
+    return (country, note.isEmpty ? country : '$country $note');
+  }
   return (label, null);
 }
 
