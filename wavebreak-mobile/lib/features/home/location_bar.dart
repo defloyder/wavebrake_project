@@ -18,6 +18,13 @@ final _paren = RegExp(r'^(.*?)\s*\(([^)]+)\)\s*$');
 
 /// Short protocol name for a location: from its label, else its link.
 String? protocolLabel(LocationItem l) {
+  // The link itself first: Core names its REALITY link "(VLESS)", which
+  // the name rule below read as Direct.
+  final link = (l.rawLink ?? '').toLowerCase();
+  if (link.startsWith('hysteria2://') || link.startsWith('hy2://')) {
+    return 'Hysteria2';
+  }
+  if (link.contains('security=reality')) return 'REALITY';
   final fromName = splitPlaceAndProtocol(l.city).$2;
   final raw = (fromName ?? l.rawLink ?? '').toLowerCase();
   if (raw.contains('hysteria')) return 'Hysteria2';

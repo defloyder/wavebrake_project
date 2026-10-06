@@ -1,28 +1,44 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/flag_colors.dart';
 
-/// A small, hand-painted flag glyph — not an emoji. Windows' default font
-/// stack doesn't reliably render regional-indicator flag emoji (they show
-/// up as bare letter pairs like "TR"/"NL"), so real flags are drawn instead
-/// for a look that's consistent everywhere the app runs.
+/// A location's flag. On Android it is the system's own flag emoji — every
+/// country, real geometry (owner, 06.10: Germany and other countries
+/// without a hand-painted flag showed a smear of their colors). Elsewhere
+/// (Windows' fonts don't draw flag emoji, tests) a hand-painted flag.
 class FlagIcon extends StatelessWidget {
   const FlagIcon({super.key, required this.countryCode, this.width = 24});
 
   final String countryCode;
   final double width;
 
+  static final _iso = RegExp(r'^[A-Z]{2}$');
+
   @override
   Widget build(BuildContext context) {
     final height = width * 0.72;
+    final code = countryCode.toUpperCase();
+    final emoji = defaultTargetPlatform == TargetPlatform.android &&
+            _iso.hasMatch(code)
+        ? flagEmoji(code)
+        : null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(width * 0.14),
       child: SizedBox(
         width: width,
         height: height,
-        child: CustomPaint(
-          painter: _FlagPainter(countryCode.toUpperCase()),
-        ),
+        child: emoji != null
+            // The glyph is square with the flag in its middle: cover
+            // crops the empty top and bottom so the flag fills the box.
+            ? FittedBox(
+                fit: BoxFit.cover,
+                clipBehavior: Clip.hardEdge,
+                child: Text(emoji,
+                    textScaler: TextScaler.noScaling,
+                    style: const TextStyle(fontSize: 64, height: 1)),
+              )
+            : CustomPaint(painter: _FlagPainter(code)),
       ),
     );
   }
@@ -35,7 +51,6 @@ class _FlagPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
     switch (code) {
       case 'NL':
         _stripesHorizontal(canvas, size, [
@@ -58,14 +73,9 @@ class _FlagPainter extends CustomPainter {
         _turkey(canvas, size);
         return;
       default:
-        // Any location we haven't hand-painted the real geometry for still
-        // gets a diagonal gradient through ALL of its real flag colors (not
-        // just the first and last — a flag's middle color, e.g. white on a
-        // tricolor, is still part of what makes it recognizable).
-        final colors = flagColorsFor(code);
-        final paint = Paint()
-          ..shader = LinearGradient(colors: colors).createShader(rect);
-        canvas.drawRect(rect, paint);
+        // No hand-painted geometry: the flag's colors as stripes — closer
+        // to a flag than the diagonal smear this used to be.
+        _stripesHorizontal(canvas, size, flagColorsFor(code));
     }
   }
 
