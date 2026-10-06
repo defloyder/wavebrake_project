@@ -6,6 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:wavebreak_links/wavebreak_links.dart';
 
 import '../../core/logging/app_logger.dart';
+import '../../core/logging/file_log.dart';
 import '../core_api/models.dart';
 import 'conflicting_vpn_closer.dart';
 import 'network_change_policy.dart';
@@ -275,7 +276,7 @@ class WindowsVpnAdapter implements VpnAdapter {
     try {
       final process = await Process.start(
         exePath,
-        ['run', '-c', configPath],
+        ['run', '-c', configPath, '--disable-color'],
         workingDirectory: File(exePath).parent.path,
         runInShell: false,
       );
@@ -292,7 +293,15 @@ class WindowsVpnAdapter implements VpnAdapter {
       _expectedExit = false;
 
       void onLine(String line, void Function(String) log) {
-        log('[sing-box] $line');
+        // sing-box's INFO lines (every DNS answer, every connection) go to
+        // the log file only: in the diagnostic export's 1000-line buffer
+        // they pushed out everything but the last few minutes (field log
+        // 06.10, Beeline: 966 of 1000 lines were sing-box INFO).
+        if (line.contains(' INFO ') && !line.contains('sing-box started')) {
+          FileLog.write('[sing-box] $line');
+        } else {
+          log('[sing-box] $line');
+        }
         if (generation != _generation) return;
         // sing-box logs this once the tun interface + routes are up —
         // there is no separate "ready" event to wait for otherwise.
@@ -857,7 +866,7 @@ class WindowsVpnAdapter implements VpnAdapter {
   // Win32 level) — this is a heuristic on adapter NAME instead, checked
   // periodically while connected. Real vendors' adapters reliably show
   // up under recognizable names (see _rivalVpnNamePattern), and our own
-  // tunnel is always named exactly "wavebreak" (interface_name in
+  // tunnel is always named "wavebreak-N" (interface_name in
   // _buildConfig above), so excluding that one name is precise, not
   // itself a heuristic.
   static const _rivalVpnCheckInterval = Duration(seconds: 8);
@@ -960,12 +969,23 @@ class WindowsVpnAdapter implements VpnAdapter {
     return null;
   }
 
+  /// A new TUN adapter name for every sing-box launch. Dart stops sing-box
+  /// on Windows with TerminateProcess, so it never gets to remove its
+  /// wintun adapter; the driver drops it a moment later. A relaunch right
+  /// after (automatic recovery) asked for the same name meanwhile and
+  /// died with "create adapter: Cannot create a file when that file
+  /// already exists" — the connection dropped instead of recovering
+  /// (field log 06.10, Beeline: Direct "kept switching off and on").
+  int _launchCount = 0;
+
   Future<String> _writeConfig(ShareLink link) async {
     final dir = Directory.systemTemp;
     final file = File('${dir.path}\\wavebreak_singbox.json');
     final bypass = _cloakBypassIp;
+    _launchCount++;
     await file.writeAsString(jsonEncode(singBoxConfigFor(link,
-        directIps: [if (bypass != null) bypass])));
+        directIps: [if (bypass != null) bypass],
+        interfaceName: 'wavebreak-$_launchCount')));
     return file.path;
   }
 
@@ -1017,7 +1037,7 @@ Set<String> rivalVpnAdapters(Iterable<String> names) => {
     };
 
 Map<String, dynamic> singBoxConfigFor(ShareLink link,
-    {List<String> directIps = const []}) {
+    {List<String> directIps = const [], String interfaceName = 'wavebreak'}) {
   final proxy = SingBoxProxy.fromLink(link);
   return {
     'log': {'level': 'info', 'timestamp': true},
@@ -1043,7 +1063,7 @@ Map<String, dynamic> singBoxConfigFor(ShareLink link,
     'inbounds': [
       {
         'type': 'tun',
-        'interface_name': 'wavebreak',
+        'interface_name': interfaceName,
         'address': ['172.19.0.1/30'],
         'mtu': 1400,
         'auto_route': true,
