@@ -1,6 +1,6 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
-import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,7 +15,7 @@ import '../immersive/tinted_glass.dart';
 // Layout rule for everything here: nothing may change size when a value
 // appears or changes. Fixed slot widths, fixed font sizes (no FittedBox
 // shrinking), tabular digits, units in their own fixed place, single-line
-// texts. Values glide (AnimatedValue) and a dash cross-fades into the
+// texts. Values roll in (AnimatedValue) and a dash cross-fades into the
 // first value instead of popping.
 
 const _tabular = [FontFeature.tabularFigures()];
@@ -35,13 +35,21 @@ String formatBytes(int bytes) {
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
 }
 
-/// A number that glides to its new value (~1 s to settle) instead of jumping.
-/// Null shows a dash; dash ⇄ number cross-fades.
+/// A readout that changes like a good odometer: the new number replaces the
+/// old one straight away — no counting through the values in between — and
+/// only the characters that differ roll (old ones slide out and fade, new
+/// ones slide in; up when the value grows, down when it falls). One change
+/// at most every [_hold]: readings that come in faster wait and the latest
+/// one wins, so the digits don't flicker. Null shows a dash; dash ⇄ number
+/// cross-fades.
 ///
-/// The glide runs on the shared ImmersiveClock (30 fps), not on its own
-/// ticker: five readouts updated every second each started its own
-/// animation at the display rate, which kept Home drawing ~60 frames a
-/// second while connected — twice the GPU work (P5, owner's phone).
+/// Owner (06.10): the previous glide "ran through all the digits" and
+/// jumped; asked for a change without the run.
+///
+/// Driven by the shared ImmersiveClock (30 fps), and only while a change is
+/// rolling or waiting: own tickers on five readouts kept Home drawing ~60
+/// frames a second while connected (P5). Frozen clock (reduce motion,
+/// hidden tab) — the value just swaps.
 class AnimatedValue extends StatefulWidget {
   const AnimatedValue({
     super.key,
@@ -61,60 +69,201 @@ class AnimatedValue extends StatefulWidget {
 }
 
 class _AnimatedValueState extends State<AnimatedValue> {
-  /// Time constant of the glide: ~63 % of the way in 0.45 s, ~90 % in 1 s.
-  /// The value follows its target continuously — a new reading (rates come
-  /// twice a second) bends the glide instead of restarting it, so the
-  /// digits drift instead of racing (owner: "too fast, smooth it, but not
-  /// sluggish").
-  static const _tau = 0.45;
-  double _shown = 0, _to = 0;
-  double? _lastT;
+  /// One roll, seconds.
+  static const _roll = 0.38;
 
-  double _advance(double t, bool frozen) {
-    final last = _lastT;
-    _lastT = t;
-    if (frozen || last == null) return _shown = _to;
-    final dt = (t - last).clamp(0.0, 0.25);
-    _shown += (_to - _shown) * (1 - math.exp(-dt / _tau));
-    if ((_to - _shown).abs() <= (_to.abs() * 0.002).clamp(0.001, double.infinity)) {
-      _shown = _to;
-    }
-    return _shown;
-  }
+  /// Shortest time a value stays on screen (the service measures speed
+  /// once a second).
+  static const _hold = 0.9;
+
+  String? _text; // on screen (the target of the last change)
+  double? _value;
+  String? _from; // the previous text while rolling
+  int _dir = 1;
+  double? _changedAt; // clock time the last change started
+  double? _pending;
+
+  ValueListenable<double>? _clock;
+  bool _frozen = true;
+  bool _listening = false;
 
   @override
   void initState() {
     super.initState();
-    _shown = _to = widget.value ?? 0;
+    _value = widget.value;
+    _text = _value == null ? null : widget.format(_value!);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final clock = ImmersiveClock.of(context);
+    _frozen = ImmersiveClock.frozen(context);
+    if (!identical(clock, _clock)) {
+      final wasListening = _listening;
+      _unlisten();
+      _clock = clock;
+      _changedAt = null; // a different time base
+      if (wasListening) _listen();
+    }
+    if (_frozen) _settle();
   }
 
   @override
   void didUpdateWidget(covariant AnimatedValue old) {
     super.didUpdateWidget(old);
     final v = widget.value;
-    if (v == null || v == old.value) return;
-    _to = v;
-    // Dash -> number: show the number right away, no glide from a stale one.
-    if (old.value == null) {
-      _shown = v;
-      _lastT = null;
+    if (v == null) {
+      _text = _value = _from = _pending = null;
+      _unlisten();
+      return;
     }
+    if (_value == null || _frozen) {
+      // Dash -> number, or no animation: show it as is.
+      _pending = null;
+      _from = null;
+      _value = v;
+      _text = widget.format(v);
+      return;
+    }
+    if (widget.format(v) == _text) {
+      _pending = null;
+      _value = v;
+      return;
+    }
+    _pending = v;
+    _listen();
+  }
+
+  /// Applies whatever is waiting, without a roll.
+  void _settle() {
+    final p = _pending;
+    if (p != null) {
+      _value = p;
+      _text = widget.format(p);
+    }
+    _pending = _from = null;
+    _unlisten();
+  }
+
+  void _listen() {
+    if (_listening || _clock == null) return;
+    _listening = true;
+    _clock!.addListener(_tick);
+  }
+
+  void _unlisten() {
+    if (!_listening) return;
+    _listening = false;
+    _clock?.removeListener(_tick);
+  }
+
+  void _tick() {
+    final t = _clock!.value;
+    final since = _changedAt == null ? double.infinity : t - _changedAt!;
+    final p = _pending;
+    if (p != null && since >= _hold) {
+      _from = _text;
+      _text = widget.format(p);
+      _dir = p >= (_value ?? p) ? 1 : -1;
+      _value = p;
+      _pending = null;
+      _changedAt = t;
+    } else if (_from != null && since >= _roll) {
+      _from = null;
+    } else if (_from == null && p == null) {
+      _unlisten();
+      return;
+    }
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _unlisten();
+    super.dispose();
+  }
+
+  Widget _rolling(TextStyle style, String text) {
+    final from = _from;
+    final at = _changedAt;
+    final progress = from == null || at == null || _clock == null
+        ? 1.0
+        : ((_clock!.value - at) / _roll).clamp(0.0, 1.0);
+    if (from == null || progress >= 1) {
+      return Text(text, style: style, maxLines: 1, softWrap: false);
+    }
+    // Only the middle that differs rolls; the same start and end stay put
+    // ("28 Kbps" -> "31 Kbps" rolls "28" -> "31", the unit doesn't move).
+    var pre = 0;
+    while (pre < from.length && pre < text.length && from[pre] == text[pre]) {
+      pre++;
+    }
+    var suf = 0;
+    while (suf < from.length - pre &&
+        suf < text.length - pre &&
+        from[from.length - 1 - suf] == text[text.length - 1 - suf]) {
+      suf++;
+    }
+    final oldMid = from.substring(pre, from.length - suf);
+    final newMid = text.substring(pre, text.length - suf);
+    final e = Curves.easeOutCubic.transform(progress);
+    final shift = (style.fontSize ?? 14) * 0.55;
+    final color = style.color ?? DefaultTextStyle.of(context).style.color;
+    TextStyle faded(double a) => color == null
+        ? style
+        : style.copyWith(color: color.withValues(alpha: color.a * a));
+    Text plain(String s) => Text(s, style: style, maxLines: 1, softWrap: false);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (pre > 0) plain(text.substring(0, pre)),
+        Stack(
+          clipBehavior: Clip.none,
+          alignment: widget.alignment.x > 0
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
+          children: [
+            Transform.translate(
+              offset: Offset(0, _dir * shift * (1 - e)),
+              child: Text(newMid,
+                  style: faded(e), maxLines: 1, softWrap: false),
+            ),
+            Positioned(
+              left: widget.alignment.x > 0 ? null : 0,
+              right: widget.alignment.x > 0 ? 0 : null,
+              child: Transform.translate(
+                offset: Offset(0, -_dir * shift * e),
+                child: Text(oldMid,
+                    style: faded((1 - e * 1.5).clamp(0.0, 1.0)),
+                    maxLines: 1,
+                    softWrap: false),
+              ),
+            ),
+          ],
+        ),
+        if (suf > 0) plain(text.substring(text.length - suf)),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final value = widget.value;
-    final frozen = ImmersiveClock.frozen(context);
+    final text = _text;
     // Equal-width digits: a changing number doesn't shift sideways.
     final style = widget.style.copyWith(
         fontFeatures: const [FontFeature.tabularFigures()]);
-    final child = value == null
+    final child = text == null
         ? Text('—', key: const ValueKey('dash'), style: style)
-        : ValueListenableBuilder<double>(
+        : KeyedSubtree(
             key: const ValueKey('value'),
-            valueListenable: ImmersiveClock.of(context),
-            builder: (_, t, __) => Text(widget.format(_advance(t, frozen)),
-                style: style, maxLines: 1, softWrap: false),
+            // Wider than its slot: overflow like a plain Text did, no
+            // layout error.
+            child: OverflowBox(
+              alignment: widget.alignment,
+              maxWidth: double.infinity,
+              child: _rolling(style, text),
+            ),
           );
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 400),
@@ -131,8 +280,15 @@ class _AnimatedValueState extends State<AnimatedValue> {
 /// "the download beside the sphere is always 0").
 bool rateInKbps(double mbps) => mbps < 1;
 
-String formatRate(double mbps) =>
-    rateInKbps(mbps) ? (mbps * 1000).round().toString() : formatMbps(mbps);
+/// Two significant digits, like formatMbps: from 100 Kbps up in tens —
+/// the last digit only flickered with noise.
+String formatRate(double mbps) {
+  if (!rateInKbps(mbps)) return formatMbps(mbps);
+  final kbps = mbps * 1000;
+  if (kbps < 100) return kbps.round().toString();
+  final tens = (kbps / 10).round() * 10;
+  return (tens > 990 ? 990 : tens).toString();
+}
 
 String rateUnit(double? mbps) =>
     mbps != null && rateInKbps(mbps) ? 'Kbps' : 'Mbps';
