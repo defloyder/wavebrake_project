@@ -530,65 +530,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               onRefresh: () => _refresh(toast: false),
               color: Ic.text,
               backgroundColor: const Color(0xE6101418),
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: SizedBox(
-                  height: height,
-                  child: Column(
-                    children: [
-                      SizedBox(height: heroTopGap),
-                      buildTopBar(false),
-                      const SizedBox(height: 10),
-                      locationHeader,
-                      // Real ping / download beside the core (dashes until
-                      // connected — never invented), laid over the
-                      // sphere's wave stage. The empty middle lets taps
-                      // through to the sphere.
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, box) {
-                            final d =
-                                math.min(coreDiameter, box.maxHeight / 1.27);
-                            return Center(
-                              child: CoreStage(
-                                diameter: d,
-                                core: LivingCore(
-                                  status: connection.status,
-                                  enabled: connectEnabled,
+              // No rubber-band either way (owner, 06.10: the page moved on
+              // every swipe): hard edges, no stretch effect. Pulling down
+              // still reaches the refresh indicator (an overscroll).
+              child: ScrollConfiguration(
+                behavior:
+                    ScrollConfiguration.of(context).copyWith(overscroll: false),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                      parent: ClampingScrollPhysics()),
+                  controller: _scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    height: height,
+                    child: Column(
+                      children: [
+                        SizedBox(height: heroTopGap),
+                        buildTopBar(false),
+                        const SizedBox(height: 10),
+                        locationHeader,
+                        // Real ping / download beside the core (dashes until
+                        // connected — never invented), laid over the
+                        // sphere's wave stage. The empty middle lets taps
+                        // through to the sphere.
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, box) {
+                              final d =
+                                  math.min(coreDiameter, box.maxHeight / 1.27);
+                              return Center(
+                                child: CoreStage(
                                   diameter: d,
-                                  onPressed: onConnectPressed,
+                                  core: LivingCore(
+                                    status: connection.status,
+                                    enabled: connectEnabled,
+                                    diameter: d,
+                                    onPressed: onConnectPressed,
+                                  ),
+                                  overlay: vitalsBeside
+                                      ? const CoreWithVitals(
+                                          core: SizedBox.shrink())
+                                      : null,
                                 ),
-                                overlay: vitalsBeside
-                                    ? const CoreWithVitals(
-                                        core: SizedBox.shrink())
-                                    : null,
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                      if (!vitalsBeside) const VitalsRow(),
-                      const SizedBox(height: 4),
-                      statusCopy,
-                      const SizedBox(height: 14),
-                      SessionPanel(
-                        footer: compactSubscription
-                            ? _SubscriptionFooter(
-                                sub: sub,
-                                s: s,
-                                onOpen: () => context.push('/subscription'),
-                              )
-                            : null,
-                      ),
-                      if (!compactSubscription) ...[
-                        const SizedBox(height: 12),
-                        subscriptionStrip,
+                        if (!vitalsBeside) const VitalsRow(),
+                        const SizedBox(height: 4),
+                        statusCopy,
+                        const SizedBox(height: 14),
+                        SessionPanel(
+                          footer: compactSubscription
+                              ? _SubscriptionFooter(
+                                  sub: sub,
+                                  s: s,
+                                  onOpen: () => context.push('/subscription'),
+                                )
+                              : null,
+                        ),
+                        if (!compactSubscription) ...[
+                          const SizedBox(height: 12),
+                          subscriptionStrip,
+                        ],
+                        // The bottom nav pill floats over the body.
+                        const SizedBox(height: kMobileBottomBarReserve + 12),
                       ],
-                      // The bottom nav pill floats over the body.
-                      const SizedBox(height: kMobileBottomBarReserve + 12),
-                    ],
+                    ),
                   ),
                 ),
               ),

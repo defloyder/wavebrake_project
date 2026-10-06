@@ -25,6 +25,9 @@ import 'package:http/testing.dart';
 import 'package:wavebreak/app/app.dart';
 import 'package:wavebreak/app/router.dart';
 import 'package:wavebreak/core/i18n/language_controller.dart';
+import 'package:wavebreak/features/home/location_bar.dart';
+import 'package:wavebreak/features/immersive/tinted_glass.dart';
+import 'package:wavebreak/features/locations/servers_sheet.dart';
 import 'package:wavebreak/core/storage/prefs_store.dart';
 import 'package:wavebreak/core/storage/secure_store.dart';
 import 'package:wavebreak/services/core_api/mock_backend.dart';
@@ -35,7 +38,11 @@ import '../test/test_helpers.dart';
 
 class Shot {
   const Shot(this.name, this.path,
-      {this.signedIn = true, this.firstRun = false, this.locationId, this.pin = false});
+      {this.signedIn = true,
+      this.firstRun = false,
+      this.locationId,
+      this.pin = false,
+      this.openPicker = false});
   final String name;
   final String path;
   final bool signedIn;
@@ -48,6 +55,9 @@ class Shot {
 
   /// A PIN is set: the lock screen covers the app.
   final bool pin;
+
+  /// Tap the location header on Home: the server pop-up.
+  final bool openPicker;
 }
 
 const shots = [
@@ -57,6 +67,7 @@ const shots = [
   Shot('home', '/home'),
   Shot('lock', '/home', pin: true),
   Shot('home-5proto', '/home', locationId: 'hel-r'),
+  Shot('home-picker', '/home', openPicker: true),
   Shot('servers', '/locations'),
   Shot('test', '/speed-test'),
   Shot('metrics', '/metrics'),
@@ -194,6 +205,17 @@ void main() {
             router.go(shot.path);
             for (var i = 0; i < 25; i++) {
               await tester.pump(const Duration(milliseconds: 100));
+            }
+            if (shot.openPicker) {
+              await tester.tap(find
+                  .descendant(
+                      of: find.byType(LocationBar),
+                      matching: find.byType(TintedGlass))
+                  .first);
+              for (var i = 0; i < 10; i++) {
+                await tester.pump(const Duration(milliseconds: 100));
+              }
+              expect(find.byType(ServersList), findsOneWidget);
             }
             await expectLater(
               find.byType(WavebreakApp),

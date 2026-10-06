@@ -37,72 +37,81 @@ class SettingsScreen extends ConsumerWidget {
           waveSpeed: waves.speed,
           waveAmplitude: waves.amplitude,
           maxContentWidth: isDesktop ? 640 : 560,
-          child: SafeArea(
-            child: ListView(
-              // The bottom nav pill floats over the body (see app_shell).
-              padding: EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                isDesktop ? 12 : kMobileBottomBarReserve + 12,
-              ),
-              children: [
-                Row(
+          child: SizedBox.expand(
+            child: SafeArea(
+              // Phone: the page sits at the bottom, by the thumb and the nav
+              // bar (owner, 06.10); it scrolls up if it doesn't fit.
+              child: SingleChildScrollView(
+                reverse: !isDesktop,
+                // The bottom nav pill floats over the body (see app_shell).
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  12,
+                  20,
+                  isDesktop ? 12 : kMobileBottomBarReserve + 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // The side rail this toggles only exists on desktop.
-                    if (isDesktop) ...[
-                      const MenuButton(),
-                      const SizedBox(width: 12),
-                    ],
-                    Text(
-                      s.settings,
-                      style: const TextStyle(fontFamily: 'serif', fontSize: 30),
+                    Row(
+                      children: [
+                        // The side rail this toggles only exists on desktop.
+                        if (isDesktop) ...[
+                          const MenuButton(),
+                          const SizedBox(width: 12),
+                        ],
+                        Text(
+                          s.settings,
+                          style: const TextStyle(
+                              fontFamily: 'serif', fontSize: 30),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 16),
+                    SettingsGroup(children: [
+                      SettingsRow(
+                        icon: Icons.person_outline_rounded,
+                        title: s.account,
+                        subtitle: s.accountRowHint,
+                        onTap: () => context.push('/settings/account'),
+                      ),
+                      SettingsRow(
+                        icon: Icons.wifi_tethering_rounded,
+                        title: s.connection,
+                        subtitle: s.connectionRowHint,
+                        onTap: () => context.push('/settings/connection'),
+                      ),
+                      SettingsRow(
+                        icon: Icons.fingerprint_rounded,
+                        title: s.security,
+                        subtitle: s.securityRowHint,
+                        onTap: () => context.push('/settings/security'),
+                      ),
+                    ]),
+                    SettingsGroup(children: [
+                      SettingsRow(
+                        icon: Icons.palette_outlined,
+                        title: s.appearance,
+                        subtitle: s.appearanceRowHint,
+                        onTap: () => context.push('/settings/personalization'),
+                      ),
+                      SettingsRow(
+                        icon: Icons.notifications_none_rounded,
+                        title: s.notifications,
+                        subtitle: s.notificationsRowHint,
+                        onTap: () => context.push('/settings/notifications'),
+                      ),
+                      SettingsRow(
+                        icon: Icons.help_outline_rounded,
+                        title: s.help,
+                        subtitle: s.helpRowHint,
+                        badge: pendingUpdate != null,
+                        onTap: () => context.push('/settings/help'),
+                      ),
+                    ]),
                   ],
                 ),
-                const SizedBox(height: 16),
-                SettingsGroup(children: [
-                  SettingsRow(
-                    icon: Icons.person_outline_rounded,
-                    title: s.account,
-                    subtitle: s.accountRowHint,
-                    onTap: () => context.push('/settings/account'),
-                  ),
-                  SettingsRow(
-                    icon: Icons.wifi_tethering_rounded,
-                    title: s.connection,
-                    subtitle: s.connectionRowHint,
-                    onTap: () => context.push('/settings/connection'),
-                  ),
-                  SettingsRow(
-                    icon: Icons.fingerprint_rounded,
-                    title: s.security,
-                    subtitle: s.securityRowHint,
-                    onTap: () => context.push('/settings/security'),
-                  ),
-                ]),
-                SettingsGroup(children: [
-                  SettingsRow(
-                    icon: Icons.palette_outlined,
-                    title: s.appearance,
-                    subtitle: s.appearanceRowHint,
-                    onTap: () => context.push('/settings/personalization'),
-                  ),
-                  SettingsRow(
-                    icon: Icons.notifications_none_rounded,
-                    title: s.notifications,
-                    subtitle: s.notificationsRowHint,
-                    onTap: () => context.push('/settings/notifications'),
-                  ),
-                  SettingsRow(
-                    icon: Icons.help_outline_rounded,
-                    title: s.help,
-                    subtitle: s.helpRowHint,
-                    badge: pendingUpdate != null,
-                    onTap: () => context.push('/settings/help'),
-                  ),
-                ]),
-              ],
+              ),
             ),
           ),
         );

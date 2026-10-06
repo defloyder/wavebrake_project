@@ -21,6 +21,7 @@ class ServersList extends ConsumerWidget {
     this.controller,
     this.bottomPadding = 16,
     this.onPicked,
+    this.header,
   });
 
   final ScrollController? controller;
@@ -29,6 +30,16 @@ class ServersList extends ConsumerWidget {
   /// After a server was chosen (the pop-up closes itself here).
   final VoidCallback? onPicked;
 
+  /// Above the list, scrolling with it (the Servers tab's title: with the
+  /// list anchored to the bottom it sits right on top of it).
+  final Widget? header;
+
+  Widget _withHeader(Widget body) => header == null
+      ? body
+      : Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [header!, Expanded(child: body)],
+        );
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(connectionManagerProvider).location;
@@ -36,13 +47,14 @@ class ServersList extends ConsumerWidget {
     final s = ref.watch(stringsProvider);
     final canConnect = ref.watch(canConnectProvider);
     return locations.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(
+      loading: () =>
+          _withHeader(const Center(child: CircularProgressIndicator())),
+      error: (error, _) => _withHeader(Center(
         child: Text(
           error is AppException ? error.localized(s) : s.errUnavailable,
           textAlign: TextAlign.center,
         ),
-      ),
+      )),
       data: (_) {
         final sections = ref.watch(serverCatalogProvider);
         return SingleChildScrollView(
@@ -52,38 +64,46 @@ class ServersList extends ConsumerWidget {
           reverse: true,
           controller: controller,
           padding: EdgeInsets.only(bottom: bottomPadding),
-          child: SubscriptionAccordion(
-            sections: sections,
-            current: selected,
-            s: s,
-            shrinkWrap: true,
-            onSelect: (item) {
-              ref
-                  .read(connectionManagerProvider.notifier)
-                  .selectLocation(item, subscriptionActive: canConnect);
-              onPicked?.call();
-            },
-            onAddCustom: () => showAddCustomServerSheet(context, ref),
-            onRemove: (id) async {
-              if (!await confirmRemoveCustomGroup(context, s)) return;
-              // removeGroup() alone never reaches ConnectionManager: a
-              // tunnel running on a just-deleted server would keep going
-              // with nothing left in the UI to disconnect it from.
-              final connection = ref.read(connectionManagerProvider);
-              final matches =
-                  ref.read(customServersProvider).where((g) => g.id == id);
-              final group = matches.isEmpty ? null : matches.first;
-              final connectedToThisGroup = group != null &&
-                  connection.status != ConnectionStatus.idle &&
-                  group.servers
-                      .any((server) => server.id == connection.location.id);
-              ref.read(customServersProvider.notifier).removeGroup(id);
-              if (connectedToThisGroup) {
-                await ref.read(connectionManagerProvider.notifier).disconnect();
-              }
-            },
-            onRefresh: (id) =>
-                ref.read(customServersProvider.notifier).refreshGroup(id),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (header != null) header!,
+              SubscriptionAccordion(
+                sections: sections,
+                current: selected,
+                s: s,
+                shrinkWrap: true,
+                onSelect: (item) {
+                  ref
+                      .read(connectionManagerProvider.notifier)
+                      .selectLocation(item, subscriptionActive: canConnect);
+                  onPicked?.call();
+                },
+                onAddCustom: () => showAddCustomServerSheet(context, ref),
+                onRemove: (id) async {
+                  if (!await confirmRemoveCustomGroup(context, s)) return;
+                  // removeGroup() alone never reaches ConnectionManager: a
+                  // tunnel running on a just-deleted server would keep going
+                  // with nothing left in the UI to disconnect it from.
+                  final connection = ref.read(connectionManagerProvider);
+                  final matches =
+                      ref.read(customServersProvider).where((g) => g.id == id);
+                  final group = matches.isEmpty ? null : matches.first;
+                  final connectedToThisGroup = group != null &&
+                      connection.status != ConnectionStatus.idle &&
+                      group.servers
+                          .any((server) => server.id == connection.location.id);
+                  ref.read(customServersProvider.notifier).removeGroup(id);
+                  if (connectedToThisGroup) {
+                    await ref
+                        .read(connectionManagerProvider.notifier)
+                        .disconnect();
+                  }
+                },
+                onRefresh: (id) =>
+                    ref.read(customServersProvider.notifier).refreshGroup(id),
+              ),
+            ],
           ),
         );
       },
