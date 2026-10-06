@@ -133,6 +133,28 @@ class MockCoreBackend {
     return plans;
   }
 
+  /// Promo codes the mock knows: code → percent off (any plan).
+  Map<String, int> promoCodes = const {'SPRING20': 20};
+
+  Future<PromoCheck> checkPromoCode(String code, {String? planId}) async {
+    _guard();
+    final normalized = code.replaceAll(RegExp(r'\s+'), '').toUpperCase();
+    final percent = promoCodes[normalized];
+    if (percent == null) {
+      throw AppException(AppErrorKind.promoNotFound, statusCode: 422);
+    }
+    return PromoCheck(
+      code: normalized,
+      discountType: 'percent',
+      discountValue: percent,
+      prices: {
+        for (final p in plans)
+          if (planId == null || p.id == planId)
+            p.id: p.priceMinor - (p.priceMinor * percent + 50) ~/ 100,
+      },
+    );
+  }
+
   Future<SubscriptionInfo> createSubscription(String planId) async {
     _guard();
     subscription = SubscriptionInfo(

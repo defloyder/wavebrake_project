@@ -25,6 +25,14 @@ enum AppErrorKind {
   codeTooManyAttempts,
   resendTooSoon,
   emailSendFailed,
+  // Promo codes (Core POST /v1/promo-codes/check, PROMO_* codes).
+  promoNotFound,
+  promoExpired,
+  promoNotStarted,
+  promoExhausted,
+  promoAlreadyUsed,
+  promoNotApplicable,
+  promoInactive,
   unknown,
 }
 
@@ -85,6 +93,20 @@ class AppException implements Exception {
         return s.errResendTooSoon;
       case AppErrorKind.emailSendFailed:
         return s.errEmailSendFailed;
+      case AppErrorKind.promoNotFound:
+        return s.errPromoNotFound;
+      case AppErrorKind.promoExpired:
+        return s.errPromoExpired;
+      case AppErrorKind.promoNotStarted:
+        return s.errPromoNotStarted;
+      case AppErrorKind.promoExhausted:
+        return s.errPromoExhausted;
+      case AppErrorKind.promoAlreadyUsed:
+        return s.errPromoAlreadyUsed;
+      case AppErrorKind.promoNotApplicable:
+        return s.errPromoNotApplicable;
+      case AppErrorKind.promoInactive:
+        return s.errPromoInactive;
       case AppErrorKind.unknown:
         return message ?? s.errUnknown;
     }

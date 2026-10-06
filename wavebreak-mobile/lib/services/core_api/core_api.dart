@@ -176,6 +176,15 @@ class CoreApi {
     );
   }
 
+  /// Whether the signed-in user can use [code]; 422 PROMO_* otherwise.
+  Future<PromoCheck> checkPromoCode(String code, {String? planId}) {
+    return _client.post(
+      '/promo-codes/check',
+      body: {'code': code, if (planId != null) 'plan_id': planId},
+      parse: (data) => PromoCheck.fromJson(_asMap(data)),
+    );
+  }
+
   Future<SubscriptionInfo> createSubscription(String planId) {
     return _client.post(
       '/subscriptions',

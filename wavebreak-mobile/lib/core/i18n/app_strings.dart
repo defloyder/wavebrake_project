@@ -316,7 +316,42 @@ class AppStrings {
     required this.lockScanFailed,
     required this.lockUseBiometric,
     required this.lockBiometricButton,
+    required this.planContactAdmin,
+    required this.planContactSupport,
+    required this.promoCodeHint,
+    required this.promoApply,
+    required this.promoRemove,
+    required this.promoAppliedLine,
+    required this.errPromoNotFound,
+    required this.errPromoExpired,
+    required this.errPromoNotStarted,
+    required this.errPromoExhausted,
+    required this.errPromoAlreadyUsed,
+    required this.errPromoNotApplicable,
+    required this.errPromoInactive,
+    required this.planPerMonth,
+    required this.planPerYear,
+    required this.planDevicesLine,
+    required this.planDaysLine,
   });
+
+  final String planContactAdmin;
+  final String planContactSupport;
+  final String promoCodeHint;
+  final String promoApply;
+  final String promoRemove;
+  final String promoAppliedLine;
+  final String errPromoNotFound;
+  final String errPromoExpired;
+  final String errPromoNotStarted;
+  final String errPromoExhausted;
+  final String errPromoAlreadyUsed;
+  final String errPromoNotApplicable;
+  final String errPromoInactive;
+  final String planPerMonth;
+  final String planPerYear;
+  final String planDevicesLine;
+  final String planDaysLine;
 
   final String lockScanning;
   final String lockScanFailed;
@@ -985,6 +1020,23 @@ const kEnglishStrings = AppStrings(
   lockScanFailed: 'Not recognized. Try again or enter your PIN',
   lockUseBiometric: 'Confirm it\'s you to open the app',
   lockBiometricButton: 'Use biometrics',
+  planContactAdmin: 'To get access, contact the administration',
+  planContactSupport: 'Write to support',
+  promoCodeHint: 'Promo code',
+  promoApply: 'Apply',
+  promoRemove: 'Remove',
+  promoAppliedLine: 'Promo code {code}: {discount}',
+  errPromoNotFound: 'There is no such promo code',
+  errPromoExpired: 'This promo code has expired',
+  errPromoNotStarted: 'This promo code is not valid yet',
+  errPromoExhausted: 'This promo code has been used up',
+  errPromoAlreadyUsed: 'You have already used this promo code',
+  errPromoNotApplicable: 'This promo code doesn\'t apply to these plans',
+  errPromoInactive: 'This promo code is turned off',
+  planPerMonth: '/ month',
+  planPerYear: '/ year',
+  planDevicesLine: 'Up to {n} devices',
+  planDaysLine: '{n} days',
 );
 
 const kRussianStrings = AppStrings(
@@ -1320,6 +1372,23 @@ const kRussianStrings = AppStrings(
   lockScanFailed: 'Не распознано. Попробуйте ещё раз или введите PIN',
   lockUseBiometric: 'Подтвердите, что это вы, чтобы открыть приложение',
   lockBiometricButton: 'Войти по биометрии',
+  planContactAdmin: 'Чтобы получить доступ, обратитесь к администрации',
+  planContactSupport: 'Написать в поддержку',
+  promoCodeHint: 'Промокод',
+  promoApply: 'Применить',
+  promoRemove: 'Убрать',
+  promoAppliedLine: 'Промокод {code}: {discount}',
+  errPromoNotFound: 'Такого промокода нет',
+  errPromoExpired: 'Срок действия промокода истёк',
+  errPromoNotStarted: 'Промокод ещё не начал действовать',
+  errPromoExhausted: 'Активации промокода закончились',
+  errPromoAlreadyUsed: 'Вы уже использовали этот промокод',
+  errPromoNotApplicable: 'Промокод не подходит к этим тарифам',
+  errPromoInactive: 'Промокод отключён',
+  planPerMonth: '/ мес.',
+  planPerYear: '/ год',
+  planDevicesLine: 'До {n} устройств',
+  planDaysLine: '{n} дн.',
 );
 
 const kSpanishStrings = AppStrings(
@@ -1658,6 +1727,23 @@ const kSpanishStrings = AppStrings(
   lockScanFailed: 'No reconocido. Inténtalo de nuevo o introduce el PIN',
   lockUseBiometric: 'Confirma que eres tú para abrir la app',
   lockBiometricButton: 'Usar biometría',
+  planContactAdmin: 'Para obtener acceso, contacta con la administración',
+  planContactSupport: 'Escribir a soporte',
+  promoCodeHint: 'Código promocional',
+  promoApply: 'Aplicar',
+  promoRemove: 'Quitar',
+  promoAppliedLine: 'Código {code}: {discount}',
+  errPromoNotFound: 'Ese código promocional no existe',
+  errPromoExpired: 'El código promocional ha caducado',
+  errPromoNotStarted: 'El código promocional aún no es válido',
+  errPromoExhausted: 'El código promocional se ha agotado',
+  errPromoAlreadyUsed: 'Ya has usado este código promocional',
+  errPromoNotApplicable: 'El código no se aplica a estos planes',
+  errPromoInactive: 'El código promocional está desactivado',
+  planPerMonth: '/ mes',
+  planPerYear: '/ año',
+  planDevicesLine: 'Hasta {n} dispositivos',
+  planDaysLine: '{n} días',
 );
 
 const kGermanStrings = AppStrings(
@@ -2000,6 +2086,23 @@ const kGermanStrings = AppStrings(
   lockScanFailed: 'Nicht erkannt. Erneut versuchen oder PIN eingeben',
   lockUseBiometric: 'Bestätige, dass du es bist, um die App zu öffnen',
   lockBiometricButton: 'Biometrie verwenden',
+  planContactAdmin: 'Für den Zugang wende dich bitte an die Administration',
+  planContactSupport: 'Support kontaktieren',
+  promoCodeHint: 'Promocode',
+  promoApply: 'Einlösen',
+  promoRemove: 'Entfernen',
+  promoAppliedLine: 'Promocode {code}: {discount}',
+  errPromoNotFound: 'Diesen Promocode gibt es nicht',
+  errPromoExpired: 'Der Promocode ist abgelaufen',
+  errPromoNotStarted: 'Der Promocode gilt noch nicht',
+  errPromoExhausted: 'Der Promocode ist aufgebraucht',
+  errPromoAlreadyUsed: 'Du hast diesen Promocode bereits verwendet',
+  errPromoNotApplicable: 'Der Promocode gilt nicht für diese Tarife',
+  errPromoInactive: 'Der Promocode ist deaktiviert',
+  planPerMonth: '/ Monat',
+  planPerYear: '/ Jahr',
+  planDevicesLine: 'Bis zu {n} Geräte',
+  planDaysLine: '{n} Tage',
 );
 
 const kFrenchStrings = AppStrings(
@@ -2342,6 +2445,23 @@ const kFrenchStrings = AppStrings(
   lockScanFailed: 'Non reconnu. Réessayez ou saisissez votre PIN',
   lockUseBiometric: 'Confirmez votre identité pour ouvrir l\'appli',
   lockBiometricButton: 'Utiliser la biométrie',
+  planContactAdmin: 'Pour obtenir l\'accès, contactez l\'administration',
+  planContactSupport: 'Écrire au support',
+  promoCodeHint: 'Code promo',
+  promoApply: 'Appliquer',
+  promoRemove: 'Retirer',
+  promoAppliedLine: 'Code {code} : {discount}',
+  errPromoNotFound: 'Ce code promo n\'existe pas',
+  errPromoExpired: 'Ce code promo a expiré',
+  errPromoNotStarted: 'Ce code promo n\'est pas encore valable',
+  errPromoExhausted: 'Ce code promo est épuisé',
+  errPromoAlreadyUsed: 'Vous avez déjà utilisé ce code promo',
+  errPromoNotApplicable: 'Ce code ne s\'applique pas à ces forfaits',
+  errPromoInactive: 'Ce code promo est désactivé',
+  planPerMonth: '/ mois',
+  planPerYear: '/ an',
+  planDevicesLine: 'Jusqu\'à {n} appareils',
+  planDaysLine: '{n} jours',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -2680,6 +2800,23 @@ const kPortugueseStrings = AppStrings(
   lockScanFailed: 'Não reconhecido. Tente de novo ou digite o PIN',
   lockUseBiometric: 'Confirme que é você para abrir o app',
   lockBiometricButton: 'Usar biometria',
+  planContactAdmin: 'Para obter acesso, entre em contato com a administração',
+  planContactSupport: 'Falar com o suporte',
+  promoCodeHint: 'Código promocional',
+  promoApply: 'Aplicar',
+  promoRemove: 'Remover',
+  promoAppliedLine: 'Código {code}: {discount}',
+  errPromoNotFound: 'Esse código promocional não existe',
+  errPromoExpired: 'O código promocional expirou',
+  errPromoNotStarted: 'O código promocional ainda não é válido',
+  errPromoExhausted: 'O código promocional esgotou',
+  errPromoAlreadyUsed: 'Você já usou este código promocional',
+  errPromoNotApplicable: 'O código não vale para estes planos',
+  errPromoInactive: 'O código promocional está desativado',
+  planPerMonth: '/ mês',
+  planPerYear: '/ ano',
+  planDevicesLine: 'Até {n} dispositivos',
+  planDaysLine: '{n} dias',
 );
 
 const kTurkishStrings = AppStrings(
@@ -3016,6 +3153,23 @@ const kTurkishStrings = AppStrings(
   lockScanFailed: 'Tanınmadı. Tekrar deneyin veya PIN girin',
   lockUseBiometric: 'Uygulamayı açmak için kimliğinizi doğrulayın',
   lockBiometricButton: 'Biyometri kullan',
+  planContactAdmin: 'Erişim için yönetimle iletişime geçin',
+  planContactSupport: 'Desteğe yaz',
+  promoCodeHint: 'Promosyon kodu',
+  promoApply: 'Uygula',
+  promoRemove: 'Kaldır',
+  promoAppliedLine: '{code} kodu: {discount}',
+  errPromoNotFound: 'Böyle bir promosyon kodu yok',
+  errPromoExpired: 'Promosyon kodunun süresi doldu',
+  errPromoNotStarted: 'Promosyon kodu henüz geçerli değil',
+  errPromoExhausted: 'Promosyon kodunun kullanım hakkı doldu',
+  errPromoAlreadyUsed: 'Bu promosyon kodunu zaten kullandınız',
+  errPromoNotApplicable: 'Bu kod bu planlar için geçerli değil',
+  errPromoInactive: 'Promosyon kodu devre dışı',
+  planPerMonth: '/ ay',
+  planPerYear: '/ yıl',
+  planDevicesLine: '{n} cihaza kadar',
+  planDaysLine: '{n} gün',
 );
 
 AppStrings stringsFor(AppLanguage language) {

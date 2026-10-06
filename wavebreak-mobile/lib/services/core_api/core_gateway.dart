@@ -115,6 +115,11 @@ class CoreGateway {
     return live.plans();
   }
 
+  Future<PromoCheck> checkPromoCode(String code, {String? planId}) {
+    if (useMock) return mock.checkPromoCode(code, planId: planId);
+    return live.checkPromoCode(code, planId: planId);
+  }
+
   Future<SubscriptionInfo> createSubscription(String planId) async {
     final sub = useMock
         ? await mock.createSubscription(planId)

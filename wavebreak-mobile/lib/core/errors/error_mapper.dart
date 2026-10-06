@@ -90,6 +90,22 @@ class ErrorMapper {
           return AppException(entry.value, statusCode: status);
         }
       }
+      // Promo codes (POST /v1/promo-codes/check): 422 with a PROMO_* code.
+      const promoCodes = {
+        'promo_not_found': AppErrorKind.promoNotFound,
+        'promo_expired': AppErrorKind.promoExpired,
+        'promo_not_started': AppErrorKind.promoNotStarted,
+        'promo_exhausted': AppErrorKind.promoExhausted,
+        'promo_already_used': AppErrorKind.promoAlreadyUsed,
+        'promo_not_for_plan': AppErrorKind.promoNotApplicable,
+        'promo_currency_mismatch': AppErrorKind.promoNotApplicable,
+        'promo_inactive': AppErrorKind.promoInactive,
+      };
+      for (final entry in promoCodes.entries) {
+        if (text.contains(entry.key)) {
+          return AppException(entry.value, statusCode: status);
+        }
+      }
       if (text.contains('share_invalid') || text.contains('share_expired')) {
         return AppException(AppErrorKind.shareInvalid, statusCode: status);
       }
