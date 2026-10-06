@@ -358,6 +358,15 @@ func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load subscription")
 		return
 	}
+	// Every app on every device takes a device slot (sub_devices.go).
+	switch s.subscriptionDeviceGate(r, cfg.Grant.UserID) {
+	case subOverLimit:
+		writeSubscriptionNotice(w, subNoticeLimitTitle, subNoticeLimitHint)
+		return
+	case subNoDeviceID:
+		writeSubscriptionNotice(w, subNoticeAppTitle, subNoticeAppHint)
+		return
+	}
 	s.applyVLESSRuntimeConfig(&cfg)
 	if len(cfg.Links) == 0 {
 		writeError(w, http.StatusServiceUnavailable, "subscription is not ready yet: "+cfg.ConfigStatus)

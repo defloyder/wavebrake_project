@@ -68,6 +68,11 @@ type AccountsConfig struct {
 	// step yet: access is issued by the administration); on only for
 	// tests and closed trials.
 	SelfServeSubscriptions bool
+	// SubRequireHWID: GET /v1/sub answers only apps that send a device id
+	// (x-hwid: Happ, v2RayTun, Hiddify …), so every app on every device
+	// takes a device slot. Apps without it get a notice instead of
+	// servers. On by default.
+	SubRequireHWID bool
 }
 
 type VLESSConfig struct {
@@ -267,6 +272,7 @@ func Load() (Config, error) {
 			AccessProtocol:         env("WAVEBREAK_ADMIN_ACCESS_PROTOCOL", "vless"),
 			SubscriptionGrace:      mustDuration(env("WAVEBREAK_SUBSCRIPTION_GRACE", "168h")),
 			SelfServeSubscriptions: boolEnv("WAVEBREAK_SELF_SERVE_SUBSCRIPTIONS", false),
+			SubRequireHWID:         boolEnv("WAVEBREAK_SUB_REQUIRE_HWID", true),
 		},
 		RateLimit: RateLimitConfig{
 			LoginIPLimit:     loginIPLimit,
