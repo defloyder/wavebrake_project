@@ -4,7 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:wavebreak_links/wavebreak_links.dart' show ShareLink;
+import 'package:wavebreak_links/wavebreak_links.dart'
+    show ShareLink, SubscriptionUserInfo, decodeProfileTitle, parseSubscription, parseUpdateIntervalHours;
 
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/language_controller.dart';
@@ -29,7 +30,17 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     if (raw == null || raw.isEmpty) return const [];
     try {
       final list = jsonDecode(raw) as List;
-      return list.whereType<Map>().map((e) => _fromStored(Map<String, dynamic>.from(e))).toList();
+      final groups = list
+          .whereType<Map>()
+          .map((e) => _fromStored(Map<String, dynamic>.from(e)))
+          .toList();
+      // Third-party subscriptions past their update interval are re-read
+      // once the app has started (in the background; the stored list is
+      // shown meanwhile and kept if a fetch fails).
+      if (groups.any((g) => g.isStale(DateTime.now()))) {
+        Future<void>.delayed(const Duration(seconds: 3), refreshStale);
+      }
+      return groups;
     } catch (_) {
       return const [];
     }
@@ -99,33 +110,84 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       return 'blocked';
     }
 
-    String body;
+    final _Fetched fetched;
     try {
-      final dio = Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
-        maxRedirects: 3,
-        responseType: ResponseType.plain,
-      ));
-      final response = await dio.get<String>(link);
-      body = response.data ?? '';
-      if (body.length > 2 * 1024 * 1024) return 'invalid';
+      fetched = await _fetch(link);
+    } on _TooLarge {
+      return 'invalid';
     } catch (_) {
       return 'unreachable';
     }
-
-    final servers = parseSubscriptionBody(body);
-    if (servers.isEmpty) return 'empty';
-
-    final group = CustomSubscriptionGroup(
-      id: const Uuid().v4(),
-      name: uri.host,
-      sourceLink: link,
-      servers: servers,
-    );
+    final group = _groupFrom(fetched, id: const Uuid().v4(), link: link, uri: uri);
+    if (group == null) return 'empty';
     state = [...state, group];
     await _persist();
     return null;
+  }
+
+  /// Reads a subscription URL: the body and the headers that describe it
+  /// (subscription-userinfo, profile-title, profile-update-interval).
+  static Future<_Fetched> _fetch(String link) async {
+    final dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+      maxRedirects: 3,
+      responseType: ResponseType.plain,
+    ));
+    final response = await dio.get<String>(link);
+    final body = response.data ?? '';
+    if (body.length > 2 * 1024 * 1024) throw _TooLarge();
+    return _Fetched(body, response.headers);
+  }
+
+  /// A section from a fetched subscription in any format (share links,
+  /// base64, Clash/Mihomo YAML, sing-box JSON); null when it has no nodes.
+  @visibleForTesting
+  static CustomSubscriptionGroup? groupFromResponse(
+    String body,
+    Map<String, List<String>> headers, {
+    required String id,
+    required String link,
+    DateTime? now,
+  }) =>
+      _groupFrom(_Fetched(body, Headers.fromMap(headers)),
+          id: id, link: link, uri: Uri.parse(link), now: now);
+
+  static CustomSubscriptionGroup? _groupFrom(
+    _Fetched fetched, {
+    required String id,
+    required String link,
+    required Uri uri,
+    DateTime? now,
+  }) {
+    final parsed = parseSubscription(fetched.body);
+    final servers = serversFromSubscription(parsed);
+    if (servers.isEmpty) return null;
+    final info = SubscriptionUserInfo.parse(
+        fetched.headers.value('subscription-userinfo'));
+    return CustomSubscriptionGroup(
+      id: id,
+      name: decodeProfileTitle(fetched.headers.value('profile-title')) ??
+          uri.host,
+      sourceLink: link,
+      servers: servers,
+      usedBytes: info?.used,
+      totalBytes: info?.total,
+      expiresAt: info?.expire,
+      updateIntervalHours: parseUpdateIntervalHours(
+          fetched.headers.value('profile-update-interval')),
+      updatedAt: now ?? DateTime.now(),
+    );
+  }
+
+  /// Re-reads every subscription URL whose update interval has passed
+  /// (its own `profile-update-interval`, else 12 h). Called when the app
+  /// shows its servers; failures keep the last good list.
+  Future<void> refreshStale() async {
+    final now = DateTime.now();
+    for (final g in [...state]) {
+      if (g.isStale(now)) await refreshGroup(g.id);
+    }
   }
 
   /// Redeems someone's share code with this app's own Core. Core checks
@@ -247,34 +309,18 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       return;
     }
     if (!group.isSubscriptionUrl) return;
-    final uri = Uri.parse(group.sourceLink);
-    String body;
+    final _Fetched fetched;
     try {
-      final dio = Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
-        maxRedirects: 3,
-        responseType: ResponseType.plain,
-      ));
-      final response = await dio.get<String>(group.sourceLink);
-      body = response.data ?? '';
+      fetched = await _fetch(group.sourceLink);
     } catch (_) {
       return;
     }
-    final servers = parseSubscriptionBody(body);
-    if (servers.isEmpty) return;
+    final fresh = _groupFrom(fetched,
+        id: group.id, link: group.sourceLink, uri: Uri.parse(group.sourceLink));
+    if (fresh == null) return;
     state = [
       for (final g in state)
-        if (g.id == id)
-          CustomSubscriptionGroup(
-            id: g.id,
-            name: uri.host,
-            sourceLink: g.sourceLink,
-            servers: servers,
-            sharedWithMe: g.sharedWithMe,
-          )
-        else
-          g,
+        if (g.id == id) fresh else g,
     ];
     await _persist();
   }
@@ -286,6 +332,12 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
               'name': g.name,
               'link': g.sourceLink,
               if (g.sharedWithMe) 'shared': true,
+              if (g.usedBytes != null) 'used': g.usedBytes,
+              if (g.totalBytes != null) 'total': g.totalBytes,
+              if (g.expiresAt != null) 'expire': g.expiresAt!.toIso8601String(),
+              if (g.updateIntervalHours != null)
+                'interval': g.updateIntervalHours,
+              if (g.updatedAt != null) 'updated': g.updatedAt!.toIso8601String(),
               'servers': g.servers
                   .map((s) => {
                         'id': s.id,
@@ -293,6 +345,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
                         'proto': s.city,
                         'link': s.rawLink,
                         'flag': s.countryCode,
+                        if (!s.available) 'off': true,
                       })
                   .toList(),
             })
@@ -308,7 +361,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
               countryCode: (s['flag'] ?? '').toString(),
               country: (s['label'] ?? 'Custom').toString(),
               city: (s['proto'] ?? '').toString(),
-              available: true,
+              available: s['off'] != true,
               isCustom: true,
               rawLink: s['link'] as String?,
             ))
@@ -319,6 +372,19 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       sourceLink: (json['link'] ?? '').toString(),
       servers: servers,
       sharedWithMe: json['shared'] == true,
+      usedBytes: (json['used'] as num?)?.toInt(),
+      totalBytes: (json['total'] as num?)?.toInt(),
+      expiresAt: DateTime.tryParse((json['expire'] ?? '').toString()),
+      updateIntervalHours: (json['interval'] as num?)?.toInt(),
+      updatedAt: DateTime.tryParse((json['updated'] ?? '').toString()),
     );
   }
 }
+
+class _Fetched {
+  _Fetched(this.body, this.headers);
+  final String body;
+  final Headers headers;
+}
+
+class _TooLarge implements Exception {}

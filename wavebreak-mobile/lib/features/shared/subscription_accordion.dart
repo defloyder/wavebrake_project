@@ -516,6 +516,8 @@ class _PlaceRow extends StatelessWidget {
     final subtitle = [
       if (place.title != place.country) place.country,
       if (singleProto != null) singleProto,
+      // A node of a third-party subscription this engine can't run.
+      if (!available && place.primary.isCustom) s.notSupportedMark,
     ].join(' · ');
     final shareTarget = shown.isCustom && shown.rawLink != null && shareable
         ? shown.rawLink

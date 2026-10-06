@@ -333,7 +333,14 @@ class AppStrings {
     required this.planPerYear,
     required this.planDevicesLine,
     required this.planDaysLine,
+    required this.notSupportedMark,
+    required this.subscriptionUntilLine,
+    required this.subscriptionExpiredLine,
   });
+
+  final String notSupportedMark;
+  final String subscriptionUntilLine;
+  final String subscriptionExpiredLine;
 
   final String planContactAdmin;
   final String planContactSupport;
@@ -1037,6 +1044,9 @@ const kEnglishStrings = AppStrings(
   planPerYear: '/ year',
   planDevicesLine: 'Up to {n} devices',
   planDaysLine: '{n} days',
+  notSupportedMark: 'not supported',
+  subscriptionUntilLine: 'until {date}',
+  subscriptionExpiredLine: 'expired {date}',
 );
 
 const kRussianStrings = AppStrings(
@@ -1389,6 +1399,9 @@ const kRussianStrings = AppStrings(
   planPerYear: '/ год',
   planDevicesLine: 'До {n} устройств',
   planDaysLine: '{n} дн.',
+  notSupportedMark: 'не поддерживается',
+  subscriptionUntilLine: 'до {date}',
+  subscriptionExpiredLine: 'истекла {date}',
 );
 
 const kSpanishStrings = AppStrings(
@@ -1744,6 +1757,9 @@ const kSpanishStrings = AppStrings(
   planPerYear: '/ año',
   planDevicesLine: 'Hasta {n} dispositivos',
   planDaysLine: '{n} días',
+  notSupportedMark: 'no compatible',
+  subscriptionUntilLine: 'hasta {date}',
+  subscriptionExpiredLine: 'caducó el {date}',
 );
 
 const kGermanStrings = AppStrings(
@@ -2103,6 +2119,9 @@ const kGermanStrings = AppStrings(
   planPerYear: '/ Jahr',
   planDevicesLine: 'Bis zu {n} Geräte',
   planDaysLine: '{n} Tage',
+  notSupportedMark: 'nicht unterstützt',
+  subscriptionUntilLine: 'bis {date}',
+  subscriptionExpiredLine: 'abgelaufen am {date}',
 );
 
 const kFrenchStrings = AppStrings(
@@ -2462,6 +2481,9 @@ const kFrenchStrings = AppStrings(
   planPerYear: '/ an',
   planDevicesLine: 'Jusqu\'à {n} appareils',
   planDaysLine: '{n} jours',
+  notSupportedMark: 'non pris en charge',
+  subscriptionUntilLine: 'jusqu\'au {date}',
+  subscriptionExpiredLine: 'expiré le {date}',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -2817,6 +2839,9 @@ const kPortugueseStrings = AppStrings(
   planPerYear: '/ ano',
   planDevicesLine: 'Até {n} dispositivos',
   planDaysLine: '{n} dias',
+  notSupportedMark: 'não suportado',
+  subscriptionUntilLine: 'até {date}',
+  subscriptionExpiredLine: 'expirou em {date}',
 );
 
 const kTurkishStrings = AppStrings(
@@ -3170,6 +3195,9 @@ const kTurkishStrings = AppStrings(
   planPerYear: '/ yıl',
   planDevicesLine: '{n} cihaza kadar',
   planDaysLine: '{n} gün',
+  notSupportedMark: 'desteklenmiyor',
+  subscriptionUntilLine: '{date} tarihine kadar',
+  subscriptionExpiredLine: '{date} tarihinde sona erdi',
 );
 
 AppStrings stringsFor(AppLanguage language) {

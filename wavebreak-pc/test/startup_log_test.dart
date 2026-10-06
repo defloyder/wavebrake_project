@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wavebreak/app/startup_error.dart';
 import 'package:wavebreak/core/logging/file_log.dart';
