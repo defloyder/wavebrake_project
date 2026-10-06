@@ -1,4 +1,3 @@
-import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,9 +7,7 @@ import '../../core/logging/app_logger.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/providers.dart';
 import '../shared/data_providers.dart';
-import '../shared/detail_scaffold.dart';
-import '../shared/nav_utils.dart';
-import '../shared/wb_card.dart';
+import 'settings_ui.dart';
 
 class DevicesScreen extends ConsumerStatefulWidget {
   const DevicesScreen({super.key});
@@ -67,85 +64,63 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
     final devices = ref.watch(devicesProvider);
     final s = ref.watch(stringsProvider);
 
-    return DetailScaffold(
+    Widget centered(String text) => Padding(
+          padding: const EdgeInsets.only(top: 48),
+          child: Text(text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: WbColors.ice60)),
+        );
+
+    return SettingsPage(
       title: s.devices,
-      onBack: () => safePop(context, fallback: '/settings'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: devices.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(
-                child: Text(
-                  error is AppException ? error.localized(s) : s.errUnavailable,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              data: (items) => items.isEmpty
-                  ? Center(
-                      child: Text(
-                        s.noDevicesYet,
-                        style: const TextStyle(color: WbColors.ice60),
-                      ),
-                    )
-                  : ListView.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final device = items[index];
-                  final revoking = _revokingId == device.id;
-                  return WbCard(
-                    child: Row(
-                      children: [
-                        Icon(
-                          switch (device.platform) {
-                            'ios' => Icons.phone_iphone,
-                            'windows' || 'macos' || 'linux' => Icons.laptop_mac,
-                            _ => Icons.phone_android,
-                          },
-                          color: context.accent,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(device.name, style: const TextStyle(fontSize: 16)),
-                              if (device.current)
-                                Text(
-                                  s.thisDevice,
-                                  style: const TextStyle(color: WbColors.ice60, fontSize: 12),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // The current device can't revoke itself — that
-                        // would just cut off the session it's using to
-                        // look at this very screen. Every other device
-                        // can be cleared out (this is also the only way
-                        // to get under a plan's device limit once old
-                        // installs/reinstalls have piled up).
-                        if (!device.current)
-                          revoking
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+      fallback: '/settings/account',
+      children: [
+        devices.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.only(top: 48),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) => centered(
+              error is AppException ? error.localized(s) : s.errUnavailable),
+          data: (items) => items.isEmpty
+              ? centered(s.noDevicesYet)
+              : SettingsGroup(children: [
+                  for (final device in items)
+                    SettingsRow(
+                      icon: switch (device.platform) {
+                        'ios' => Icons.phone_iphone,
+                        'windows' || 'macos' || 'linux' => Icons.laptop_mac,
+                        _ => Icons.phone_android,
+                      },
+                      title: device.name,
+                      subtitle: device.current ? s.thisDevice : null,
+                      // The current device can't revoke itself (it would
+                      // cut off the session showing this screen); every
+                      // other one can — the way under a plan's device
+                      // limit once old installs have piled up.
+                      trailing: device.current
+                          ? null
+                          : _revokingId == device.id
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  ),
                                 )
                               : IconButton(
-                                  onPressed: () => _revoke(device.id, device.name),
-                                  icon: const Icon(Icons.delete_outline, color: WbColors.error),
+                                  tooltip: s.remove,
+                                  onPressed: () =>
+                                      _revoke(device.id, device.name),
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: WbColors.error),
                                 ),
-                      ],
                     ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
+                ]),
+        ),
+      ],
     );
   }
 }

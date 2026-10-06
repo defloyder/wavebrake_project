@@ -58,7 +58,7 @@ class UpdatesScreen extends ConsumerWidget {
 
     return DetailScaffold(
       title: s.updates,
-      onBack: () => safePop(context, fallback: '/settings'),
+      onBack: () => safePop(context, fallback: '/settings/help'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

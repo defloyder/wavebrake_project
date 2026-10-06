@@ -62,6 +62,8 @@ const shots = [
   Shot('metrics', '/metrics'),
   Shot('settings', '/settings'),
   Shot('account', '/settings/account'),
+  Shot('devices', '/settings/devices'),
+  Shot('help', '/settings/help'),
   Shot('connection', '/settings/connection'),
   Shot('security', '/settings/security'),
   Shot('notifications', '/settings/notifications'),
