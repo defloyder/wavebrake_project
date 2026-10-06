@@ -124,7 +124,7 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
     final s = ref.read(stringsProvider);
     _statusNotifier.show(
       title: 'WAVEBREAK',
-      text: ms != null ? '${s.connected} · $ms ms' : s.connected,
+      text: ms != null ? '${s.connected} · $ms ${s.unitMs}' : s.connected,
     );
   }
 

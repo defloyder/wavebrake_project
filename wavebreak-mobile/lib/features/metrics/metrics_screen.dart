@@ -1,3 +1,4 @@
+import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_theme.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -98,6 +99,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
   Widget build(BuildContext context) {
     final connection = ref.watch(connectionManagerProvider);
     final m = ref.watch(liveMetricsProvider);
+    final s = ref.watch(stringsProvider);
     final hasData = m.rates.isNotEmpty || m.pings.isNotEmpty;
     final loc = connection.location;
     final touched = _touchX == null ? null : _sampleAt(m.rates, _touchX!);
@@ -117,9 +119,9 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
               padding: const EdgeInsets.fromLTRB(
                   20, 16, 20, kMobileBottomBarReserve + 16),
               children: [
-                const Text(
-                  'Метрики соединения',
-                  style: TextStyle(
+                Text(
+                  s.mTitle,
+                  style: const TextStyle(
                     color: Ic.text,
                     fontSize: 30,
                     fontFamily: Ic.fontSerif,
@@ -164,10 +166,10 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                       ),
                       _Badge(
                         text: m.active
-                            ? 'В эфире'
+                            ? s.mLive
                             : hasData
-                                ? 'Последняя сессия'
-                                : 'Нет данных',
+                                ? s.mLastSession
+                                : s.mNoData,
                         color: m.active ? Ic.arctic : Ic.textMuted,
                       ),
                     ],
@@ -176,7 +178,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                 const SizedBox(height: 14),
                 _Tabs(
                   value: _tab,
-                  labels: const ['Метрики', 'Инфо', 'Маршрут'],
+                  labels: [s.navMetrics, s.mTabInfo, s.mTabRoute],
                   onChanged: (i) => setState(() => _tab = i),
                 ),
                 const SizedBox(height: 14),
@@ -187,14 +189,15 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                       children: [
                         Row(
                           children: [
-                            const Expanded(
-                              child: Text('Скорость соединения',
-                                  style: TextStyle(
+                            Expanded(
+                              child: Text(s.mSpeed,
+                                  style: const TextStyle(
                                       color: Ic.text,
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600)),
                             ),
                             _PeriodToggle(
+                              unitMin: s.unitMin,
                               value: _window,
                               onChanged: (w) => setState(() => _window = w),
                             ),
@@ -206,7 +209,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                             Expanded(
                               child: _Legend(
                                 arrow: '↓',
-                                label: 'Приём',
+                                label: s.trafficDown,
                                 color: Ic.arctic,
                                 mbps: touched != null
                                     ? touched.downBps / 1e6
@@ -216,7 +219,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                             Expanded(
                               child: _Legend(
                                 arrow: '↑',
-                                label: 'Отдача',
+                                label: s.trafficUp,
                                 color: context.brand,
                                 mbps: touched != null
                                     ? touched.upBps / 1e6
@@ -253,16 +256,18 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                                         renderNowMs: _renderNowMs,
                                         maxMbps: _maxMbps,
                                         minutesLabel: _window.inMinutes,
+                                        unitMin: s.unitMin,
+                                        nowLabel: s.mNow,
                                         touchX: _touchX,
                                       ),
                                     ),
                                   ),
                                 )
-                              : const Center(
+                              : Center(
                                   child: Text(
-                                    'Подключитесь — здесь появится живой график скорости вашего соединения',
+                                    s.mEmptyChart,
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                         color: Ic.textMuted,
                                         fontSize: 14,
                                         height: 1.4),
@@ -282,10 +287,10 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                     childAspectRatio: 1.35,
                     children: [
                       _QualityCard(
-                        title: 'Задержка',
+                        title: s.speedTestLatency,
                         value: m.active ? m.pingMs?.toDouble() : null,
                         format: (v) => '${v.round()}',
-                        unit: 'мс',
+                        unit: s.unitMs,
                         series: [
                           for (final p in m.pings)
                             if (p.ms != null) p.ms!.toDouble()
@@ -293,15 +298,15 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                         color: Ic.arctic,
                       ),
                       _QualityCard(
-                        title: 'Джиттер',
+                        title: s.mJitter,
                         value: m.jitterMs,
                         format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
-                        unit: 'мс',
+                        unit: s.unitMs,
                         series: _jitterSeries(m.pings),
                         color: Ic.textSecondary,
                       ),
                       _QualityCard(
-                        title: 'Потери',
+                        title: s.mLoss,
                         value: m.lossPercent,
                         format: (v) => v.toStringAsFixed(v < 10 ? 1 : 0),
                         unit: '%',
@@ -312,7 +317,7 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                         dashed: true,
                       ),
                       _QualityCard(
-                        title: 'Трафик сессии',
+                        title: s.mSessionTraffic,
                         value: m.sessionBytes > 0
                             ? m.sessionBytes.toDouble()
                             : null,
@@ -324,9 +329,9 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
                     ],
                   ),
                 ] else if (_tab == 1)
-                  InfoTab(connection: connection, metrics: m)
+                  InfoTab(connection: connection, metrics: m, s: s)
                 else
-                  RouteTab(connection: connection, metrics: m),
+                  RouteTab(connection: connection, metrics: m, s: s),
               ],
             ),
           ),
@@ -455,7 +460,10 @@ class _Legend extends StatelessWidget {
 }
 
 class _PeriodToggle extends StatelessWidget {
-  const _PeriodToggle({required this.value, required this.onChanged});
+  const _PeriodToggle(
+      {required this.value, required this.onChanged, required this.unitMin});
+
+  final String unitMin;
 
   final Duration value;
   final ValueChanged<Duration> onChanged;
@@ -495,8 +503,8 @@ class _PeriodToggle extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          option(const Duration(minutes: 1), '1 мин'),
-          option(const Duration(minutes: 5), '5 мин'),
+          option(const Duration(minutes: 1), '1 $unitMin'),
+          option(const Duration(minutes: 5), '5 $unitMin'),
         ],
       ),
     );

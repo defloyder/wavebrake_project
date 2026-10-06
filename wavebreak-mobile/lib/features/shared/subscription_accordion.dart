@@ -563,7 +563,7 @@ class _PlaceRow extends StatelessWidget {
                     if (ping != null) ...[
                       const SizedBox(width: 6),
                       Text(
-                        '$ping ms',
+                        '$ping ${s.unitMs}',
                         style: const TextStyle(color: WbColors.ice60, fontSize: 12),
                       ),
                     ],

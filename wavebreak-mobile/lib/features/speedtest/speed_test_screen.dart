@@ -100,7 +100,7 @@ class SpeedTestScreen extends ConsumerWidget {
           child: _ResultCard(
             icon: Icons.speed_rounded,
             label: s.speedTestLatency,
-            value: state.latencyMs != null ? '${state.latencyMs} ms' : '–',
+            value: state.latencyMs != null ? '${state.latencyMs} ${s.unitMs}' : '–',
             highlighted: state.status == SpeedTestStatus.testingLatency,
           ),
         ),

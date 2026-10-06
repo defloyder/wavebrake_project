@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/i18n/app_strings.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/live_metrics.dart';
 import '../home/home_vitals.dart';
@@ -33,15 +34,15 @@ Future<String?> _networkLabel() {
   return _networkCache!;
 }
 
-String _statusText(ConnectionStatus s) => switch (s) {
-      ConnectionStatus.connected => 'Подключено',
+String _statusText(ConnectionStatus status, AppStrings s) => switch (status) {
+      ConnectionStatus.connected => s.connected,
       ConnectionStatus.connecting ||
       ConnectionStatus.requestingProfile ||
       ConnectionStatus.configPending =>
-        'Подключение…',
-      ConnectionStatus.disconnecting => 'Отключение…',
-      ConnectionStatus.error => 'Ошибка подключения',
-      ConnectionStatus.idle => 'Не подключено',
+        s.connecting,
+      ConnectionStatus.disconnecting => s.disconnecting,
+      ConnectionStatus.error => s.couldNotConnect,
+      ConnectionStatus.idle => s.notConnected,
     };
 
 String _hm(DateTime t) =>
@@ -49,10 +50,15 @@ String _hm(DateTime t) =>
 
 /// Connection facts — only what the app actually knows.
 class InfoTab extends StatelessWidget {
-  const InfoTab({super.key, required this.connection, required this.metrics});
+  const InfoTab(
+      {super.key,
+      required this.connection,
+      required this.metrics,
+      required this.s});
 
   final WbConnectionState connection;
   final LiveMetricsState metrics;
+  final AppStrings s;
 
   @override
   Widget build(BuildContext context) {
@@ -61,26 +67,28 @@ class InfoTab extends StatelessWidget {
     final since = connection.connectedAt;
     final connected = connection.status == ConnectionStatus.connected;
     final rows = <(String, String)>[
-      ('Локация', [if (place.isNotEmpty) place, loc.country].join(' · ')),
-      ('Протокол', protocolLabel(loc) ?? '—'),
-      ('Статус', _statusText(connection.status)),
-      ('Начало сессии', connected && since != null ? _hm(since) : '—'),
+      (s.mLocation, [if (place.isNotEmpty) place, loc.country].join(' · ')),
+      (s.mProtocol, protocolLabel(loc) ?? '—'),
+      (s.mStatus, _statusText(connection.status, s)),
+      (s.mSessionStart, connected && since != null ? _hm(since) : '—'),
       (
-        'Трафик сессии',
+        s.mSessionTraffic,
         metrics.sessionBytes > 0 ? formatBytes(metrics.sessionBytes) : '—'
       ),
       (
-        'Задержка',
-        metrics.active && metrics.pingMs != null ? '${metrics.pingMs} мс' : '—'
-      ),
-      (
-        'Джиттер',
-        metrics.jitterMs != null
-            ? '${metrics.jitterMs!.toStringAsFixed(1)} мс'
+        s.speedTestLatency,
+        metrics.active && metrics.pingMs != null
+            ? '${metrics.pingMs} ${s.unitMs}'
             : '—'
       ),
       (
-        'Потери',
+        s.mJitter,
+        metrics.jitterMs != null
+            ? '${metrics.jitterMs!.toStringAsFixed(1)} ${s.unitMs}'
+            : '—'
+      ),
+      (
+        s.mLoss,
         metrics.lossPercent != null
             ? '${metrics.lossPercent!.toStringAsFixed(1)} %'
             : '—'
@@ -92,7 +100,7 @@ class InfoTab extends StatelessWidget {
           FutureBuilder<String?>(
             future: _networkLabel(),
             builder: (_, snap) =>
-                _Row(label: 'Сеть телефона', value: snap.data ?? '—'),
+                _Row(label: s.mPhoneNetwork, value: snap.data ?? '—'),
           ),
           for (final (l, v) in rows) _Row(label: l, value: v),
         ],
@@ -140,10 +148,15 @@ class _Row extends StatelessWidget {
 /// Device → WAVEBREAK server → Internet, with the tunnel's real latency.
 /// A scheme, not a traceroute.
 class RouteTab extends StatelessWidget {
-  const RouteTab({super.key, required this.connection, required this.metrics});
+  const RouteTab(
+      {super.key,
+      required this.connection,
+      required this.metrics,
+      required this.s});
 
   final WbConnectionState connection;
   final LiveMetricsState metrics;
+  final AppStrings s;
 
   @override
   Widget build(BuildContext context) {
@@ -158,17 +171,17 @@ class RouteTab extends StatelessWidget {
             future: _networkLabel(),
             builder: (_, snap) => _Node(
               icon: const Icon(Icons.smartphone_rounded, color: Ic.text),
-              title: 'Это устройство',
-              subtitle: snap.data ?? 'сеть телефона',
+              title: s.mThisDevice,
+              subtitle: snap.data ?? s.mPhoneNetwork,
             ),
           ),
           _Link(
             active: connected,
             color: Ic.arctic,
             label: connected
-                ? 'зашифрованный туннель'
-                    '${metrics.pingMs != null ? ' · ${metrics.pingMs} мс' : ''}'
-                : 'туннель не установлен',
+                ? '${s.mTunnel}'
+                    '${metrics.pingMs != null ? ' · ${metrics.pingMs} ${s.unitMs}' : ''}'
+                : s.mNoTunnel,
           ),
           _Node(
             icon: loc.countryCode.isNotEmpty
@@ -180,14 +193,14 @@ class RouteTab extends StatelessWidget {
           _Link(
             active: connected,
             color: context.brand,
-            label: connected ? 'выход в интернет' : '',
+            label: connected ? s.mExit : '',
           ),
           _Node(
             icon: const Icon(Icons.public_rounded, color: Ic.text),
-            title: 'Интернет',
+            title: s.mInternet,
             subtitle: connected
-                ? 'сайты видят адрес сервера (${loc.country})'
-                : 'напрямую, без защиты',
+                ? s.mSitesSeeServer.replaceAll('{country}', loc.country)
+                : s.mDirect,
           ),
         ],
       ),

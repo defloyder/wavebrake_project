@@ -348,7 +348,58 @@ class AppStrings {
     required this.densityTitle,
     required this.densityNormal,
     required this.densityCompact,
+    required this.mTitle,
+    required this.mLive,
+    required this.mLastSession,
+    required this.mNoData,
+    required this.mTabInfo,
+    required this.mTabRoute,
+    required this.mSpeed,
+    required this.mEmptyChart,
+    required this.mJitter,
+    required this.mLoss,
+    required this.mSessionTraffic,
+    required this.mLocation,
+    required this.mProtocol,
+    required this.mStatus,
+    required this.mSessionStart,
+    required this.mPhoneNetwork,
+    required this.mThisDevice,
+    required this.mTunnel,
+    required this.mNoTunnel,
+    required this.mExit,
+    required this.mInternet,
+    required this.mSitesSeeServer,
+    required this.mDirect,
+    required this.unitMin,
+    required this.mNow,
   });
+
+  final String mTitle;
+  final String mLive;
+  final String mLastSession;
+  final String mNoData;
+  final String mTabInfo;
+  final String mTabRoute;
+  final String mSpeed;
+  final String mEmptyChart;
+  final String mJitter;
+  final String mLoss;
+  final String mSessionTraffic;
+  final String mLocation;
+  final String mProtocol;
+  final String mStatus;
+  final String mSessionStart;
+  final String mPhoneNetwork;
+  final String mThisDevice;
+  final String mTunnel;
+  final String mNoTunnel;
+  final String mExit;
+  final String mInternet;
+  final String mSitesSeeServer;
+  final String mDirect;
+  final String unitMin;
+  final String mNow;
 
   final String sphereStyleTitle;
   final String sphereStyleHint;
@@ -1084,6 +1135,31 @@ const kEnglishStrings = AppStrings(
   densityTitle: 'Density',
   densityNormal: 'Standard',
   densityCompact: 'Compact',
+  mTitle: 'Connection metrics',
+  mLive: 'Live',
+  mLastSession: 'Last session',
+  mNoData: 'No data',
+  mTabInfo: 'Info',
+  mTabRoute: 'Route',
+  mSpeed: 'Connection speed',
+  mEmptyChart: 'Connect — a live chart of your connection speed will appear here',
+  mJitter: 'Jitter',
+  mLoss: 'Packet loss',
+  mSessionTraffic: 'Session traffic',
+  mLocation: 'Location',
+  mProtocol: 'Protocol',
+  mStatus: 'Status',
+  mSessionStart: 'Session started',
+  mPhoneNetwork: 'Phone network',
+  mThisDevice: 'This device',
+  mTunnel: 'encrypted tunnel',
+  mNoTunnel: 'no tunnel',
+  mExit: 'exit to the internet',
+  mInternet: 'Internet',
+  mSitesSeeServer: 'sites see the server\'s address ({country})',
+  mDirect: 'directly, unprotected',
+  unitMin: 'min',
+  mNow: 'now',
 );
 
 const kRussianStrings = AppStrings(
@@ -1451,6 +1527,31 @@ const kRussianStrings = AppStrings(
   densityTitle: 'Плотность',
   densityNormal: 'Обычная',
   densityCompact: 'Компактная',
+  mTitle: 'Метрики соединения',
+  mLive: 'В эфире',
+  mLastSession: 'Последняя сессия',
+  mNoData: 'Нет данных',
+  mTabInfo: 'Инфо',
+  mTabRoute: 'Маршрут',
+  mSpeed: 'Скорость соединения',
+  mEmptyChart: 'Подключитесь — здесь появится живой график скорости вашего соединения',
+  mJitter: 'Джиттер',
+  mLoss: 'Потери',
+  mSessionTraffic: 'Трафик сессии',
+  mLocation: 'Локация',
+  mProtocol: 'Протокол',
+  mStatus: 'Статус',
+  mSessionStart: 'Начало сессии',
+  mPhoneNetwork: 'Сеть телефона',
+  mThisDevice: 'Это устройство',
+  mTunnel: 'зашифрованный туннель',
+  mNoTunnel: 'туннель не установлен',
+  mExit: 'выход в интернет',
+  mInternet: 'Интернет',
+  mSitesSeeServer: 'сайты видят адрес сервера ({country})',
+  mDirect: 'напрямую, без защиты',
+  unitMin: 'мин',
+  mNow: 'сейчас',
 );
 
 const kSpanishStrings = AppStrings(
@@ -1821,6 +1922,31 @@ const kSpanishStrings = AppStrings(
   densityTitle: 'Densidad',
   densityNormal: 'Estándar',
   densityCompact: 'Compacta',
+  mTitle: 'Métricas de conexión',
+  mLive: 'En vivo',
+  mLastSession: 'Última sesión',
+  mNoData: 'Sin datos',
+  mTabInfo: 'Info',
+  mTabRoute: 'Ruta',
+  mSpeed: 'Velocidad de conexión',
+  mEmptyChart: 'Conéctate: aquí aparecerá un gráfico en vivo de la velocidad de tu conexión',
+  mJitter: 'Jitter',
+  mLoss: 'Pérdida de paquetes',
+  mSessionTraffic: 'Tráfico de la sesión',
+  mLocation: 'Ubicación',
+  mProtocol: 'Protocolo',
+  mStatus: 'Estado',
+  mSessionStart: 'Inicio de la sesión',
+  mPhoneNetwork: 'Red del teléfono',
+  mThisDevice: 'Este dispositivo',
+  mTunnel: 'túnel cifrado',
+  mNoTunnel: 'sin túnel',
+  mExit: 'salida a internet',
+  mInternet: 'Internet',
+  mSitesSeeServer: 'los sitios ven la dirección del servidor ({country})',
+  mDirect: 'directo, sin protección',
+  unitMin: 'min',
+  mNow: 'ahora',
 );
 
 const kGermanStrings = AppStrings(
@@ -2195,6 +2321,31 @@ const kGermanStrings = AppStrings(
   densityTitle: 'Dichte',
   densityNormal: 'Standard',
   densityCompact: 'Kompakt',
+  mTitle: 'Verbindungsmetriken',
+  mLive: 'Live',
+  mLastSession: 'Letzte Sitzung',
+  mNoData: 'Keine Daten',
+  mTabInfo: 'Info',
+  mTabRoute: 'Route',
+  mSpeed: 'Verbindungsgeschwindigkeit',
+  mEmptyChart: 'Verbinde dich – hier erscheint ein Live-Diagramm deiner Verbindungsgeschwindigkeit',
+  mJitter: 'Jitter',
+  mLoss: 'Paketverlust',
+  mSessionTraffic: 'Sitzungsdaten',
+  mLocation: 'Standort',
+  mProtocol: 'Protokoll',
+  mStatus: 'Status',
+  mSessionStart: 'Sitzungsbeginn',
+  mPhoneNetwork: 'Netz des Telefons',
+  mThisDevice: 'Dieses Gerät',
+  mTunnel: 'verschlüsselter Tunnel',
+  mNoTunnel: 'kein Tunnel',
+  mExit: 'Ausgang ins Internet',
+  mInternet: 'Internet',
+  mSitesSeeServer: 'Websites sehen die Adresse des Servers ({country})',
+  mDirect: 'direkt, ungeschützt',
+  unitMin: 'Min.',
+  mNow: 'jetzt',
 );
 
 const kFrenchStrings = AppStrings(
@@ -2569,6 +2720,31 @@ const kFrenchStrings = AppStrings(
   densityTitle: 'Densité',
   densityNormal: 'Standard',
   densityCompact: 'Compacte',
+  mTitle: 'Métriques de connexion',
+  mLive: 'En direct',
+  mLastSession: 'Dernière session',
+  mNoData: 'Pas de données',
+  mTabInfo: 'Infos',
+  mTabRoute: 'Itinéraire',
+  mSpeed: 'Vitesse de connexion',
+  mEmptyChart: 'Connectez-vous : un graphique en direct de votre vitesse apparaîtra ici',
+  mJitter: 'Gigue',
+  mLoss: 'Perte de paquets',
+  mSessionTraffic: 'Trafic de la session',
+  mLocation: 'Emplacement',
+  mProtocol: 'Protocole',
+  mStatus: 'Statut',
+  mSessionStart: 'Début de session',
+  mPhoneNetwork: 'Réseau du téléphone',
+  mThisDevice: 'Cet appareil',
+  mTunnel: 'tunnel chiffré',
+  mNoTunnel: 'pas de tunnel',
+  mExit: 'sortie vers Internet',
+  mInternet: 'Internet',
+  mSitesSeeServer: 'les sites voient l\'adresse du serveur ({country})',
+  mDirect: 'en direct, sans protection',
+  unitMin: 'min',
+  mNow: 'maintenant',
 );
 
 const kPortugueseStrings = AppStrings(
@@ -2939,6 +3115,31 @@ const kPortugueseStrings = AppStrings(
   densityTitle: 'Densidade',
   densityNormal: 'Padrão',
   densityCompact: 'Compacta',
+  mTitle: 'Métricas da conexão',
+  mLive: 'Ao vivo',
+  mLastSession: 'Última sessão',
+  mNoData: 'Sem dados',
+  mTabInfo: 'Info',
+  mTabRoute: 'Rota',
+  mSpeed: 'Velocidade da conexão',
+  mEmptyChart: 'Conecte-se — aqui aparecerá um gráfico ao vivo da velocidade da conexão',
+  mJitter: 'Jitter',
+  mLoss: 'Perda de pacotes',
+  mSessionTraffic: 'Tráfego da sessão',
+  mLocation: 'Local',
+  mProtocol: 'Protocolo',
+  mStatus: 'Status',
+  mSessionStart: 'Início da sessão',
+  mPhoneNetwork: 'Rede do telefone',
+  mThisDevice: 'Este dispositivo',
+  mTunnel: 'túnel criptografado',
+  mNoTunnel: 'sem túnel',
+  mExit: 'saída para a internet',
+  mInternet: 'Internet',
+  mSitesSeeServer: 'os sites veem o endereço do servidor ({country})',
+  mDirect: 'direto, sem proteção',
+  unitMin: 'min',
+  mNow: 'agora',
 );
 
 const kTurkishStrings = AppStrings(
@@ -3307,6 +3508,31 @@ const kTurkishStrings = AppStrings(
   densityTitle: 'Yoğunluk',
   densityNormal: 'Standart',
   densityCompact: 'Kompakt',
+  mTitle: 'Bağlantı ölçümleri',
+  mLive: 'Canlı',
+  mLastSession: 'Son oturum',
+  mNoData: 'Veri yok',
+  mTabInfo: 'Bilgi',
+  mTabRoute: 'Rota',
+  mSpeed: 'Bağlantı hızı',
+  mEmptyChart: 'Bağlanın — bağlantı hızınızın canlı grafiği burada görünecek',
+  mJitter: 'Jitter',
+  mLoss: 'Paket kaybı',
+  mSessionTraffic: 'Oturum trafiği',
+  mLocation: 'Konum',
+  mProtocol: 'Protokol',
+  mStatus: 'Durum',
+  mSessionStart: 'Oturum başlangıcı',
+  mPhoneNetwork: 'Telefon ağı',
+  mThisDevice: 'Bu cihaz',
+  mTunnel: 'şifreli tünel',
+  mNoTunnel: 'tünel yok',
+  mExit: 'internete çıkış',
+  mInternet: 'İnternet',
+  mSitesSeeServer: 'siteler sunucunun adresini görür ({country})',
+  mDirect: 'doğrudan, korumasız',
+  unitMin: 'dk',
+  mNow: 'şimdi',
 );
 
 AppStrings stringsFor(AppLanguage language) {
