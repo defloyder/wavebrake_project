@@ -11,19 +11,6 @@
     // still, claiming RUB specifically on /en and /tr is misleading. Pick
     // it from the page's own locale instead of assuming Russia.
     $downloadCurrency = ['ru' => 'RUB', 'en' => 'USD', 'tr' => 'TRY'][Locales::current()] ?? 'USD';
-
-    // The Windows build isn't a static file in public/downloads (only the
-    // Android .apk is) — it ships from the real update mirror, versioned, in
-    // version-windows.json (the same manifest the desktop app's own updater
-    // reads). Read the current release URL from there instead of pointing
-    // at a local file that was never actually deployed.
-    $windowsManifestPath = public_path('downloads/version-windows.json');
-    $windowsDownloadUrl = null;
-    if (file_exists($windowsManifestPath)) {
-        $windowsManifest = json_decode(file_get_contents($windowsManifestPath), true);
-        $windowsDownloadUrl = $windowsManifest['url'] ?? null;
-    }
-    $windowsDownloadUrl ??= asset('downloads/wavebreak-windows.exe');
 @endphp
 @push('schema')
 <script type="application/ld+json">{!! json_encode([
@@ -32,7 +19,7 @@
     'name' => 'WAVEBREAK',
     'description' => __('site.meta.app_description'),
     'applicationCategory' => 'SecurityApplication',
-    'operatingSystem' => 'Windows, Android, iOS',
+    'operatingSystem' => 'Windows, Android',
     'inLanguage' => ['ru', 'en', 'tr'],
     'url' => Locales::url('download'),
     'downloadUrl' => Locales::url('download'),
@@ -70,7 +57,7 @@
 
             <div class="download-platform-switch" id="platforms" data-platform-switch data-reveal data-reveal-delay="260">
                 <div class="download-platform-glass" aria-hidden="true"></div>
-                <a class="download-platform-btn" href="{{ $windowsDownloadUrl }}" data-platform="0" download>
+                <a class="download-platform-btn" href="{{ asset('downloads/wavebreak-windows.exe') }}" data-platform="0" download>
                     <span class="download-platform-index">01</span>
                     <span><b>Windows</b><small>{{ __('site.download.desktop') }}</small></span>
                     <em>{{ __('site.download.get') }}</em>
@@ -102,7 +89,11 @@
                 <div class="download-device-core">
                     <span class="download-device-mode">{{ __('site.download.mode_auto') }}</span>
                     <b class="download-device-location">{{ __('site.download.fastest') }}</b>
-                    @include('partials.globe')
+                    <span class="download-core-ring">
+                        <i class="download-globe-meridian"></i>
+                        <i class="download-globe-latitude"></i>
+                        <img src="{{ asset('images/wavebreak-mark.png') }}" alt="">
+                    </span>
                     <strong>{{ __('site.download.not_connected') }}</strong>
                     <small>{{ __('site.download.tap') }}</small>
                 </div>
@@ -117,7 +108,11 @@
                 <div class="download-device-core">
                     <span class="download-device-mode">{{ __('site.download.mode_auto') }}</span>
                     <b class="download-device-location">{{ __('site.download.fastest') }}</b>
-                    @include('partials.globe')
+                    <span class="download-core-ring">
+                        <i class="download-globe-meridian"></i>
+                        <i class="download-globe-latitude"></i>
+                        <img src="{{ asset('images/wavebreak-mark.png') }}" alt="">
+                    </span>
                     <strong>{{ __('site.download.not_connected') }}</strong>
                     <small>{{ __('site.download.tap') }}</small>
                 </div>

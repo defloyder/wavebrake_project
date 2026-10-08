@@ -6,7 +6,6 @@
 @section('content')
 <main id="main">
     <section class="download-hero site-hero" aria-labelledby="home-title">
-        @include('partials.earth')
         @include('partials.tide')
         <div class="wb-container site-hero-inner">
             <div class="hero-copy" data-reveal>
@@ -28,20 +27,11 @@
             </div>
         </div>
     </section>
-    <section class="site-section product-band" aria-labelledby="resilience-title">
-        <div class="wb-container product-layout">
-            <div data-reveal><p class="download-kicker"><span></span> {{ __('site.home.resilience_kicker') }}</p><h2 id="resilience-title">{!! __('site.home.resilience_title') !!}</h2><p class="section-copy">{{ __('site.home.resilience_text') }}</p><a class="text-link" href="{{ Locales::path('access') }}">{{ __('site.home.resilience_link') }} <span aria-hidden="true">↗</span></a></div>
-            <div class="product-globe" aria-hidden="true">
-                @include('partials.globe')
-                <span class="section-number">{{ __('site.home.resilience_label') }}</span>
-            </div>
-        </div>
-    </section>
     <section class="site-section product-band" aria-labelledby="app-title">
         <div class="wb-container product-layout">
             <div data-reveal><p class="download-kicker"><span></span> {{ __('site.home.app_kicker') }}</p><h2 id="app-title">{!! __('site.home.app_title') !!}</h2><p class="section-copy">{{ __('site.home.app_text') }}</p><a class="text-link" href="{{ Locales::path('download') }}">{{ __('site.home.app_link') }} <span aria-hidden="true">↗</span></a></div>
             <div class="product-globe" aria-hidden="true">
-                @include('partials.globe')
+                <span class="download-core-ring"><i class="download-globe-meridian"></i><i class="download-globe-latitude"></i><img src="{{ asset('images/wavebreak-mark.png') }}" alt=""></span>
                 <span class="section-number">{{ __('site.home.app_label') }}</span>
             </div>
         </div>

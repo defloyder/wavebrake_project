@@ -200,19 +200,6 @@ img { display: block; max-width: 100%; }
     height: 100%;
 }
 
-/* Night-earth backdrop on the home hero — a slowly rotating, stylised dark
-   globe with scattered city-light points, sitting behind the tide line so
-   the wave still reads as the coastline where it meets the planet. Matches
-   the app's own first-run "night earth" look (welcome_screen.dart). */
-#earth-globe {
-    position: absolute;
-    inset: 0;
-    z-index: -3;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-}
-
 .download-grid {
     z-index: -2;
     opacity: .38;
@@ -589,26 +576,11 @@ img { display: block; max-width: 100%; }
     margin-bottom: 20px;
     border: 1px solid rgba(55, 219, 232, .58);
     border-radius: 50%;
-    overflow: hidden;
-    /* Matches the app's actual connect-button globe (connect_button.dart):
-       a radial-gradient "glass bubble" lit from the upper-left, not a flat
-       tinted circle. */
-    background: radial-gradient(circle at 32% 28%, rgba(74, 220, 232, .30), rgba(10, 30, 34, .55) 55%, rgba(2, 5, 7, .7) 100%);
+    background: rgba(3, 122, 151, .2);
     box-shadow:
         inset 0 0 34px rgba(35, 218, 230, .12),
         0 0 62px rgba(31, 211, 220, .18);
     animation: download-core 4.6s ease-in-out infinite;
-}
-
-.download-globe-glint {
-    position: absolute;
-    top: 16%;
-    left: 20%;
-    width: 34%;
-    height: 34%;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 70%);
-    pointer-events: none;
 }
 
 .download-core-ring::before,

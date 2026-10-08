@@ -37,15 +37,6 @@
             </ol>
         </div>
     </section>
-    <section class="site-section product-band" aria-labelledby="access-band-title">
-        <div class="wb-container product-layout">
-            <div data-reveal><p class="download-kicker"><span></span> {{ __('site.access.band_kicker') }}</p><h2 id="access-band-title">{!! __('site.access.band_title') !!}</h2><p class="section-copy">{{ __('site.access.band_text') }}</p><a class="text-link" href="{{ Locales::path('download') }}">{{ __('site.access.band_link') }} <span aria-hidden="true">↗</span></a></div>
-            <div class="product-globe" aria-hidden="true">
-                @include('partials.globe')
-                <span class="section-number">{{ __('site.access.band_label') }}</span>
-            </div>
-        </div>
-    </section>
     <section class="site-section">
         <div class="wb-container faq-layout"><h2>{!! __('site.access.faq_title') !!}</h2>@include('partials.faq', ['faq' => __('site.access.faq')])</div>
     </section>

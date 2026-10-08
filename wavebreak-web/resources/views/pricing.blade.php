@@ -64,15 +64,6 @@
             <div class="hero-bottom"><span>{{ __('site.pricing.bottom')[0] }}</span><span>{{ __('site.pricing.bottom')[1] }}</span></div>
         </div>
     </section>
-    <section class="site-section product-band" aria-labelledby="pricing-band-title">
-        <div class="wb-container product-layout">
-            <div data-reveal><p class="download-kicker"><span></span> {{ __('site.pricing.band_kicker') }}</p><h2 id="pricing-band-title">{!! __('site.pricing.band_title') !!}</h2><p class="section-copy">{{ __('site.pricing.band_text') }}</p><a class="text-link" href="{{ Locales::path('download') }}">{{ __('site.pricing.band_link') }} <span aria-hidden="true">↗</span></a></div>
-            <div class="product-globe" aria-hidden="true">
-                @include('partials.globe')
-                <span class="section-number">{{ __('site.pricing.band_label') }}</span>
-            </div>
-        </div>
-    </section>
     <section class="site-section" id="plans" aria-label="{{ __('site.pricing.plans_label') }}">
         <div class="wb-container">
             @if ($plans === [])

@@ -22,7 +22,7 @@ class ExampleTest extends TestCase
         $this->get('/download')
             ->assertOk()
             ->assertSee('Волна меняется.')
-            ->assertSee('dl.wavebreak.com.tr/downloads/wavebreak-windows', false)
+            ->assertSee('downloads/wavebreak-windows.exe', false)
             ->assertDontSee('href="/login"', false)
             ->assertDontSee('href="/register"', false);
     }
@@ -40,11 +40,5 @@ class ExampleTest extends TestCase
         $this->post('/access/grants')->assertRedirect('/download');
         $this->post('/devices')->assertRedirect('/download');
         $this->delete('/telegram')->assertRedirect('/download');
-    }
-
-    public function test_pricing_and_access_pages_show_the_app_globe_band(): void
-    {
-        $this->get('/pricing')->assertOk()->assertSee('download-core-ring', false)->assertSee('Всегда на виду');
-        $this->get('/access')->assertOk()->assertSee('download-core-ring', false)->assertSee('Одна планета');
     }
 }
