@@ -29,6 +29,127 @@
     }
   }
 
+  // Home hero night-earth: a stylised, slowly rotating dark globe with
+  // scattered city-light points, viewed pole-on (so rotation just sweeps
+  // the lights around in place — no occlusion math needed). Sits behind
+  // the tide line as the "planet" half of the wave/planet pairing the app
+  // itself already uses on its welcome screen.
+  const earthCanvas = document.getElementById('earth-globe');
+  if (earthCanvas) {
+    const earthCtx = earthCanvas.getContext('2d');
+    const earthDpr = Math.min(window.devicePixelRatio || 1, 2);
+    let earthW = 0;
+    let earthH = 0;
+
+    const earthResize = () => {
+      const rect = earthCanvas.getBoundingClientRect();
+      earthW = rect.width;
+      earthH = rect.height;
+      earthCanvas.width = Math.round(earthW * earthDpr);
+      earthCanvas.height = Math.round(earthH * earthDpr);
+      earthCtx.setTransform(earthDpr, 0, 0, earthDpr, 0, 0);
+    };
+    window.addEventListener('resize', earthResize);
+    earthResize();
+
+    // Deterministic "city lights" grouped into a handful of loose clusters
+    // (continents) rather than scattered uniformly, so it reads as a
+    // populated globe rather than noise. A tiny seeded PRNG keeps the
+    // pattern stable across reloads instead of reshuffling every visit.
+    let seed = 1337;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    const lights = [];
+    [0.06, 0.3, 0.52, 0.74, 0.92].forEach((lonFrac) => {
+      const clusterLon = lonFrac * Math.PI * 2;
+      const count = 14 + Math.floor(rand() * 10);
+      for (let i = 0; i < count; i++) {
+        lights.push({
+          lon: clusterLon + (rand() - 0.5) * 0.8,
+          theta: 0.18 + rand() * 0.78,
+          size: 0.6 + rand() * 1.5,
+          glow: 0.35 + rand() * 0.65,
+        });
+      }
+    });
+
+    let phase = 0;
+    let lastTime = 0;
+    const earthDraw = (time) => {
+      const dt = lastTime ? time - lastTime : 16;
+      lastTime = time;
+      phase += dt * 0.00001;
+      earthCtx.clearRect(0, 0, earthW, earthH);
+
+      const cx = earthW * 0.5;
+      const r = earthW * 0.62;
+      const cy = earthH * 0.38 + r;
+
+      earthCtx.save();
+      earthCtx.beginPath();
+      earthCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      earthCtx.clip();
+
+      const body = earthCtx.createRadialGradient(cx - r * 0.25, cy - r * 0.78, r * 0.1, cx, cy - r * 0.55, r);
+      body.addColorStop(0, '#0b1f26');
+      body.addColorStop(0.65, '#040d11');
+      body.addColorStop(1, '#010305');
+      earthCtx.fillStyle = body;
+      earthCtx.fillRect(cx - r, cy - r, r * 2, r * 2);
+
+      lights.forEach((light) => {
+        const lon = light.lon + phase;
+        const x = cx + r * Math.sin(light.theta) * Math.cos(lon);
+        const y = cy - r * Math.cos(light.theta);
+        const alpha = light.glow;
+        earthCtx.beginPath();
+        earthCtx.fillStyle = `rgba(255, 214, 150, ${alpha})`;
+        earthCtx.shadowColor = 'rgba(255, 200, 140, .8)';
+        earthCtx.shadowBlur = light.size * 3;
+        earthCtx.arc(x, y, light.size, 0, Math.PI * 2);
+        earthCtx.fill();
+      });
+      earthCtx.shadowBlur = 0;
+      earthCtx.restore();
+
+      // Atmospheric rim glow along the visible limb.
+      earthCtx.beginPath();
+      earthCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      earthCtx.lineWidth = Math.max(earthW * 0.012, 2);
+      earthCtx.strokeStyle = 'rgba(74, 220, 232, .45)';
+      earthCtx.shadowColor = 'rgba(74, 220, 232, .65)';
+      earthCtx.shadowBlur = earthW * 0.03;
+      earthCtx.stroke();
+      earthCtx.shadowBlur = 0;
+    };
+
+    if (reduceMotion) {
+      earthDraw(0);
+    } else {
+      let earthRaf = null;
+      let onScreen = true;
+      const earthFrame = (time) => {
+        earthDraw(time);
+        earthRaf = requestAnimationFrame(earthFrame);
+      };
+      const updateEarthAnimation = () => {
+        if (earthRaf !== null) cancelAnimationFrame(earthRaf);
+        earthRaf = null;
+        if (!document.hidden && onScreen) earthRaf = requestAnimationFrame(earthFrame);
+      };
+      document.addEventListener('visibilitychange', updateEarthAnimation);
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(([entry]) => {
+          onScreen = entry.isIntersecting;
+          updateEarthAnimation();
+        }).observe(earthCanvas);
+      }
+      updateEarthAnimation();
+    }
+  }
+
   // Download page tide: a live break line running through the oversized
   // wordmark. Pointer movement changes its energy without moving layout.
   const tideCanvas = document.getElementById('download-tide');
