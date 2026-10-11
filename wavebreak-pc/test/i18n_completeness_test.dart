@@ -137,6 +137,8 @@ void main() {
         .where((f) => f.path.endsWith('.dart'))) {
       final path = file.path.replaceAll('\\', '/');
       if (path.endsWith('core/i18n/app_strings.dart')) continue;
+      // Country names to read node labels by (data, not shown text).
+      if (path.endsWith('custom_servers/node_label.dart')) continue;
       // Windows: shown when startup itself failed, before the strings load
       // — bilingual on purpose (see the file).
       if (path.endsWith('app/startup_error.dart')) continue;

@@ -136,6 +136,8 @@ void main() {
         .where((f) => f.path.endsWith('.dart'))) {
       final path = file.path.replaceAll('\\', '/');
       if (path.endsWith('core/i18n/app_strings.dart')) continue;
+      // Country names to read node labels by (data, not shown text).
+      if (path.endsWith('custom_servers/node_label.dart')) continue;
       final lines = file.readAsLinesSync();
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i];

@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:wavebreak_links/wavebreak_links.dart';
 
 import '../core_api/models.dart';
+import 'node_label.dart';
 
 /// Turning a raw share link (or a whole subscription body full of them)
 /// into [LocationItem]s — shared between [CustomServerController] (a
@@ -41,13 +42,12 @@ List<LocationItem> serversFromSubscription(ParsedSubscription parsed,
       }(),
     for (final node in parsed.unsupported)
       () {
-        final countryCode = flagCodeFromLabel(node.name);
-        final parsedLabel = splitCountryCity(node.name, countryCode != null);
+        final parsedLabel = parseNodeLabel(node.name);
         return LocationItem(
           id: stableLocationId('unsupported:${node.type}:${node.name}'),
-          countryCode: countryCode ?? '',
-          country: parsedLabel.$1,
-          city: parsedLabel.$2 ?? node.type.toUpperCase(),
+          countryCode: parsedLabel.countryCode ?? '',
+          country: parsedLabel.country,
+          city: parsedLabel.place,
           available: false,
           isCustom: true,
         );
@@ -69,13 +69,12 @@ LocationItem locationFromUri(Uri uri, String rawLink) {
   final label = uri.fragment.isNotEmpty
       ? Uri.decodeComponent(uri.fragment)
       : (uri.host.isNotEmpty ? uri.host : rawLink);
-  final countryCode = flagCodeFromLabel(label);
-  final parsed = splitCountryCity(label, countryCode != null);
+  final parsed = parseNodeLabel(label);
   return LocationItem(
     id: stableLocationId(rawLink),
-    countryCode: countryCode ?? '',
-    country: parsed.$1,
-    city: parsed.$2 ?? uri.scheme.toUpperCase(),
+    countryCode: parsed.countryCode ?? '',
+    country: parsed.country,
+    city: parsed.place,
     available: true,
     isCustom: true,
     rawLink: rawLink,
@@ -99,80 +98,8 @@ String stableLocationId(String rawLink) {
   return sha256.convert(utf8.encode(rawLink)).toString().substring(0, 32);
 }
 
-/// A share link's label commonly leads with an actual flag emoji (e.g.
-/// WAVEBREAK's own `"🇳🇱 Netherlands, Amsterdam (CDN)"`) — decoding the two
-/// regional-indicator codepoints back into an ISO code is exact and needs
-/// no country-name matching, unlike guessing from free text. Without it,
-/// [LocationItem.countryCode] stayed empty for every custom server, which
-/// is why the flag/icon UI fell back to a neutral globe for all of them
-/// regardless of what the link actually pointed at.
-String? flagCodeFromLabel(String label) {
-  final units = label.codeUnits;
-  for (var i = 0; i + 3 < units.length; i++) {
-    final high1 = units[i], low1 = units[i + 1];
-    final high2 = units[i + 2], low2 = units[i + 3];
-    final cp1 = _surrogatePair(high1, low1);
-    final cp2 = _surrogatePair(high2, low2);
-    if (cp1 == null || cp2 == null) continue;
-    if (cp1 < 0x1F1E6 || cp1 > 0x1F1FF) continue;
-    if (cp2 < 0x1F1E6 || cp2 > 0x1F1FF) continue;
-    final a = String.fromCharCode(cp1 - 0x1F1E6 + 65);
-    final b = String.fromCharCode(cp2 - 0x1F1E6 + 65);
-    return '$a$b';
-  }
-  return null;
-}
-
-int? _surrogatePair(int high, int low) {
-  if (high < 0xD800 || high > 0xDBFF || low < 0xDC00 || low > 0xDFFF) return null;
-  return 0x10000 + (high - 0xD800) * 0x400 + (low - 0xDC00);
-}
-
-/// Best-effort split of `"🇳🇱 Netherlands, Amsterdam (CDN)"` into
-/// (`"Netherlands"`, `"Amsterdam"`) — strips the flag and any trailing
-/// `(protocol)` note, then splits on the first comma. Falls back to the
-/// whole label as-is if it doesn't look like that shape, since a custom
-/// link's fragment can be genuinely arbitrary text.
-(String, String?) splitCountryCity(String label, bool hadFlag) {
-  var text = label;
-  if (hadFlag) {
-    // Drop the flag (2 regional-indicator codepoints = 4 UTF-16 units)
-    // and any space right after it.
-    final units = text.codeUnits;
-    var start = 0;
-    for (var i = 0; i + 3 < units.length; i++) {
-      final cp1 = _surrogatePair(units[i], units[i + 1]);
-      final cp2 = _surrogatePair(units[i + 2], units[i + 3]);
-      if (cp1 != null && cp2 != null && cp1 >= 0x1F1E6 && cp1 <= 0x1F1FF) {
-        start = i + 4;
-        break;
-      }
-    }
-    text = String.fromCharCodes(units.sublist(start)).trimLeft();
-  }
-  // Kept, not discarded: a subscription that hands back the same
-  // "Country, City" under several transports (a direct link plus a
-  // CDN/Trojan fallback) only differs by this "(CDN)"/"(Trojan)" note.
-  // Dropping it made every variant read as one indistinguishable
-  // "Netherlands · Amsterdam" row.
-  final parenIndex = text.indexOf(' (');
-  final note = parenIndex > 0 ? text.substring(parenIndex).trim() : '';
-  if (parenIndex > 0) text = text.substring(0, parenIndex);
-  final commaIndex = text.indexOf(',');
-  if (commaIndex > 0 && commaIndex < text.length - 1) {
-    final country = text.substring(0, commaIndex).trim();
-    final city = text.substring(commaIndex + 1).trim();
-    return (country, note.isEmpty ? city : '$city $note');
-  }
-  // "🇷🇺 Russia (Direct-TLS)": a flag and a country, no city. The country
-  // is the place too — before, the whole label (flag included) became the
-  // country and the scheme ("VLESS") the place name.
-  final country = text.trim();
-  if (hadFlag && country.isNotEmpty) {
-    return (country, note.isEmpty ? country : '$country $note');
-  }
-  return (label, null);
-}
+/// The country code of the first flag emoji in [label] (see node_label.dart).
+String? flagCodeFromLabel(String label) => flagCodeIn(label);
 
 final _shareCodePath = RegExp(r'^/v1/share/([A-Za-z0-9_-]{48})$');
 
@@ -182,6 +109,8 @@ final _shareCodePath = RegExp(r'^/v1/share/([A-Za-z0-9_-]{48})$');
 /// names.
 String? wavebreakShareToken(String link) {
   final uri = Uri.tryParse(link.trim());
-  if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) return null;
+  if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
+    return null;
+  }
   return _shareCodePath.firstMatch(uri.path)?.group(1);
 }

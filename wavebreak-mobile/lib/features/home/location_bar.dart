@@ -25,13 +25,30 @@ String? protocolLabel(LocationItem l) {
     return 'Hysteria2';
   }
   if (link.contains('security=reality')) return 'REALITY';
+  // WAVEBREAK names its variants in brackets: "(Direct-TLS)", "(CDN)".
   final fromName = splitPlaceAndProtocol(l.city).$2;
-  final raw = (fromName ?? l.rawLink ?? '').toLowerCase();
-  if (raw.contains('hysteria')) return 'Hysteria2';
-  if (raw.contains('reality')) return 'REALITY';
-  if (raw.contains('direct') || raw.startsWith('vless')) return 'Direct';
-  if (raw.contains('cdn')) return 'CDN';
-  return fromName;
+  final name = (fromName ?? '').toLowerCase();
+  if (name.contains('hysteria')) return 'Hysteria2';
+  if (name.contains('reality')) return 'REALITY';
+  if (name.contains('direct')) return 'Direct';
+  if (name.contains('cdn')) return 'CDN';
+  // Any other link: its own protocol (owner, 12.10: a third-party VLESS
+  // node read as WAVEBREAK's "Direct", and "cdn" anywhere in the address
+  // made it "CDN").
+  final scheme = link.contains('://') ? link.split('://').first : '';
+  final fromScheme = switch (scheme) {
+    'vless' => 'VLESS',
+    'vmess' => 'VMess',
+    'trojan' => 'Trojan',
+    'ss' => 'Shadowsocks',
+    'hysteria' => 'Hysteria',
+    'tuic' => 'TUIC',
+    'wireguard' || 'wg' => 'WireGuard',
+    'socks' || 'socks5' => 'SOCKS',
+    'anytls' => 'AnyTLS',
+    _ => null,
+  };
+  return fromScheme ?? fromName;
 }
 
 /// The selected server: flag, place, "country · protocol" and a chevron to

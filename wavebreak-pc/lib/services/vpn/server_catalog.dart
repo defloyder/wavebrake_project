@@ -25,7 +25,10 @@ class ServerPlace {
     required this.country,
     required this.title,
     required this.variants,
-  });
+    String? key,
+  }) : _key = key;
+
+  final String? _key;
 
   /// 'wavebreak' or a custom group's id.
   final String sectionId;
@@ -40,7 +43,7 @@ class ServerPlace {
 
   LocationItem get primary => variants.first;
 
-  String get key => placeKey(sectionId, countryCode, country, title);
+  String get key => _key ?? placeKey(sectionId, countryCode, country, title);
 
   /// The variant for [protocol] (a [protocolLabel]), if this place has it.
   LocationItem? variant(String? protocol) {
@@ -86,18 +89,32 @@ List<ServerPlace> buildPlaces(
 }) {
   final groups = <String, List<LocationItem>>{};
   final order = <String>[];
+  // Only WAVEBREAK's own section folds same-place same-protocol entries
+  // (a Core node and a personal link are one server). In a third-party
+  // subscription two "Amsterdam · VLESS" nodes are two servers: each
+  // keeps its own row (owner, 12.10: nodes went missing).
+  final fold = sectionId == 'wavebreak';
   for (final l in items) {
     if (l.isAuto) continue;
-    final k = placeKey(sectionId, l.countryCode, l.country, _titleOf(l));
+    final base = placeKey(sectionId, l.countryCode, l.country, _titleOf(l));
+    var k = base;
+    for (var n = 2;
+        !fold &&
+            (groups[k]?.any((g) => protocolLabel(g) == protocolLabel(l)) ??
+                false);
+        n++) {
+      k = '$base#$n';
+    }
     if (!groups.containsKey(k)) order.add(k);
     (groups[k] ??= []).add(l);
   }
   return [
-    for (final k in order) _place(sectionId, groups[k]!, preferId),
+    for (final k in order) _place(sectionId, groups[k]!, preferId, k),
   ];
 }
 
-ServerPlace _place(String sectionId, List<LocationItem> group, String? preferId) {
+ServerPlace _place(
+    String sectionId, List<LocationItem> group, String? preferId, String key) {
   final byProto = <String, LocationItem>{};
   for (final l in group) {
     final p = protocolLabel(l) ?? '';
@@ -109,7 +126,8 @@ ServerPlace _place(String sectionId, List<LocationItem> group, String? preferId)
     }
   }
   final variants = byProto.values.toList()
-    ..sort((a, b) => _protoRank(protocolLabel(a)).compareTo(_protoRank(protocolLabel(b))));
+    ..sort((a, b) =>
+        _protoRank(protocolLabel(a)).compareTo(_protoRank(protocolLabel(b))));
   final first = group.first;
   return ServerPlace(
     sectionId: sectionId,
@@ -117,6 +135,7 @@ ServerPlace _place(String sectionId, List<LocationItem> group, String? preferId)
     country: first.country,
     title: _titleOf(first),
     variants: variants,
+    key: key,
   );
 }
 
@@ -163,4 +182,3 @@ final serverCatalogProvider = Provider<List<ServerSection>>((ref) {
       ),
   ];
 });
-
