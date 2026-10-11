@@ -257,7 +257,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     } finally {
       _refreshing = false;
     }
-    if (mounted && toast) showToast(messenger, s.serversUpdated);
+    if (mounted && toast) {
+      showToast(messenger, s.serversUpdated, kind: NoticeKind.success);
+    }
   }
 
   Future<void> _restart() async {

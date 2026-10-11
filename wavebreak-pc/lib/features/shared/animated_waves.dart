@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-
 /// A handful of slow, layered sine waves drifting across the bottom of the
 /// screen. [speed] and [amplitude] are multipliers (1.0 = calm default) so
 /// callers can tie liveliness to app state — e.g. faster/bigger while

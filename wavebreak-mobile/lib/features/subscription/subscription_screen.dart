@@ -155,8 +155,7 @@ class _CurrentSubscription extends ConsumerWidget {
             color: sub.isActive ? WbColors.oceanTeal : WbColors.warning,
           ),
         ),
-        SettingsRow(
-            icon: Icons.event_outlined, title: s.until, value: until),
+        SettingsRow(icon: Icons.event_outlined, title: s.until, value: until),
         SettingsRow(
             icon: Icons.devices_outlined, title: s.devices, value: devices),
         if (usage != null)
@@ -450,9 +449,8 @@ class _PromoApplied extends StatelessWidget {
 /// "499 ₽", "4.99 $": whole amounts without decimals.
 String formatMoney(int minor, String currency) {
   const symbols = {'USD': '\$', 'EUR': '€', 'RUB': '₽', 'TRY': '₺'};
-  final amount = minor % 100 == 0
-      ? '${minor ~/ 100}'
-      : (minor / 100).toStringAsFixed(2);
+  final amount =
+      minor % 100 == 0 ? '${minor ~/ 100}' : (minor / 100).toStringAsFixed(2);
   final symbol = symbols[currency.toUpperCase()] ?? currency;
   return symbol.isEmpty ? amount : '$amount $symbol';
 }

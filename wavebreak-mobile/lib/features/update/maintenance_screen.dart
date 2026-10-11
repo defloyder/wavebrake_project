@@ -35,7 +35,8 @@ class MaintenanceScreen extends ConsumerWidget {
                   Text(
                     s.maintenanceTitle,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -48,8 +49,9 @@ class MaintenanceScreen extends ConsumerWidget {
                     width: double.infinity,
                     height: 52,
                     child: OutlinedButton(
-                      onPressed: () =>
-                          ref.read(sessionControllerProvider.notifier).bootstrapSession(),
+                      onPressed: () => ref
+                          .read(sessionControllerProvider.notifier)
+                          .bootstrapSession(),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: context.accent,
                         side: BorderSide(color: context.accent),

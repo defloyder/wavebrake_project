@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/notice.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../services/biometric/biometric_service.dart';
 import '../../services/pin/pin_service.dart';
@@ -44,9 +45,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       final available = await _bio.isAvailable();
       if (!available) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(s.biometricsNotAvailable)),
-          );
+          showNotice(s.biometricsNotAvailable, kind: NoticeKind.warning);
         }
         return;
       }

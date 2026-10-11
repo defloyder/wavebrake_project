@@ -46,7 +46,8 @@ class TrafficWaveBar extends StatelessWidget {
         ? context.accent
         : Color.lerp(
             context.accent,
-            Color.lerp(WbColors.warning, WbColors.error, ((fraction - 0.7) / 0.3).clamp(0.0, 1.0))!,
+            Color.lerp(WbColors.warning, WbColors.error,
+                ((fraction - 0.7) / 0.3).clamp(0.0, 1.0))!,
             (fraction / 0.7).clamp(0.0, 1.0),
           )!;
     final label = formatTraffic(usedBytes, limit, s);
@@ -136,7 +137,8 @@ class _WaveFillPainter extends CustomPainter {
       colors: [color.withValues(alpha: 0.55), color.withValues(alpha: 0.85)],
     );
     final paint = Paint()
-      ..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+      ..shader =
+          gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.drawPath(path, paint);
 
     final linePaint = Paint()

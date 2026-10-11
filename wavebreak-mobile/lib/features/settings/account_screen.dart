@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/notice.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
@@ -99,8 +100,7 @@ class AccountScreen extends ConsumerWidget {
                     final ok =
                         await showEmailVerifySheet(context, email: me.email);
                     if (ok && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(s.emailVerifiedRow)));
+                      showNotice(s.emailVerifiedRow, kind: NoticeKind.success);
                     }
                   }
                 : null,

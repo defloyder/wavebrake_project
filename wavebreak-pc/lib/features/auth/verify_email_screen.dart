@@ -108,9 +108,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       await (widget.loginCode
           ? gateway.requestLoginCode
           : gateway.resendEmailCode)(
-            email: widget.email,
-            language: ref.read(languageProvider).name,
-          );
+        email: widget.email,
+        language: ref.read(languageProvider).name,
+      );
       if (!mounted) return;
       setState(
           () => _info = s.verifyEmailSent.replaceAll('{email}', widget.email));
@@ -164,8 +164,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 Text(
                   widget.loginCode ? s.emailCodeTitle : s.verifyEmailTitle,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontFamily: 'serif', fontSize: 26),
+                  style: const TextStyle(fontFamily: 'serif', fontSize: 26),
                 ),
                 const SizedBox(height: 10),
                 Text(

@@ -329,6 +329,9 @@ class AppStrings {
     required this.helpRowHint,
     required this.supportPageHint,
     required this.devicesPageHint,
+    required this.quickServer,
+    required this.quickProtocol,
+    required this.quickPickServer,
     required this.groupRouting,
     required this.groupSystem,
     required this.groupContact,
@@ -477,6 +480,9 @@ class AppStrings {
   final String helpRowHint;
   final String supportPageHint;
   final String devicesPageHint;
+  final String quickServer;
+  final String quickProtocol;
+  final String quickPickServer;
   final String groupRouting;
   final String groupSystem;
   final String groupContact;
@@ -1166,6 +1172,9 @@ const kEnglishStrings = AppStrings(
   helpRowHint: 'Support, updates, about the app',
   supportPageHint: 'We answer in Telegram and by email',
   devicesPageHint: 'Where your account is signed in',
+  quickServer: 'Change server',
+  quickProtocol: '⇄ {p}',
+  quickPickServer: 'Choose a server',
   groupRouting: 'Routing',
   groupSystem: 'System',
   groupContact: 'Contact us',
@@ -1582,6 +1591,9 @@ const kRussianStrings = AppStrings(
   helpRowHint: 'Поддержка, обновления, о приложении',
   supportPageHint: 'Ответим в Telegram и по почте',
   devicesPageHint: 'Где выполнен вход в ваш аккаунт',
+  quickServer: 'Сменить сервер',
+  quickProtocol: '⇄ {p}',
+  quickPickServer: 'Выберите сервер',
   groupRouting: 'Маршрутизация',
   groupSystem: 'Система',
   groupContact: 'Связаться с нами',
@@ -2001,6 +2013,9 @@ const kSpanishStrings = AppStrings(
   helpRowHint: 'Soporte, actualizaciones, acerca de',
   supportPageHint: 'Respondemos en Telegram y por correo',
   devicesPageHint: 'Dónde está abierta tu cuenta',
+  quickServer: 'Cambiar servidor',
+  quickProtocol: '⇄ {p}',
+  quickPickServer: 'Elige un servidor',
   groupRouting: 'Enrutamiento',
   groupSystem: 'Sistema',
   groupContact: 'Contáctanos',
@@ -2424,6 +2439,9 @@ const kGermanStrings = AppStrings(
   helpRowHint: 'Support, Updates, über die App',
   supportPageHint: 'Wir antworten per Telegram und E-Mail',
   devicesPageHint: 'Wo Ihr Konto angemeldet ist',
+  quickServer: 'Server wechseln',
+  quickProtocol: '⇄ {p}',
+  quickPickServer: 'Server wählen',
   groupRouting: 'Routing',
   groupSystem: 'System',
   groupContact: 'Kontakt',
@@ -2847,6 +2865,9 @@ const kFrenchStrings = AppStrings(
   helpRowHint: 'Assistance, mises à jour, à propos',
   supportPageHint: 'Nous répondons sur Telegram et par e-mail',
   devicesPageHint: 'Où votre compte est connecté',
+  quickServer: 'Changer de serveur',
+  quickProtocol: '⇄ {p}',
+  quickPickServer: 'Choisissez un serveur',
   groupRouting: 'Routage',
   groupSystem: 'Système',
   groupContact: 'Nous contacter',
@@ -3266,6 +3287,9 @@ const kPortugueseStrings = AppStrings(
   helpRowHint: 'Suporte, atualizações, sobre o app',
   supportPageHint: 'Respondemos no Telegram e por e-mail',
   devicesPageHint: 'Onde sua conta está conectada',
+  quickServer: 'Trocar servidor',
+  quickProtocol: '⇄ {p}',
+  quickPickServer: 'Escolha um servidor',
   groupRouting: 'Roteamento',
   groupSystem: 'Sistema',
   groupContact: 'Fale conosco',
@@ -3683,6 +3707,9 @@ const kTurkishStrings = AppStrings(
   helpRowHint: 'Destek, güncellemeler, uygulama hakkında',
   supportPageHint: 'Telegram ve e-posta ile yanıtlıyoruz',
   devicesPageHint: 'Hesabınızın açık olduğu yerler',
+  quickServer: 'Sunucuyu değiştir',
+  quickProtocol: '⇄ {p}',
+  quickPickServer: 'Bir sunucu seçin',
   groupRouting: 'Yönlendirme',
   groupSystem: 'Sistem',
   groupContact: 'Bize ulaşın',

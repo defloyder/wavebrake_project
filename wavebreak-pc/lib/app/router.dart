@@ -100,7 +100,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/tv-login',
-        pageBuilder: (_, state) => fadeThroughPage(state, const TvLoginScreen()),
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const TvLoginScreen()),
       ),
       GoRoute(
         path: '/login',

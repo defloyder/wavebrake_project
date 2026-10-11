@@ -135,9 +135,10 @@ class _EmailCodeScreenState extends ConsumerState<EmailCodeScreen> {
                   height: 52,
                   child: FilledButton(
                     // Enabled once the text looks like an address.
-                    onPressed: _busy || !_emailShape.hasMatch(_email.text.trim())
-                        ? null
-                        : _send,
+                    onPressed:
+                        _busy || !_emailShape.hasMatch(_email.text.trim())
+                            ? null
+                            : _send,
                     style: FilledButton.styleFrom(
                       backgroundColor: context.accent,
                       foregroundColor: WbColors.midnight,

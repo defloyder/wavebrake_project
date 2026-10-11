@@ -76,7 +76,8 @@ class _SubscriptionAccordionState extends State<SubscriptionAccordion> {
               s: widget.s,
               onToggle: () {
                 final wasExpanded = _expanded == section.data.id;
-                setState(() => _expanded = wasExpanded ? null : section.data.id);
+                setState(
+                    () => _expanded = wasExpanded ? null : section.data.id);
                 if (wasExpanded) widget.onCollapse?.call();
               },
               onSelect: widget.onSelect,
@@ -99,7 +100,8 @@ class _SubscriptionAccordionState extends State<SubscriptionAccordion> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_circle_outline, color: context.accent, size: 18),
+                  Icon(Icons.add_circle_outline,
+                      color: context.accent, size: 18),
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text(
@@ -247,7 +249,8 @@ class _SectionCardState extends State<_SectionCard> {
             child: InkWell(
               onTap: widget.onToggle,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Row(
                   children: [
                     Container(
@@ -267,12 +270,14 @@ class _SectionCardState extends State<_SectionCard> {
                         children: [
                           Text(
                             data.title,
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             '${section.places.length} ${widget.s.locationsWord}',
-                            style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                            style: const TextStyle(
+                                color: WbColors.ice60, fontSize: 12),
                             overflow: TextOverflow.ellipsis,
                           ),
                           // Traffic and devices of this subscription — the
@@ -280,7 +285,8 @@ class _SectionCardState extends State<_SectionCard> {
                           if (data.limitsNote != null)
                             Text(
                               data.limitsNote!,
-                              style: const TextStyle(color: WbColors.warning, fontSize: 12),
+                              style: const TextStyle(
+                                  color: WbColors.warning, fontSize: 12),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             )
@@ -292,7 +298,8 @@ class _SectionCardState extends State<_SectionCard> {
                                   Flexible(
                                     child: Text(
                                       data.limitsTraffic!,
-                                      style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                                      style: const TextStyle(
+                                          color: WbColors.ice60, fontSize: 12),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -303,7 +310,8 @@ class _SectionCardState extends State<_SectionCard> {
                                     const SizedBox(width: 3),
                                     Text(
                                       data.limitsDevices!,
-                                      style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                                      style: const TextStyle(
+                                          color: WbColors.ice60, fontSize: 12),
                                     ),
                                   ],
                                 ],
@@ -331,7 +339,8 @@ class _SectionCardState extends State<_SectionCard> {
                     AnimatedRotation(
                       turns: widget.expanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 200),
-                      child: const Icon(Icons.expand_more, color: WbColors.ice60, size: 20),
+                      child: const Icon(Icons.expand_more,
+                          color: WbColors.ice60, size: 20),
                     ),
                   ],
                 ),
@@ -366,7 +375,8 @@ class _SectionCardState extends State<_SectionCard> {
 }
 
 class _HeaderIcon extends StatelessWidget {
-  const _HeaderIcon({required this.icon, required this.tooltip, required this.onTap});
+  const _HeaderIcon(
+      {required this.icon, required this.tooltip, required this.onTap});
 
   final IconData icon;
   final String tooltip;
@@ -413,7 +423,8 @@ class _SectionMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     // A one-off read — the popup is short-lived and doesn't need to react
     // to the tint changing while it happens to be open.
-    final tint = ProviderScope.containerOf(context).read(appWaveParamsProvider).tint;
+    final tint =
+        ProviderScope.containerOf(context).read(appWaveParamsProvider).tint;
     return PopupMenuButton<VoidCallback>(
       tooltip: s.more,
       padding: EdgeInsets.zero,
@@ -433,17 +444,20 @@ class _SectionMenuButton extends StatelessWidget {
         if (onRefresh != null)
           PopupMenuItem(
             value: onRefresh,
-            child: _MenuRow(icon: Icons.refresh_rounded, label: s.refreshServers),
+            child:
+                _MenuRow(icon: Icons.refresh_rounded, label: s.refreshServers),
           ),
         if (onShare != null)
           PopupMenuItem(
             value: onShare,
-            child: _MenuRow(icon: Icons.ios_share_rounded, label: s.shareSubscription),
+            child: _MenuRow(
+                icon: Icons.ios_share_rounded, label: s.shareSubscription),
           ),
         if (onRemove != null)
           PopupMenuItem(
             value: onRemove,
-            child: _MenuRow(icon: Icons.delete_outline, label: s.remove, destructive: true),
+            child: _MenuRow(
+                icon: Icons.delete_outline, label: s.remove, destructive: true),
           ),
       ],
       onSelected: (callback) => callback(),
@@ -457,7 +471,8 @@ class _SectionMenuButton extends StatelessWidget {
 }
 
 class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.icon, required this.label, this.destructive = false});
+  const _MenuRow(
+      {required this.icon, required this.label, this.destructive = false});
 
   final IconData icon;
   final String label;
@@ -475,7 +490,6 @@ class _MenuRow extends StatelessWidget {
     );
   }
 }
-
 
 /// One place: flag, city, country (and the protocol when it has only one),
 /// ping, and — with several protocols — a chip per protocol. Tapping the
@@ -508,7 +522,8 @@ class _PlaceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentProto = protocolLabel(current);
-    final shown = selected ? (place.variant(currentProto) ?? place.primary) : _rowTarget;
+    final shown =
+        selected ? (place.variant(currentProto) ?? place.primary) : _rowTarget;
     final ping = livePings[shown.id] ?? shown.pingMs;
     final available = place.variants.any((v) => v.available);
     final single = place.variants.length == 1;
@@ -524,9 +539,12 @@ class _PlaceRow extends StatelessWidget {
         : null;
 
     return Material(
-      color: selected ? context.brand.withValues(alpha: 0.08) : Colors.transparent,
+      color:
+          selected ? context.brand.withValues(alpha: 0.08) : Colors.transparent,
       child: InkWell(
-        onTap: available && !(selected && single) ? () => onSelect(_rowTarget) : null,
+        onTap: available && !(selected && single)
+            ? () => onSelect(_rowTarget)
+            : null,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
           child: Opacity(
@@ -538,7 +556,8 @@ class _PlaceRow extends StatelessWidget {
                   children: [
                     place.countryCode.isNotEmpty
                         ? FlagIcon(countryCode: place.countryCode, width: 22)
-                        : const Icon(Icons.link, color: WbColors.ice60, size: 16),
+                        : const Icon(Icons.link,
+                            color: WbColors.ice60, size: 16),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -546,14 +565,16 @@ class _PlaceRow extends StatelessWidget {
                         children: [
                           Text(
                             place.title,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w500),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
                           ),
                           if (subtitle.isNotEmpty)
                             Text(
                               subtitle,
-                              style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                              style: const TextStyle(
+                                  color: WbColors.ice60, fontSize: 12),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                             ),
@@ -564,7 +585,8 @@ class _PlaceRow extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         '$ping ${s.unitMs}',
-                        style: const TextStyle(color: WbColors.ice60, fontSize: 12),
+                        style: const TextStyle(
+                            color: WbColors.ice60, fontSize: 12),
                       ),
                     ],
                     if (shareTarget != null)
@@ -581,7 +603,8 @@ class _PlaceRow extends StatelessWidget {
                     SizedBox(
                       width: 28,
                       child: selected
-                          ? Icon(Icons.check_circle, color: context.accent, size: 18)
+                          ? Icon(Icons.check_circle,
+                              color: context.accent, size: 18)
                           : null,
                     ),
                   ],
@@ -597,9 +620,11 @@ class _PlaceRow extends StatelessWidget {
                         for (final v in place.variants)
                           _ProtocolChip(
                             label: protocolLabel(v) ?? '—',
-                            selected: selected && protocolLabel(v) == currentProto,
+                            selected:
+                                selected && protocolLabel(v) == currentProto,
                             onTap: v.available &&
-                                    !(selected && protocolLabel(v) == currentProto)
+                                    !(selected &&
+                                        protocolLabel(v) == currentProto)
                                 ? () => onSelect(v)
                                 : null,
                           ),
@@ -617,7 +642,8 @@ class _PlaceRow extends StatelessWidget {
 }
 
 class _ProtocolChip extends StatelessWidget {
-  const _ProtocolChip({required this.label, required this.selected, this.onTap});
+  const _ProtocolChip(
+      {required this.label, required this.selected, this.onTap});
 
   final String label;
   final bool selected;
@@ -638,7 +664,9 @@ class _ProtocolChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(9),
             color: selected ? context.brand.withValues(alpha: 0.16) : null,
             border: Border.all(
-              color: selected ? context.brand.withValues(alpha: 0.45) : Ic.glassBorder,
+              color: selected
+                  ? context.brand.withValues(alpha: 0.45)
+                  : Ic.glassBorder,
             ),
           ),
           child: Text(

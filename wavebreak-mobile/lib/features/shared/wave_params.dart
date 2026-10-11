@@ -33,8 +33,9 @@ final appWaveParamsProvider = Provider<WaveParams>((ref) {
   // flag color — that automatic tint is a nice default, not something a
   // user who picked their own accent wants overridden the moment they
   // connect somewhere.
-  final autoTint =
-      connection.location.isAuto ? null : accentColorFor(connection.location.countryCode);
+  final autoTint = connection.location.isAuto
+      ? null
+      : accentColorFor(connection.location.countryCode);
   final tint = personalization.accent.color ?? autoTint;
 
   final raw = switch (connection.status) {
@@ -46,7 +47,8 @@ final appWaveParamsProvider = Provider<WaveParams>((ref) {
     ConnectionStatus.disconnecting =>
       const WaveParams(speed: 1.1, amplitude: 1.0),
     ConnectionStatus.error => const WaveParams(speed: 0.6, amplitude: 0.7),
-    ConnectionStatus.connected => _connectedWaveParams(connection.location.pingMs),
+    ConnectionStatus.connected =>
+      _connectedWaveParams(connection.location.pingMs),
   };
 
   if (!personalization.reduceMotion) {
@@ -55,7 +57,8 @@ final appWaveParamsProvider = Provider<WaveParams>((ref) {
   // "Reduce motion" asks for calm, not frozen — still a faint drift
   // rather than a hard stop, which would just read as the animation
   // being broken.
-  return WaveParams(speed: raw.speed * 0.18, amplitude: raw.amplitude * 0.35, tint: tint);
+  return WaveParams(
+      speed: raw.speed * 0.18, amplitude: raw.amplitude * 0.35, tint: tint);
 });
 
 WaveParams _connectedWaveParams(int? pingMs) {

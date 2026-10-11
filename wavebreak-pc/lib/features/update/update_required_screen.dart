@@ -37,7 +37,8 @@ class UpdateRequiredScreen extends ConsumerWidget {
                   const SizedBox(height: 28),
                   Text(
                     s.updateRequiredTitle,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 10),
                   Text(

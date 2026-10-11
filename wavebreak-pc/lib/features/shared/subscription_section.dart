@@ -72,8 +72,7 @@ List<SubscriptionSectionData> buildSubscriptionSections({
       limitsTraffic: own == null ? null : _trafficLine(own, s),
       limitsDevices: own == null ? null : _deviceLine(own),
     ),
-    for (final g in customGroups)
-      _sectionFor(g, s, sharing),
+    for (final g in customGroups) _sectionFor(g, s, sharing),
   ];
 }
 
@@ -113,11 +112,12 @@ String _trafficLine(SharedSubscription sub, AppStrings s) =>
 /// A third-party subscription's own traffic and end date, from its
 /// provider's `subscription-userinfo` header: "2.3 ГБ / 100 ГБ · до
 /// 31.10.2026". Null when the provider sends neither.
-String? _providerLine(CustomSubscriptionGroup g, AppStrings s, [DateTime? now]) {
+String? _providerLine(CustomSubscriptionGroup g, AppStrings s,
+    [DateTime? now]) {
   final parts = <String>[
     if (g.usedBytes != null)
-      formatTraffic(g.usedBytes!,
-          (g.totalBytes ?? 0) > 0 ? g.totalBytes : null, s),
+      formatTraffic(
+          g.usedBytes!, (g.totalBytes ?? 0) > 0 ? g.totalBytes : null, s),
     if (g.expiresAt != null)
       (g.expiresAt!.isBefore(now ?? DateTime.now())
               ? s.subscriptionExpiredLine

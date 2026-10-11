@@ -33,7 +33,9 @@ class ImmersiveClock extends ConsumerStatefulWidget {
   /// visiting the other tabs, measured on the owner's phone).
   static ValueListenable<double> of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<_ClockScope>();
-    if (scope == null || !TickerMode.valuesOf(context).enabled) return const _FrozenTime();
+    if (scope == null || !TickerMode.valuesOf(context).enabled) {
+      return const _FrozenTime();
+    }
     return scope.time;
   }
 

@@ -1,3 +1,4 @@
+import '../shared/notice.dart';
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
@@ -52,8 +53,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final message = reason == AppErrorKind.accessDenied
         ? s.errAccessDenied
         : s.sessionExpiredNotice;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    showNotice(message, kind: NoticeKind.warning);
   }
 
   Future<void> _submit() async {
@@ -332,8 +332,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 children: [
                                   TextSpan(
                                     text: s.createAccount,
-                                    style: TextStyle(
-                                        color: context.accent),
+                                    style: TextStyle(color: context.accent),
                                   ),
                                 ],
                               ),

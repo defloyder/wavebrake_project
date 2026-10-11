@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/notice.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/logging/app_logger.dart';
@@ -50,12 +51,9 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
     } catch (error) {
       AppLogger.warn('Device revoke failed: $error');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                error is AppException ? error.localized(s) : s.errUnavailable),
-          ),
-        );
+        showNotice(
+            error is AppException ? error.localized(s) : s.errUnavailable,
+            kind: NoticeKind.error);
       }
     } finally {
       if (mounted) setState(() => _revokingId = null);

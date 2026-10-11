@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:connectivity_plus/connectivity_plus.dart' show ConnectivityResult;
+import 'package:connectivity_plus/connectivity_plus.dart'
+    show ConnectivityResult;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,7 @@ import '../features/shared/wave_params.dart';
 import '../features/shared/app_lock_gate.dart';
 import '../features/immersive/immersive_clock.dart';
 import '../features/shared/data_providers.dart';
+import '../features/shared/notice.dart';
 import '../services/notification/status_notification_service.dart';
 import '../services/vpn/connection_manager.dart';
 import 'router.dart';
@@ -153,11 +155,11 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
       scaffoldMessengerKey: _scaffoldMessengerKey,
       theme: WbTheme.dark(tint: ref.watch(appWaveParamsProvider).tint).copyWith(
         // Personalization: compact density tightens lists and cards.
-        visualDensity: ref.watch(personalizationProvider
-                    .select((p) => p.density)) ==
-                UiDensity.compact
-            ? VisualDensity.compact
-            : VisualDensity.standard,
+        visualDensity:
+            ref.watch(personalizationProvider.select((p) => p.density)) ==
+                    UiDensity.compact
+                ? VisualDensity.compact
+                : VisualDensity.standard,
       ),
       locale: Locale(language.name),
       supportedLocales: const [
@@ -180,7 +182,7 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
         maxScaleFactor: textScale,
         child: ImmersiveClock(
           child: AppLockGate(
-            child: _OfflineBanner(child: child),
+            child: NoticeHost(child: _OfflineBanner(child: child)),
           ),
         ),
       ),
@@ -225,38 +227,18 @@ class _OfflineBannerState extends ConsumerState<_OfflineBanner> {
 
   void _showToast(
       bool offline, bool deviceOffline, ConnectivityResult connType) {
-    final messenger = _scaffoldMessengerKey.currentState;
-    if (messenger == null) return;
     final s = ref.read(stringsProvider);
-    messenger.hideCurrentSnackBar();
-    final text = offline
-        ? (deviceOffline ? s.noInternetBanner : s.showingSavedDataBanner)
-        : s.backOnlineBanner;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              offline
-                  ? (deviceOffline
-                      ? Icons.wifi_off_rounded
-                      : Icons.cloud_off_rounded)
-                  : _connectedIcon(connType),
-              color: WbColors.ice,
-              size: 18,
-            ),
-            const SizedBox(width: 10),
-            Flexible(child: Text(text)),
-          ],
-        ),
-        backgroundColor: offline ? WbColors.warning : WbColors.deepOcean,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        // Swipe-to-dismiss, on top of the automatic 4s auto-hide — either
-        // one closes it, neither camps over the screen indefinitely.
-        dismissDirection: DismissDirection.horizontal,
-      ),
+    // The app's one notice style, at the top — not over the bottom bar
+    // (owner, 12.10).
+    showNotice(
+      offline
+          ? (deviceOffline ? s.noInternetBanner : s.showingSavedDataBanner)
+          : s.backOnlineBanner,
+      kind: offline ? NoticeKind.warning : NoticeKind.success,
+      icon: offline
+          ? (deviceOffline ? Icons.wifi_off_rounded : Icons.cloud_off_rounded)
+          : _connectedIcon(connType),
+      duration: const Duration(seconds: 4),
     );
   }
 

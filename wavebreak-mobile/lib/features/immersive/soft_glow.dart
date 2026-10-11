@@ -17,9 +17,9 @@ double _erf(double x) {
   final t = 1 / (1 + 0.3275911 * x.abs());
   final y = 1 -
       (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t -
-                  0.284496736) *
-              t +
-          0.254829592) *
+                      0.284496736) *
+                  t +
+              0.254829592) *
           t *
           math.exp(-x * x);
   return x >= 0 ? y : -y;
@@ -67,8 +67,8 @@ void drawSoftRing(Canvas canvas, Offset center, double radius, Color color,
 
 /// The halo of a disc of [radius] with `BlurStyle.outer` and [sigma]:
 /// half the color at the rim, Gaussian falloff outwards, nothing inside.
-void drawOuterGlow(Canvas canvas, Offset center, double radius, Color color,
-    double sigma) {
+void drawOuterGlow(
+    Canvas canvas, Offset center, double radius, Color color, double sigma) {
   final outer = radius + 3 * sigma;
   double at(double d) => (radius + d) / outer;
   Color c(double k) => color.withValues(alpha: color.a * k);

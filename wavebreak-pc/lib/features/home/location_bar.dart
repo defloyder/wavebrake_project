@@ -120,7 +120,8 @@ class LocationBar extends StatelessWidget {
               const SizedBox(
                 width: 40,
                 height: 44,
-                child: Icon(Icons.chevron_right_rounded, color: Ic.textSecondary),
+                child:
+                    Icon(Icons.chevron_right_rounded, color: Ic.textSecondary),
               ),
             ],
           ),

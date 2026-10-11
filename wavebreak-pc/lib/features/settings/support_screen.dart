@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../shared/notice.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
@@ -168,9 +169,8 @@ class SupportScreen extends ConsumerWidget {
     if (opened) return;
     await Clipboard.setData(ClipboardData(text: email));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(s.emailCopied.replaceAll('{email}', email))),
-    );
+    showNotice(s.emailCopied.replaceAll('{email}', email),
+        kind: NoticeKind.success, icon: Icons.copy_rounded);
   }
 
   Future<void> _exportLogs(BuildContext context) async {
@@ -196,9 +196,8 @@ class SupportScreen extends ConsumerWidget {
       if (!target.toLowerCase().endsWith('.txt')) target = '$target.txt';
       await file.copy(target);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.logSavedTo.replaceAll('{path}', target))),
-      );
+      showNotice(s.logSavedTo.replaceAll('{path}', target),
+          kind: NoticeKind.success, duration: const Duration(seconds: 5));
       return;
     }
     if (Platform.isAndroid) {

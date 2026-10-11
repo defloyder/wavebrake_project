@@ -19,10 +19,10 @@ class FlagIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final height = width * 0.72;
     final code = countryCode.toUpperCase();
-    final emoji = defaultTargetPlatform == TargetPlatform.android &&
-            _iso.hasMatch(code)
-        ? flagEmoji(code)
-        : null;
+    final emoji =
+        defaultTargetPlatform == TargetPlatform.android && _iso.hasMatch(code)
+            ? flagEmoji(code)
+            : null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(width * 0.14),
       child: SizedBox(
@@ -94,17 +94,20 @@ class _FlagPainter extends CustomPainter {
     final crossThickness = size.height * 0.22;
     final crossX = size.width * 0.34;
     canvas.drawRect(
-      Rect.fromLTWH(0, size.height / 2 - crossThickness / 2, size.width, crossThickness),
+      Rect.fromLTWH(
+          0, size.height / 2 - crossThickness / 2, size.width, crossThickness),
       Paint()..color = cross,
     );
     canvas.drawRect(
-      Rect.fromLTWH(crossX - crossThickness / 2, 0, crossThickness, size.height),
+      Rect.fromLTWH(
+          crossX - crossThickness / 2, 0, crossThickness, size.height),
       Paint()..color = cross,
     );
   }
 
   void _turkey(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFE30A17));
+    canvas.drawRect(
+        Offset.zero & size, Paint()..color = const Color(0xFFE30A17));
     final center = Offset(size.width * 0.42, size.height * 0.5);
     final r = size.height * 0.26;
     canvas.drawCircle(center, r, Paint()..color = Colors.white);
@@ -122,5 +125,6 @@ class _FlagPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _FlagPainter oldDelegate) => oldDelegate.code != code;
+  bool shouldRepaint(covariant _FlagPainter oldDelegate) =>
+      oldDelegate.code != code;
 }

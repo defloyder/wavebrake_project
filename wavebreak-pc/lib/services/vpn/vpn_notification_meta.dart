@@ -19,6 +19,11 @@ class VpnNotificationMeta {
 
   static const _channel = MethodChannel('app.wavebreak/vpn_engine');
 
+  /// The Android notification's quick-switch labels (shared
+  /// quick_actions.dart); unused on Windows.
+  static String quickServerLabel = '';
+  static String quickProtocolLabel = '';
+
   static Future<void> update(LocationItem location, AppStrings s) async {
     if (!Platform.isAndroid) return;
     final target = resolvePingTarget(location);

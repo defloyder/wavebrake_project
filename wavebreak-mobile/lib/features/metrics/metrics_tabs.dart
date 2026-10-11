@@ -322,4 +322,3 @@ class _FlowPainter extends CustomPainter {
   bool shouldRepaint(_FlowPainter old) =>
       old.active != active || old.color != color;
 }
-

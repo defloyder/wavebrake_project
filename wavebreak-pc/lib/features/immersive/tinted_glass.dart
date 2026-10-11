@@ -68,7 +68,8 @@ class TintedGlass extends ConsumerWidget {
             lean(Ic.glassBottom, WbColors.surfaceLean * 0.15),
           ],
         ),
-        border: Border.all(color: lean(Ic.glassBorder, WbColors.surfaceBorderLean)),
+        border:
+            Border.all(color: lean(Ic.glassBorder, WbColors.surfaceBorderLean)),
       ),
       child: child,
     );

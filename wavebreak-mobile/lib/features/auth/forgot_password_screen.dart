@@ -77,8 +77,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     s.forgotPassword,
-                    style: const TextStyle(
-                        fontFamily: 'serif', fontSize: 26),
+                    style: const TextStyle(fontFamily: 'serif', fontSize: 26),
                   ),
                 ),
                 const SizedBox(height: 12),

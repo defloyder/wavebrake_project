@@ -100,8 +100,8 @@ class ThroughputChartPainter extends CustomPainter {
       _label(
           canvas, _fmtAxis(maxMbps * f), Offset(0, y - 7), 30, TextAlign.right);
     }
-    _label(canvas, '−$minutesLabel $unitMin', Offset(plot.left, plot.bottom + 5), 60,
-        TextAlign.left);
+    _label(canvas, '−$minutesLabel $unitMin',
+        Offset(plot.left, plot.bottom + 5), 60, TextAlign.left);
     _label(canvas, nowLabel, Offset(plot.right - 60, plot.bottom + 5), 60,
         TextAlign.right);
 
@@ -145,8 +145,7 @@ class ThroughputChartPainter extends CustomPainter {
     canvas.clipRect(Rect.fromLTRB(plot.left, 0, plot.right, size.height));
     _series(
         canvas, plot, [for (final p in pts) at(p.$1, p.$2)], Ic.arctic, 1.0);
-    _series(
-        canvas, plot, [for (final p in pts) at(p.$1, p.$3)], upColor, 0.85);
+    _series(canvas, plot, [for (final p in pts) at(p.$1, p.$3)], upColor, 0.85);
     canvas.restore();
 
     if (touchX != null) {

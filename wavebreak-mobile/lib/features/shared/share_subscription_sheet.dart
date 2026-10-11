@@ -166,8 +166,8 @@ class _PersonalShareBodyState extends State<_PersonalShareBody> {
   /// WAVEBREAK). Core counts each device that adds it against the plan's
   /// device limit. Without that address, the share code as before.
   Future<ShareInfo> _load() async {
-    final gateway =
-        ProviderScope.containerOf(context, listen: false).read(coreGatewayProvider);
+    final gateway = ProviderScope.containerOf(context, listen: false)
+        .read(coreGatewayProvider);
     final share = gateway.myShare();
     final access = gateway.personalAccess().catchError((_) => null);
     final info = await share;
@@ -368,7 +368,8 @@ class _CopyLinkPill extends StatelessWidget {
             onTap: () async {
               await Clipboard.setData(ClipboardData(text: shared));
               if (context.mounted) {
-                showToast(ScaffoldMessenger.of(context), s.linkCopied);
+                showToast(ScaffoldMessenger.of(context), s.linkCopied,
+                    kind: NoticeKind.success, icon: Icons.copy_rounded);
               }
             },
           ),

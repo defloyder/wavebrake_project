@@ -121,8 +121,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const SizedBox(height: 16),
                 Text(
                   s.createAccount,
-                  style: const TextStyle(
-                      fontFamily: 'serif', fontSize: 26),
+                  style: const TextStyle(fontFamily: 'serif', fontSize: 26),
                 ),
                 const SizedBox(height: 28),
                 TextField(

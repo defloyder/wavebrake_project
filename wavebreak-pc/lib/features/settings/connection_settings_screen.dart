@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/notice.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
@@ -60,7 +61,7 @@ class _ConnectionSettingsScreenState
       _ => null,
     };
     if (text != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+      showNotice(text, kind: NoticeKind.success);
     }
   }
 

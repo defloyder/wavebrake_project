@@ -164,7 +164,8 @@ class WelcomeScreen extends ConsumerWidget {
     final gap = compact ? 12.0 : 18.0;
     return TintedGlass(
       radius: 24,
-      padding: EdgeInsets.fromLTRB(18, compact ? 16 : 20, 18, compact ? 12 : 16),
+      padding:
+          EdgeInsets.fromLTRB(18, compact ? 16 : 20, 18, compact ? 12 : 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -175,8 +176,8 @@ class WelcomeScreen extends ConsumerWidget {
           SizedBox(height: gap),
           FilledButton(
             onPressed: () => _choose(context, ref, '/register'),
-            style:
-                FilledButton.styleFrom(minimumSize: Size.fromHeight(buttonHeight)),
+            style: FilledButton.styleFrom(
+                minimumSize: Size.fromHeight(buttonHeight)),
             child: Text(s.createAccount),
           ),
           const SizedBox(height: 10),
@@ -318,24 +319,25 @@ class _SceneCopy extends StatelessWidget {
           ),
         ],
         const Spacer(),
-        if (!compact) const Row(
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: Ic.arctic,
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Ic.arctic, blurRadius: 6)],
+        if (!compact)
+          const Row(
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Ic.arctic,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: Ic.arctic, blurRadius: 6)],
+                ),
+                child: SizedBox(width: 5, height: 5),
               ),
-              child: SizedBox(width: 5, height: 5),
-            ),
-            SizedBox(width: 8),
-            Text(
-              'BEYOND THE HORIZON',
-              style: TextStyle(
-                  color: Ic.textSecondary, fontSize: 10, letterSpacing: 2),
-            ),
-          ],
-        ),
+              SizedBox(width: 8),
+              Text(
+                'BEYOND THE HORIZON',
+                style: TextStyle(
+                    color: Ic.textSecondary, fontSize: 10, letterSpacing: 2),
+              ),
+            ],
+          ),
       ],
     );
   }

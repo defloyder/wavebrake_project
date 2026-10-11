@@ -128,6 +128,7 @@ class _LivingCoreState extends ConsumerState<LivingCore>
       return null;
     }
   }
+
   TextPainter? _labelPainter;
   String? _labelText;
   double? _labelDiameter;
@@ -253,27 +254,28 @@ class _LivingCoreState extends ConsumerState<LivingCore>
       duration: const Duration(milliseconds: 700),
       curve: Curves.easeOutCubic,
       builder: (context, tint, _) => CustomPaint(
-      size: Size.infinite,
-      painter: _CorePainter(
-        repaint: Listenable.merge([time, _energy, _warn, _press]),
-        time: time,
-        frozen: frozen,
-        diameter: d,
-        energy: _energy,
-        warn: _warn,
-        press: _press,
-        motion: _motion,
-        // Economy effects (older phones): the plain sphere, no shader.
-        shader: economy || style != SphereStyle.earth ? null : _shader,
-        lite: economy,
-        minimal: style == SphereStyle.minimal,
-        texture: _texture,
-        mark: _mark,
-        label: _labelFor(label, d, DefaultTextStyle.of(context).style.fontFamily),
-        enabled: widget.enabled,
-        tint: tint,
+        size: Size.infinite,
+        painter: _CorePainter(
+          repaint: Listenable.merge([time, _energy, _warn, _press]),
+          time: time,
+          frozen: frozen,
+          diameter: d,
+          energy: _energy,
+          warn: _warn,
+          press: _press,
+          motion: _motion,
+          // Economy effects (older phones): the plain sphere, no shader.
+          shader: economy || style != SphereStyle.earth ? null : _shader,
+          lite: economy,
+          minimal: style == SphereStyle.minimal,
+          texture: _texture,
+          mark: _mark,
+          label: _labelFor(
+              label, d, DefaultTextStyle.of(context).style.fontFamily),
+          enabled: widget.enabled,
+          tint: tint,
+        ),
       ),
-    ),
     );
     return Stack(
       alignment: Alignment.center,
@@ -620,8 +622,8 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 7 + e
-        ..color = _tc(
-            w > 0 ? Color.lerp(ring2, const Color(0x2BB67734), w)! : ring2),
+        ..color =
+            _tc(w > 0 ? Color.lerp(ring2, const Color(0x2BB67734), w)! : ring2),
     );
     canvas.drawCircle(
       c,

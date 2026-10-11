@@ -13,6 +13,7 @@ import '../../core/theme/wb_colors.dart';
 import '../../services/update/update_service.dart';
 import '../immersive/immersive_colors.dart';
 import '../shared/anchored_page.dart';
+import '../shared/notice.dart';
 import '../shared/wave_params.dart';
 import '../shared/wavebreak_mark.dart';
 
@@ -41,6 +42,9 @@ const kMobileBottomBarReserve = 74.0;
 /// which follows the current location's flag.
 Color _selectedNavColor(BuildContext context) => context.accent;
 
+/// The update version the in-app notice was shown for (once per launch).
+String? _noticedUpdate;
+
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.navigationShell});
 
@@ -56,13 +60,26 @@ class AppShell extends ConsumerWidget {
     // offline indicator once both needed header space — this is the
     // same "there's something pending" signal without any header at all.
     // Settings > Updates (updates_screen.dart) is what it always points to.
-    final pendingUpdate = Platform.isAndroid
+    final pendingUpdate = (Platform.isAndroid || Platform.isWindows)
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid || Platform.isWindows) {
       ref.listen(availableUpdateProvider, (previous, next) {
         final info = next.asData?.value;
         if (info == null) return;
+        // In the app: the same notice as every other message, once per
+        // version per launch, straight to Updates (owner, 12.10).
+        if (_noticedUpdate != info.versionName) {
+          _noticedUpdate = info.versionName;
+          showNotice(
+            '${s.updateAvailable} · ${info.versionName}',
+            icon: Icons.system_update_rounded,
+            actionLabel: s.updateNow,
+            onAction: () => GoRouter.of(context).push('/settings/updates'),
+            duration: const Duration(seconds: 8),
+          );
+        }
+        if (!Platform.isAndroid) return;
         final lastNotified =
             PrefsStore.getInt(PrefsStore.lastNotifiedUpdateVersionCode) ?? 0;
         if (info.versionCode <= lastNotified) return;
@@ -199,7 +216,7 @@ class _MobileShell extends ConsumerWidget {
     // See AppShell's own copy of this same watch for the full comment —
     // this one's needed here too since the mobile bottom bar builds its
     // three buttons directly rather than from the desktop rail's `items`.
-    final pendingUpdate = Platform.isAndroid
+    final pendingUpdate = (Platform.isAndroid || Platform.isWindows)
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
 

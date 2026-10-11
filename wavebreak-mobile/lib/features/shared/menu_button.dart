@@ -24,7 +24,8 @@ class MenuButton extends ConsumerWidget {
             color: WbColors.card.withValues(alpha: 0.55),
             border: Border.all(color: WbColors.ice08),
           ),
-          child: const Icon(Icons.menu_rounded, color: WbColors.ice60, size: 19),
+          child:
+              const Icon(Icons.menu_rounded, color: WbColors.ice60, size: 19),
         ),
       ),
     );

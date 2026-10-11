@@ -137,8 +137,7 @@ class FrameBudgetWatcher {
   }
 }
 
-final frameBudgetWatcherProvider =
-    Provider<FrameBudgetWatcher>((ref) {
+final frameBudgetWatcherProvider = Provider<FrameBudgetWatcher>((ref) {
   final watcher = FrameBudgetWatcher(ref);
   // Unhook from frame timings with the provider: a callback left behind
   // read a disposed container (caught by the screenshot bench).

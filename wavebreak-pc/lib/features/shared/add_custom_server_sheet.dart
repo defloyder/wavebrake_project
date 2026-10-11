@@ -43,8 +43,7 @@ Future<void> showAddCustomServerSheet(
           Future<void> submit() async {
             if (controller.text.trim().isEmpty) return;
             // A TV's sign-in QR scanned here: sign the TV in instead.
-            final tvCode =
-                deviceLoginCode(controller.text, allowBare: false);
+            final tvCode = deviceLoginCode(controller.text, allowBare: false);
             if (tvCode != null) {
               Navigator.pop(context);
               if (hostContext.mounted) {

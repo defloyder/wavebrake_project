@@ -47,7 +47,8 @@ Future<void> startDeviceLoginApproval(
   }
   if (!context.mounted) return;
   if (code == null) {
-    showToast(ScaffoldMessenger.of(context), s.deviceLoginExpired);
+    showToast(ScaffoldMessenger.of(context), s.deviceLoginExpired,
+        kind: NoticeKind.warning);
     return;
   }
   await approveDeviceLoginCode(context, ref, code);
@@ -65,10 +66,11 @@ Future<void> approveDeviceLoginCode(
     device = await gateway.inspectDeviceLogin(code);
   } on AppException catch (e) {
     showToast(
-        messenger, e.statusCode == 404 ? s.deviceLoginExpired : e.localized(s));
+        messenger, e.statusCode == 404 ? s.deviceLoginExpired : e.localized(s),
+        kind: NoticeKind.error);
     return;
   } catch (_) {
-    showToast(messenger, s.errUnavailable);
+    showToast(messenger, s.errUnavailable, kind: NoticeKind.error);
     return;
   }
   if (device.isEmpty) device = 'TV';
@@ -94,12 +96,13 @@ Future<void> approveDeviceLoginCode(
   try {
     await gateway.approveDeviceLogin(code);
     showToast(messenger, s.deviceLoginDone.replaceAll('{device}', device),
-        duration: const Duration(seconds: 3));
+        duration: const Duration(seconds: 3), kind: NoticeKind.success);
   } on AppException catch (e) {
     showToast(
-        messenger, e.statusCode == 404 ? s.deviceLoginExpired : e.localized(s));
+        messenger, e.statusCode == 404 ? s.deviceLoginExpired : e.localized(s),
+        kind: NoticeKind.error);
   } catch (_) {
-    showToast(messenger, s.errUnavailable);
+    showToast(messenger, s.errUnavailable, kind: NoticeKind.error);
   }
 }
 
