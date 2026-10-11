@@ -121,6 +121,13 @@ object AppChannels {
                         result.success(UpdateInstaller.installApk(ui(), path))
                     }
                 }
+                // The user's own tap on "Open the installer" (updates screen):
+                // the classic system installer on the downloaded APK, started
+                // from the on-screen activity — no firmware blocks that.
+                "openApkInSystemInstaller" -> {
+                    val path = call.argument<String>("path")
+                    result.success(path != null && UpdateInstaller.openInSystemInstaller(ui(), path))
+                }
                 "showUpdateAvailableNotification" -> {
                     val versionName = call.argument<String>("versionName") ?: ""
                     val versionCode = call.argument<Number>("versionCode")?.toLong()
@@ -313,6 +320,20 @@ object AppChannels {
                             result.success(-1)
                         }
                     }
+                }
+                // Xiaomi/Redmi/POCO (MIUI, HyperOS) freeze a background app's
+                // network — the VPN's own engine included — unless its
+                // battery saver is "No restrictions" and Autostart is on
+                // (owner, 12.10: the VPN stopped passing traffic until the
+                // app was opened).
+                "isXiaomi" -> result.success(OemBackground.isXiaomi())
+                "openBackgroundSettings" -> {
+                    OemBackground.openBatterySaver(ui())
+                    result.success(null)
+                }
+                "openAutostartSettings" -> {
+                    OemBackground.openAutostart(ui())
+                    result.success(null)
                 }
                 "requestIgnoreBatteryOptimizations" -> {
                     startSettingsScreen(

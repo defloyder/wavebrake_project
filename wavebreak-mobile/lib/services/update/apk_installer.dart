@@ -279,5 +279,17 @@ class ApkInstallController extends Notifier<ApkInstallState> {
     }
   }
 
+  /// "Open the installer": the classic system installer on the downloaded
+  /// APK, from the user's own tap — for firmwares (MIUI, Android 10) where
+  /// the session install never shows its prompt (owner, 12.10).
+  Future<void> openInSystemInstaller() async {
+    final path = state.filePath;
+    if (path == null) return;
+    try {
+      await _channel
+          .invokeMethod<bool>('openApkInSystemInstaller', {'path': path});
+    } catch (_) {}
+  }
+
   void reset() => state = const ApkInstallState();
 }

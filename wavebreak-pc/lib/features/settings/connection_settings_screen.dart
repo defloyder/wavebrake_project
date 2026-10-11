@@ -29,6 +29,15 @@ class _ConnectionSettingsScreenState
       PrefsStore.getBool(PrefsStore.autoConnectUntrustedWifi);
   late bool _smartRouting =
       PrefsStore.getBool(PrefsStore.smartRouting, fallback: true);
+  bool _xiaomi = false;
+
+  @override
+  void initState() {
+    super.initState();
+    const BatteryOptimizationService().isXiaomi().then((v) {
+      if (mounted && v) setState(() => _xiaomi = true);
+    });
+  }
 
   Future<void> _setAutoConnect(bool value) async {
     await PrefsStore.setBool(PrefsStore.autoConnect, value);
@@ -166,6 +175,23 @@ class _ConnectionSettingsScreenState
                 onTap: () =>
                     const BatteryOptimizationService().requestExemption(),
               ),
+              // Xiaomi's own limits on top of Android's (OemBackground.kt).
+              if (_xiaomi) ...[
+                SettingsRow(
+                  icon: Icons.battery_saver_outlined,
+                  title: s.bgSaverRow,
+                  subtitle: s.bgSaverHint,
+                  onTap: () => const BatteryOptimizationService()
+                      .openBackgroundSettings(),
+                ),
+                SettingsRow(
+                  icon: Icons.restart_alt_rounded,
+                  title: s.autostartRow,
+                  subtitle: s.autostartHint,
+                  onTap: () => const BatteryOptimizationService()
+                      .openAutostartSettings(),
+                ),
+              ],
             ],
           ),
       ],

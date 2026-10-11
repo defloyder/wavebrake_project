@@ -135,6 +135,18 @@ class UpdatesScreen extends ConsumerWidget {
             ),
           ] else if (installing) ...[
             _InstallingIndicator(s: s, versionName: install.versionName),
+            // Some firmwares (MIUI, Android 10) never show the session's
+            // prompt: the classic installer, from the user's own tap.
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => ref
+                    .read(apkInstallControllerProvider.notifier)
+                    .openInSystemInstaller(),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                label: Text(s.updateOpenInstaller, textAlign: TextAlign.center),
+              ),
+            ),
           ] else if (downloading) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(999),

@@ -140,6 +140,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // exempt; Settings > Connection offers it at any time.
   Future<void> _maybeOfferBatteryOptimizationExemption() async {
     if (!Platform.isAndroid || AppEnv.isTv) return;
+    const battery = BatteryOptimizationService();
+    if (await battery.isExempt()) {
+      await _maybeOfferXiaomiBackground(battery);
+      return;
+    }
     // Re-offered weekly while still not exempt (bug 1: the tunnel's
     // watchdog is only reliable in the background with the exemption).
     const reofferAfter = Duration(days: 7);
@@ -149,8 +154,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         reofferAfter.inMilliseconds) {
       return;
     }
-    const battery = BatteryOptimizationService();
-    if (await battery.isExempt()) return;
     if (!mounted) return;
     await PrefsStore.setInt(PrefsStore.batteryOptimizationPromptLastMs,
         DateTime.now().millisecondsSinceEpoch);
@@ -176,7 +179,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
     if (allow == true) {
       await battery.requestExemption();
+      await _maybeOfferXiaomiBackground(battery);
     }
+  }
+
+  // Xiaomi / Redmi / POCO: Android's exemption alone doesn't stop MIUI /
+  // HyperOS from freezing the VPN in the background (owner, 12.10: the
+  // VPN passed nothing until the app was opened). Once; Settings >
+  // Connection has both screens at any time.
+  Future<void> _maybeOfferXiaomiBackground(
+      BatteryOptimizationService battery) async {
+    if (PrefsStore.getBool(PrefsStore.xiaomiBackgroundHintShown)) return;
+    if (!await battery.isXiaomi() || !mounted) return;
+    await PrefsStore.setBool(PrefsStore.xiaomiBackgroundHintShown, true);
+    if (!mounted) return;
+    final s = ref.read(stringsProvider);
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: WbColors.card,
+        title: Text(s.bgSaverRow),
+        content: Text(s.xiaomiBgPromptBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(s.notNow),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(s.openAction),
+          ),
+        ],
+      ),
+    );
+    if (open == true) await battery.openBackgroundSettings();
   }
 
   // Real-device bug this fixes: after the phone sits idle/screen-off for a

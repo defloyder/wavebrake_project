@@ -33,4 +33,31 @@ class BatteryOptimizationService {
       await _channel.invokeMethod('requestIgnoreBatteryOptimizations');
     } catch (_) {}
   }
+
+  /// Xiaomi / Redmi / POCO: MIUI and HyperOS freeze a background app's
+  /// network — the VPN engine's too — beyond Android's own exemption,
+  /// until its battery saver is "No restrictions" and Autostart is on
+  /// (owner, 12.10: the VPN stopped passing traffic until the app was
+  /// opened). See OemBackground.kt.
+  Future<bool> isXiaomi() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('isXiaomi') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The app's battery saver screen (Xiaomi), else its system settings.
+  Future<void> openBackgroundSettings() => _open('openBackgroundSettings');
+
+  /// The Autostart list (Xiaomi), else the app's system settings.
+  Future<void> openAutostartSettings() => _open('openAutostartSettings');
+
+  Future<void> _open(String method) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod(method);
+    } catch (_) {}
+  }
 }

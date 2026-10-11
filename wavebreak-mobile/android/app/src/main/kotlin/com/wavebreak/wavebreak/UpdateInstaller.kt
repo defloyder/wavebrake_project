@@ -203,6 +203,14 @@ object UpdateInstaller {
         }
     }
 
+    /** The user asked for the system installer on [apkPath] (a tap). */
+    fun openInSystemInstaller(context: Context, apkPath: String): Boolean {
+        val file = File(apkPath)
+        if (!file.exists()) return false
+        EngineLog.write(context, "update: system installer opened by the user")
+        return installViaActionView(context, file)
+    }
+
     /**
      * The original ACTION_VIEW path — when creating the session itself
      * throws.

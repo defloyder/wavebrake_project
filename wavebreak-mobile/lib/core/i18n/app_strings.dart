@@ -314,6 +314,13 @@ class AppStrings {
     required this.batteryOptPromptTitle,
     required this.batteryOptPromptBody,
     required this.batteryOptSettingsRow,
+    required this.bgSaverRow,
+    required this.bgSaverHint,
+    required this.autostartRow,
+    required this.autostartHint,
+    required this.xiaomiBgPromptBody,
+    required this.openAction,
+    required this.updateOpenInstaller,
     required this.appearance,
     required this.help,
     required this.accountRowHint,
@@ -817,6 +824,13 @@ class AppStrings {
   final String batteryOptPromptTitle;
   final String batteryOptPromptBody;
   final String batteryOptSettingsRow;
+  final String bgSaverRow;
+  final String bgSaverHint;
+  final String autostartRow;
+  final String autostartHint;
+  final String xiaomiBgPromptBody;
+  final String openAction;
+  final String updateOpenInstaller;
 }
 
 const kEnglishStrings = AppStrings(
@@ -1147,6 +1161,14 @@ const kEnglishStrings = AppStrings(
   batteryOptPromptBody:
       "Android's battery saver can pause always-on VPN apps during long idle periods, causing dropped connections. Allow unrestricted battery use for more reliable always-on protection.",
   batteryOptSettingsRow: 'Unrestricted battery use',
+  bgSaverRow: 'Battery saver: No restrictions',
+  bgSaverHint: 'Xiaomi, Redmi, POCO: otherwise the system freezes the VPN in the background',
+  autostartRow: 'Autostart',
+  autostartHint: 'So the VPN comes back by itself after a restart or sleep',
+  xiaomiBgPromptBody:
+      'On Xiaomi, Redmi and POCO this is not enough: open the battery saver, choose "No restrictions", then turn on Autostart. Otherwise the system freezes the VPN while the app is closed.',
+  openAction: 'Open',
+  updateOpenInstaller: 'Nothing happening? Open the installer',
   appearance: 'Appearance',
   help: 'Help',
   accountRowHint: 'Email, subscription, devices',
@@ -1561,6 +1583,14 @@ const kRussianStrings = AppStrings(
   batteryOptPromptBody:
       'Экономия заряда Android может приостанавливать работу постоянно включённых VPN-приложений при длительном простое, что приводит к обрывам соединения. Разрешите неограниченное использование батареи для более надёжной защиты.',
   batteryOptSettingsRow: 'Неограниченное использование батареи',
+  bgSaverRow: 'Экономия батареи: без ограничений',
+  bgSaverHint: 'Xiaomi, Redmi, POCO: иначе система замораживает VPN в фоне',
+  autostartRow: 'Автозапуск',
+  autostartHint: 'Чтобы VPN поднимался сам после перезагрузки и сна',
+  xiaomiBgPromptBody:
+      'На Xiaomi, Redmi и POCO этого мало: откройте контроль активности, выберите «Без ограничений», затем включите «Автозапуск». Иначе система замораживает VPN, пока приложение закрыто.',
+  openAction: 'Открыть',
+  updateOpenInstaller: 'Установка не началась? Открыть установщик',
   appearance: 'Оформление',
   help: 'Помощь',
   accountRowHint: 'Почта, подписка, устройства',
@@ -1978,6 +2008,14 @@ const kSpanishStrings = AppStrings(
   batteryOptPromptBody:
       'El ahorro de batería de Android puede pausar las apps VPN siempre activas durante períodos de inactividad prolongados, causando desconexiones. Permite el uso ilimitado de batería para una protección más fiable.',
   batteryOptSettingsRow: 'Uso de batería sin restricciones',
+  bgSaverRow: 'Ahorro de batería: sin restricciones',
+  bgSaverHint: 'Xiaomi, Redmi, POCO: si no, el sistema congela la VPN en segundo plano',
+  autostartRow: 'Inicio automático',
+  autostartHint: 'Para que la VPN vuelva sola tras reiniciar o dormir',
+  xiaomiBgPromptBody:
+      'En Xiaomi, Redmi y POCO no basta: abre el ahorro de batería, elige «Sin restricciones» y activa el inicio automático. Si no, el sistema congela la VPN mientras la app está cerrada.',
+  openAction: 'Abrir',
+  updateOpenInstaller: '¿No pasa nada? Abrir el instalador',
   appearance: 'Apariencia',
   help: 'Ayuda',
   accountRowHint: 'Correo, suscripción, dispositivos',
@@ -2399,6 +2437,14 @@ const kGermanStrings = AppStrings(
   batteryOptPromptBody:
       'Der Akkusparmodus von Android kann dauerhaft aktive VPN-Apps bei längerer Inaktivität pausieren, was zu Verbindungsabbrüchen führt. Erlaube uneingeschränkten Akkuverbrauch für zuverlässigeren Dauerschutz.',
   batteryOptSettingsRow: 'Uneingeschränkter Akkuverbrauch',
+  bgSaverRow: 'Energiesparen: Keine Einschränkungen',
+  bgSaverHint: 'Xiaomi, Redmi, POCO: sonst friert das System das VPN im Hintergrund ein',
+  autostartRow: 'Automatischer Start',
+  autostartHint: 'Damit das VPN nach Neustart oder Ruhezustand von selbst wiederkommt',
+  xiaomiBgPromptBody:
+      'Auf Xiaomi, Redmi und POCO reicht das nicht: Energiesparen öffnen, „Keine Einschränkungen“ wählen und Autostart einschalten. Sonst friert das System das VPN ein, solange die App geschlossen ist.',
+  openAction: 'Öffnen',
+  updateOpenInstaller: 'Passiert nichts? Installer öffnen',
   appearance: 'Darstellung',
   help: 'Hilfe',
   accountRowHint: 'E-Mail, Abo, Geräte',
@@ -2820,6 +2866,14 @@ const kFrenchStrings = AppStrings(
   batteryOptPromptBody:
       "L'économiseur de batterie d'Android peut mettre en pause les applications VPN permanentes lors de longues périodes d'inactivité, provoquant des déconnexions. Autorisez une utilisation illimitée de la batterie pour une protection permanente plus fiable.",
   batteryOptSettingsRow: 'Utilisation de la batterie sans restriction',
+  bgSaverRow: 'Économiseur de batterie : aucune restriction',
+  bgSaverHint: 'Xiaomi, Redmi, POCO : sinon le système gèle le VPN en arrière-plan',
+  autostartRow: 'Démarrage automatique',
+  autostartHint: 'Pour que le VPN revienne seul après un redémarrage ou une veille',
+  xiaomiBgPromptBody:
+      'Sur Xiaomi, Redmi et POCO, cela ne suffit pas : ouvrez l’économiseur de batterie, choisissez « Aucune restriction », puis activez le démarrage automatique. Sinon le système gèle le VPN tant que l’app est fermée.',
+  openAction: 'Ouvrir',
+  updateOpenInstaller: 'Rien ne se passe ? Ouvrir l’installateur',
   appearance: 'Apparence',
   help: 'Aide',
   accountRowHint: 'E-mail, abonnement, appareils',
@@ -3237,6 +3291,14 @@ const kPortugueseStrings = AppStrings(
   batteryOptPromptBody:
       'A economia de bateria do Android pode pausar apps de VPN sempre ativos durante longos períodos de inatividade, causando desconexões. Permita o uso irrestrito de bateria para uma proteção mais confiável.',
   batteryOptSettingsRow: 'Uso de bateria sem restrições',
+  bgSaverRow: 'Economia de bateria: sem restrições',
+  bgSaverHint: 'Xiaomi, Redmi, POCO: senão o sistema congela a VPN em segundo plano',
+  autostartRow: 'Início automático',
+  autostartHint: 'Para a VPN voltar sozinha após reiniciar ou dormir',
+  xiaomiBgPromptBody:
+      'Em Xiaomi, Redmi e POCO isso não basta: abra a economia de bateria, escolha «Sem restrições» e ative o início automático. Senão o sistema congela a VPN enquanto o app está fechado.',
+  openAction: 'Abrir',
+  updateOpenInstaller: 'Nada acontece? Abrir o instalador',
   appearance: 'Aparência',
   help: 'Ajuda',
   accountRowHint: 'E-mail, assinatura, dispositivos',
@@ -3652,6 +3714,14 @@ const kTurkishStrings = AppStrings(
   batteryOptPromptBody:
       "Android'in pil tasarrufu, uzun boşta kalma sürelerinde her zaman açık VPN uygulamalarını duraklatabilir ve bağlantı kopmalarına neden olabilir. Daha güvenilir kesintisiz koruma için sınırsız pil kullanımına izin verin.",
   batteryOptSettingsRow: 'Sınırsız pil kullanımı',
+  bgSaverRow: 'Pil tasarrufu: Kısıtlama yok',
+  bgSaverHint: 'Xiaomi, Redmi, POCO: aksi halde sistem VPN’i arka planda dondurur',
+  autostartRow: 'Otomatik başlatma',
+  autostartHint: 'VPN yeniden başlatma veya uykudan sonra kendiliğinden gelsin diye',
+  xiaomiBgPromptBody:
+      'Xiaomi, Redmi ve POCO’da bu yetmez: pil tasarrufunu açın, «Kısıtlama yok» seçin, sonra otomatik başlatmayı açın. Aksi halde uygulama kapalıyken sistem VPN’i dondurur.',
+  openAction: 'Aç',
+  updateOpenInstaller: 'Bir şey olmuyor mu? Yükleyiciyi aç',
   appearance: 'Görünüm',
   help: 'Yardım',
   accountRowHint: 'E-posta, abonelik, cihazlar',

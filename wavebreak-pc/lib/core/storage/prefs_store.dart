@@ -38,6 +38,8 @@ class PrefsStore {
   // for good). Re-offered at most weekly while still not exempt.
   static const batteryOptimizationPromptLastMs =
       'battery_optimization_prompt_last_ms';
+  /// The one-time Xiaomi "No restrictions / Autostart" hint was shown.
+  static const xiaomiBackgroundHintShown = 'xiaomi_background_hint_shown';
   static const language = 'language';
   static const customServers = 'custom_servers';
   static const accentOverride = 'accent_override';
