@@ -8,6 +8,7 @@ import '../../core/theme/wb_colors.dart';
 import '../../core/theme/wb_theme.dart';
 import '../immersive/effects_quality.dart';
 import '../shared/wave_params.dart';
+import '../shared/anchored_page.dart';
 import 'settings_ui.dart';
 
 /// Settings > Appearance: language, accent, text size, motion, effects.
@@ -23,6 +24,8 @@ class PersonalizationScreen extends ConsumerWidget {
 
     return SettingsPage(
       title: s.appearance,
+      hero: PageEmblem(
+          icon: Icons.palette_outlined, caption: s.appearanceRowHint),
       children: [
         SettingsGroup(children: [
           SettingsRow(
@@ -264,7 +267,8 @@ class _AccentSwatch extends StatelessWidget {
                   // Automatic shows as a ring of the brand color with no
                   // fill, so it visually reads as "no fixed color" rather
                   // than as just another swatch.
-                  color: preset == AccentPreset.auto ? Colors.transparent : color,
+                  color:
+                      preset == AccentPreset.auto ? Colors.transparent : color,
                   gradient: preset == AccentPreset.auto
                       ? const SweepGradient(colors: [
                           Color(0xFFE30A17),
@@ -296,13 +300,16 @@ class _AccentSwatch extends StatelessWidget {
                         // checkmark only once selected) keeps it legible
                         // as its own option at rest, not just once active.
                         child: Icon(
-                          selected ? Icons.check_rounded : Icons.brightness_auto_rounded,
+                          selected
+                              ? Icons.check_rounded
+                              : Icons.brightness_auto_rounded,
                           size: 18,
                           color: WbColors.ice,
                         ),
                       )
                     : (selected
-                        ? const Icon(Icons.check_rounded, size: 20, color: Colors.white)
+                        ? const Icon(Icons.check_rounded,
+                            size: 20, color: Colors.white)
                         : null),
               ),
             ],
@@ -337,10 +344,14 @@ class _TextSizeOption extends StatelessWidget {
           alignment: Alignment.center,
           margin: const EdgeInsets.symmetric(horizontal: 2),
           decoration: BoxDecoration(
-            color: selected ? context.accent.withValues(alpha: 0.16) : Colors.transparent,
+            color: selected
+                ? context.accent.withValues(alpha: 0.16)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected ? context.accent.withValues(alpha: 0.4) : WbColors.ice08,
+              color: selected
+                  ? context.accent.withValues(alpha: 0.4)
+                  : WbColors.ice08,
             ),
           ),
           child: Text(

@@ -102,12 +102,17 @@ class SpeedTestService {
     void Function(SpeedTestSample sample)? onSample,
     void Function(SpeedTestPhase phase, double? mbps)? onLegDone,
     Duration timeout = const Duration(seconds: 20),
+    SpeedTestAbort? abort,
   }) async {
     onPhase?.call(SpeedTestPhase.download);
-    final download = await _measureDownload(timeout, _downloadBytes, onSample);
+    final download =
+        await _measureDownload(timeout, _downloadBytes, onSample, abort);
+    if (abort?.cancelled ?? false) {
+      return SpeedTestResult(downloadMbps: download, uploadMbps: null);
+    }
     onLegDone?.call(SpeedTestPhase.download, download);
     onPhase?.call(SpeedTestPhase.upload);
-    final upload = await _measureUpload(timeout, onSample);
+    final upload = await _measureUpload(timeout, onSample, abort);
     onLegDone?.call(SpeedTestPhase.upload, upload);
     return SpeedTestResult(downloadMbps: download, uploadMbps: upload);
   }
@@ -166,12 +171,17 @@ class SpeedTestService {
   Future<double?> _measureDownload(
     Duration timeout,
     int bytes,
-    void Function(SpeedTestSample sample)? onSample,
-  ) async {
+    void Function(SpeedTestSample sample)? onSample, [
+    SpeedTestAbort? abort,
+  ]) async {
     for (var attempt = 0; attempt <= _maxRetries; attempt++) {
       final stopwatch = Stopwatch()..start();
       final sampler = _ProgressSampler(SpeedTestPhase.download, onSample);
       final cancelToken = CancelToken();
+      if (abort != null) {
+        if (abort.cancelled) return null;
+        abort._tokens.add(cancelToken);
+      }
       var lastBytes = 0;
       final deadline = Timer(timeout, () {
         cancelToken.cancel(_wallClockTimeoutReason);
@@ -192,6 +202,7 @@ class SpeedTestService {
         return _mbps(actualBytes, stopwatch.elapsed);
       } catch (error) {
         stopwatch.stop();
+        if (abort?.cancelled ?? false) return null;
         if (_isWallClockTimeout(error) && lastBytes > 0) {
           return _mbps(lastBytes, stopwatch.elapsed);
         }
@@ -203,6 +214,7 @@ class SpeedTestService {
         if (attempt == _maxRetries) return null;
       } finally {
         deadline.cancel();
+        abort?._tokens.remove(cancelToken);
       }
     }
     return null;
@@ -210,13 +222,18 @@ class SpeedTestService {
 
   Future<double?> _measureUpload(
     Duration timeout,
-    void Function(SpeedTestSample sample)? onSample,
-  ) async {
+    void Function(SpeedTestSample sample)? onSample, [
+    SpeedTestAbort? abort,
+  ]) async {
     for (var attempt = 0; attempt <= _maxRetries; attempt++) {
       final payload = _randomBytes(_uploadBytes);
       final stopwatch = Stopwatch()..start();
       final sampler = _ProgressSampler(SpeedTestPhase.upload, onSample);
       final cancelToken = CancelToken();
+      if (abort != null) {
+        if (abort.cancelled) return null;
+        abort._tokens.add(cancelToken);
+      }
       var lastBytes = 0;
       final deadline = Timer(timeout, () {
         cancelToken.cancel(_wallClockTimeoutReason);
@@ -241,12 +258,14 @@ class SpeedTestService {
         return _mbps(payload.length, stopwatch.elapsed);
       } catch (error) {
         stopwatch.stop();
+        if (abort?.cancelled ?? false) return null;
         if (_isWallClockTimeout(error) && lastBytes > 0) {
           return _mbps(lastBytes, stopwatch.elapsed);
         }
         if (attempt == _maxRetries) return null;
       } finally {
         deadline.cancel();
+        abort?._tokens.remove(cancelToken);
       }
     }
     return null;
@@ -329,5 +348,22 @@ class _ProgressSampler {
       instantMbps: _lastInstantMbps,
       progress: count / total,
     ));
+  }
+}
+
+/// Stops a [SpeedTestService.run] in flight (the Cancel button): the
+/// transfer under way is cut, nothing is retried, the legs not started yet
+/// are skipped. One per run, so a cancelled run can't touch the next one.
+class SpeedTestAbort {
+  bool _cancelled = false;
+  final _tokens = <CancelToken>{};
+
+  bool get cancelled => _cancelled;
+
+  void cancel() {
+    _cancelled = true;
+    for (final token in _tokens.toList()) {
+      token.cancel('speed-test-cancelled');
+    }
   }
 }

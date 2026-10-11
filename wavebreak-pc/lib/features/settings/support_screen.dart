@@ -16,6 +16,7 @@ import '../../services/core_api/models.dart';
 import '../../services/device/device_service.dart';
 import '../../services/providers.dart';
 import '../../services/vpn/connection_manager.dart';
+import '../shared/anchored_page.dart';
 import 'settings_ui.dart';
 
 /// One ready-made request: the subject and the question that opens the
@@ -34,7 +35,8 @@ class SupportScreen extends ConsumerWidget {
   List<_Template> _templates(AppStrings s) => [
         _Template(Icons.wifi_off_rounded, s.tplNoConnect, s.tplNoConnectHint),
         _Template(Icons.speed_rounded, s.tplSlow, s.tplSlowHint),
-        _Template(Icons.credit_card_rounded, s.tplSubscription, s.tplSubscriptionHint),
+        _Template(Icons.credit_card_rounded, s.tplSubscription,
+            s.tplSubscriptionHint),
         _Template(Icons.devices_rounded, s.tplDevices, s.tplDevicesHint),
         _Template(Icons.lock_outline_rounded, s.tplLogin, s.tplLoginHint),
         _Template(Icons.flag_outlined, s.reportAProblem, s.tplOtherHint),
@@ -48,6 +50,8 @@ class SupportScreen extends ConsumerWidget {
 
     return SettingsPage(
       title: s.support,
+      hero: PageEmblem(
+          icon: Icons.chat_bubble_outline_rounded, caption: s.supportPageHint),
       fallback: '/settings/help',
       children: [
         SettingsGroup(
@@ -136,8 +140,8 @@ class SupportScreen extends ConsumerWidget {
     ].join('\n');
   }
 
-  Future<void> _sendTemplate(BuildContext context, WidgetRef ref,
-      AppStrings s, String email, _Template t) async {
+  Future<void> _sendTemplate(BuildContext context, WidgetRef ref, AppStrings s,
+      String email, _Template t) async {
     final body = await _templateBody(ref, s, t);
     if (!context.mounted) return;
     await _sendEmail(context, s, email,
@@ -218,5 +222,4 @@ class SupportScreen extends ConsumerWidget {
       text: 'WAVEBREAK diagnostic log',
     );
   }
-
 }

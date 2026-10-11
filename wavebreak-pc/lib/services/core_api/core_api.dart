@@ -131,6 +131,7 @@ class CoreApi {
     return _client.postWithoutAuth(
       '/auth/refresh',
       body: {'refresh_token': refreshToken},
+      replay: false,
       parse: _tokens,
     );
   }

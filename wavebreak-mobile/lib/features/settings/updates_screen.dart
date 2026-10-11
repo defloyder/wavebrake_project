@@ -43,7 +43,8 @@ class UpdatesScreen extends ConsumerWidget {
       if (update == null) {
         final rolledBack = await ref.read(installedRollbackProvider.future);
         if (!context.mounted) return;
-        showToast(messenger, rolledBack != null ? s.rollbackInstalled : s.upToDate);
+        showToast(
+            messenger, rolledBack != null ? s.rollbackInstalled : s.upToDate);
       }
     } finally {
       _checking = false;

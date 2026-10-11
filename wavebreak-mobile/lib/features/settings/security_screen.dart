@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../services/biometric/biometric_service.dart';
 import '../../services/pin/pin_service.dart';
+import '../shared/anchored_page.dart';
 import 'settings_ui.dart';
 import 'pin_setup_screen.dart';
 import 'pin_verify_screen.dart';
@@ -86,6 +87,8 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     final s = ref.watch(stringsProvider);
     return SettingsPage(
       title: s.security,
+      hero: PageEmblem(
+          icon: Icons.fingerprint_rounded, caption: s.securityRowHint),
       children: [
         SettingsGroup(
           children: [
@@ -112,8 +115,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
                       ? s.useBiometricsForQuickUnlock
                       : s.pinRequiredForBiometric,
               value: _bioEnabled,
-              onChanged:
-                  (_bioAvailable && _pinSet) ? _toggleBiometric : null,
+              onChanged: (_bioAvailable && _pinSet) ? _toggleBiometric : null,
             ),
           ],
         ),

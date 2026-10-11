@@ -8,6 +8,7 @@ import '../../services/custom_servers/custom_server_controller.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/server_catalog.dart';
 import '../shared/add_custom_server_sheet.dart';
+import '../shared/anchored_page.dart';
 import '../shared/confirm_dialogs.dart';
 import '../shared/data_providers.dart';
 import '../shared/subscription_accordion.dart';
@@ -17,9 +18,9 @@ import '../shared/wave_params.dart';
 /// the pop-up from Home's location header show this same widget.
 ///
 /// Anchored to the bottom, near the thumb (owner, 06.10): a short list sits
-/// right above the nav bar, a long one opens at its end ("add your link")
-/// and scrolls up. [hero] fills whatever height is left above the list
-/// (the Servers tab: the server in use) and scrolls away with a long one.
+/// right above the nav bar with [hero] (the Servers tab: the server in
+/// use) in the room above it; a long one scrolls, opening at its top
+/// (owner, 07.10). See [AnchoredPage].
 class ServersList extends ConsumerWidget {
   const ServersList({
     super.key,
@@ -41,27 +42,17 @@ class ServersList extends ConsumerWidget {
     final locations = ref.watch(locationsProvider);
     final s = ref.watch(stringsProvider);
     final canConnect = ref.watch(canConnectProvider);
-    Widget scroll(Widget list) => CustomScrollView(
-          reverse: true,
-          // In the pop-up it sizes to the list (up to its own max height).
-          shrinkWrap: hero == null,
-          slivers: [
-            SliverPadding(
-              padding: EdgeInsets.only(bottom: bottomPadding),
-              sliver: SliverToBoxAdapter(child: list),
-            ),
-            if (hero != null)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: hero,
-                  ),
-                ),
-              ),
-          ],
-        );
+    Widget scroll(Widget list) => hero == null
+        // The pop-up: sizes to the list (up to its own max height).
+        ? SingleChildScrollView(
+            padding: EdgeInsets.only(bottom: bottomPadding),
+            child: list,
+          )
+        : AnchoredPage(
+            padding: EdgeInsets.only(bottom: bottomPadding),
+            hero: hero,
+            content: list,
+          );
     return locations.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => Center(

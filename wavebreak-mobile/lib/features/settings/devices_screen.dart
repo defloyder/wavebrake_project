@@ -7,6 +7,7 @@ import '../../core/logging/app_logger.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/providers.dart';
 import '../shared/data_providers.dart';
+import '../shared/anchored_page.dart';
 import 'settings_ui.dart';
 
 class DevicesScreen extends ConsumerStatefulWidget {
@@ -34,7 +35,8 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(s.remove, style: const TextStyle(color: WbColors.error)),
+            child:
+                Text(s.remove, style: const TextStyle(color: WbColors.error)),
           ),
         ],
       ),
@@ -50,7 +52,8 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error is AppException ? error.localized(s) : s.errUnavailable),
+            content: Text(
+                error is AppException ? error.localized(s) : s.errUnavailable),
           ),
         );
       }
@@ -73,6 +76,7 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
 
     return SettingsPage(
       title: s.devices,
+      hero: PageEmblem(icon: Icons.devices_rounded, caption: s.devicesPageHint),
       fallback: '/settings/account',
       children: [
         devices.when(

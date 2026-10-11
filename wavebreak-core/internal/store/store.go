@@ -183,14 +183,19 @@ func (s *Store) RotateRefreshToken(ctx context.Context, refreshToken, newRefresh
 	var u User
 	var sessionID string
 	var revokedAt *time.Time
+	var retryOfRotation bool
+	var replacedBy *string
 	err = tx.QueryRow(ctx, `
-		select s.id::text, s.revoked_at, u.id::text, coalesce(u.email, ''), coalesce(u.username, ''), coalesce(u.password_hash, ''), u.password_algo, u.status, u.role, u.last_login_at, u.disabled_at, u.created_at
+		select s.id::text, s.revoked_at,
+		       coalesce(s.revoked_reason = 'rotated' and s.revoked_at > now() - interval '2 minutes', false),
+		       s.replaced_by_session_id::text,
+		       u.id::text, coalesce(u.email, ''), coalesce(u.username, ''), coalesce(u.password_hash, ''), u.password_algo, u.status, u.role, u.last_login_at, u.disabled_at, u.created_at
 		from sessions s
 		join users u on u.id = s.user_id
 		where s.refresh_token_hash = $1
 		  and s.expires_at > now()`,
 		security.TokenHash(refreshToken),
-	).Scan(&sessionID, &revokedAt, &u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.PasswordAlgo, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	).Scan(&sessionID, &revokedAt, &retryOfRotation, &replacedBy, &u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.PasswordAlgo, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -198,11 +203,37 @@ func (s *Store) RotateRefreshToken(ctx context.Context, refreshToken, newRefresh
 		return User{}, err
 	}
 	if revokedAt != nil {
-		_, _ = tx.Exec(ctx, `
-			update sessions set revoked_at = coalesce(revoked_at, now()), revoked_reason = coalesce(revoked_reason, 'reuse_detected')
-			where user_id = $1 and revoked_at is null`, u.ID)
-		_ = tx.Commit(ctx)
-		return User{}, ErrRefreshTokenReused
+		// The same token again within two minutes of its rotation, and the
+		// token it was rotated to never used: the app's answer got lost on
+		// the way (a relay timeout, the VPN reconnecting) and it is asking
+		// again. Drop the unused successor and rotate once more.
+		retried := false
+		if retryOfRotation && replacedBy != nil {
+			tag, err := tx.Exec(ctx, `
+				update sessions set revoked_at = now(), revoked_reason = 'retried'
+				where id = $1 and revoked_at is null`, *replacedBy)
+			if err != nil {
+				return User{}, err
+			}
+			retried = tag.RowsAffected() == 1
+		}
+		if !retried {
+			// A token used twice for real: end that device's chain of
+			// sessions, not every session of the account — one phone
+			// replaying a token used to sign the account out of its PC and
+			// TV too (owner, 12.10).
+			_, _ = tx.Exec(ctx, `
+				with recursive chain(id) as (
+					select replaced_by_session_id from sessions where id = $1 and replaced_by_session_id is not null
+					union
+					select s.replaced_by_session_id from sessions s join chain c on s.id = c.id
+					where s.replaced_by_session_id is not null
+				)
+				update sessions set revoked_at = now(), revoked_reason = 'reuse_detected'
+				where (id = $1 or id in (select id from chain)) and revoked_at is null`, sessionID)
+			_ = tx.Commit(ctx)
+			return User{}, ErrRefreshTokenReused
+		}
 	}
 	if u.DisabledAt != nil {
 		return User{}, ErrNotFound
@@ -220,7 +251,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, refreshToken, newRefresh
 	}
 	_, err = tx.Exec(ctx, `
 		update sessions
-		set revoked_at = now(), revoked_reason = 'rotated', replaced_by_session_id = $2
+		set revoked_at = coalesce(revoked_at, now()), revoked_reason = 'rotated', replaced_by_session_id = $2
 		where id = $1`, sessionID, newSessionID)
 	if err != nil {
 		return User{}, err

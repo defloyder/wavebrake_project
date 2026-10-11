@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/i18n/language_controller.dart';
 import '../../services/update/update_service.dart';
+import '../shared/anchored_page.dart';
 import '../shared/menu_button.dart';
 import '../shared/ocean_background.dart';
 import '../shared/wave_params.dart';
@@ -63,84 +64,63 @@ class SettingsScreen extends ConsumerWidget {
                       ],
                     ),
                     Expanded(
-                      child: CustomScrollView(
-                        reverse: true,
-                        slivers: [
-                          SliverPadding(
-                            // The bottom nav pill floats over the body.
-                            padding: EdgeInsets.only(
-                                bottom: isDesktop
-                                    ? 12
-                                    : kMobileBottomBarReserve + 12),
-                            sliver: SliverToBoxAdapter(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 16),
-                                  SettingsGroup(children: [
-                                    SettingsRow(
-                                      icon: Icons.person_outline_rounded,
-                                      title: s.account,
-                                      subtitle: s.accountRowHint,
-                                      onTap: () =>
-                                          context.push('/settings/account'),
-                                    ),
-                                    SettingsRow(
-                                      icon: Icons.wifi_tethering_rounded,
-                                      title: s.connection,
-                                      subtitle: s.connectionRowHint,
-                                      onTap: () =>
-                                          context.push('/settings/connection'),
-                                    ),
-                                    SettingsRow(
-                                      icon: Icons.fingerprint_rounded,
-                                      title: s.security,
-                                      subtitle: s.securityRowHint,
-                                      onTap: () =>
-                                          context.push('/settings/security'),
-                                    ),
-                                  ]),
-                                  SettingsGroup(children: [
-                                    SettingsRow(
-                                      icon: Icons.palette_outlined,
-                                      title: s.appearance,
-                                      subtitle: s.appearanceRowHint,
-                                      onTap: () => context
-                                          .push('/settings/personalization'),
-                                    ),
-                                    SettingsRow(
-                                      icon: Icons.notifications_none_rounded,
-                                      title: s.notifications,
-                                      subtitle: s.notificationsRowHint,
-                                      onTap: () => context
-                                          .push('/settings/notifications'),
-                                    ),
-                                    SettingsRow(
-                                      icon: Icons.help_outline_rounded,
-                                      title: s.help,
-                                      subtitle: s.helpRowHint,
-                                      badge: pendingUpdate != null,
-                                      onTap: () =>
-                                          context.push('/settings/help'),
-                                    ),
-                                  ]),
-                                ],
+                      child: AnchoredPage(
+                        // The bottom nav pill floats over the body.
+                        padding: EdgeInsets.only(
+                            bottom:
+                                isDesktop ? 12 : kMobileBottomBarReserve + 12),
+                        // Fills the room above the groups; left out where
+                        // there is none (a TV is 540 px tall).
+                        hero: const AccountHero(),
+                        content: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SettingsGroup(children: [
+                              SettingsRow(
+                                icon: Icons.person_outline_rounded,
+                                title: s.account,
+                                subtitle: s.accountRowHint,
+                                onTap: () => context.push('/settings/account'),
                               ),
-                            ),
-                          ),
-                          // The account only where there is room (a TV is
-                          // 540 px tall).
-                          if (MediaQuery.sizeOf(context).height >= 600)
-                            SliverFillRemaining(
-                              hasScrollBody: false,
-                              child: Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: AccountHero(),
-                                ),
+                              SettingsRow(
+                                icon: Icons.wifi_tethering_rounded,
+                                title: s.connection,
+                                subtitle: s.connectionRowHint,
+                                onTap: () =>
+                                    context.push('/settings/connection'),
                               ),
-                            ),
-                        ],
+                              SettingsRow(
+                                icon: Icons.fingerprint_rounded,
+                                title: s.security,
+                                subtitle: s.securityRowHint,
+                                onTap: () => context.push('/settings/security'),
+                              ),
+                            ]),
+                            SettingsGroup(children: [
+                              SettingsRow(
+                                icon: Icons.palette_outlined,
+                                title: s.appearance,
+                                subtitle: s.appearanceRowHint,
+                                onTap: () =>
+                                    context.push('/settings/personalization'),
+                              ),
+                              SettingsRow(
+                                icon: Icons.notifications_none_rounded,
+                                title: s.notifications,
+                                subtitle: s.notificationsRowHint,
+                                onTap: () =>
+                                    context.push('/settings/notifications'),
+                              ),
+                              SettingsRow(
+                                icon: Icons.help_outline_rounded,
+                                title: s.help,
+                                subtitle: s.helpRowHint,
+                                badge: pendingUpdate != null,
+                                onTap: () => context.push('/settings/help'),
+                              ),
+                            ]),
+                          ],
+                        ),
                       ),
                     ),
                   ],

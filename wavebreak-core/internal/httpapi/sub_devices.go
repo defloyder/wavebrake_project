@@ -57,7 +57,14 @@ func (s *Server) subscriptionDeviceGate(r *http.Request, userID string) subGate 
 	if len(platform) > 32 {
 		platform = platform[:32]
 	}
-	_, _, err := s.app.Store.RegisterDevice(r.Context(), userID, name, platform, "hwid:"+hwid)
+	// WAVEBREAK's own apps send their install id: the same fingerprint the
+	// app registers with, so a link added in the app doesn't take a second
+	// slot on that device.
+	fingerprint := "hwid:" + hwid
+	if strings.HasPrefix(r.UserAgent(), "WAVEBREAK/") {
+		fingerprint = hwid
+	}
+	_, _, err := s.app.Store.RegisterDevice(r.Context(), userID, name, platform, fingerprint)
 	if errors.Is(err, store.ErrLimitReached) {
 		return subOverLimit
 	}

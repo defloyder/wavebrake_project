@@ -75,7 +75,9 @@ class SelectedServerHero extends ConsumerWidget {
         const SizedBox(height: 10),
         Text(
           connected
-              ? (ping == null ? s.connected : '${s.connected} · $ping ${s.unitMs}')
+              ? (ping == null
+                  ? s.connected
+                  : '${s.connected} · $ping ${s.unitMs}')
               : s.notConnected,
           style: TextStyle(
             color: connected ? Ic.arctic : Ic.textSecondary,
@@ -111,9 +113,12 @@ class SelectedServerHero extends ConsumerWidget {
 }
 
 /// Settings: who is signed in and what the subscription is — e-mail, plan
-/// and days left, devices, traffic. Taps through to Account.
+/// and days left, devices, traffic. Taps through to Account ([link]; not on
+/// Account itself, where it heads the page).
 class AccountHero extends ConsumerWidget {
-  const AccountHero({super.key});
+  const AccountHero({super.key, this.link = true});
+
+  final bool link;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -130,16 +135,19 @@ class AccountHero extends ConsumerWidget {
 
     final facts = [
       if (active)
-        days == null ? sub.planName : '${sub.planName} · $days ${s.daysRemaining}',
+        days == null
+            ? sub.planName
+            : '${sub.planName} · $days ${s.daysRemaining}',
       if (active && own?.deviceLimit != null)
         '${s.devices}: ${own!.devicesUsed} / ${own.deviceLimit}',
       if (active && usage != null)
-        formatTraffic(usage.bytesTotal, usage.limitBytes ?? sub.trafficLimitBytes, s),
+        formatTraffic(
+            usage.bytesTotal, usage.limitBytes ?? sub.trafficLimitBytes, s),
     ];
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () => context.push('/settings/account'),
+      onTap: link ? () => context.push('/settings/account') : null,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

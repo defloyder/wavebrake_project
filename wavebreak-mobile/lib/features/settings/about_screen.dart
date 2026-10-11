@@ -24,30 +24,28 @@ class AboutScreen extends ConsumerWidget {
     return SettingsPage(
       title: s.about,
       fallback: '/settings/help',
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(0, 4, 0, 24),
-          child: Column(
-            children: [
-              const WavebreakMark(size: 56, glow: true),
-              const SizedBox(height: 14),
-              const WavebreakWordmark(),
-              const SizedBox(height: 8),
-              FutureBuilder<PackageInfo>(
-                future: PackageInfo.fromPlatform(),
-                builder: (context, snapshot) {
-                  final info = snapshot.data;
-                  return Text(
-                    info == null
-                        ? s.version
-                        : '${s.version} ${info.version} (${info.buildNumber})',
-                    style: const TextStyle(color: WbColors.muted),
-                  );
-                },
-              ),
-            ],
+      hero: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const WavebreakMark(size: 72, glow: true),
+          const SizedBox(height: 16),
+          const WavebreakWordmark(),
+          const SizedBox(height: 8),
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              final info = snapshot.data;
+              return Text(
+                info == null
+                    ? s.version
+                    : '${s.version} ${info.version} (${info.buildNumber})',
+                style: const TextStyle(color: WbColors.muted),
+              );
+            },
           ),
-        ),
+        ],
+      ),
+      children: [
         SettingsGroup(
           title: s.groupLegal,
           children: [

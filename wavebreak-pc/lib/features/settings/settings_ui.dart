@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../core/theme/wb_theme.dart';
 import '../immersive/tinted_glass.dart';
+import '../shared/anchored_page.dart';
 import '../shared/detail_scaffold.dart';
 import '../shared/nav_utils.dart';
 
@@ -12,17 +13,21 @@ import '../shared/nav_utils.dart';
 // layout. Icons and surfaces are neutral; the accent marks only what is
 // on or selected (switches, badges, the chosen option).
 
-/// A settings page: back button and title, then a scrolling column.
+/// A settings page: back button and title, the rows at the bottom by the
+/// thumb and [hero] (usually a [PageEmblem]) in the room above them; a
+/// long page scrolls from its top (see [AnchoredPage]).
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
     super.key,
     required this.title,
     required this.children,
+    this.hero,
     this.fallback = '/settings',
   });
 
   final String title;
   final List<Widget> children;
+  final Widget? hero;
 
   /// Where "back" goes when there is nothing to pop.
   final String fallback;
@@ -32,9 +37,13 @@ class SettingsPage extends StatelessWidget {
     return DetailScaffold(
       title: title,
       onBack: () => safePop(context, fallback: fallback),
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 16),
-        children: children,
+      child: AnchoredPage(
+        padding: const EdgeInsets.only(bottom: 4),
+        hero: hero,
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
       ),
     );
   }
@@ -330,8 +339,8 @@ class SettingsFooter extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
       child: Text(
         text,
-        style:
-            const TextStyle(fontSize: 12.5, color: WbColors.muted, height: 1.35),
+        style: const TextStyle(
+            fontSize: 12.5, color: WbColors.muted, height: 1.35),
       ),
     );
   }

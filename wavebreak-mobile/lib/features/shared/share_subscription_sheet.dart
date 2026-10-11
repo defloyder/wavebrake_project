@@ -160,9 +160,27 @@ class _PersonalShareBody extends StatefulWidget {
 class _PersonalShareBodyState extends State<_PersonalShareBody> {
   late Future<ShareInfo> _share = _load();
 
-  Future<ShareInfo> _load() => ProviderScope.containerOf(context, listen: false)
-      .read(coreGatewayProvider)
-      .myShare();
+  /// The limits from the share call; the link is the account's own
+  /// subscription address (/v1/sub/…), which Happ, v2RayTun, Hiddify and
+  /// this app all take (owner, 12.10: the share code only ever worked in
+  /// WAVEBREAK). Core counts each device that adds it against the plan's
+  /// device limit. Without that address, the share code as before.
+  Future<ShareInfo> _load() async {
+    final gateway =
+        ProviderScope.containerOf(context, listen: false).read(coreGatewayProvider);
+    final share = gateway.myShare();
+    final access = gateway.personalAccess().catchError((_) => null);
+    final info = await share;
+    final link = (await access)?.subscriptionUrl?.trim() ?? '';
+    if (link.isEmpty) return info;
+    return ShareInfo(
+      shareUrl: link,
+      deviceLimit: info.deviceLimit,
+      devicesUsed: info.devicesUsed,
+      trafficLimitBytes: info.trafficLimitBytes,
+      trafficUsedBytes: info.trafficUsedBytes,
+    );
+  }
 
   String _errorText(Object error) {
     final s = widget.s;
@@ -430,14 +448,13 @@ class _Pill extends StatelessWidget {
   }
 }
 
-/// WAVEBREAK subscription links go out on core.wavebreak.com.tr: api. is
-/// behind Cloudflare, which mobile networks in Russia often cut — a third-
-/// party client (Happ) then got an error page instead of the subscription.
-/// Same path, same content on both hosts.
+/// WAVEBREAK subscription links go out on api.wavebreak.com.tr (owner,
+/// 12.10). Same path, same content on core. — the host the app itself
+/// talks to.
 String publicSubscriptionLink(String link) {
   final uri = Uri.tryParse(link.trim());
-  if (uri == null || uri.host.toLowerCase() != 'api.wavebreak.com.tr') {
+  if (uri == null || uri.host.toLowerCase() != 'core.wavebreak.com.tr') {
     return link.trim();
   }
-  return uri.replace(host: 'core.wavebreak.com.tr').toString();
+  return uri.replace(host: 'api.wavebreak.com.tr').toString();
 }

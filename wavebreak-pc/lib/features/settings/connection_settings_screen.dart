@@ -9,6 +9,7 @@ import '../../core/theme/wb_colors.dart';
 import '../../services/system/battery_optimization.dart';
 import '../../services/system/quick_tile.dart';
 import '../../services/system/vpn_lockdown.dart';
+import '../shared/anchored_page.dart';
 import 'settings_ui.dart';
 
 class ConnectionSettingsScreen extends ConsumerStatefulWidget {
@@ -68,6 +69,8 @@ class _ConnectionSettingsScreenState
     final s = ref.watch(stringsProvider);
     return SettingsPage(
       title: s.connection,
+      hero: PageEmblem(
+          icon: Icons.wifi_tethering_rounded, caption: s.connectionRowHint),
       children: [
         SettingsGroup(
           title: s.autoConnect,

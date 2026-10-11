@@ -96,7 +96,22 @@ class DeviceService {
   /// (platform, human-readable name) of this device, as sent to Core.
   Future<(String, String)> platformInfo() => _platformInfo();
 
-  Future<(String, String)> _platformInfo() async {
+  /// Sent with every subscription-link download, as Happ and v2RayTun do:
+  /// Core (and other panels) count each app on each device against the
+  /// plan's device limit by x-hwid, and turn away apps without one.
+  static Future<Map<String, String>> subscriptionHeaders() async {
+    final (platform, model) = await _platformInfo();
+    // Header values are Latin-1: a Cyrillic PC name would throw.
+    final ascii = model.replaceAll(RegExp(r'[^\x20-\x7E]'), '').trim();
+    return {
+      'x-hwid': await installId(),
+      'x-device-os': platform,
+      if (ascii.isNotEmpty) 'x-device-model': ascii,
+      'user-agent': 'WAVEBREAK/1',
+    };
+  }
+
+  static Future<(String, String)> _platformInfo() async {
     final info = DeviceInfoPlugin();
     try {
       return await _rawPlatformInfo(info).timeout(_platformInfoTimeout);
@@ -105,7 +120,8 @@ class DeviceService {
     }
   }
 
-  Future<(String, String)> _rawPlatformInfo(DeviceInfoPlugin info) async {
+  static Future<(String, String)> _rawPlatformInfo(
+      DeviceInfoPlugin info) async {
     switch (defaultTargetPlatform) {
       case TargetPlatform.iOS:
         final ios = await info.iosInfo;

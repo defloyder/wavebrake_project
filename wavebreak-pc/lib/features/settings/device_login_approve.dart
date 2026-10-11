@@ -31,12 +31,13 @@ String? deviceLoginCode(String raw, {bool allowBare = true}) {
 
 /// Settings → Account → "Sign in on another device": scan the TV's QR
 /// (phones), or type its code (PC), then confirm.
-Future<void> startDeviceLoginApproval(BuildContext context, WidgetRef ref) async {
+Future<void> startDeviceLoginApproval(
+    BuildContext context, WidgetRef ref) async {
   final s = ref.read(stringsProvider);
   String? code;
   if (Platform.isAndroid || Platform.isIOS) {
-    final raw = await Navigator.of(context, rootNavigator: true).push<String>(
-        MaterialPageRoute(builder: (_) => QrScanScreen(s: s)));
+    final raw = await Navigator.of(context, rootNavigator: true)
+        .push<String>(MaterialPageRoute(builder: (_) => QrScanScreen(s: s)));
     if (raw == null || !context.mounted) return;
     code = deviceLoginCode(raw);
   } else {
@@ -63,8 +64,8 @@ Future<void> approveDeviceLoginCode(
   try {
     device = await gateway.inspectDeviceLogin(code);
   } on AppException catch (e) {
-    showToast(messenger,
-        e.statusCode == 404 ? s.deviceLoginExpired : e.localized(s));
+    showToast(
+        messenger, e.statusCode == 404 ? s.deviceLoginExpired : e.localized(s));
     return;
   } catch (_) {
     showToast(messenger, s.errUnavailable);
@@ -95,8 +96,8 @@ Future<void> approveDeviceLoginCode(
     showToast(messenger, s.deviceLoginDone.replaceAll('{device}', device),
         duration: const Duration(seconds: 3));
   } on AppException catch (e) {
-    showToast(messenger,
-        e.statusCode == 404 ? s.deviceLoginExpired : e.localized(s));
+    showToast(
+        messenger, e.statusCode == 404 ? s.deviceLoginExpired : e.localized(s));
   } catch (_) {
     showToast(messenger, s.errUnavailable);
   }
@@ -120,8 +121,7 @@ Future<String?> _askCode(BuildContext context, AppStrings s) {
         onSubmitted: (v) => Navigator.pop(ctx, v),
       ),
       actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(ctx), child: Text(s.cancel)),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.cancel)),
         FilledButton(
             onPressed: () => Navigator.pop(ctx, controller.text),
             child: Text(s.signIn)),

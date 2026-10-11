@@ -21,9 +21,9 @@ void main() {
     );
   });
 
-  test('shared WAVEBREAK subscription links go out on core.', () {
-    expect(publicSubscriptionLink('https://api.wavebreak.com.tr/v1/sub/57afe491'),
-        'https://core.wavebreak.com.tr/v1/sub/57afe491');
+  test('shared WAVEBREAK subscription links go out on api.', () {
+    expect(publicSubscriptionLink('https://core.wavebreak.com.tr/v1/sub/57afe491'),
+        'https://api.wavebreak.com.tr/v1/sub/57afe491');
     expect(publicSubscriptionLink('vless://id@h:443#x'), 'vless://id@h:443#x');
   });
 }

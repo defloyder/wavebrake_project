@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/i18n/language_controller.dart';
 import '../../services/update/update_service.dart';
+import '../shared/anchored_page.dart';
 import 'settings_ui.dart';
 
 /// Settings > Help: support, updates, about.
@@ -20,6 +21,8 @@ class HelpScreen extends ConsumerWidget {
         updatable ? ref.watch(availableUpdateProvider).asData?.value : null;
     return SettingsPage(
       title: s.help,
+      hero:
+          PageEmblem(icon: Icons.help_outline_rounded, caption: s.helpRowHint),
       children: [
         SettingsGroup(children: [
           SettingsRow(

@@ -12,6 +12,7 @@ import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/update/update_service.dart';
 import '../immersive/immersive_colors.dart';
+import '../shared/anchored_page.dart';
 import '../shared/wave_params.dart';
 import '../shared/wavebreak_mark.dart';
 
@@ -148,6 +149,7 @@ class AppShell extends ConsumerWidget {
                   waveParams: waveParams,
                   onSelect: (i) {
                     ref.read(navExpandedProvider.notifier).state = false;
+                    shellTabTaps.value++;
                     navigationShell.goBranch(
                       i,
                       initialLocation: i == navigationShell.currentIndex,
@@ -299,11 +301,14 @@ class _MobileShell extends ConsumerWidget {
                               selected: activeButton == i,
                               tint: waveParams.tint,
                               showBadge: branch == 2 && pendingUpdate != null,
-                              onTap: () => navigationShell.goBranch(
-                                branch,
-                                initialLocation:
-                                    navigationShell.currentIndex == branch,
-                              ),
+                              onTap: () {
+                                shellTabTaps.value++;
+                                navigationShell.goBranch(
+                                  branch,
+                                  initialLocation:
+                                      navigationShell.currentIndex == branch,
+                                );
+                              },
                             ),
                         ],
                       ),

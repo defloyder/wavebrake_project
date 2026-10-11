@@ -8,6 +8,8 @@ import '../../core/theme/wb_colors.dart';
 import '../../core/theme/wb_theme.dart';
 import '../shared/data_providers.dart';
 import '../../core/env/app_env.dart';
+import '../shared/anchored_page.dart';
+import '../shared/page_hero.dart';
 import 'device_login_approve.dart';
 import 'email_verify_sheet.dart';
 import 'settings_ui.dart';
@@ -26,6 +28,8 @@ class AccountScreen extends ConsumerWidget {
     if (isGuest) {
       return SettingsPage(
         title: s.account,
+        hero: PageEmblem(
+            icon: Icons.person_outline_rounded, caption: s.accountRowHint),
         children: [
           SettingsGroup(children: [
             SettingsRow(
@@ -67,6 +71,7 @@ class AccountScreen extends ConsumerWidget {
 
     return SettingsPage(
       title: s.account,
+      hero: const AccountHero(link: false),
       children: [
         SettingsGroup(children: [
           SettingsRow(
@@ -103,9 +108,8 @@ class AccountScreen extends ConsumerWidget {
           SettingsRow(
             icon: Icons.workspace_premium_outlined,
             title: s.subscription,
-            value: subscription.asData?.value.isActive == true
-                ? s.active
-                : null,
+            value:
+                subscription.asData?.value.isActive == true ? s.active : null,
             onTap: () => context.push('/subscription'),
           ),
           SettingsRow(

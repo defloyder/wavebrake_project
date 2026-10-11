@@ -100,7 +100,9 @@ class SpeedTestScreen extends ConsumerWidget {
           child: _ResultCard(
             icon: Icons.speed_rounded,
             label: s.speedTestLatency,
-            value: state.latencyMs != null ? '${state.latencyMs} ${s.unitMs}' : '–',
+            value: state.latencyMs != null
+                ? '${state.latencyMs} ${s.unitMs}'
+                : '–',
             highlighted: state.status == SpeedTestStatus.testingLatency,
           ),
         ),
@@ -124,19 +126,30 @@ class SpeedTestScreen extends ConsumerWidget {
         ),
       ],
     );
+    // While a test runs the button stops it (owner, 12.10).
     final button = SizedBox(
       width: double.infinity,
-      child: FilledButton(
-        onPressed: state.isRunning ? null : notifier.run,
-        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-        child: Text(
-          state.isRunning
-              ? phaseLabel
-              : state.status == SpeedTestStatus.idle
-                  ? s.speedTestStart
-                  : s.speedTestRetest,
-        ),
-      ),
+      child: state.isRunning
+          ? OutlinedButton.icon(
+              onPressed: notifier.cancel,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                foregroundColor: WbColors.ice,
+                side: const BorderSide(color: WbColors.ice60),
+              ),
+              icon: const Icon(Icons.close_rounded, size: 20),
+              label: Text(s.cancel),
+            )
+          : FilledButton(
+              onPressed: notifier.run,
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52)),
+              child: Text(
+                state.status == SpeedTestStatus.idle
+                    ? s.speedTestStart
+                    : s.speedTestRetest,
+              ),
+            ),
     );
     Widget title({required bool withMenu}) => Row(
           children: [
@@ -157,8 +170,7 @@ class SpeedTestScreen extends ConsumerWidget {
                     serverLine,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style:
-                        const TextStyle(color: WbColors.muted, fontSize: 14),
+                    style: const TextStyle(color: WbColors.muted, fontSize: 14),
                   ),
                 ],
               ),
@@ -246,33 +258,53 @@ class SpeedTestScreen extends ConsumerWidget {
           waveSpeed: waves.speed,
           waveAmplitude: waves.amplitude,
           maxContentWidth: 560,
-          child: SafeArea(
-            child: ListView(
-              // The "Repeat test" button is the last thing on the page: a
-              // wider gap so it doesn't sit on the nav bar (owner, 06.10).
-              padding: const EdgeInsets.fromLTRB(
-                  20, 12, 20, kMobileBottomBarReserve + 28),
-              children: [
-                title(withMenu: false),
-                const SizedBox(height: 8),
-                // Always names what's actively being measured (or that
-                // nothing is yet, or that it's finished/failed) right
-                // under the title — the plain-language version of what the
-                // porthole shows.
-                statusText,
-                const SizedBox(height: 20),
-                AspectRatio(aspectRatio: 1, child: meter),
-                const SizedBox(height: 8),
-                // Determinate progress for whichever leg is running;
-                // latency (one TCP connect) gets an indeterminate bar.
-                _PhaseProgress(status: state.status, progress: state.progress),
-                const SizedBox(height: 20),
-                _PhaseStepper(state: state, s: s),
-                const SizedBox(height: 20),
-                results,
-                const SizedBox(height: 24),
-                button,
-              ],
+          // Full height: the background centres its child.
+          child: SizedBox.expand(
+            child: SafeArea(
+              // One screen, no scrolling (owner, 12.10): the porthole takes
+              // whatever height the rest leaves. Only a very short window
+              // (landscape, split screen) scrolls, at a fixed height.
+              child: LayoutBuilder(builder: (context, box) {
+                final page = Padding(
+                  // The button is the last thing on the page: a wider gap
+                  // so it doesn't sit on the nav bar (owner, 06.10).
+                  padding: const EdgeInsets.fromLTRB(
+                      20, 12, 20, kMobileBottomBarReserve + 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      title(withMenu: false),
+                      const SizedBox(height: 8),
+                      // Always names what's actively being measured (or
+                      // that nothing is yet, or that it's finished/failed)
+                      // — the plain-language version of the porthole.
+                      statusText,
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: Center(
+                          child: AspectRatio(aspectRatio: 1, child: meter),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Determinate progress for whichever leg is running;
+                      // latency (one TCP connect) gets an indeterminate bar.
+                      _PhaseProgress(
+                          status: state.status, progress: state.progress),
+                      const SizedBox(height: 16),
+                      _PhaseStepper(state: state, s: s),
+                      const SizedBox(height: 16),
+                      results,
+                      const SizedBox(height: 20),
+                      button,
+                    ],
+                  ),
+                );
+                const minHeight = 600.0;
+                if (box.maxHeight >= minHeight) return page;
+                return SingleChildScrollView(
+                  child: SizedBox(height: minHeight, child: page),
+                );
+              }),
             ),
           ),
         );

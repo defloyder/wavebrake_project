@@ -154,6 +154,7 @@ class SpeedTestController extends Notifier<SpeedTestState> {
   // updates smoothly; this is what keeps the updates themselves from
   // being noisy in the first place.
   double? _smoothedMbps;
+  SpeedTestAbort? _abort;
 
   double _smooth(double raw) {
     _smoothedMbps = emaStep(_smoothedMbps, raw);
@@ -181,6 +182,7 @@ class SpeedTestController extends Notifier<SpeedTestState> {
     if (state.isRunning) return;
     final generation = ++_generation;
     _smoothedMbps = null;
+    final abort = _abort = SpeedTestAbort();
     state = const SpeedTestState(status: SpeedTestStatus.testingLatency);
     // A real TCP-connect-timing probe against whatever location is
     // currently active — same mechanism the location list's own ping
@@ -202,6 +204,7 @@ class SpeedTestController extends Notifier<SpeedTestState> {
     state = state.copyWith(status: SpeedTestStatus.testingDownload);
     try {
       final result = await _service.run(
+        abort: abort,
         onPhase: (phase) {
           if (generation != _generation) return;
           // A fresh phase starts from a real zero, not wherever the
@@ -279,8 +282,20 @@ class SpeedTestController extends Notifier<SpeedTestState> {
     }
   }
 
+  /// The Cancel button (owner, 12.10): stops the transfer under way and
+  /// goes back to the start, keeping whatever was already measured.
+  void cancel() {
+    if (!state.isRunning) return;
+    _generation++;
+    _abort?.cancel();
+    _smoothedMbps = null;
+    state =
+        state.copyWith(status: SpeedTestStatus.idle, liveMbps: 0, progress: 0);
+  }
+
   void reset() {
     _generation++;
+    _abort?.cancel();
     _smoothedMbps = null;
     state = const SpeedTestState();
   }

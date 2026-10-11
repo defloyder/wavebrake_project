@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
+import '../shared/anchored_page.dart';
 import 'settings_ui.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
@@ -28,6 +29,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final s = ref.watch(stringsProvider);
     return SettingsPage(
       title: s.notifications,
+      hero: PageEmblem(
+          icon: Icons.notifications_none_rounded,
+          caption: s.notificationsRowHint),
       children: [
         SettingsGroup(children: [
           SettingsSwitchRow(

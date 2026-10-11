@@ -197,7 +197,8 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       maxRedirects: 3,
       responseType: ResponseType.plain,
     ));
-    final response = await dio.get<String>(link);
+    final response = await dio.get<String>(link,
+        options: Options(headers: await DeviceService.subscriptionHeaders()));
     final body = response.data ?? '';
     if (body.length > 2 * 1024 * 1024) throw _TooLarge();
     return _Fetched(body, response.headers);

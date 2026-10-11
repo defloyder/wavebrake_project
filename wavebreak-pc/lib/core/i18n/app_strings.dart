@@ -327,6 +327,8 @@ class AppStrings {
     required this.appearanceRowHint,
     required this.notificationsRowHint,
     required this.helpRowHint,
+    required this.supportPageHint,
+    required this.devicesPageHint,
     required this.groupRouting,
     required this.groupSystem,
     required this.groupContact,
@@ -473,6 +475,8 @@ class AppStrings {
   final String appearanceRowHint;
   final String notificationsRowHint;
   final String helpRowHint;
+  final String supportPageHint;
+  final String devicesPageHint;
   final String groupRouting;
   final String groupSystem;
   final String groupContact;
@@ -1107,7 +1111,8 @@ const kEnglishStrings = AppStrings(
   shareSubscription: 'Share',
   copyLink: 'Copy link',
   linkCopied: 'Link copied',
-  shareScanHint: 'Scan it in the WAVEBREAK app: Add your own VPN link → QR',
+  shareScanHint:
+      'Works in WAVEBREAK and other apps (Happ, v2RayTun, Hiddify). Every device takes a place in the subscription',
   shareDevices: 'Devices: {used} of {limit}',
   shareTraffic: 'Shared traffic: {used} of {limit}',
   shareTrafficUnlimited: 'Traffic: unlimited',
@@ -1159,6 +1164,8 @@ const kEnglishStrings = AppStrings(
   appearanceRowHint: 'Language, colors, text size, effects',
   notificationsRowHint: 'Connection and subscription',
   helpRowHint: 'Support, updates, about the app',
+  supportPageHint: 'We answer in Telegram and by email',
+  devicesPageHint: 'Where your account is signed in',
   groupRouting: 'Routing',
   groupSystem: 'System',
   groupContact: 'Contact us',
@@ -1521,7 +1528,7 @@ const kRussianStrings = AppStrings(
   copyLink: 'Скопировать ссылку',
   linkCopied: 'Ссылка скопирована',
   shareScanHint:
-      'Отсканируйте в приложении WAVEBREAK: «Добавить свою VPN-ссылку» → QR',
+      'Подходит для WAVEBREAK и других приложений (Happ, v2RayTun, Hiddify). Каждое устройство занимает место в подписке',
   shareDevices: 'Устройств: {used} из {limit}',
   shareTraffic: 'Общий трафик: {used} из {limit}',
   shareTrafficUnlimited: 'Трафик: без ограничений',
@@ -1573,6 +1580,8 @@ const kRussianStrings = AppStrings(
   appearanceRowHint: 'Язык, цвета, размер текста, эффекты',
   notificationsRowHint: 'Подключение и подписка',
   helpRowHint: 'Поддержка, обновления, о приложении',
+  supportPageHint: 'Ответим в Telegram и по почте',
+  devicesPageHint: 'Где выполнен вход в ваш аккаунт',
   groupRouting: 'Маршрутизация',
   groupSystem: 'Система',
   groupContact: 'Связаться с нами',
@@ -1937,7 +1946,7 @@ const kSpanishStrings = AppStrings(
   copyLink: 'Copiar enlace',
   linkCopied: 'Enlace copiado',
   shareScanHint:
-      'Escanéalo en la app WAVEBREAK: Agregar tu propio enlace VPN → QR',
+      'Sirve en WAVEBREAK y otras apps (Happ, v2RayTun, Hiddify). Cada dispositivo ocupa un lugar en la suscripción',
   shareDevices: 'Dispositivos: {used} de {limit}',
   shareTraffic: 'Tráfico compartido: {used} de {limit}',
   shareTrafficUnlimited: 'Tráfico: ilimitado',
@@ -1990,6 +1999,8 @@ const kSpanishStrings = AppStrings(
   appearanceRowHint: 'Idioma, colores, tamaño del texto, efectos',
   notificationsRowHint: 'Conexión y suscripción',
   helpRowHint: 'Soporte, actualizaciones, acerca de',
+  supportPageHint: 'Respondemos en Telegram y por correo',
+  devicesPageHint: 'Dónde está abierta tu cuenta',
   groupRouting: 'Enrutamiento',
   groupSystem: 'Sistema',
   groupContact: 'Contáctanos',
@@ -2359,7 +2370,7 @@ const kGermanStrings = AppStrings(
   copyLink: 'Link kopieren',
   linkCopied: 'Link kopiert',
   shareScanHint:
-      'Scanne ihn in der WAVEBREAK-App: Eigenen VPN-Link hinzufügen → QR',
+      'Funktioniert in WAVEBREAK und anderen Apps (Happ, v2RayTun, Hiddify). Jedes Gerät belegt einen Platz im Abo',
   shareDevices: 'Geräte: {used} von {limit}',
   shareTraffic: 'Geteiltes Datenvolumen: {used} von {limit}',
   shareTrafficUnlimited: 'Datenvolumen: unbegrenzt',
@@ -2411,6 +2422,8 @@ const kGermanStrings = AppStrings(
   appearanceRowHint: 'Sprache, Farben, Textgröße, Effekte',
   notificationsRowHint: 'Verbindung und Abo',
   helpRowHint: 'Support, Updates, über die App',
+  supportPageHint: 'Wir antworten per Telegram und E-Mail',
+  devicesPageHint: 'Wo Ihr Konto angemeldet ist',
   groupRouting: 'Routing',
   groupSystem: 'System',
   groupContact: 'Kontakt',
@@ -2780,7 +2793,7 @@ const kFrenchStrings = AppStrings(
   copyLink: 'Copier le lien',
   linkCopied: 'Lien copié',
   shareScanHint:
-      'Scannez-le dans l\'app WAVEBREAK : Ajouter votre propre lien VPN → QR',
+      "Fonctionne dans WAVEBREAK et d'autres apps (Happ, v2RayTun, Hiddify). Chaque appareil occupe une place de l'abonnement",
   shareDevices: 'Appareils : {used} sur {limit}',
   shareTraffic: 'Trafic partagé : {used} sur {limit}',
   shareTrafficUnlimited: 'Trafic : illimité',
@@ -2832,6 +2845,8 @@ const kFrenchStrings = AppStrings(
   appearanceRowHint: 'Langue, couleurs, taille du texte, effets',
   notificationsRowHint: 'Connexion et abonnement',
   helpRowHint: 'Assistance, mises à jour, à propos',
+  supportPageHint: 'Nous répondons sur Telegram et par e-mail',
+  devicesPageHint: 'Où votre compte est connecté',
   groupRouting: 'Routage',
   groupSystem: 'Système',
   groupContact: 'Nous contacter',
@@ -3197,7 +3212,7 @@ const kPortugueseStrings = AppStrings(
   copyLink: 'Copiar link',
   linkCopied: 'Link copiado',
   shareScanHint:
-      'Escaneie no app WAVEBREAK: Adicionar seu próprio link VPN → QR',
+      'Funciona no WAVEBREAK e em outros apps (Happ, v2RayTun, Hiddify). Cada dispositivo ocupa um lugar na assinatura',
   shareDevices: 'Dispositivos: {used} de {limit}',
   shareTraffic: 'Tráfego compartilhado: {used} de {limit}',
   shareTrafficUnlimited: 'Tráfego: ilimitado',
@@ -3249,6 +3264,8 @@ const kPortugueseStrings = AppStrings(
   appearanceRowHint: 'Idioma, cores, tamanho do texto, efeitos',
   notificationsRowHint: 'Conexão e assinatura',
   helpRowHint: 'Suporte, atualizações, sobre o app',
+  supportPageHint: 'Respondemos no Telegram e por e-mail',
+  devicesPageHint: 'Onde sua conta está conectada',
   groupRouting: 'Roteamento',
   groupSystem: 'Sistema',
   groupContact: 'Fale conosco',
@@ -3612,7 +3629,7 @@ const kTurkishStrings = AppStrings(
   copyLink: 'Bağlantıyı kopyala',
   linkCopied: 'Bağlantı kopyalandı',
   shareScanHint:
-      'WAVEBREAK uygulamasında tarayın: Kendi VPN bağlantınızı ekleyin → QR',
+      'WAVEBREAK ve diğer uygulamalarda çalışır (Happ, v2RayTun, Hiddify). Her cihaz abonelikte bir yer kaplar',
   shareDevices: 'Cihazlar: {used} / {limit}',
   shareTraffic: 'Ortak trafik: {used} / {limit}',
   shareTrafficUnlimited: 'Trafik: sınırsız',
@@ -3664,6 +3681,8 @@ const kTurkishStrings = AppStrings(
   appearanceRowHint: 'Dil, renkler, yazı boyutu, efektler',
   notificationsRowHint: 'Bağlantı ve abonelik',
   helpRowHint: 'Destek, güncellemeler, uygulama hakkında',
+  supportPageHint: 'Telegram ve e-posta ile yanıtlıyoruz',
+  devicesPageHint: 'Hesabınızın açık olduğu yerler',
   groupRouting: 'Yönlendirme',
   groupSystem: 'Sistem',
   groupContact: 'Bize ulaşın',
