@@ -1,6 +1,6 @@
 # WAVEBREAK на телевизорах
 
-Обновлено 07.10.2026. Черновик Codex (отдельный упрощённый интерфейс `tv_app.dart`) заменён:
+Обновлено 12.10.2026 (движок только Xray, отдельный 32-битный APK). Черновик Codex (отдельный упрощённый интерфейс `tv_app.dart`) заменён:
 ТВ-версия — **то же приложение**, что на телефоне и ПК, с теми же экранами V5.
 
 ## Что это
@@ -27,21 +27,36 @@
 - Нет: предложения про батарею, плитки шторки, обновлений телефонного APK (у ТВ свой пакет;
   канал обновлений для ТВ не сделан — новые версии ставить APK вручную).
 
+## Движок: только Xray (с 12.10)
+
+ТВ-сборка подключает отдельный вариант нативного моста — `android/app/libs/tv/hysteria_bridge.aar`,
+собранный `native/hysteria_bridge/build_aar.sh xray` (тег `xrayonly`: без клиента apernet
+Hysteria2 и без cloak; `bridge_xrayonly.go` — заглушки с той же сигнатурой, Kotlin не меняется).
+Gradle выбирает его при `WAVEBREAK_TV=true`. Hysteria2 и так идёт через Xray
+(`_hysteria2ViaXray`); на ТВ из списка убраны только ссылки с `cloak=1`
+(`personal_locations.dart`). Файл в git не хранится (как и основной мост) — на новой машине
+собрать командой выше.
+
 ## Сборка
 
 ```powershell
 tools/release/tv.ps1 -BuildNumber <N>     # или: tools/release/release.sh build-tv -BuildNumber <N>
 ```
 Скрипт: ветка = origin, тесты, сборка с 4 боевыми `--dart-define` + `WAVEBREAK_TV=true`,
-проверка подписи релизным ключом, пакета `.tv`, Leanback-запуска, библиотек под
-armeabi-v7a / arm64-v8a / x86_64 и боевого Core. Результат — `.artifacts/tv/`
-(`wavebreak-tv-<версия>-<N>-preview.apk` + `.json`). Номера: 1 — черновик Codex, 2 — первая
-сборка общего приложения (07.10).
+проверка подписи релизным ключом, пакета `.tv`, Leanback-запуска, библиотек и боевого Core.
+Результат — `.artifacts/tv/`, два файла + `.json`:
+- `wavebreak-tv-<версия>-<N>-preview.apk` — полный (armeabi-v7a / arm64-v8a / x86_64);
+- `wavebreak-tv-<версия>-<N>-arm32-preview.apk` — только 32-битный ARM, втрое меньше: ставится
+  практически на любой Android TV (64-битные ТВ запускают 32-битные приложения, у многих ТВ
+  система 32-битная). Его и давать по умолчанию; полный — для x86-приставок.
+
+Номера: 1 — черновик Codex, 2 — первая сборка общего приложения (07.10), 3 — Xray-only + arm32 (12.10).
 
 ## Какие ТВ поддерживаются
 
 - Android TV / Google TV 7.1+ (Sony, Philips, TCL, Hisense, Xiaomi Mi TV и Mi Box, Nvidia Shield,
-  Chromecast с Google TV и т. п.).
+  Chromecast с Google TV, дешёвые Android-приставки и т. п.). Ниже 7.1 нельзя: Flutter требует
+  Android 7.0, а в 7.0 нет корневого сертификата Let's Encrypt, которым подписан Core.
 - Amazon Fire TV — установкой APK (Fire OS — Android; в списке приложений появляется через
   обычный LAUNCHER).
 - **Нет:** Samsung (Tizen), LG (webOS), Apple TV — APK там не запускается; для них нужны
