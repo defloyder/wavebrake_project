@@ -1,3 +1,5 @@
+//go:build !xrayonly
+
 // Package bridge is the gomobile bind surface WAVEBREAK's Android side
 // calls into for Hysteria2. Xray-core (used for every other protocol via
 // flutter_v2ray) never implemented Hysteria2 at all — it's not a missing

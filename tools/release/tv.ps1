@@ -22,9 +22,9 @@ try {
     if ($BuildNumber -lt 1) { throw 'BuildNumber must be positive' }
     if (!(Test-Path -LiteralPath $Flutter)) { throw "Flutter not found: $Flutter" }
     foreach ($required in @('android\key.properties', 'android\app\wavebreak-release.jks',
-                            'android\app\libs\hysteria_bridge.aar')) {
+                            'android\app\libs\tv\hysteria_bridge.aar')) {
         if (!(Test-Path -LiteralPath (Join-Path $mobileRoot $required))) {
-            throw "Missing $required; see docs/BUILD-MACHINE-SETUP.md"
+            throw "Missing $required; see docs/BUILD-MACHINE-SETUP.md (TV bridge: native/hysteria_bridge/build_aar.sh xray)"
         }
     }
     $sdkLine = Get-Content (Join-Path $mobileRoot 'android\local.properties') |
@@ -37,7 +37,7 @@ try {
     $apksigner = Join-Path $buildTools.FullName 'apksigner.bat'
     $aapt = Join-Path $buildTools.FullName 'aapt.exe'
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $bridgeZip = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $mobileRoot 'android\app\libs\hysteria_bridge.aar'))
+    $bridgeZip = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $mobileRoot 'android\app\libs\tv\hysteria_bridge.aar'))
     try {
         foreach ($abi in @('arm64-v8a', 'armeabi-v7a', 'x86_64')) {
             if (!($bridgeZip.Entries | Where-Object { $_.FullName -eq "jni/$abi/libhysteriabridge.so" })) {
@@ -59,47 +59,61 @@ try {
         Invoke-Checked $Flutter @('pub', 'get')
         Invoke-Checked $Flutter @('analyze', '--no-pub', 'lib/main_tv.dart', 'lib/features/tv', 'test/tv_login_test.dart')
         Invoke-Checked $Flutter @('test', '--no-pub')
-        Invoke-Checked $Flutter @('build', 'apk', '--release', '--no-pub', '--target=lib/main_tv.dart',
-            '--target-platform=android-arm,android-arm64,android-x64',
-            "--build-name=$versionName", "--build-number=$BuildNumber",
-            '--dart-define=FLAVOR=production', '--dart-define=CORE_BASE_URL=https://core.wavebreak.com.tr',
-            '--dart-define=USE_MOCK_API=false', '--dart-define=USE_SIMULATED_VPN=false',
-            '--dart-define=ACCESS_PROTOCOL=vless', '--dart-define=WAVEBREAK_TV=true')
-        $apk = Join-Path $mobileRoot 'build\app\outputs\flutter-apk\app-release.apk'
-        $certificate = & $apksigner verify --print-certs $apk
-        if ($LASTEXITCODE -ne 0 -or !(($certificate -join "`n") -match 'd0d706bf9211d6a4c50e6a86742a2452eee650f0f3a4db5d5463a24b63cc57b6')) {
-            throw 'TV APK signature does not match the WAVEBREAK release key'
-        }
-        $badging = & $aapt dump badging $apk
-        if ($LASTEXITCODE -ne 0 -or !(($badging -join "`n") -match "name='com.wavebreak.wavebreak.tv'")) {
-            throw 'TV package ID missing; refusing to deliver a phone APK'
-        }
-        if (!(($badging -join "`n") -match 'leanback-launchable-activity')) { throw 'TV launcher missing' }
-        $apkZip = [System.IO.Compression.ZipFile]::OpenRead($apk)
-        try {
-            foreach ($abi in @('arm64-v8a', 'armeabi-v7a', 'x86_64')) {
-                foreach ($lib in @('libflutter.so', 'libapp.so', 'libhysteriabridge.so')) {
-                    if (!$apkZip.GetEntry("lib/$abi/$lib")) { throw "TV APK missing $abi/$lib" }
-                }
+        # Two files (12.10): the full one (32/64-bit ARM and x86_64 boxes)
+        # and a 32-bit ARM one — that build runs on practically every
+        # Android TV (64-bit TVs run 32-bit apps too, many have a 32-bit
+        # system) at a third of the size, for boxes with little storage.
+        function Build-TvApk([string]$Platforms, [string[]]$Abis, [string]$Destination) {
+            Invoke-Checked $Flutter @('build', 'apk', '--release', '--no-pub', '--target=lib/main_tv.dart',
+                "--target-platform=$Platforms",
+                "--build-name=$versionName", "--build-number=$BuildNumber",
+                '--dart-define=FLAVOR=production', '--dart-define=CORE_BASE_URL=https://core.wavebreak.com.tr',
+                '--dart-define=USE_MOCK_API=false', '--dart-define=USE_SIMULATED_VPN=false',
+                '--dart-define=ACCESS_PROTOCOL=vless', '--dart-define=WAVEBREAK_TV=true')
+            $apk = Join-Path $mobileRoot 'build\app\outputs\flutter-apk\app-release.apk'
+            $certificate = & $apksigner verify --print-certs $apk
+            if ($LASTEXITCODE -ne 0 -or !(($certificate -join "`n") -match 'd0d706bf9211d6a4c50e6a86742a2452eee650f0f3a4db5d5463a24b63cc57b6')) {
+                throw 'TV APK signature does not match the WAVEBREAK release key'
             }
-            $stream = $apkZip.GetEntry('lib/arm64-v8a/libapp.so').Open()
-            $buffer = New-Object System.IO.MemoryStream
+            $badging = & $aapt dump badging $apk
+            if ($LASTEXITCODE -ne 0 -or !(($badging -join "`n") -match "name='com.wavebreak.wavebreak.tv'")) {
+                throw 'TV package ID missing; refusing to deliver a phone APK'
+            }
+            if (!(($badging -join "`n") -match 'leanback-launchable-activity')) { throw 'TV launcher missing' }
+            $apkZip = [System.IO.Compression.ZipFile]::OpenRead($apk)
             try {
-                $stream.CopyTo($buffer)
-                $binary = [System.Text.Encoding]::ASCII.GetString($buffer.ToArray())
-                if (!$binary.Contains('https://core.wavebreak.com.tr') -or $binary.Contains('127.0.0.1:18080')) {
-                    throw 'TV APK does not use production Core'
+                foreach ($abi in $Abis) {
+                    foreach ($lib in @('libflutter.so', 'libapp.so', 'libhysteriabridge.so')) {
+                        if (!$apkZip.GetEntry("lib/$abi/$lib")) { throw "TV APK missing $abi/$lib" }
+                    }
                 }
-            } finally { $stream.Dispose(); $buffer.Dispose() }
-        } finally { $apkZip.Dispose() }
-        Copy-Item -LiteralPath $apk -Destination $artifact
+                $stream = $apkZip.GetEntry("lib/$($Abis[0])/libapp.so").Open()
+                $buffer = New-Object System.IO.MemoryStream
+                try {
+                    $stream.CopyTo($buffer)
+                    $binary = [System.Text.Encoding]::ASCII.GetString($buffer.ToArray())
+                    if (!$binary.Contains('https://core.wavebreak.com.tr') -or $binary.Contains('127.0.0.1:18080')) {
+                        throw 'TV APK does not use production Core'
+                    }
+                } finally { $stream.Dispose(); $buffer.Dispose() }
+            } finally { $apkZip.Dispose() }
+            Copy-Item -LiteralPath $apk -Destination $Destination
+        }
+        $artifactArm32 = Join-Path $tvOutput "wavebreak-tv-$versionName-$BuildNumber-arm32-preview.apk"
+        Build-TvApk 'android-arm,android-arm64,android-x64' @('arm64-v8a', 'armeabi-v7a', 'x86_64') $artifact
+        Build-TvApk 'android-arm' @('armeabi-v7a') $artifactArm32
         $sourceStatus = & git -C $projectRoot status --porcelain --untracked-files=normal
         [ordered]@{ package = 'com.wavebreak.wavebreak.tv'; preview = $true; version = $versionName;
             buildNumber = $BuildNumber; baseCommit = $localHead; sourceStatus = @($sourceStatus);
-            sha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash;
-            abis = @('armeabi-v7a', 'arm64-v8a', 'x86_64'); deviceVerified = $false } |
+            engine = 'xray-only (libs/tv/hysteria_bridge.aar, build_aar.sh xray)';
+            files = @(
+                [ordered]@{ file = (Split-Path $artifact -Leaf); abis = @('armeabi-v7a', 'arm64-v8a', 'x86_64');
+                    sha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash },
+                [ordered]@{ file = (Split-Path $artifactArm32 -Leaf); abis = @('armeabi-v7a');
+                    sha256 = (Get-FileHash -LiteralPath $artifactArm32 -Algorithm SHA256).Hash });
+            deviceVerified = $false } |
             ConvertTo-Json -Depth 4 | Set-Content -LiteralPath ($artifact + '.json') -Encoding UTF8
-        Write-Host "TV preview: $artifact (not published, device verification required)"
+        Write-Host "TV preview: $artifact and $artifactArm32 (not published, device verification required)"
     } finally {
         $env:ANDROID_HOME = $oldAndroidHome
     }

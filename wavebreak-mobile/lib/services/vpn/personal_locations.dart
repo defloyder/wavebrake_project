@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:wavebreak_links/wavebreak_links.dart' show ShareLink, TunnelEngine;
 
+import '../../core/env/app_env.dart';
 import '../../core/logging/app_logger.dart';
 import '../../core/storage/secure_store.dart';
 import '../core_api/core_gateway.dart';
@@ -78,5 +79,13 @@ class PersonalLocations {
   static List<LocationItem> _parse(PersonalAccess access) =>
       parseSubscriptionBody(access.links
           .where((l) => ShareLink.tryParse(l)?.supportedBy(engine) ?? false)
+          // The TV build is Xray-only (build_aar.sh xray): cloak=1 links
+          // need the apernet client it doesn't have.
+          .where((l) => !AppEnv.isTv || !_usesCloak(l))
           .join('\n'));
+
+  static bool _usesCloak(String link) {
+    final v = Uri.tryParse(link)?.queryParameters['cloak']?.toLowerCase();
+    return v == '1' || v == 'true';
+  }
 }

@@ -179,7 +179,9 @@ dependencies {
     // the moment one touched the other's shared go.Seq bridge). Re-run
     // native/hysteria_bridge/build_aar.sh and don't reintroduce a second
     // gomobile-bound native library here.
-    implementation(files("libs/hysteria_bridge.aar"))
+    // Android TV: the Xray-only build of the same bridge (build_aar.sh xray —
+    // no apernet Hysteria2 client, no cloak; a smaller APK for TV boxes).
+    implementation(files(if (wavebreakTv) "libs/tv/hysteria_bridge.aar" else "libs/hysteria_bridge.aar"))
     // JVM unit tests of the pure Kotlin rules (NetworkChangePolicy) —
     // test-only, not in the APK; approved by the project owner 2026-09-30.
     testImplementation("junit:junit:4.13.2")

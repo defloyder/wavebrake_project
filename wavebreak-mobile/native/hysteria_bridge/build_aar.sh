@@ -29,9 +29,22 @@ export PATH="/c/Program Files/Go/bin:$HOME/go/bin:$JAVA_HOME/bin:$PATH"
 # share of each architecture's library (the universal APK carries three).
 # -checklinkname=0: Go 1.23+ refuses wlynxg/anet's go:linkname without it
 # (needed since the xray-core bump in c797cb1).
-gomobile bind -v -o hysteria_bridge.aar -target android -androidapi 24 \
+# `build_aar.sh xray`: the Android TV variant — Xray-core only, no apernet
+# Hysteria2 client and no cloak (bridge_xrayonly.go), into libs/tv/.
+if [ "${1:-}" = "xray" ]; then
+  out=hysteria_bridge_xray.aar
+  dest=../../android/app/libs/tv/hysteria_bridge.aar
+  tags=(-tags xrayonly)
+  mkdir -p ../../android/app/libs/tv
+else
+  out=hysteria_bridge.aar
+  dest=../../android/app/libs/hysteria_bridge.aar
+  tags=()
+fi
+
+gomobile bind -v -o "$out" -target android -androidapi 24 "${tags[@]}" \
   -trimpath -ldflags="-s -w -checklinkname=0" \
   -javapkg=app.wavebreak.bridge -libname=hysteriabridge .
 
-cp hysteria_bridge.aar ../../android/app/libs/hysteria_bridge.aar
-echo "Built and copied to android/app/libs/hysteria_bridge.aar"
+cp "$out" "$dest"
+echo "Built and copied to $dest"
