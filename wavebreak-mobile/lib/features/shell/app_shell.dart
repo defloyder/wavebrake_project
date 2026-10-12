@@ -4,9 +4,11 @@ import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
@@ -128,15 +130,15 @@ class AppShell extends ConsumerWidget {
         }
 
         final expanded = ref.watch(navExpandedProvider);
-        return Scaffold(
-          body: Stack(
+        final shell = Scaffold(
+          body: _tvArrows(Stack(
             children: [
               // The content always sees a constant-width rail slot —
               // expanding the rail never reflows or squeezes this.
               Row(
                 children: [
                   const SizedBox(width: _kRailCollapsedWidth),
-                  Expanded(child: navigationShell),
+                  Expanded(child: _tvContent(navigationShell)),
                 ],
               ),
               if (expanded)
@@ -159,23 +161,40 @@ class AppShell extends ConsumerWidget {
                 left: 0,
                 top: 0,
                 bottom: 0,
-                child: _SideNav(
-                  expanded: expanded,
-                  selectedIndex: navigationShell.currentIndex,
-                  items: items,
-                  waveParams: waveParams,
-                  onSelect: (i) {
-                    ref.read(navExpandedProvider.notifier).state = false;
-                    shellTabTaps.value++;
-                    navigationShell.goBranch(
-                      i,
-                      initialLocation: i == navigationShell.currentIndex,
-                    );
-                  },
+                child: _tvRail(
+                  ref,
+                  _SideNav(
+                    expanded: expanded,
+                    selectedIndex: navigationShell.currentIndex,
+                    items: items,
+                    waveParams: waveParams,
+                    onSelect: (i) {
+                      ref.read(navExpandedProvider.notifier).state = false;
+                      shellTabTaps.value++;
+                      navigationShell.goBranch(
+                        i,
+                        initialLocation: i == navigationShell.currentIndex,
+                      );
+                      if (AppEnv.isTv) _leaveRail();
+                    },
+                  ),
                 ),
               ),
             ],
-          ),
+          )),
+        );
+        if (!AppEnv.isTv) return shell;
+        // TV: Back at a section's root goes Home; on Home it leaves the
+        // app (as the phone does).
+        return PopScope(
+          canPop: navigationShell.currentIndex == 0,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) {
+              navigationShell.goBranch(0);
+              _leaveRail();
+            }
+          },
+          child: shell,
         );
       },
     );
@@ -522,6 +541,8 @@ class _SideNav extends StatelessWidget {
                             data: items[i],
                             expanded: expanded,
                             selected: selectedIndex == i,
+                            focusNode:
+                                selectedIndex == i ? _tvRailSelected : null,
                             tint: waveParams.tint,
                             onTap: () => onSelect(i),
                           ),
@@ -545,6 +566,7 @@ class _RailItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.tint,
+    this.focusNode,
   });
 
   final _NavItemData data;
@@ -552,6 +574,9 @@ class _RailItem extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final Color? tint;
+
+  /// TV: the selected section's node — where ← from the page lands.
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
@@ -603,6 +628,7 @@ class _RailItem extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        focusNode: focusNode,
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
@@ -624,4 +650,108 @@ class _RailItem extends StatelessWidget {
       ),
     );
   }
+}
+
+// --- TV remote (owner, 12.10: the side panel didn't go away once opened,
+// and the remote was awkward) ---------------------------------------------
+//
+// Each section is its own navigator, and the arrows only search inside it:
+// ← from the page never reached the rail. Here:
+// - ← at the page's left edge goes to the rail (on the current section),
+//   which opens while the focus is in it;
+// - → or Back from the rail goes back to where the focus was on the page
+//   (or the page's first control), and the rail closes;
+// - picking a section hands the focus to that section's page.
+
+/// The rail's wrapper — `hasFocus` while a rail item is focused.
+final _tvRailNode = FocusNode(
+    debugLabel: 'tv-rail', canRequestFocus: false, skipTraversal: true);
+
+/// The selected section's rail item.
+final _tvRailSelected = FocusNode(debugLabel: 'tv-rail-selected');
+
+/// The pages (navigationShell).
+final _tvContentScope = FocusScopeNode(debugLabel: 'tv-content');
+
+/// Where the focus was on the page before ← took it to the rail.
+FocusNode? _tvLastPageFocus;
+
+Widget _tvRail(WidgetRef ref, Widget rail) {
+  if (!AppEnv.isTv) return rail;
+  return Focus(
+    focusNode: _tvRailNode,
+    onFocusChange: (inside) =>
+        ref.read(navExpandedProvider.notifier).state = inside,
+    onKeyEvent: (node, event) {
+      if (event is KeyDownEvent &&
+          (event.logicalKey == LogicalKeyboardKey.goBack ||
+              event.logicalKey == LogicalKeyboardKey.escape ||
+              event.logicalKey == LogicalKeyboardKey.browserBack)) {
+        _focusPage();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    },
+    child: FocusTraversalGroup(child: rail),
+  );
+}
+
+/// The pages, in their own focus scope, with the arrow handling above.
+Widget _tvContent(Widget pages) {
+  if (!AppEnv.isTv) return pages;
+  return FocusScope(node: _tvContentScope, child: pages);
+}
+
+/// Wraps the whole shell: arrows that leave the page or the rail.
+Widget _tvArrows(Widget shell) {
+  if (!AppEnv.isTv) return shell;
+  return Actions(
+    actions: {DirectionalFocusIntent: _TvDirectionalFocusAction()},
+    child: shell,
+  );
+}
+
+class _TvDirectionalFocusAction extends Action<DirectionalFocusIntent> {
+  @override
+  void invoke(DirectionalFocusIntent intent) {
+    final node = FocusManager.instance.primaryFocus;
+    if (node == null) return;
+    final inRail = _tvRailNode.hasFocus;
+    if (inRail) {
+      if (intent.direction == TraversalDirection.right) {
+        _focusPage();
+      } else {
+        node.focusInDirection(intent.direction);
+      }
+      return;
+    }
+    if (node.focusInDirection(intent.direction)) return;
+    if (intent.direction == TraversalDirection.left) {
+      _tvLastPageFocus = node;
+      _tvRailSelected.requestFocus();
+    }
+  }
+}
+
+/// The focus back on the page: where it was, else its first control.
+void _focusPage() {
+  final last = _tvLastPageFocus;
+  _tvLastPageFocus = null;
+  if (last != null && last.context != null && last.canRequestFocus) {
+    last.requestFocus();
+    return;
+  }
+  _tvContentScope.requestFocus();
+  // The scope itself, or a node of a section no longer shown: the first
+  // control of the page on screen (hidden sections are ExcludeFocus).
+  final f = FocusManager.instance.primaryFocus;
+  if (f == null || f == _tvContentScope || !f.canRequestFocus) {
+    _tvContentScope.nextFocus();
+  }
+}
+
+/// After picking a section: the new page is built next frame.
+void _leaveRail() {
+  _tvLastPageFocus = null;
+  WidgetsBinding.instance.addPostFrameCallback((_) => _focusPage());
 }

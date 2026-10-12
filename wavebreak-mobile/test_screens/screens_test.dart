@@ -42,7 +42,8 @@ class Shot {
       this.firstRun = false,
       this.locationId,
       this.pin = false,
-      this.openPicker = false});
+      this.openPicker = false,
+      this.keys = const []});
   final String name;
   final String path;
   final bool signedIn;
@@ -58,6 +59,9 @@ class Shot {
 
   /// Tap the location header on Home: the server pop-up.
   final bool openPicker;
+
+  /// Remote-control keys pressed after the screen settles (TV checks).
+  final List<LogicalKeyboardKey> keys;
 }
 
 const shots = [
@@ -69,6 +73,26 @@ const shots = [
   Shot('lock', '/home', pin: true),
   Shot('home-5proto', '/home', locationId: 'hel-r'),
   Shot('home-picker', '/home', openPicker: true),
+  // TV remote: ' ' first focus, then into the rail and out again.
+  Shot('tv-focus', '/home', keys: [LogicalKeyboardKey.arrowDown]),
+  Shot('tv-rail', '/home', keys: [
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowLeft,
+  ]),
+  Shot('tv-rail-back', '/home', keys: [
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.escape,
+  ]),
+  Shot('tv-rail-pick', '/home', keys: [
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.select,
+  ]),
   Shot('servers', '/locations'),
   Shot('test', '/speed-test'),
   Shot('metrics', '/metrics'),
@@ -219,6 +243,12 @@ void main() {
                 await tester.pump(const Duration(milliseconds: 100));
               }
               expect(find.byType(ServersList), findsOneWidget);
+            }
+            for (final key in shot.keys) {
+              await tester.sendKeyEvent(key);
+              for (var i = 0; i < 6; i++) {
+                await tester.pump(const Duration(milliseconds: 100));
+              }
             }
             await expectLater(
               find.byType(WavebreakApp),

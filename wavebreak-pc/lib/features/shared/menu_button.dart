@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/theme/wb_colors.dart';
 import '../shell/app_shell.dart';
 
@@ -10,6 +11,8 @@ class MenuButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // TV: the rail opens with the remote's focus (app_shell.dart _tvRail).
+    if (AppEnv.isTv) return const SizedBox.shrink();
     return Material(
       color: Colors.transparent,
       child: InkWell(

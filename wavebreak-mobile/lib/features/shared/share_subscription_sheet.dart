@@ -80,6 +80,11 @@ Future<void> showShareSubscriptionSheet(
     // rounded-all-corners, margined shape instead of a panel glued edge
     // to edge across the whole screen width.
     backgroundColor: Colors.transparent,
+    // The card below draws its own border: the theme's sheet shape
+    // (hairline side) showed as a second frame around it on wide screens
+    // (TV check, 12.10).
+    shape: const RoundedRectangleBorder(),
+    elevation: 0,
     builder: (context) {
       // A fixed share of the screen height, not content-driven sizing —
       // that's what lets the QR sit near the vertical center of the card

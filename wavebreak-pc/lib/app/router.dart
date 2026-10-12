@@ -146,10 +146,30 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, state) =>
             fadeThroughPage(state, const MaintenanceScreen()),
       ),
-      StatefulShellRoute.indexedStack(
+      // go_router's indexedStack, plus: the hidden sections are out of the
+      // focus order — a TV remote (or a keyboard) used to land on buttons of
+      // a tab that wasn't on screen (TV check, 12.10).
+      StatefulShellRoute(
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);
         },
+        navigatorContainerBuilder: (context, navigationShell, children) =>
+            IndexedStack(
+          index: navigationShell.currentIndex,
+          children: [
+            for (var i = 0; i < children.length; i++)
+              Offstage(
+                offstage: i != navigationShell.currentIndex,
+                child: TickerMode(
+                  enabled: i == navigationShell.currentIndex,
+                  child: ExcludeFocus(
+                    excluding: i != navigationShell.currentIndex,
+                    child: children[i],
+                  ),
+                ),
+              ),
+          ],
+        ),
         branches: [
           StatefulShellBranch(
             navigatorKey: _shellKey,

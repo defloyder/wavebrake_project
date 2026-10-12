@@ -117,6 +117,11 @@ Future<void> showServersSheet(BuildContext context, WidgetRef ref) {
     isScrollControlled: true,
     enableDrag: false,
     backgroundColor: Colors.transparent,
+    // The card below draws its own border: the theme's sheet shape
+    // (hairline side) showed as a second frame around it on wide screens
+    // (TV check, 12.10).
+    shape: const RoundedRectangleBorder(),
+    elevation: 0,
     builder: (sheetContext) {
       final media = MediaQuery.of(sheetContext);
       return SafeArea(
