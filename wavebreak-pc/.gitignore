@@ -74,3 +74,4 @@ switch_start.txt
 # Screenshot bench output (test_screens/screens_test.dart)
 test_screens/out/
 test_screens/failures/
+windows/runtime_deps/*.dat

@@ -240,6 +240,66 @@ abstract class V2RayURL {
     };
   }
 
+  /// The same tunnel for Windows, where Xray-core runs on its own (xray.exe)
+  /// and owns the TUN adapter itself — the Android config with its inbound
+  /// swapped (handoff 12.10, PC client's Xray migration):
+  /// - `tun`: a Wintun adapter [interfaceName], the default routes through
+  ///   it (`autoSystemRoutingTable`), and every outbound socket bound to
+  ///   the physical interface (`autoOutboundsInterface: auto`) so the
+  ///   tunnel's own traffic never loops back into it — what sing-box's
+  ///   auto_route + auto_detect_interface do today;
+  /// - `socks` on 127.0.0.1:[probePort]: the health probe and the latency
+  ///   figure go through the same outbound, as on Android.
+  /// Outbounds, DNS, smart routing and the ClientHello fragment are the
+  /// Android ones unchanged.
+  Map<String, dynamic> windowsTunConfiguration({
+    required int probePort,
+    String interfaceName = 'wavebreak',
+    int mtu = 1500,
+  }) {
+    final config = fullConfiguration;
+    final dnsServers = ((dns['servers'] as List?) ?? const ['1.1.1.1'])
+        .whereType<String>()
+        .where((s) => RegExp(r'^[0-9a-fA-F:.]+$').hasMatch(s))
+        .toList();
+    config['inbounds'] = [
+      {
+        // "in_proxy": the tag the smart-routing rules (app DNS) match on.
+        "tag": "in_proxy",
+        "protocol": "tun",
+        "port": 0,
+        "settings": {
+          "name": interfaceName,
+          "desc": "WAVEBREAK",
+          "mtu": mtu,
+          "gateway": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
+          "dns": dnsServers,
+          "autoSystemRoutingTable": ["0.0.0.0/0", "::/0"],
+          "autoOutboundsInterface": "auto",
+          "userLevel": level,
+        },
+        // Domains for the smart-routing rules (RU sites direct).
+        "sniffing": {
+          "enabled": true,
+          "destOverride": ["http", "tls", "quic"],
+          "routeOnly": true,
+        },
+      },
+      {
+        "tag": "probe-in",
+        "protocol": "socks",
+        "listen": "127.0.0.1",
+        "port": probePort,
+        "settings": {"auth": "noauth", "udp": false, "userLevel": level},
+      },
+    ];
+    return config;
+  }
+
+  String getWindowsTunConfiguration({required int probePort, int indent = 2}) =>
+      JsonEncoder.withIndent(' ' * indent).convert(
+          removeNulls(Map.from(windowsTunConfiguration(probePort: probePort))));
+
   String getFullConfiguration({int indent = 2}) {
     return JsonEncoder.withIndent(' ' * indent).convert(
       removeNulls(
