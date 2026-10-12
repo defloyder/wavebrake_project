@@ -1,0 +1,147 @@
+//go:build windows
+
+// WAVEBREAK Launcher: one small 32-bit exe for every Windows PC. It sees
+// the machine (x64 / x86 / ARM64, Windows version), offers the programs
+// that run on it — WAVEBREAK (x64) or WAVEBREAK Lite (x86) — and installs,
+// updates, opens and removes them; checks how WAVEBREAK's servers answer
+// from here; links the phone and TV apps. Its window is a page (ui.html)
+// in Edge WebView2, so it looks like the apps: ocean, waves, glass.
+package main
+
+import (
+	"context"
+	_ "embed"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	webview "github.com/jchv/go-webview2"
+	"golang.org/x/sys/windows"
+)
+
+//go:embed ui.html
+var page string
+
+func main() {
+	sharpOnScaledScreens()
+	dataDir := filepath.Join(os.Getenv("LOCALAPPDATA"), "WAVEBREAK Launcher")
+	_ = os.MkdirAll(dataDir, 0o755)
+
+	w := webview.NewWithOptions(webview.WebViewOptions{
+		DataPath:  dataDir,
+		AutoFocus: true,
+		WindowOptions: webview.WindowOptions{
+			Title:  "WAVEBREAK",
+			Width:  1080,
+			Height: 700,
+			Center: true,
+		},
+	})
+	if w == nil {
+		// No WebView2 runtime (rare on Windows 10/11): say so and offer it.
+		msg, _ := windows.UTF16PtrFromString(
+			"Для окна лаунчера нужен компонент Microsoft Edge WebView2.\n\n" +
+				"Открыть страницу загрузки?")
+		title, _ := windows.UTF16PtrFromString("WAVEBREAK")
+		if r, _ := windows.MessageBox(0, msg, title, windows.MB_YESNO|windows.MB_ICONINFORMATION); r == 6 {
+			_ = openWebView2Download()
+		}
+		return
+	}
+	defer w.Destroy()
+	w.SetSize(900, 600, webview.HintMin)
+
+	eval := func(js string) { w.Dispatch(func() { w.Eval(js) }) }
+	l := &Launcher{
+		system:    detectSystem(),
+		installed: installed,
+		fetch:     fetchRelease,
+		releases:  map[string]*Release{},
+		busy:      map[string]bool{},
+		progress: func(id string, done, total int64, phase string) {
+			eval(fmt.Sprintf("window.wbProgress&&wbProgress(%q,%d,%d,%q)", id, done, total, phase))
+		},
+	}
+	ctx := context.Background()
+
+	must(w.Bind("wbState", func() State { return l.State(ctx) }))
+	must(w.Bind("wbNet", func() []Probe { return NetCheck(ctx) }))
+	must(w.Bind("wbInstall", func(id string) {
+		go func() {
+			err := l.Install(ctx, id, runInstaller)
+			msg := ""
+			if err != nil {
+				msg = err.Error()
+			}
+			b, _ := json.Marshal(msg)
+			eval(fmt.Sprintf("window.wbDone&&wbDone(%q,%s)", id, b))
+		}()
+	}))
+	must(w.Bind("wbOpen", func(id string) error {
+		p, ok := l.product(id)
+		if !ok {
+			return fmt.Errorf("unknown product")
+		}
+		inst := installed(p.AppID)
+		if inst == nil || inst.Dir == "" {
+			return fmt.Errorf("не установлено")
+		}
+		return launch(inst.Dir, p.Exe)
+	}))
+	must(w.Bind("wbRemove", func(id string) error {
+		p, ok := l.product(id)
+		if !ok {
+			return fmt.Errorf("unknown product")
+		}
+		inst := installed(p.AppID)
+		if inst == nil || inst.Uninstall == "" {
+			return fmt.Errorf("не установлено")
+		}
+		return uninstall(inst.Uninstall)
+	}))
+	must(w.Bind("wbLink", func(id string) error {
+		p, ok := l.product(id)
+		if !ok || p.URL == "" {
+			return fmt.Errorf("no link")
+		}
+		return openURL(p.URL)
+	}))
+	must(w.Bind("wbOpenUrl", func(u string) error {
+		// The page's own links: the site and Telegram support only.
+		if !strings.HasPrefix(u, "https://wavebreak.com.tr") && !strings.HasPrefix(u, "https://t.me/") {
+			return fmt.Errorf("link not allowed")
+		}
+		return openURL(u)
+	}))
+
+	w.SetHtml(page)
+	w.Run()
+}
+
+func openWebView2Download() error {
+	return shellExecute("open", "https://developer.microsoft.com/microsoft-edge/webview2/", "")
+}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+// sharpOnScaledScreens: per-monitor DPI awareness (Windows 10 1703+), else
+// system DPI awareness — without it Windows stretches the window as a
+// bitmap at 125–150 % scaling and the page looks blurry.
+func sharpOnScaledScreens() {
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	if p := user32.NewProc("SetProcessDpiAwarenessContext"); p.Find() == nil {
+		// DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
+		if r, _, _ := p.Call(^uintptr(3)); r != 0 {
+			return
+		}
+	}
+	if p := user32.NewProc("SetProcessDPIAware"); p.Find() == nil {
+		p.Call()
+	}
+}
