@@ -42,7 +42,9 @@
 - `features/settings/support_screen.dart` — с веткой «Сохранить как» для Windows;
 - тесты ПК: `third_party_subscription_test.dart` (TUIC на sing-box работает) и
   `i18n_completeness_test.dart` (исключение `startup_error.dart`) отличаются.
-Сообщения пользователю — только `showNotice` / `showToast` (`features/shared/notice.dart`, карточкавверху); `SnackBar` не использовать. Страницы со строками — `AnchoredPage` / `SettingsPage(hero:)`(`features/shared/anchored_page.dart`): строки внизу, блок сверху, открываются с верха.
+Сообщения пользователю — только `showNotice` / `showToast` (`features/shared/notice.dart`, карточка
+вверху); `SnackBar` не использовать. Страницы со строками — `AnchoredPage` / `SettingsPage(hero:)`
+(`features/shared/anchored_page.dart`): строки внизу, блок сверху, открываются с верха.
 Стенд скриншотов есть в обоих проектах (`test_screens`, ПК — 1200×800; ТВ — мобильный с
 `--dart-define=WAVEBREAK_TV=true`, 960×540).
 
