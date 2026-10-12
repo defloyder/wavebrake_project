@@ -64,12 +64,14 @@ class SeoTest extends TestCase
             ->assertSee('от 119 ₽ в месяц');
     }
 
-    public function test_home_h1_carries_the_positioning(): void
+    public function test_home_has_a_readable_headline_and_keeps_positioning_in_metadata(): void
     {
         $html = $this->get('https://wavebreak.com.tr/')->getContent();
         preg_match('/<h1[^>]*>(.*?)<\/h1>/su', $html, $h1);
         $text = trim(preg_replace('/\s+/u', ' ', strip_tags($h1[1] ?? '')));
-        $this->assertStringContainsString('Платформа защищённого подключения и управления доступом', $text);
-        $this->assertStringContainsString('WAVEBREAK', $text);
+        $this->assertStringContainsString('Свобода', $text);
+        $this->assertStringContainsString('дальше.', $text);
+        $this->assertStringContainsString('<title>WAVEBREAK — защищённое сетевое подключение и управление доступом</title>', $html);
+        $this->assertStringContainsString('Платформа защищённого сетевого подключения и управления доступом', $html);
     }
 }

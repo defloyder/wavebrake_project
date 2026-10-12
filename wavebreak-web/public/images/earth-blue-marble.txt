@@ -1,0 +1,5 @@
+Earth surface texture: NASA Visible Earth, Blue Marble (2002).
+NASA Goddard Space Flight Center; Reto Stockli / Robert Simmon.
+Source: https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57730/land_ocean_ice_2048.png
+Collection: https://visibleearth.nasa.gov/collection/1484/blue-marble
+Local derivative: optimized JPEG, 2048 x 1024. No external runtime requests.

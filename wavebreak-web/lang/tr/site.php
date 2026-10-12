@@ -1,6 +1,17 @@
 <?php
 
 return [
+    'visual' => [
+        'eyebrow' => 'Senin dünyan. Senin yönün.',
+        'headline' => 'Özgürlük<br><em>ileriye gider.</em>',
+        'connection' => 'Senin bağlantın',
+        'location' => 'Konum seçimi senin',
+        'protection' => 'Korumalı bağlantı',
+        'profiles' => 'Profiller',
+        'locations' => 'Konumlar',
+        'devices' => 'Cihazlar',
+        'preview' => 'Tanıdık bir deneyim. Her cihazda.',
+    ],
     'meta' => [
         'title_default' => 'WAVEBREAK — Güvenli Ağ Bağlantısı ve Erişim Yönetimi',
         'positioning' => 'Bireysel kullanıcılar, ekipler ve işletmeler için güvenli ağ bağlantısı ve erişim yönetimi platformu.',

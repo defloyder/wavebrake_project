@@ -9,10 +9,14 @@
         @include('partials.tide')
         <div class="wb-container site-hero-inner">
             <div class="hero-copy" data-reveal>
-                <h1 id="home-title" class="brand-heading"><span class="download-kicker hero-kicker"><span></span> {{ __('site.home.kicker') }}</span> WAVEBREAK</h1>
-                <p class="hero-statement">{!! __('site.home.statement') !!}</p>
+                <p class="download-kicker hero-kicker"><span></span> {{ __('site.visual.eyebrow') }}</p>
+                <h1 id="home-title" class="horizon-title">{!! __('site.visual.headline') !!}</h1>
                 <p class="hero-description">{{ __('site.home.lede') }}</p>
-                <a class="download-discover" href="{{ Locales::path('download') }}"><span>{{ __('site.home.cta') }}</span><span aria-hidden="true">↗</span></a>
+                <div class="hero-actions">
+                    <a class="wb-btn wb-btn--primary" href="{{ Locales::path('download') }}">{{ __('site.home.cta') }} <span aria-hidden="true">↗</span></a>
+                    <a class="hero-secondary" href="{{ Locales::path('access') }}">{{ __('site.nav.access') }} <span aria-hidden="true">→</span></a>
+                </div>
+                <p class="horizon-signature"><span></span> BEYOND THE HORIZON</p>
             </div>
             <div class="hero-bottom"><span>Windows / Android / iOS</span><a href="#choice">{{ __('site.home.more') }} <span aria-hidden="true">↓</span></a></div>
         </div>
@@ -30,10 +34,7 @@
     <section class="site-section product-band" aria-labelledby="app-title">
         <div class="wb-container product-layout">
             <div data-reveal><p class="download-kicker"><span></span> {{ __('site.home.app_kicker') }}</p><h2 id="app-title">{!! __('site.home.app_title') !!}</h2><p class="section-copy">{{ __('site.home.app_text') }}</p><a class="text-link" href="{{ Locales::path('download') }}">{{ __('site.home.app_link') }} <span aria-hidden="true">↗</span></a></div>
-            <div class="product-globe" aria-hidden="true">
-                <span class="download-core-ring"><i class="download-globe-meridian"></i><i class="download-globe-latitude"></i><img src="{{ asset('images/wavebreak-mark.png') }}" alt=""></span>
-                <span class="section-number">{{ __('site.home.app_label') }}</span>
-            </div>
+            @include('partials.app-preview')
         </div>
     </section>
     <section class="site-section" aria-labelledby="audience-title">

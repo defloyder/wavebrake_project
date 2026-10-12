@@ -33,10 +33,7 @@
 
 <main id="main" class="download-site">
     <section class="download-hero" aria-labelledby="download-title">
-        <canvas id="download-tide" aria-hidden="true"></canvas>
-        <div class="download-grid" aria-hidden="true"></div>
-        <div class="download-wordmark download-wordmark--wave" aria-hidden="true">WAVE</div>
-        <div class="download-wordmark download-wordmark--break" aria-hidden="true">BREAK</div>
+        @include('partials.tide')
 
         <div class="wb-container download-hero-inner">
             <div class="download-intro" data-reveal>
@@ -90,8 +87,8 @@
                     <span class="download-device-mode">{{ __('site.download.mode_auto') }}</span>
                     <b class="download-device-location">{{ __('site.download.fastest') }}</b>
                     <span class="download-core-ring">
-                        <i class="download-globe-meridian"></i>
-                        <i class="download-globe-latitude"></i>
+                        <span class="earth-fallback" aria-hidden="true"></span>
+                        <canvas data-earth data-hologram="true" data-texture="{{ asset('images/earth-blue-marble.jpg') }}" aria-hidden="true"></canvas>
                         <img src="{{ asset('images/wavebreak-mark.png') }}" alt="">
                     </span>
                     <strong>{{ __('site.download.not_connected') }}</strong>
@@ -109,8 +106,8 @@
                     <span class="download-device-mode">{{ __('site.download.mode_auto') }}</span>
                     <b class="download-device-location">{{ __('site.download.fastest') }}</b>
                     <span class="download-core-ring">
-                        <i class="download-globe-meridian"></i>
-                        <i class="download-globe-latitude"></i>
+                        <span class="earth-fallback" aria-hidden="true"></span>
+                        <canvas data-earth data-hologram="true" data-texture="{{ asset('images/earth-blue-marble.jpg') }}" aria-hidden="true"></canvas>
                         <img src="{{ asset('images/wavebreak-mark.png') }}" alt="">
                     </span>
                     <strong>{{ __('site.download.not_connected') }}</strong>

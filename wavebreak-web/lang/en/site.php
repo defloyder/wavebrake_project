@@ -1,6 +1,17 @@
 <?php
 
 return [
+    'visual' => [
+        'eyebrow' => 'Your world. Your direction.',
+        'headline' => 'Freedom<br>moves <em>forward.</em>',
+        'connection' => 'Your connection',
+        'location' => 'A location of your choice',
+        'protection' => 'Protected connection',
+        'profiles' => 'Profiles',
+        'locations' => 'Locations',
+        'devices' => 'Devices',
+        'preview' => 'A familiar experience. On every device.',
+    ],
     'meta' => [
         'title_default' => 'WAVEBREAK — Secure Network Connection & Access Management',
         'positioning' => 'A secure network connection and access management platform for individuals, teams and businesses.',

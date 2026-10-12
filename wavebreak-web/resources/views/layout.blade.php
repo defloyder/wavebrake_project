@@ -113,6 +113,8 @@
     <link rel="preload" href="{{ asset('fonts/michroma-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ asset('css/wavebreak-fonts.css') }}?v={{ filemtime(public_path('css/wavebreak-fonts.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/wavebreak-site.css') }}?v={{ $cssVersion }}">
+    <link rel="stylesheet" href="{{ asset('css/wavebreak-horizon.css') }}?v={{ filemtime(public_path('css/wavebreak-horizon.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/wavebreak-horizon.css') }}?v={{ filemtime(public_path('css/wavebreak-horizon.css')) }}">
     <script type="application/ld+json">{!! json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}</script>
     @stack('schema')
     @stack('styles')
@@ -124,5 +126,7 @@
     @include('partials.public-footer')
     @stack('scripts')
     <script src="{{ asset('js/wavebreak-motion.js') }}?v={{ $jsVersion }}" defer></script>
+    <script src="{{ asset('js/wavebreak-earth.js') }}?v={{ filemtime(public_path('js/wavebreak-earth.js')) }}" defer></script>
+    <script src="{{ asset('js/wavebreak-earth.js') }}?v={{ filemtime(public_path('js/wavebreak-earth.js')) }}" defer></script>
 </body>
 </html>
