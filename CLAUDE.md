@@ -55,5 +55,8 @@ tools/release/release.sh publish   # только после «публикуй�
 | Android TV (то же приложение, пакет `.tv`, вход по QR) | `docs/TV-SUPPORT.md` |
 | Windows 32 бит — WAVEBREAK Lite | `wavebreak-lite/README.md` |
 | Общий интерфейс Android/Windows: что править где | `docs/PROJECT-STATE.md` → «Общий код» |
+| Лаунчер для Windows | `wavebreak-launcher/README.md` |
+| План перехода на микросервисы (черновик) | `docs/MICROSERVICES-PLAN.md` |
+| ПК на Xray (бета) | `docs/HANDOFF-pc-xray-migration.md` |
 
 Общаться с владельцем — по-русски.
