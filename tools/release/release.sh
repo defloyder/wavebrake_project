@@ -111,10 +111,18 @@ ensure_aar() {  # $1 = checkout root
   echo "$want" > "$aar.src"
 }
 
+# pub.dev over a flaky line (12.10: "Connection terminated during handshake"
+# three builds in a row while everything needed was already in the cache):
+# retry once, then resolve offline from the cache.
+pub_get() {
+  flutter pub get >/dev/null 2>&1 || flutter pub get >/dev/null 2>&1 \
+    || flutter pub get --offline >/dev/null || die "flutter pub get не прошёл (сеть и кэш)"
+}
+
 build_android() {  # $1 root $2 name $3 code $4 outprefix
   local root=$1 name=$2 code=$3 prefix=$4
   ( cd "$root/wavebreak-mobile"
-    flutter pub get >/dev/null
+    pub_get
     flutter build apk --release --build-name="$name" --build-number="$code" "${DEFINES[@]}" | grep -E "Built|FAIL|rror" | tail -1
     cp build/app/outputs/flutter-apk/app-release.apk "$OUT/$prefix.apk"
     if [ -z "${5:-}" ]; then
@@ -128,7 +136,7 @@ build_android() {  # $1 root $2 name $3 code $4 outprefix
 build_windows() {  # $1 root $2 name $3 code $4 outfile
   local root=$1 name=$2 code=$3 out=$4
   ( cd "$root/wavebreak-pc"
-    flutter pub get >/dev/null
+    pub_get
     flutter build windows --release --build-name="$name" --build-number="$code" "${DEFINES[@]}" | grep -E "Built|rror" | tail -1
     [ -f build/windows/x64/runner/Release/data/app.so ] || die "неполная сборка Windows (нет data/app.so)"
     "$ISCC" windows/installer/wavebreak.iss | tail -1
