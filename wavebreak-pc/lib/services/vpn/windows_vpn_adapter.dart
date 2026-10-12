@@ -645,7 +645,20 @@ class WindowsVpnAdapter implements VpnAdapter {
 
   Future<void> _runHealthCheck() async {
     if (_process == null) return;
+    final flowing = await _proxiedTrafficFlowing();
     if (await _probeTunnel()) {
+      _consecutiveHealthFailures = 0;
+      return;
+    }
+    // The probe dials a fresh connection. On some lines (Beeline over
+    // Ethernet, 06–12.10) new TCP connections to the server sometimes
+    // fail while the open ones keep carrying traffic — reloading then cut
+    // a working tunnel: "Direct keeps disconnecting and reconnecting"
+    // (owner, 12.10). Data still arriving through the proxy says the
+    // tunnel works.
+    if (flowing) {
+      AppLogger.info(
+          'Tunnel health probe failed, but proxied traffic is flowing — tunnel kept');
       _consecutiveHealthFailures = 0;
       return;
     }
@@ -953,6 +966,45 @@ class WindowsVpnAdapter implements VpnAdapter {
       );
     } catch (_) {
       return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  // Bytes received so far by each open connection through the `proxy`
+  // outbound, from the last health check.
+  Map<String, int> _proxyDownloads = const {};
+
+  /// True when a connection through the tunnel's `proxy` outbound received
+  /// data since the previous health check (sing-box Clash API
+  /// /connections; direct-routed connections don't count).
+  Future<bool> _proxiedTrafficFlowing() async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 2)
+      ..findProxy = (_) => 'DIRECT';
+    try {
+      final request = await client
+          .getUrl(Uri.parse('http://127.0.0.1:$_kClashApiPort/connections'));
+      final response =
+          await request.close().timeout(const Duration(seconds: 3));
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) return false;
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      final now = <String, int>{};
+      var flowing = false;
+      for (final c in (json['connections'] as List? ?? const [])) {
+        if (c is! Map) continue;
+        final chains = c['chains'];
+        if (chains is! List || !chains.contains('proxy')) continue;
+        final id = '${c['id']}';
+        final down = (c['download'] as num? ?? 0).toInt();
+        now[id] = down;
+        if (down > (_proxyDownloads[id] ?? 0)) flowing = true;
+      }
+      _proxyDownloads = now;
+      return flowing;
+    } catch (_) {
+      return false;
     } finally {
       client.close(force: true);
     }
