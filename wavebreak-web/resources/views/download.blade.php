@@ -19,7 +19,7 @@
     'name' => 'WAVEBREAK',
     'description' => __('site.meta.app_description'),
     'applicationCategory' => 'SecurityApplication',
-    'operatingSystem' => 'Windows, Android',
+    'operatingSystem' => 'Windows, Android, Android TV',
     'inLanguage' => ['ru', 'en', 'tr'],
     'url' => Locales::url('download'),
     'downloadUrl' => Locales::url('download'),
@@ -49,9 +49,10 @@
             <div class="download-signal" data-reveal data-reveal-delay="180" aria-label="{{ __('site.download.signal_label') }}">
                 <span class="download-signal-dot"></span>
                 <span>{{ __('site.download.signal') }}</span>
-                <b>02</b>
+                <b>03</b>
             </div>
 
+            <div class="download-platforms">
             <div class="download-platform-switch" id="platforms" data-platform-switch data-reveal data-reveal-delay="260">
                 <div class="download-platform-glass" aria-hidden="true"></div>
                 <a class="download-platform-btn" href="{{ asset('downloads/wavebreak-windows.exe') }}" data-platform="0" download>
@@ -64,11 +65,23 @@
                     <span><b>Android</b><small>{{ __('site.download.phone') }}</small></span>
                     <em>{{ __('site.download.get') }}</em>
                 </a>
-                <button type="button" class="download-platform-btn" data-platform="2" aria-describedby="release-note" disabled>
+                <a class="download-platform-btn" href="{{ asset('downloads/wavebreak-tv.apk') }}" data-platform="2" download>
                     <span class="download-platform-index">03</span>
-                    <span><b>iOS</b><small>{{ __('site.download.phone') }}</small></span>
-                    <em>{{ __('site.download.soon') }}</em>
-                </button>
+                    <span><b>Android TV</b><small>{{ __('site.download.tv') }}</small></span>
+                    <em>{{ __('site.download.get') }}</em>
+                </a>
+            </div>
+
+            <div class="download-extras" data-reveal data-reveal-delay="320">
+                <a href="{{ asset('downloads/WAVEBREAK-Launcher.exe') }}" download>
+                    <b>{{ __('site.download.launcher') }}</b>
+                    <small>{{ __('site.download.launcher_note') }}</small>
+                </a>
+                <a href="{{ asset('downloads/wavebreak-tv-arm32.apk') }}" download>
+                    <b>{{ __('site.download.tv32') }}</b>
+                    <small>{{ __('site.download.tv32_note') }}</small>
+                </a>
+            </div>
             </div>
         </div>
     </section>

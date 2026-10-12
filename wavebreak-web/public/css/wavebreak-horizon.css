@@ -216,3 +216,16 @@ body { background: #040608; }
   .app-globe-orbit::after, .app-preview-globe::before, .app-preview-globe::after,
   .app-preview-location::after { display: none; }
 }
+
+/* Download page: the Windows launcher and the light Android TV build,
+   under the platform switch, in its glass. */
+.download-extras { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; max-width: 620px; }
+.download-extras a { display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; border-radius: 16px; text-decoration: none;
+  color: var(--paper); background: #070d13c9; border: 1px solid #c4e1ef26; backdrop-filter: blur(12px);
+  transition: border-color .2s, transform .2s; }
+.download-extras a:hover { border-color: #83e5ed66; transform: translateY(-1px); }
+.download-extras b { font-size: 14px; font-weight: 600; }
+.download-extras b::after { content: " ↓"; color: var(--cyan); }
+.download-extras small { color: #a0aeb8; font-size: 12px; line-height: 1.35; }
+@media (max-width: 640px) { .download-extras { grid-template-columns: 1fr; } }
+.download-platforms { grid-column: 1 / -1; min-width: 0; }
