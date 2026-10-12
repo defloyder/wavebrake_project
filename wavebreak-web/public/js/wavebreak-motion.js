@@ -179,12 +179,12 @@
     const close = () => {
       panel.classList.remove('open');
       burger.setAttribute('aria-expanded', 'false');
-      burger.setAttribute('aria-label', 'Открыть меню');
+      burger.setAttribute('aria-label', burger.dataset.labelOpen);
     };
     burger.addEventListener('click', () => {
       const open = panel.classList.toggle('open');
       burger.setAttribute('aria-expanded', String(open));
-      burger.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+      burger.setAttribute('aria-label', open ? burger.dataset.labelClose : burger.dataset.labelOpen);
       updateGlass();
     });
     panel.querySelectorAll('a').forEach(link => link.addEventListener('click', close));
