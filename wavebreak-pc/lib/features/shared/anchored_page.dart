@@ -145,29 +145,36 @@ class _RenderHeroAbove extends RenderBox
     final width = constraints.maxWidth;
     _content.layout(BoxConstraints.tightFor(width: width),
         parentUsesSize: true);
-    _hero.layout(BoxConstraints(maxWidth: width), parentUsesSize: true);
     final contentH = _content.size.height;
-    final hero = _hero.size;
-    final free = _minHeight - contentH;
-    final heroRoom = hero.height + 2 * _gap;
-    final fits = free >= heroRoom;
-    _heroShown = hero.height > 0 && (fits || contentH > _minHeight);
-
-    final double height;
-    double heroY = 0;
-    if (_heroShown && fits) {
+    double height;
+    double heroY = _gap;
+    double contentY;
+    if (contentH <= _minHeight) {
+      // The rows fit: the hero gets exactly the room above them and picks
+      // its own form for it (HeroFit: full, compact, or nothing).
+      final room = math.max(0.0, _minHeight - contentH - 2 * _gap);
+      _hero.layout(BoxConstraints(maxWidth: width, maxHeight: room),
+          parentUsesSize: true);
+      _heroShown = _hero.size.height > 0;
       height = _minHeight;
-      heroY = (free - hero.height) / 2;
-    } else if (_heroShown) {
-      height = heroRoom + contentH;
-      heroY = _gap;
+      if (_heroShown) {
+        heroY = (_minHeight - contentH - _hero.size.height) / 2;
+        contentY = height - contentH;
+      } else {
+        // No hero fits: the rows at the top, not under an empty screen
+        // (owner, 12.10).
+        contentY = 0;
+      }
     } else {
-      height = math.max(_minHeight, contentH);
+      // A long page: the hero on top as it is, then the rows; it scrolls.
+      _hero.layout(BoxConstraints(maxWidth: width), parentUsesSize: true);
+      _heroShown = _hero.size.height > 0;
+      height = (_heroShown ? _hero.size.height + 2 * _gap : 0) + contentH;
+      contentY = height - contentH;
     }
     (_hero.parentData! as _HeroAboveData).offset =
-        Offset((width - hero.width) / 2, heroY);
-    (_content.parentData! as _HeroAboveData).offset =
-        Offset(0, height - contentH);
+        Offset((width - _hero.size.width) / 2, heroY);
+    (_content.parentData! as _HeroAboveData).offset = Offset(0, contentY);
     size = constraints.constrain(Size(width, height));
   }
 
@@ -248,12 +255,23 @@ class _PageEmblemState extends State<PageEmblem>
 
   @override
   Widget build(BuildContext context) {
+    // Full where the page has room; a smaller orb above short pages.
+    return HeroFit(
+      full: _emblem(context, 150),
+      fullHeight: 205,
+      compact: _emblem(context, 96),
+      compactHeight: 118,
+    );
+  }
+
+  Widget _emblem(BuildContext context, double size) {
     final accent = context.accent;
+    final orb = size * 80 / 150;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox.square(
-          dimension: 150,
+          dimension: size,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -265,8 +283,8 @@ class _PageEmblemState extends State<PageEmblem>
                 ),
               ),
               Container(
-                width: 80,
-                height: 80,
+                width: orb,
+                height: orb,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -280,12 +298,12 @@ class _PageEmblemState extends State<PageEmblem>
                   boxShadow: [
                     BoxShadow(
                       color: accent.withValues(alpha: 0.28),
-                      blurRadius: 28,
+                      blurRadius: orb * 0.35,
                       spreadRadius: 2,
                     ),
                   ],
                 ),
-                child: Icon(widget.icon, size: 36, color: Ic.text),
+                child: Icon(widget.icon, size: orb * 0.45, color: Ic.text),
               ),
             ],
           ),
@@ -316,7 +334,7 @@ class _RipplePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    final inner = 40.0;
+    final inner = size.shortestSide * 40 / 150;
     final outer = size.shortestSide / 2;
     final paint = Paint()
       ..style = PaintingStyle.stroke
@@ -331,4 +349,43 @@ class _RipplePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_RipplePainter old) => old.color != color;
+}
+
+/// A hero in the height an [AnchoredPage] has for it: [full] when it fits,
+/// else [compact], else nothing. Scaled down, never overflowing.
+class HeroFit extends StatelessWidget {
+  const HeroFit({
+    super.key,
+    required this.full,
+    required this.fullHeight,
+    this.compact,
+    this.compactHeight = 0,
+  });
+
+  final Widget full;
+  final double fullHeight;
+  final Widget? compact;
+  final double compactHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, box) {
+      final h = box.maxHeight;
+      // The full form scaled down to 75 % reads fine and fills the room
+      // better than the compact one floating in it.
+      final Widget? pick = !h.isFinite || h >= fullHeight * 0.75
+          ? full
+          : (compact != null && h >= compactHeight ? compact : null);
+      if (pick == null) return const SizedBox.shrink();
+      if (!h.isFinite) return pick;
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        // FittedBox lets its child be any size: keep the page's width.
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: box.maxWidth),
+          child: pick,
+        ),
+      );
+    });
+  }
 }

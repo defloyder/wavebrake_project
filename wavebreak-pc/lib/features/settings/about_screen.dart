@@ -7,6 +7,7 @@ import '../../core/auth/session_controller.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
+import '../shared/anchored_page.dart';
 import '../shared/wavebreak_mark.dart';
 import 'settings_ui.dart';
 
@@ -24,26 +25,31 @@ class AboutScreen extends ConsumerWidget {
     return SettingsPage(
       title: s.about,
       fallback: '/settings/help',
-      hero: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const WavebreakMark(size: 72, glow: true),
-          const SizedBox(height: 16),
-          const WavebreakWordmark(),
-          const SizedBox(height: 8),
-          FutureBuilder<PackageInfo>(
-            future: PackageInfo.fromPlatform(),
-            builder: (context, snapshot) {
-              final info = snapshot.data;
-              return Text(
-                info == null
-                    ? s.version
-                    : '${s.version} ${info.version} (${info.buildNumber})',
-                style: const TextStyle(color: WbColors.muted),
-              );
-            },
-          ),
-        ],
+      hero: HeroFit(
+        fullHeight: 170,
+        compactHeight: 60,
+        compact: const WavebreakMark(size: 44, glow: true),
+        full: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const WavebreakMark(size: 72, glow: true),
+            const SizedBox(height: 16),
+            const WavebreakWordmark(),
+            const SizedBox(height: 8),
+            FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snapshot) {
+                final info = snapshot.data;
+                return Text(
+                  info == null
+                      ? s.version
+                      : '${s.version} ${info.version} (${info.buildNumber})',
+                  style: const TextStyle(color: WbColors.muted),
+                );
+              },
+            ),
+          ],
+        ),
       ),
       children: [
         SettingsGroup(

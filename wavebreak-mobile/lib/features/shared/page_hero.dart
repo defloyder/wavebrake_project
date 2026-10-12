@@ -10,6 +10,7 @@ import '../../services/vpn/live_metrics.dart';
 import '../home/location_bar.dart';
 import '../immersive/immersive_colors.dart';
 import '../immersive/tinted_glass.dart';
+import 'anchored_page.dart';
 import 'data_providers.dart';
 import 'flag_icon.dart';
 import 'traffic_format.dart';
@@ -42,7 +43,7 @@ class SelectedServerHero extends ConsumerWidget {
     ].join(' · ');
     final ping = connected && m.active ? m.pingMs : null;
 
-    return Column(
+    final full = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
@@ -109,6 +110,81 @@ class SelectedServerHero extends ConsumerWidget {
         ),
       ],
     );
+    // Short of room (a long list below): one row — flag, place, state and
+    // the button (owner, 12.10: an empty top looked unfinished).
+    final compact = TintedGlass(
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Ic.text.withValues(alpha: 0.06),
+              border: Border.all(
+                  color: connected ? Ic.arctic : Ic.glassBorder, width: 1.5),
+            ),
+            child: loc.isAuto || loc.countryCode.isEmpty
+                ? const Icon(Icons.public, color: Ic.arctic, size: 24)
+                : FlagIcon(countryCode: loc.countryCode, width: 28),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Ic.text,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  connected
+                      ? (ping == null
+                          ? s.connected
+                          : '${s.connected} · $ping ${s.unitMs}')
+                      : (subtitle.isNotEmpty ? subtitle : s.notConnected),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: connected ? Ic.arctic : Ic.textMuted,
+                      fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TintedGlass(
+            onTap: busy
+                ? null
+                : () => ref
+                    .read(connectionManagerProvider.notifier)
+                    .toggle(subscriptionActive: canConnect),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            child: Text(
+              connected || busy ? s.coreDisconnect : s.coreConnect,
+              style: TextStyle(
+                color: connected ? Ic.text : context.accent,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return HeroFit(
+      full: full,
+      fullHeight: 262,
+      compact: compact,
+      compactHeight: 72,
+    );
   }
 }
 
@@ -135,9 +211,7 @@ class AccountHero extends ConsumerWidget {
 
     final facts = [
       if (active)
-        days == null
-            ? sub.planName
-            : '${sub.planName} · ${s.daysLeft(days)}',
+        days == null ? sub.planName : '${sub.planName} · ${s.daysLeft(days)}',
       if (active && own?.deviceLimit != null)
         '${s.devices}: ${own!.devicesUsed} / ${own.deviceLimit}',
       if (active && usage != null)
@@ -145,7 +219,7 @@ class AccountHero extends ConsumerWidget {
             usage.bytesTotal, usage.limitBytes ?? sub.trafficLimitBytes, s),
     ];
 
-    return InkWell(
+    final full = InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: link ? () => context.push('/settings/account') : null,
       child: Column(
@@ -191,6 +265,61 @@ class AccountHero extends ConsumerWidget {
               ),
         ],
       ),
+    );
+    final compact = InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: link ? () => context.push('/settings/account') : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: context.accent.withValues(alpha: 0.18),
+                border:
+                    Border.all(color: context.accent.withValues(alpha: 0.6)),
+              ),
+              child: Text(initial,
+                  style: const TextStyle(
+                      color: Ic.text,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(isGuest ? s.signIn : (email.isEmpty ? s.account : email),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Ic.text,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(isGuest ? s.signInToUnlock : facts.join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          const TextStyle(color: Ic.textMuted, fontSize: 13)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return HeroFit(
+      full: full,
+      fullHeight: 215,
+      compact: compact,
+      compactHeight: 60,
     );
   }
 }
