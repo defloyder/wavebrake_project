@@ -75,7 +75,7 @@ return [
             ['Do I need a WAVEBREAK subscription?', 'Only to use our own service. Compatible profiles from other providers can be added to the app separately, without a subscription.'],
             ['What data does WAVEBREAK collect?', 'An email address is all an account needs. We do not collect the content of your traffic or the history of the sites you visit. Details are in our <a href="{privacy}">Privacy Policy</a>.'],
             ['Where is my account?', 'In the desktop or mobile app. There is no customer web dashboard.'],
-            ['Where can I download the app?', 'On the <a href="{download}">apps page</a>: Windows and Android versions are available now, iOS is coming soon.'],
+            ['Where can I download the app?', 'On the <a href="{download}">apps page</a>: Windows, Android and Android TV versions are available now, iOS is coming soon.'],
         ],
     ],
 
@@ -112,8 +112,8 @@ return [
     ],
 
     'download' => [
-        'title' => 'Download WAVEBREAK for Windows and Android',
-        'description' => 'The official WAVEBREAK app for Windows and Android: secure connection, profiles and subscription in one account. An iOS version is coming soon.',
+        'title' => 'Download WAVEBREAK for Windows, Android and Android TV',
+        'description' => 'The official WAVEBREAK app for Windows, Android and Android TV: secure connection, profiles and subscription in one account. An iOS version is coming soon.',
         'kicker' => 'The WAVEBREAK app',
         'h1' => 'The wave changes.<br><em>Access stays.</em>',
         'lede' => 'Your account, plans and links live where you use them: on your computer and your phone.',
@@ -144,8 +144,8 @@ return [
             ['Choose a location', 'Pick an available location and check the connection status in the app.'],
         ],
         'release_kicker' => 'Coming here soon',
-        'release_title' => 'Windows and Android are available now.<br>iOS once the build is published.',
-        'release_text' => 'Official Windows and Android builds are available to download above. iOS will appear here as soon as it is ready.',
+        'release_title' => 'Windows, Android and Android TV are available now.<br>iOS once the build is published.',
+        'release_text' => 'Official Windows, Android and Android TV builds are available to download above. iOS will appear here as soon as it is ready.',
     ],
 
     'pricing' => [

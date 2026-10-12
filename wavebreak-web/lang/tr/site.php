@@ -75,7 +75,7 @@ return [
             ['WAVEBREAK aboneliği gerekli mi?', 'Yalnızca kendi hizmetimizi kullanmak için. Diğer sağlayıcıların uyumlu profilleri uygulamaya abonelik olmadan ayrıca eklenebilir.'],
             ['WAVEBREAK hangi verileri topluyor?', 'Hesap için e-posta adresi yeterlidir. Trafiğinizin içeriğini ve ziyaret ettiğiniz sitelerin geçmişini toplamayız. Ayrıntılar <a href="{privacy}">Gizlilik ve KVKK Aydınlatma Metni</a>’nde.'],
             ['Hesabıma nereden girerim?', 'Bilgisayar veya telefon uygulamasından. Müşteriler için web paneli yoktur.'],
-            ['Uygulamayı nereden indirebilirim?', '<a href="{download}">Uygulamalar sayfasından</a>: Windows ve Android sürümleri şu anda mevcut, iOS yakında.'],
+            ['Uygulamayı nereden indirebilirim?', '<a href="{download}">Uygulamalar sayfasından</a>: Windows, Android ve Android TV sürümleri şu anda mevcut, iOS yakında.'],
         ],
     ],
 
@@ -112,8 +112,8 @@ return [
     ],
 
     'download' => [
-        'title' => 'WAVEBREAK’i Windows ve Android için İndirin',
-        'description' => 'Windows ve Android için resmi WAVEBREAK uygulaması: güvenli bağlantı, profiller ve abonelik tek hesapta. iOS sürümü yakında.',
+        'title' => 'WAVEBREAK’i Windows, Android ve Android TV için İndirin',
+        'description' => 'Windows, Android ve Android TV için resmi WAVEBREAK uygulaması: güvenli bağlantı, profiller ve abonelik tek hesapta. iOS sürümü yakında.',
         'kicker' => 'WAVEBREAK uygulaması',
         'h1' => 'Dalga değişir.<br><em>Erişim kalır.</em>',
         'lede' => 'Hesabınız, planlarınız ve bağlantılarınız onları kullandığınız yerde: bilgisayarınızda ve telefonunuzda.',
@@ -144,8 +144,8 @@ return [
             ['Konum seçimi', 'Kullanılabilir bir konum seçin ve bağlantı durumunu uygulamada kontrol edin.'],
         ],
         'release_kicker' => 'Yakında burada',
-        'release_title' => 'Windows ve Android şimdi hazır.<br>iOS, sürüm yayımlanınca.',
-        'release_text' => 'Resmi Windows ve Android sürümleri yukarıdan indirilebilir. iOS hazır olduğunda burada yer alacak.',
+        'release_title' => 'Windows, Android ve Android TV şimdi hazır.<br>iOS, sürüm yayımlanınca.',
+        'release_text' => 'Resmi Windows, Android ve Android TV sürümleri yukarıdan indirilebilir. iOS hazır olduğunda burada yer alacak.',
     ],
 
     'pricing' => [
