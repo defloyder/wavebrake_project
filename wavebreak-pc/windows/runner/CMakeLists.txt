@@ -77,3 +77,16 @@ add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
     "$<TARGET_FILE_DIR:${BINARY_NAME}>/cloak-client-proxy.exe"
   COMMENT "Copying sing-box.exe, wintun.dll, and cloak-client-proxy.exe next to ${BINARY_NAME}"
 )
+
+# Xray-core, the beta engine (windows_xray_adapter.dart; built by
+# native/xray/build.sh with geoip/geosite.dat). Optional: without these the
+# app simply stays on sing-box (WindowsEngineSwitch falls back), so a
+# machine that hasn't built them still builds the app.
+foreach(xray_dep xray.exe geoip.dat geosite.dat)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../runtime_deps/${xray_dep}")
+    add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/../runtime_deps/${xray_dep}"
+        "$<TARGET_FILE_DIR:${BINARY_NAME}>/${xray_dep}")
+  endif()
+endforeach()

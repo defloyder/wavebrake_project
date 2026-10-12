@@ -38,7 +38,8 @@ final links = <String, String>{
 Map<String, dynamic> windowsConfig(String link, {bool smart = false}) {
   final parsed = parseShareLink(link);
   if (smart) applySmartRoutingPolicy(parsed, kClientSmartRoutingPolicy);
-  return jsonDecode(parsed.getWindowsTunConfiguration(probePort: 47984))
+  return jsonDecode(
+          parsed.getWindowsTunConfiguration(probePort: 47984, metricsPort: 47985))
       as Map<String, dynamic>;
 }
 
@@ -60,6 +61,10 @@ void main() {
     expect(probe['port'], 47984);
     // Outbounds as on Android: the proxy first.
     expect(((c['outbounds'] as List).first as Map)['tag'], 'proxy');
+    // Byte counters on loopback.
+    expect(c['stats'], isA<Map>());
+    expect(c['metrics'], {'tag': 'metrics_out', 'listen': '127.0.0.1:47985'});
+    expect(((c['policy'] as Map)['system'] as Map)['statsOutboundDownlink'], isTrue);
   });
 
   final xray = Platform.environment['XRAY_BIN'];

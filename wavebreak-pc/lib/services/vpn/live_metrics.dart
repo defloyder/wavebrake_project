@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'connection_manager.dart';
-import 'windows_vpn_adapter.dart';
+import 'windows_tunnel.dart';
 
 /// One throughput sample, bits per second.
 class RateSample {
@@ -172,7 +172,7 @@ class LiveMetrics extends Notifier<LiveMetricsState> {
 
   Future<void> _sampleWindows() async {
     final adapter = ref.read(vpnAdapterProvider);
-    if (adapter is! WindowsVpnAdapter) return;
+    if (adapter is! WindowsTunnel) return;
     final now = DateTime.now();
     final prevAt = _winAt;
     // About once a second: half-second deltas jump too much.

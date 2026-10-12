@@ -136,6 +136,11 @@ build_android() {  # $1 root $2 name $3 code $4 outprefix
 build_windows() {  # $1 root $2 name $3 code $4 outfile
   local root=$1 name=$2 code=$3 out=$4
   ( cd "$root/wavebreak-pc"
+    # The beta Xray engine (native/xray/build.sh, optional for the app):
+    # built from the mobile-pinned Xray-core when the tree has the script.
+    if [ -f native/xray/build.sh ] && [ ! -f windows/runtime_deps/xray.exe ]; then
+      bash native/xray/build.sh >/dev/null || die "не собрался xray.exe"
+    fi
     pub_get
     flutter build windows --release --build-name="$name" --build-number="$code" "${DEFINES[@]}" | grep -E "Built|rror" | tail -1
     [ -f build/windows/x64/runner/Release/data/app.so ] || die "неполная сборка Windows (нет data/app.so)"

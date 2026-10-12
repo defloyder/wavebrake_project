@@ -30,6 +30,7 @@ class _ConnectionSettingsScreenState
   late bool _smartRouting =
       PrefsStore.getBool(PrefsStore.smartRouting, fallback: true);
   bool _xiaomi = false;
+  late bool _xrayEngine = PrefsStore.getBool(PrefsStore.pcXrayEngine);
 
   @override
   void initState() {
@@ -125,9 +126,24 @@ class _ConnectionSettingsScreenState
               title: s.connectionMode,
               value: s.automatic,
             ),
+            // Windows: Xray-core instead of sing-box (handoff phase 1, beta);
+            // applies on the next connect. Links Xray can't run as they are
+            // stay on sing-box.
+            if (Platform.isWindows)
+              SettingsSwitchRow(
+                icon: Icons.memory_rounded,
+                title: s.xrayEngineTitle,
+                subtitle: s.xrayEngineHint,
+                value: _xrayEngine,
+                onChanged: (value) async {
+                  await PrefsStore.setBool(PrefsStore.pcXrayEngine, value);
+                  setState(() => _xrayEngine = value);
+                },
+              ),
             // WAVEBREAK locations only; applies on the next connect.
-            // Android for now — the Windows engine doesn't read it yet.
-            if (Platform.isAndroid)
+            // Android, and Windows on the Xray engine (sing-box doesn't
+            // read it).
+            if (Platform.isAndroid || (Platform.isWindows && _xrayEngine))
               SettingsSwitchRow(
                 icon: Icons.alt_route_rounded,
                 title: s.smartRoutingTitle,

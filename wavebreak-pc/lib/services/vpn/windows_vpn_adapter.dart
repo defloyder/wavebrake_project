@@ -11,6 +11,7 @@ import '../core_api/models.dart';
 import 'conflicting_vpn_closer.dart';
 import 'network_change_policy.dart';
 import 'vpn_adapter.dart';
+import 'windows_tunnel.dart';
 
 /// Loopback-only port for sing-box's Clash-API-compatible control server
 /// (`experimental.clash_api` below) — enables a live `PUT /configs` reload
@@ -65,7 +66,7 @@ Future<int?> clashTunnelLatency() async {
 /// TUN adapter and change routes, which needs admin rights —
 /// runner.exe.manifest requests elevation for the whole app for exactly
 /// this reason.
-class WindowsVpnAdapter implements VpnAdapter {
+class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
   final _controller = StreamController<VpnNativeState>.broadcast();
   Process? _process;
   StreamSubscription<String>? _stdoutSub;
@@ -638,6 +639,7 @@ class WindowsVpnAdapter implements VpnAdapter {
   /// `url` parameter and always fetches https://www.gstatic.com/generate_204
   /// through the outbound (so this includes a TLS handshake), honors
   /// `timeout`, and answers 504 when the fetch fails.
+  @override
   Future<int?> measureTunnelLatency() async {
     if (_process == null) return null;
     return clashTunnelLatency();
@@ -948,6 +950,7 @@ class WindowsVpnAdapter implements VpnAdapter {
   /// Bytes through sing-box since it started (Clash API `/connections`
   /// totals) — Windows' source for the live speed and session traffic
   /// (Android reads its VPN service's counters). Null when it's not up.
+  @override
   Future<({int up, int down})?> trafficTotals() async {
     if (_process == null) return null;
     final client = HttpClient()

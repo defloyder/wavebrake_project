@@ -30,6 +30,8 @@ class PrefsStore {
   // WAVEBREAK locations: Russian sites directly, DNS through the tunnel
   // (see kClientSmartRoutingPolicy). On by default.
   static const smartRouting = 'smart_routing';
+  /// Windows: run supported links on Xray-core instead of sing-box (beta).
+  static const pcXrayEngine = 'pc_xray_engine';
   static const notifyConnection = 'notify_connection';
   static const notifySubscription = 'notify_subscription';
   static const biometricPromptShown = 'biometric_prompt_shown';

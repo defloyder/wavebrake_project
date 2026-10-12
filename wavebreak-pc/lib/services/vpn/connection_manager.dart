@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavebreak_links/wavebreak_links.dart' show kClientSmartRoutingPolicy;
 
 import '../../core/env/app_env.dart';
 import '../../core/errors/app_exception.dart';
@@ -24,7 +25,7 @@ import 'speed_test_service.dart';
 import 'traffic_check.dart';
 import 'vpn_adapter.dart';
 import 'vpn_notification_meta.dart';
-import 'windows_vpn_adapter.dart';
+import 'windows_tunnel.dart';
 
 enum ConnectionStatus {
   idle,
@@ -105,7 +106,8 @@ final vpnAdapterProvider = Provider<VpnAdapter>((ref) {
   // contract, whose native side isn't implemented yet.
   if (AppEnv.accessProtocol == 'vless') {
     if (Platform.isWindows) {
-      final adapter = WindowsVpnAdapter();
+      // sing-box, or Xray where the user turned it on (WindowsEngineSwitch).
+      final adapter = WindowsEngineSwitch();
       ref.onDispose(adapter.dispose);
       return adapter;
     }
@@ -507,6 +509,24 @@ class ConnectionManager extends Notifier<WbConnectionState> {
 
   /// WAVEBREAK's own locations (the account's personal ones), as opposed
   /// to a server the user added.
+  /// A link's profile. For WAVEBREAK's own locations on the Xray engine
+  /// it carries [kClientSmartRoutingPolicy] — Russian sites straight from
+  /// the PC, as on Android — unless the user switched routing off;
+  /// sing-box doesn't read the policy, and a user's own servers always get
+  /// the bare link.
+  ConnectionProfile _linkProfile(LocationItem target) {
+    final link = target.rawLink ?? '';
+    if (WindowsEngineSwitch.xrayEnabled &&
+        PrefsStore.getBool(PrefsStore.smartRouting, fallback: true) &&
+        _isWavebreakLocation(target)) {
+      return ConnectionProfile(jsonEncode({
+        'vless': {'connection_url': link},
+        'routing_policy': kClientSmartRoutingPolicy,
+      }));
+    }
+    return ConnectionProfile(link);
+  }
+
   bool _isWavebreakLocation(LocationItem target) {
     final own = ref.read(locationsProvider).valueOrNull ?? const [];
     return own.any((l) => l.id == target.id);
@@ -520,7 +540,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   /// transports by itself — see [tryOtherProtocol].
   Future<void> _checkTraffic(LocationItem used, int generation) async {
     final adapter = ref.read(vpnAdapterProvider);
-    if (adapter is! WindowsVpnAdapter) return;
+    if (adapter is! WindowsTunnel) return;
     bool current() =>
         generation == _connectGeneration &&
         state.status == ConnectionStatus.connected &&
@@ -598,7 +618,7 @@ class ConnectionManager extends Notifier<WbConnectionState> {
   Future<void> _attemptConnect(LocationItem target,
       {required int generation}) async {
     if (target.isCustom) {
-      final profile = ConnectionProfile(target.rawLink ?? '');
+      final profile = _linkProfile(target);
       await SecureStore.write(SecureStore.connectionProfile, profile.rawJson);
       if (generation != _connectGeneration) return;
       state = state.copyWith(status: ConnectionStatus.connecting);

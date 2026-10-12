@@ -254,8 +254,9 @@ abstract class V2RayURL {
   /// Android ones unchanged.
   Map<String, dynamic> windowsTunConfiguration({
     required int probePort,
-    String interfaceName = 'wavebreak',
+    String interfaceName = 'wavebreak-xray',
     int mtu = 1500,
+    int? metricsPort,
   }) {
     final config = fullConfiguration;
     final dnsServers = ((dns['servers'] as List?) ?? const ['1.1.1.1'])
@@ -293,12 +294,27 @@ abstract class V2RayURL {
         "settings": {"auth": "noauth", "udp": false, "userLevel": level},
       },
     ];
+    if (metricsPort != null) {
+      // Bytes through each outbound, read from
+      // http://127.0.0.1:<metricsPort>/debug/vars (stats.outbound.proxy):
+      // the speed figures and "data is still flowing" for the health check.
+      config["stats"] = <String, dynamic>{};
+      config["policy"] = {
+        "system": {"statsOutboundUplink": true, "statsOutboundDownlink": true},
+      };
+      config["metrics"] = {"tag": "metrics_out", "listen": "127.0.0.1:$metricsPort"};
+    }
     return config;
   }
 
-  String getWindowsTunConfiguration({required int probePort, int indent = 2}) =>
-      JsonEncoder.withIndent(' ' * indent).convert(
-          removeNulls(Map.from(windowsTunConfiguration(probePort: probePort))));
+  String getWindowsTunConfiguration(
+      {required int probePort, int? metricsPort, int indent = 2}) {
+    final config = removeNulls(Map.from(windowsTunConfiguration(
+        probePort: probePort, metricsPort: metricsPort))) as Map;
+    // An empty object turns the stats feature on — removeNulls drops it.
+    if (metricsPort != null) config['stats'] = <String, dynamic>{};
+    return JsonEncoder.withIndent(' ' * indent).convert(config);
+  }
 
   String getFullConfiguration({int indent = 2}) {
     return JsonEncoder.withIndent(' ' * indent).convert(

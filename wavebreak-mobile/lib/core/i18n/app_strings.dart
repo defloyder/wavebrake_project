@@ -262,6 +262,8 @@ class AppStrings {
     required this.addSubscription,
     required this.invalidSubscriptionLink,
     required this.linkProtocolUnsupported,
+    required this.xrayEngineTitle,
+    required this.xrayEngineHint,
     required this.remove,
     required this.more,
     required this.updated,
@@ -791,6 +793,8 @@ class AppStrings {
   final String addSubscription;
   final String invalidSubscriptionLink;
   final String linkProtocolUnsupported;
+  final String xrayEngineTitle;
+  final String xrayEngineHint;
   final String remove;
   final String more;
   final String updated;
@@ -1126,6 +1130,9 @@ const kEnglishStrings = AppStrings(
   invalidSubscriptionLink: 'This link doesn\'t look valid',
   linkProtocolUnsupported:
       "This protocol isn't supported (e.g. ShadowsocksR). Ask your provider for a VLESS, Trojan, Shadowsocks or Hysteria2 link",
+  xrayEngineTitle: 'Xray engine (beta)',
+  xrayEngineHint:
+      "The phone's engine: XHTTP, Vision, smart routing. Takes effect on the next connect",
   remove: 'Remove',
   more: 'More',
   updated: 'Updated',
@@ -1550,6 +1557,9 @@ const kRussianStrings = AppStrings(
   invalidSubscriptionLink: 'Похоже, ссылка некорректна',
   linkProtocolUnsupported:
       "Этот протокол не поддерживается (например, ShadowsocksR). Попросите у провайдера ссылку VLESS, Trojan, Shadowsocks или Hysteria2",
+  xrayEngineTitle: 'Движок Xray (бета)',
+  xrayEngineHint:
+      "Тот же движок, что на телефоне: XHTTP, Vision, умная маршрутизация. Включится при следующем подключении",
   remove: 'Удалить',
   more: 'Ещё',
   updated: 'Обновлено',
@@ -1976,6 +1986,9 @@ const kSpanishStrings = AppStrings(
   invalidSubscriptionLink: 'Este enlace no parece válido',
   linkProtocolUnsupported:
       "Este protocolo no es compatible (p. ej., ShadowsocksR). Pide a tu proveedor un enlace VLESS, Trojan, Shadowsocks o Hysteria2",
+  xrayEngineTitle: 'Motor Xray (beta)',
+  xrayEngineHint:
+      "El motor del teléfono: XHTTP, Vision, enrutamiento inteligente. Se aplica en la próxima conexión",
   remove: 'Eliminar',
   more: 'Más',
   updated: 'Actualizado',
@@ -2406,6 +2419,9 @@ const kGermanStrings = AppStrings(
   invalidSubscriptionLink: 'Dieser Link scheint ungültig zu sein',
   linkProtocolUnsupported:
       "Dieses Protokoll wird nicht unterstützt (z. B. ShadowsocksR). Fragen Sie Ihren Anbieter nach einem VLESS-, Trojan-, Shadowsocks- oder Hysteria2-Link",
+  xrayEngineTitle: 'Xray-Engine (Beta)',
+  xrayEngineHint:
+      "Die Engine des Telefons: XHTTP, Vision, intelligentes Routing. Gilt ab der nächsten Verbindung",
   remove: 'Entfernen',
   more: 'Mehr',
   updated: 'Aktualisiert',
@@ -2838,6 +2854,9 @@ const kFrenchStrings = AppStrings(
   invalidSubscriptionLink: 'Ce lien ne semble pas valide',
   linkProtocolUnsupported:
       "Ce protocole n’est pas pris en charge (p. ex. ShadowsocksR). Demandez à votre fournisseur un lien VLESS, Trojan, Shadowsocks ou Hysteria2",
+  xrayEngineTitle: 'Moteur Xray (bêta)',
+  xrayEngineHint:
+      "Le moteur du téléphone : XHTTP, Vision, routage intelligent. Pris en compte à la prochaine connexion",
   remove: 'Supprimer',
   more: 'Plus',
   updated: 'Mis à jour',
@@ -3266,6 +3285,9 @@ const kPortugueseStrings = AppStrings(
   invalidSubscriptionLink: 'Este link não parece válido',
   linkProtocolUnsupported:
       "Este protocolo não é compatível (ex.: ShadowsocksR). Peça ao seu provedor um link VLESS, Trojan, Shadowsocks ou Hysteria2",
+  xrayEngineTitle: 'Motor Xray (beta)',
+  xrayEngineHint:
+      "O motor do telefone: XHTTP, Vision, roteamento inteligente. Vale na próxima conexão",
   remove: 'Remover',
   more: 'Mais',
   updated: 'Atualizado',
@@ -3690,6 +3712,9 @@ const kTurkishStrings = AppStrings(
   invalidSubscriptionLink: 'Bu bağlantı geçerli görünmüyor',
   linkProtocolUnsupported:
       "Bu protokol desteklenmiyor (ör. ShadowsocksR). Sağlayıcınızdan VLESS, Trojan, Shadowsocks veya Hysteria2 bağlantısı isteyin",
+  xrayEngineTitle: 'Xray motoru (beta)',
+  xrayEngineHint:
+      "Telefondaki motor: XHTTP, Vision, akıllı yönlendirme. Bir sonraki bağlantıda geçerli olur",
   remove: 'Kaldır',
   more: 'Daha fazla',
   updated: 'Güncellendi',
