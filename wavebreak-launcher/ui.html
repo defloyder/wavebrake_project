@@ -5,136 +5,152 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WAVEBREAK</title>
 <style>
+/* The app's V5 look (wb_colors / immersive_colors / TintedGlass / settings
+   groups): near-black ocean, crimson waves, glass blocks with a hairline
+   border, neutral icon tiles, a light primary button, crimson accent. */
 :root{
-  --bg:#050305;--text:#F5F2F0;--muted:#8E929E;--soft:#B3AFB6;
+  --bg:#050305;--text:#F5F2F0;--soft:#B3AFB6;--muted:#8E929E;
   --arctic:#7CEEE8;--crimson:#FF344E;--amber:#FFB23F;
-  --glass-top:#111D23c9;--glass-bot:#03070Ae0;--line:#50657265;--hair:#ffffff14;
+  --glass-a:rgba(17,29,35,.79);--glass-b:rgba(3,7,10,.88);
+  --border:rgba(80,101,114,.40);--hair:rgba(245,242,240,.08);--tile:rgba(245,242,240,.08);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--bg);color:var(--text);
-  font-family:"Segoe UI Variable Text","Segoe UI",Inter,Arial,sans-serif;overflow:hidden;user-select:none}
-#waves{position:fixed;inset:0;width:100%;height:100%;z-index:0}
-.glow{position:fixed;inset:-20% -10% auto auto;width:70vw;height:70vw;border-radius:50%;
-  background:radial-gradient(circle,#ff344e22,transparent 60%);z-index:0;pointer-events:none;
-  filter:blur(10px);animation:drift 18s ease-in-out infinite alternate}
-@keyframes drift{to{transform:translate(-8vw,6vh) scale(1.08)}}
-main{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:26px 36px 22px}
-header{display:flex;align-items:center;gap:14px}
-.brand{display:flex;align-items:center;gap:12px;font-weight:600;letter-spacing:.32em;font-size:15px}
-.brand svg{filter:drop-shadow(0 0 10px #7ceee855)}
-.chip{margin-left:auto;display:flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--line);
-  border-radius:999px;background:#0b1216b3;color:var(--soft);font-size:12.5px;backdrop-filter:blur(12px)}
+  font-family:"Segoe UI Variable Text","Segoe UI",Inter,Arial,sans-serif;user-select:none}
+body{overflow:hidden}
+#waves{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.glow{position:fixed;width:80vmax;height:80vmax;right:-30vmax;top:-35vmax;border-radius:50%;z-index:0;pointer-events:none;
+  background:radial-gradient(circle,rgba(255,52,78,.16),transparent 62%)}
+/* The page scrolls — blocks keep their size in a small window. */
+.scroll{position:relative;z-index:1;height:100%;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;
+  scrollbar-color:rgba(245,242,240,.18) transparent}
+main{max-width:1120px;margin:0 auto;padding:22px clamp(16px,3vw,32px) 28px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;font-weight:600;letter-spacing:.32em;font-size:14px}
+.chip{margin-left:auto;display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;
+  border:1px solid var(--border);background:var(--glass-b);color:var(--soft);font-size:12.5px;white-space:nowrap}
 .chip i{width:7px;height:7px;border-radius:50%;background:var(--arctic);box-shadow:0 0 10px var(--arctic)}
-.hero{margin:30px 0 22px}
-.hero h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:38px;letter-spacing:.01em}
-.hero p{color:var(--muted);margin-top:8px;font-size:14.5px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;flex:1;min-height:0}
-.card{position:relative;display:flex;flex-direction:column;padding:20px 20px 18px;border-radius:22px;
-  background:linear-gradient(180deg,var(--glass-top),var(--glass-bot));border:1px solid var(--line);
-  backdrop-filter:blur(18px);box-shadow:0 18px 50px #0007,inset 0 1px 0 #ffffff10;
-  transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease;overflow:hidden}
-.card:hover{transform:translateY(-3px);border-color:#7ceee855;box-shadow:0 24px 60px #000a,0 0 0 1px #7ceee822}
-.card.rec{border-color:#ff344e88;box-shadow:0 18px 50px #0007,0 0 40px #ff344e22}
+.hero{margin:22px 0 18px}
+.hero h1{font-family:"Noto Serif",Georgia,"Times New Roman",serif;font-weight:400;
+  font-size:clamp(26px,4.2vw,38px);line-height:1.15}
+.hero p{color:var(--muted);margin-top:8px;font-size:14px}
+.caption{color:var(--muted);font-size:13px;font-weight:600;letter-spacing:.2px;margin:0 4px 8px}
+.glass{background:linear-gradient(180deg,var(--glass-a),var(--glass-b));border:1px solid var(--border);
+  border-radius:18px;backdrop-filter:blur(16px);box-shadow:0 14px 40px rgba(0,0,0,.45)}
+/* Product cards: fixed shape, as many per row as fit. */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.card{display:flex;flex-direction:column;padding:16px;transition:border-color .2s,transform .2s}
+.card:hover{border-color:rgba(124,238,232,.35);transform:translateY(-2px)}
+.card.rec{border-color:rgba(255,52,78,.55);box-shadow:0 14px 40px rgba(0,0,0,.45),0 0 32px rgba(255,52,78,.12)}
 .card.off{opacity:.55}
-.badge{position:absolute;top:16px;right:16px;font-size:11px;padding:5px 10px;border-radius:999px;
-  background:#ff344e26;color:#ff8a98;border:1px solid #ff344e55}
-.icon{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
-  background:radial-gradient(circle at 35% 30%,#7ceee840,#0a1418 70%);border:1px solid #7ceee840;margin-bottom:14px}
-.card h2{font-size:19px;font-weight:600}
-.card .tag{color:var(--soft);font-size:13px;margin-top:4px;min-height:34px}
-.feat{list-style:none;margin:14px 0 12px;display:grid;gap:7px}
-.feat li{font-size:13px;color:var(--soft);padding-left:18px;position:relative}
-.feat li:before{content:"";position:absolute;left:2px;top:7px;width:6px;height:6px;border-radius:50%;
-  background:var(--arctic);box-shadow:0 0 8px var(--arctic)}
-.arch{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.head{display:flex;align-items:center;gap:12px}
+.tile{flex:none;width:44px;height:44px;border-radius:12px;background:var(--tile);display:grid;place-items:center}
+.card.rec .tile{background:rgba(255,52,78,.16)}
+.head h2{font-size:17px;font-weight:600;line-height:1.2}
+.head .tag{color:var(--muted);font-size:12.5px;margin-top:2px}
+.rec-badge{display:inline-flex;align-items:center;gap:6px;margin-top:12px;align-self:flex-start;font-size:11.5px;
+  font-weight:600;color:#ff8f9c;padding:4px 10px;border-radius:999px;background:rgba(255,52,78,.12);border:1px solid rgba(255,52,78,.35)}
+.rows{margin-top:12px;border-top:1px solid var(--hair)}
+.row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--hair);font-size:13px;color:var(--soft)}
+.row svg{flex:none}
+.arch{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .arch span{font-size:11px;color:var(--muted);border:1px solid var(--hair);border-radius:8px;padding:3px 8px}
-.arch span.me{color:var(--arctic);border-color:#7ceee855}
-.status{font-size:12.5px;color:var(--muted);margin-top:auto;margin-bottom:12px;min-height:18px}
+.arch span.me{color:var(--arctic);border-color:rgba(124,238,232,.35)}
+.foot{margin-top:auto;padding-top:14px}
+.status{font-size:12.5px;color:var(--muted);margin-bottom:10px;min-height:17px}
 .status b{color:var(--text);font-weight:600}
+.bar{height:5px;border-radius:999px;background:var(--hair);overflow:hidden;margin-bottom:10px;display:none}
+.bar i{display:block;height:100%;width:0;border-radius:999px;transition:width .2s;
+  background:linear-gradient(90deg,var(--crimson),var(--arctic))}
+.card.busy .bar{display:block}
 .actions{display:flex;gap:8px}
-button{font:inherit;cursor:pointer;border-radius:13px;padding:11px 14px;font-size:14px;font-weight:600;
-  border:1px solid transparent;transition:filter .2s,transform .1s,background .2s}
+button{font:inherit;cursor:pointer;border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;
+  border:1px solid transparent;transition:filter .2s,transform .08s,background .2s;white-space:nowrap}
 button:active{transform:scale(.98)}
 .primary{flex:1;background:var(--text);color:#0b0a0c}
-.primary:hover{filter:brightness(.92)}
+.primary:hover{filter:brightness(.9)}
 .primary.update{background:var(--crimson);color:#fff}
-.ghost{background:#ffffff0a;color:var(--soft);border-color:var(--hair)}
-.ghost:hover{background:#ffffff14;color:var(--text)}
-button:disabled{opacity:.5;cursor:default}
-.bar{height:6px;border-radius:999px;background:#ffffff12;overflow:hidden;margin-bottom:10px;display:none}
-.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--crimson),var(--arctic));
-  border-radius:999px;transition:width .2s}
-.card.busy .bar{display:block}
-.bottom{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-top:16px}
-.panel{padding:14px 18px;border-radius:18px;background:linear-gradient(180deg,#0e191ec0,#03070ad8);
-  border:1px solid var(--line);backdrop-filter:blur(14px)}
-.panel h3{font-size:13px;font-weight:600;color:var(--soft);display:flex;align-items:center;gap:10px}
-.panel h3 button{margin-left:auto;padding:6px 10px;font-size:12px}
-.probes{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:10px}
-.probe .n{font-size:12px;color:var(--muted)}
-.probe .v{font-size:18px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
-.probe .v.bad{color:var(--crimson)}
-.probe .v.ok{color:var(--arctic)}
-.probe .m{height:4px;border-radius:9px;background:#ffffff10;margin-top:6px;overflow:hidden}
-.probe .m i{display:block;height:100%;background:var(--arctic);border-radius:9px;width:0;transition:width .6s}
-.tips{font-size:12.5px;color:var(--soft);line-height:1.5;margin-top:8px}
-.tips a{color:var(--arctic);cursor:pointer;text-decoration:none}
-.toast{position:fixed;left:50%;top:22px;transform:translate(-50%,-20px);opacity:0;z-index:5;
-  padding:12px 18px;border-radius:14px;background:#0c1418f2;border:1px solid #7ceee866;
-  box-shadow:0 10px 30px #0009;font-size:13.5px;transition:all .25s}
+.ghost{background:var(--tile);color:var(--soft);border-color:var(--hair)}
+.ghost:hover{color:var(--text);background:rgba(245,242,240,.12)}
+button:disabled{opacity:.45;cursor:default}
+/* Lower blocks: settings-style groups. */
+.lower{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:22px}
+.group .glass{padding:4px 0}
+.line{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--hair)}
+.line:last-child{border-bottom:0}
+.line .tile{width:32px;height:32px;border-radius:9px}
+.line .name{flex:1;font-size:14px}
+.line .name small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
+.ms{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;min-width:62px;text-align:right}
+.ms.ok{color:var(--arctic)}.ms.slow{color:var(--amber)}.ms.bad{color:var(--crimson)}
+.meter{width:64px;height:4px;border-radius:9px;background:var(--hair);overflow:hidden}
+.meter i{display:block;height:100%;border-radius:9px;background:var(--arctic);width:0;transition:width .6s}
+.capline{display:flex;align-items:center;justify-content:space-between}
+.icon-btn{padding:6px 10px;font-size:12px;font-weight:600;margin:0 2px 8px 0}
+.tip{font-size:13px;color:var(--soft);line-height:1.45}
+.tip a{color:var(--arctic);cursor:pointer;text-decoration:none}
+.toast{position:fixed;left:50%;top:16px;transform:translate(-50%,-16px);opacity:0;z-index:5;max-width:min(560px,92vw);
+  padding:11px 16px;border-radius:14px;background:rgba(12,20,24,.96);border:1px solid rgba(124,238,232,.4);
+  box-shadow:0 10px 30px rgba(0,0,0,.6);font-size:13.5px;transition:all .25s}
 .toast.on{opacity:1;transform:translate(-50%,0)}
-.toast.err{border-color:#ff344e88}
-@media (prefers-reduced-motion:reduce){.glow{animation:none}.card{transition:none}}
+.toast.err{border-color:rgba(255,52,78,.55)}
+@media (max-width:560px){.chip{margin-left:0}.actions{flex-wrap:wrap}}
+@media (prefers-reduced-motion:reduce){.card{transition:none}}
 </style>
 </head>
 <body>
 <canvas id="waves"></canvas>
 <div class="glow"></div>
-<main>
+<div class="scroll"><main>
   <header>
     <div class="brand">
-      <svg width="34" height="22" viewBox="0 0 34 22" aria-hidden="true"><path d="M2 4l6 14 6-12 6 12 6-14" fill="none" stroke="url(#g)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 11c5-3 9-4 15-4" stroke="#F5F2F0" stroke-width="1.4" stroke-linecap="round"/><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#7CEEE8"/><stop offset="1" stop-color="#348BD1"/></linearGradient></defs></svg>
+      <svg width="32" height="20" viewBox="0 0 34 22" aria-hidden="true"><path d="M2 4l6 14 6-12 6 12 6-14" fill="none" stroke="url(#g)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 11c5-3 9-4 15-4" stroke="#F5F2F0" stroke-width="1.4" stroke-linecap="round"/><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#7CEEE8"/><stop offset="1" stop-color="#348BD1"/></linearGradient></defs></svg>
       WAVEBREAK
     </div>
     <div class="chip" id="sys"><i></i><span>Определяю систему…</span></div>
   </header>
   <section class="hero">
     <h1>Что установить на этот компьютер</h1>
-    <p id="sub">Лаунчер сам подберёт версию под вашу Windows и её разрядность.</p>
+    <p id="sub">Лаунчер подберёт версию под вашу Windows и её разрядность.</p>
   </section>
+  <div class="caption">Программы</div>
   <section class="grid" id="grid"></section>
-  <section class="bottom">
-    <div class="panel">
-      <h3>Связь с WAVEBREAK отсюда <button class="ghost" id="recheck">Проверить ещё раз</button></h3>
-      <div class="probes" id="probes"></div>
+  <section class="lower">
+    <div class="group">
+      <div class="capline"><div class="caption">Связь с WAVEBREAK отсюда</div>
+        <button class="ghost icon-btn" id="recheck">Проверить ещё раз</button></div>
+      <div class="glass" id="probes"></div>
     </div>
-    <div class="panel">
-      <h3>Подсказки</h3>
-      <div class="tips" id="tips">Установщик скачивается с основного сервера, а если он недоступен — с зеркала.
-        Права администратора Windows спросит сама. <a data-url="https://wavebreak.com.tr/ru">Сайт WAVEBREAK</a></div>
+    <div class="group">
+      <div class="caption">Подсказки</div>
+      <div class="glass"><div class="line"><div class="tile"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5F2F0" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></div>
+        <div class="tip" id="tips">Установщик скачивается с основного сервера, а если он недоступен — с зеркала. Права администратора Windows спросит сама.</div></div>
+        <div class="line"><div class="tile"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5F2F0" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg></div>
+        <div class="tip"><a data-url="https://wavebreak.com.tr/ru">Сайт WAVEBREAK</a> — тарифы, документы и загрузки для других устройств.</div></div>
+      </div>
     </div>
   </section>
-</main>
+</main></div>
 <div class="toast" id="toast"></div>
 <script>
-// --- Waves that lean toward the cursor (the site's tide, here) ---
+// --- Waves leaning toward the cursor (the app's and the site's sea) ---
 (function(){
   const c=document.getElementById('waves'),x=c.getContext('2d');
   const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let w,h,dpr,mx=.5,my=.6,tx=.5,ty=.6,t=0;
+  let w,h,dpr,mx=.5,my=.7,tx=.5,ty=.7,t=0;
   function size(){dpr=Math.min(devicePixelRatio||1,2);w=c.width=innerWidth*dpr;h=c.height=innerHeight*dpr}
   addEventListener('resize',size);size();
   addEventListener('mousemove',e=>{tx=e.clientX/innerWidth;ty=e.clientY/innerHeight});
-  const lines=[{y:.62,a:36,f:1.6,s:.35,c:'#ff344e',o:.38},{y:.68,a:30,f:2.1,s:.28,c:'#ff344e',o:.22},
-    {y:.74,a:42,f:1.2,s:.22,c:'#7ceee8',o:.18},{y:.8,a:26,f:2.6,s:.4,c:'#ff344e',o:.14},{y:.86,a:34,f:1.8,s:.18,c:'#7ceee8',o:.1}];
+  const lines=[{y:.66,a:30,f:1.6,s:.35,c:'#ff344e',o:.30},{y:.72,a:26,f:2.1,s:.28,c:'#ff344e',o:.18},
+    {y:.78,a:36,f:1.2,s:.22,c:'#7ceee8',o:.12},{y:.84,a:22,f:2.6,s:.4,c:'#ff344e',o:.12},{y:.9,a:30,f:1.8,s:.18,c:'#7ceee8',o:.08}];
   function frame(){
     mx+=(tx-mx)*.04;my+=(ty-my)*.04;t+=reduce?0:.016;
     x.clearRect(0,0,w,h);
     for(const l of lines){
-      x.beginPath();x.lineWidth=1.4*dpr;x.strokeStyle=l.c;x.globalAlpha=l.o;
+      x.beginPath();x.lineWidth=1.3*dpr;x.strokeStyle=l.c;x.globalAlpha=l.o;
       for(let i=0;i<=120;i++){
-        const px=i/120,dx=px-mx,pull=Math.exp(-dx*dx*9)*(my-l.y)*h*.35;
-        const py=l.y*h+Math.sin(px*l.f*6.283+t*l.s*6)*l.a*dpr+Math.sin(px*13+t*2)*4*dpr+pull;
+        const px=i/120,dx=px-mx,pull=Math.exp(-dx*dx*9)*(my-l.y)*h*.3;
+        const py=l.y*h+Math.sin(px*l.f*6.283+t*l.s*6)*l.a*dpr+Math.sin(px*13+t*2)*3*dpr+pull;
         i?x.lineTo(px*w,py):x.moveTo(px*w,py);
       }
       x.stroke();
@@ -146,13 +162,14 @@ button:disabled{opacity:.5;cursor:default}
   requestAnimationFrame(frame);
 })();
 
-// --- The catalog ---
 const $=s=>document.querySelector(s);
-const ICONS={
-  wavebreak:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7CEEE8" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>',
-  'wavebreak-lite':'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7CEEE8" stroke-width="1.6"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
-  android:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7CEEE8" stroke-width="1.6"><rect x="6" y="2" width="12" height="20" rx="2.5"/><rect x="2" y="7" width="20" height="12" rx="2" opacity=".45"/></svg>'
+const ICON={
+  wavebreak:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5F2F0" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>',
+  'wavebreak-lite':'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5F2F0" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+  android:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5F2F0" stroke-width="1.7"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg>'
 };
+const CHECK='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7CEEE8" stroke-width="2"><path d="m5 12 4 4 10-10"/></svg>';
+const SERVER='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#F5F2F0" stroke-width="1.7"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>';
 let state=null;const busy={};
 function toast(text,err){const t=$('#toast');t.textContent=text;t.className='toast on'+(err?' err':'');
   clearTimeout(toast.h);toast.h=setTimeout(()=>t.className='toast',4200)}
@@ -164,10 +181,10 @@ function statusLine(p){
     case'soon':return'Скоро будет доступна';
     case'offline':return'Сервер обновлений не ответил';
     case'incompatible':return`Не подходит для ${state.system.name} ${state.system.arch}`;
-    case'link':return'Устанавливается на самом устройстве';
+    case'link':return'Ставится на самом устройстве';
   }return''}
 function actions(p){
-  if(p.status==='link')return`<button class="primary" data-act="link">Открыть страницу загрузки</button>`;
+  if(p.status==='link')return`<button class="primary" data-act="link">Страница загрузки</button>`;
   if(p.status==='incompatible'||p.status==='soon'||p.status==='offline')
     return`<button class="primary" disabled>${p.status==='offline'?'Нет связи':p.status==='soon'?'Скоро':'Недоступно'}</button>`;
   if(p.status==='installed')return`<button class="primary" data-act="open">Открыть</button><button class="ghost" data-act="remove">Удалить</button>`;
@@ -175,19 +192,19 @@ function actions(p){
   return`<button class="primary" data-act="install">Установить</button>`}
 function render(){
   const s=state.system;
-  $('#sys span').textContent=`${s.name} · ${s.arch==='x86'?'32 бита (x86)':s.arch==='arm64'?'ARM64':'64 бита (x64)'} · лаунчер ${state.version}`;
+  $('#sys span').textContent=`${s.name} · ${s.arch==='x86'?'32 бита (x86)':s.arch==='arm64'?'ARM64':'64 бита (x64)'}`;
   const rec=state.products.find(p=>p.recommended);
-  $('#sub').textContent=rec?`Для этого компьютера подходит ${rec.name} — отмечено ниже.`:'Лаунчер сам подберёт версию под вашу Windows и её разрядность.';
+  $('#sub').textContent=rec?`Для этого компьютера подходит ${rec.name}.`:'Лаунчер подберёт версию под вашу Windows и её разрядность.';
   $('#grid').innerHTML=state.products.map(p=>`
-    <article class="card${p.recommended?' rec':''}${!p.compatible?' off':''}${busy[p.id]?' busy':''}" data-id="${p.id}">
-      ${p.recommended?'<span class="badge">Рекомендуем для этого ПК</span>':''}
-      <div class="icon">${ICONS[p.id]||ICONS.wavebreak}</div>
-      <h2>${p.name}</h2><div class="tag">${p.tagline}</div>
-      <ul class="feat">${(p.features||[]).map(f=>`<li>${f}</li>`).join('')}</ul>
+    <article class="card glass${p.recommended?' rec':''}${!p.compatible?' off':''}${busy[p.id]?' busy':''}" data-id="${p.id}">
+      <div class="head"><div class="tile">${ICON[p.id]||ICON.wavebreak}</div>
+        <div><h2>${p.name}</h2><div class="tag">${p.tagline}</div></div></div>
+      ${p.recommended?'<span class="rec-badge">● Рекомендуем для этого ПК</span>':''}
+      <div class="rows">${(p.features||[]).map(f=>`<div class="row">${CHECK}<span>${f}</span></div>`).join('')}</div>
       ${p.arch&&p.arch.length?`<div class="arch">${p.arch.map(a=>`<span class="${a===s.arch?'me':''}">${a}</span>`).join('')}</div>`:''}
-      <div class="bar"><i></i></div>
-      <div class="status">${busy[p.id]||statusLine(p)}</div>
-      <div class="actions">${actions(p)}</div>
+      <div class="foot"><div class="bar"><i></i></div>
+        <div class="status">${busy[p.id]||statusLine(p)}</div>
+        <div class="actions">${actions(p)}</div></div>
     </article>`).join('');
 }
 async function load(){try{state=await wbState();render()}catch(e){toast('Не удалось прочитать каталог: '+e,true)}}
@@ -198,7 +215,7 @@ document.addEventListener('click',async e=>{
   try{
     if(b.dataset.act==='install'){busy[id]='Готовлю загрузку…';render();await wbInstall(id)}
     if(b.dataset.act==='open'){await wbOpen(id);toast('Запускаю…')}
-    if(b.dataset.act==='remove'){await wbRemove(id);toast('Открыто удаление — подтвердите его в окне Windows');watch(id)}
+    if(b.dataset.act==='remove'){await wbRemove(id);toast('Подтвердите удаление в окне Windows');watch(id)}
     if(b.dataset.act==='link'){await wbLink(id)}
   }catch(err){delete busy[id];render();toast(String(err),true)}
 });
@@ -217,21 +234,19 @@ window.wbProgress=(id,done,total,phase)=>{
 window.wbDone=(id,err)=>{delete busy[id];delete wbProgress.s[id];
   if(err){toast(err,true);render();return}
   toast('Установщик запущен — следуйте его шагам');render();watch(id)};
-// After an install/removal, catch the new state as soon as Windows has it.
 function watch(id){let n=0;const before=JSON.stringify(state.products.find(p=>p.id===id));
   const tick=async()=>{n++;await load();const now=JSON.stringify(state.products.find(p=>p.id===id));
     if(now!==before||n>40)return;setTimeout(tick,3000)};setTimeout(tick,3000)}
 async function net(){
-  $('#probes').innerHTML='<div class="probe"><div class="n">Проверяю…</div></div>';
+  $('#probes').innerHTML='<div class="line"><div class="name">Проверяю…</div></div>';
   try{const ps=await wbNet();
-    $('#probes').innerHTML=ps.map(p=>`<div class="probe"><div class="n">${p.name}</div>
-      <div class="v ${p.ms<0?'bad':p.ms<250?'ok':''}">${p.ms<0?'нет':p.ms+' мс'}</div>
-      <div class="m"><i style="width:${p.ms<0?0:Math.max(8,100-Math.min(p.ms,1000)/10)}%"></i></div></div>`).join('');
+    $('#probes').innerHTML=ps.map(p=>`<div class="line"><div class="tile">${SERVER}</div>
+      <div class="name">${p.name}<small>${p.host}</small></div>
+      <div class="meter"><i style="width:${p.ms<0?0:Math.max(10,100-Math.min(p.ms,1000)/10)}%"></i></div>
+      <div class="ms ${p.ms<0?'bad':p.ms<300?'ok':'slow'}">${p.ms<0?'нет':p.ms+' мс'}</div></div>`).join('');
     const down=ps.filter(p=>p.ms<0).map(p=>p.name);
-    if(down.length)$('#tips').innerHTML=`Не отвечает: ${down.join(', ')}. Похоже, провайдер ограничивает доступ —
-      лаунчер попробует зеркало загрузок, а WAVEBREAK после установки подключится обходными протоколами.
-      <a data-url="https://wavebreak.com.tr/ru">Сайт</a>`;
-  }catch(e){$('#probes').innerHTML='<div class="probe"><div class="n">Проверка не удалась</div></div>'}
+    if(down.length)$('#tips').innerHTML=`Не отвечает: ${down.join(', ')}. Похоже, провайдер ограничивает доступ — лаунчер попробует зеркало, а WAVEBREAK после установки подключится обходными протоколами.`;
+  }catch(e){$('#probes').innerHTML='<div class="line"><div class="name">Проверка не удалась</div></div>'}
 }
 $('#recheck').onclick=net;
 load();net();

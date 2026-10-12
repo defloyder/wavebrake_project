@@ -852,12 +852,27 @@ class WaveEngineVpnService : VpnService() {
         consecutiveHealthCheckFailures = 0
         val runnable = object : Runnable {
             override fun run() {
-                if (stopping || activeEngine == null) return
+                // Owner, 12.10: "it stops loading until I open the app" —
+                // this loop used to end for good after its first
+                // reconnect (and whenever it fired mid-reconnect, with no
+                // engine for a moment), so the first stall of a session
+                // was healed and every later one waited for the app's own
+                // foreground check. Now only a disconnect ends it; during
+                // a reconnect it just waits for the next round.
+                if (stopping) return
+                if (activeEngine == null || pendingConnectWatchdog != null) {
+                    reconnectHandler.postDelayed(this, HEALTH_CHECK_INTERVAL_MS)
+                    return
+                }
                 Thread({
                     val ms = measureTunnelLatencyMs()
                     val alive = ms != null
                     reconnectHandler.post {
-                        if (stopping || activeEngine == null) return@post
+                        if (stopping) return@post
+                        if (activeEngine == null) {
+                            reconnectHandler.postDelayed(this, HEALTH_CHECK_INTERVAL_MS)
+                            return@post
+                        }
                         if (alive) {
                             elog("health check ok $ms ms")
                             consecutiveHealthCheckFailures = 0
@@ -868,6 +883,8 @@ class WaveEngineVpnService : VpnService() {
                             if (consecutiveHealthCheckFailures >= HEALTH_CHECK_FAILURE_THRESHOLD) {
                                 consecutiveHealthCheckFailures = 0
                                 scheduleReconnect("health check failed")
+                                // Keep watching the reconnected tunnel.
+                                reconnectHandler.postDelayed(this, HEALTH_CHECK_INTERVAL_MS)
                             } else {
                                 // One failure could just be a genuinely slow
                                 // real network blip — only a SECOND

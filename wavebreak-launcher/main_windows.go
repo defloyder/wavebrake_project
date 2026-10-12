@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unsafe"
 
 	webview "github.com/jchv/go-webview2"
 	"golang.org/x/sys/windows"
@@ -51,7 +52,8 @@ func main() {
 		return
 	}
 	defer w.Destroy()
-	w.SetSize(900, 600, webview.HintMin)
+	w.SetSize(720, 560, webview.HintMin)
+	neutralFrame(uintptr(w.Window()))
 
 	eval := func(js string) { w.Dispatch(func() { w.Eval(js) }) }
 	l := &Launcher{
@@ -144,4 +146,34 @@ func sharpOnScaledScreens() {
 	if p := user32.NewProc("SetProcessDPIAware"); p.Find() == nil {
 		p.Call()
 	}
+}
+
+// neutralFrame: a fixed dark title bar and border (owner, 13.10: the white
+// system caption, tinted by the Windows accent, didn't belong). Windows 11
+// takes the exact colours; Windows 10 (1809+) gets its dark caption.
+func neutralFrame(hwnd uintptr) {
+	if hwnd == 0 {
+		return
+	}
+	dwm := windows.NewLazySystemDLL("dwmapi.dll")
+	set := dwm.NewProc("DwmSetWindowAttribute")
+	if set.Find() != nil {
+		return
+	}
+	attr := func(id uint32, value uint32) {
+		set.Call(hwnd, uintptr(id), uintptr(unsafe.Pointer(&value)), 4)
+	}
+	const (
+		useDarkMode   = 20 // DWMWA_USE_IMMERSIVE_DARK_MODE
+		useDarkMode19 = 19 // the same before Windows 10 20H1
+		borderColor   = 34 // DWMWA_BORDER_COLOR
+		captionColor  = 35 // DWMWA_CAPTION_COLOR
+		textColor     = 36 // DWMWA_TEXT_COLOR
+	)
+	attr(useDarkMode, 1)
+	attr(useDarkMode19, 1)
+	// COLORREF is 0x00BBGGRR.
+	attr(captionColor, 0x000E0B0A) // #0A0B0E
+	attr(borderColor, 0x00302A26)  // #262A30
+	attr(textColor, 0x00F0F2F5)    // #F5F2F0
 }
