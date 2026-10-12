@@ -1429,6 +1429,28 @@ func (s *Store) ListAllAccessGrants(ctx context.Context) ([]AccessGrant, error) 
 	return grants, rows.Err()
 }
 
+// EffectiveConnectionLimit resolves a grant's concurrent-connection limit
+// the same way effectiveDeviceLimit resolves the device limit, via the
+// user's current active subscription and its plan — except there's no
+// per-subscription override column for this one (only device_limit has
+// one), so it's just subscription snapshot falling back to the plan's own
+// value. Returns nil (not an error) when nothing configures a limit at all
+// — the caller must treat that as "not tracked," never as "0 allowed."
+func (s *Store) EffectiveConnectionLimit(ctx context.Context, userID string) (*int, error) {
+	var limit *int
+	err := s.db.QueryRow(ctx, `
+		select coalesce(s.concurrent_connection_limit_snapshot, p.concurrent_connection_limit)
+		from subscriptions s
+		join plans p on p.id = s.plan_id
+		where s.user_id = $1 and s.status = 'active'
+		order by s.created_at desc
+		limit 1`, userID).Scan(&limit)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	return limit, err
+}
+
 func monotonicDelta(previous, current int64) int64 {
 	if current >= previous {
 		return current - previous
