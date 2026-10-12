@@ -95,6 +95,12 @@ type XrayConfig struct {
 	// out via the same docker.sock exec path Apply already uses, running the
 	// `xray` binary's own `api statsquery` CLI inside that container.
 	StatsAPIPort int
+	// AccessLogPath, when set, bumps Xray's log level from "warning" to
+	// "info" and points its access log at this path inside the container
+	// — StatsService's per-user counters don't carry source IPs, so live
+	// multi-device visibility (see QueryUsage) needs this separate log
+	// instead. Empty keeps Xray's access log off as before.
+	AccessLogPath string
 }
 
 // Load builds the node's configuration from the environment. It returns an
@@ -152,6 +158,7 @@ func Load() (Config, error) {
 			HysteriaMasqueradeURL:   env("WAVEBREAK_HYSTERIA_MASQUERADE_URL", "https://www.bing.com"),
 			HysteriaStatsPort:       intEnv("WAVEBREAK_HYSTERIA_STATS_PORT", 0),
 			StatsAPIPort:            intEnv("WAVEBREAK_XRAY_STATS_API_PORT", 0),
+			AccessLogPath:           env("WAVEBREAK_XRAY_ACCESS_LOG_PATH", ""),
 			DirectTLSListenPort:     intEnv("WAVEBREAK_XRAY_DIRECT_TLS_LISTEN_PORT", 0),
 			DirectTLSWSPath:         env("WAVEBREAK_XRAY_DIRECT_TLS_WS_PATH", "/wvb-dt"),
 			DirectTLSCertPath:       env("WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH", ""),

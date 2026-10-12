@@ -22,6 +22,12 @@ type GrantUsage struct {
 	GrantID   string
 	BytesUp   int64
 	BytesDown int64
+	// ActiveConnections is the number of distinct clients currently using
+	// this grant, as best as the runtime can tell — a live signal for
+	// catching a shared link in use on more devices than the plan allows,
+	// separate from BytesUp/BytesDown's cumulative totals. Zero when the
+	// runtime can't determine it (e.g. Xray without AccessLogPath set).
+	ActiveConnections int
 }
 
 // UsageReporter is implemented by adapters that can read back per-grant

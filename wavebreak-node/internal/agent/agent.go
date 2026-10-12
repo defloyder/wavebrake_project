@@ -225,7 +225,10 @@ func (a *Agent) Heartbeat(ctx context.Context) error {
 // and posts each grant's totals to Core, which tracks the last-seen total
 // itself and derives the delta (see wavebreak-core's
 // RecordNodeUsageReport) — so this always sends raw running totals, never
-// something the agent itself has to diff.
+// something the agent itself has to diff. active_connections rides the same
+// payload but isn't cumulative — Core just stores the latest reported value
+// with a short TTL (see nodeUsageReport), since it's a live snapshot, not a
+// counter.
 func (a *Agent) ReportUsage(ctx context.Context) error {
 	if a.usageReporter == nil {
 		return nil
@@ -238,10 +241,11 @@ func (a *Agent) ReportUsage(ctx context.Context) error {
 	var reportErr error
 	for _, grant := range usage {
 		payload := map[string]any{
-			"grant_id":         grant.GrantID,
-			"bytes_up_total":   grant.BytesUp,
-			"bytes_down_total": grant.BytesDown,
-			"timestamp":        now,
+			"grant_id":           grant.GrantID,
+			"bytes_up_total":     grant.BytesUp,
+			"bytes_down_total":   grant.BytesDown,
+			"active_connections": grant.ActiveConnections,
+			"timestamp":          now,
 		}
 		if err := a.postWithToken(ctx, "/v1/node/usage", a.nodeToken, payload, &map[string]any{}); err != nil {
 			a.log.WarnContext(ctx, "usage report failed for grant", "grant_id", grant.GrantID, "error", err)

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -456,8 +457,16 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 		api = map[string]any{"tag": "api", "services": []string{"StatsService", "HandlerService"}}
 		stats = map[string]any{}
 	}
+	logConfig := map[string]any{"loglevel": "warning"}
+	if strings.TrimSpace(a.cfg.AccessLogPath) != "" {
+		// "warning" never logs individual accepted connections — bump to
+		// "info" and give it a path so addXrayUsage's active-IP count has
+		// something to read. See QueryUsage/addXrayUsage.
+		logConfig["loglevel"] = "info"
+		logConfig["access"] = a.cfg.AccessLogPath
+	}
 	rendered := map[string]any{
-		"log":      map[string]any{"loglevel": "warning"},
+		"log":      logConfig,
 		"inbounds": inbounds,
 		"dns": map[string]any{
 			"queryStrategy": "UseIPv4",
@@ -778,6 +787,14 @@ func (a XrayAdapter) QueryUsage(ctx context.Context) ([]GrantUsage, error) {
 		if err := a.addHysteriaUsage(ctx, totals); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("query hysteria usage: %w", err)
 		}
+		if err := a.addHysteriaActiveConnections(ctx, totals); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("query hysteria online: %w", err)
+		}
+	}
+	if strings.TrimSpace(a.cfg.AccessLogPath) != "" && strings.TrimSpace(a.cfg.DockerContainer) != "" {
+		if err := a.addXrayActiveConnections(ctx, emailToGrant, totals); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("query xray active connections: %w", err)
+		}
 	}
 
 	result := make([]GrantUsage, 0, len(totals))
@@ -862,6 +879,98 @@ func (a XrayAdapter) addHysteriaUsage(ctx context.Context, totals map[string]*Gr
 		}
 		usage.BytesUp += counters.Rx
 		usage.BytesDown += counters.Tx
+	}
+	return nil
+}
+
+// addHysteriaActiveConnections reads Hysteria2's trafficStats "/online"
+// endpoint (the sibling of "/traffic", same stats port) — it reports how
+// many connections are currently open per user, already server-side
+// deduplicated. Hysteria2's userpass auth string is the grant ID itself
+// (same as addHysteriaUsage), so these keys are already grant IDs.
+func (a XrayAdapter) addHysteriaActiveConnections(ctx context.Context, totals map[string]*GrantUsage) error {
+	url := fmt.Sprintf("http://127.0.0.1:%d/online", a.cfg.HysteriaStatsPort)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("hysteria online-stats returned status %d", resp.StatusCode)
+	}
+	var parsed map[string]int
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return fmt.Errorf("decode online-stats: %w", err)
+	}
+	for grantID, count := range parsed {
+		usage := totals[grantID]
+		if usage == nil {
+			continue
+		}
+		usage.ActiveConnections += count
+	}
+	return nil
+}
+
+// xrayAccessLogTailLines bounds how far back addXrayActiveConnections reads
+// on every call. Stateless by design (no persisted read-offset between
+// calls, matching the rest of QueryUsage) — instead each line's own
+// timestamp is checked against xrayActiveConnectionsWindow, so re-reading
+// the same tail every cycle is harmless, just redundant for already-seen
+// old lines.
+const (
+	xrayAccessLogTailLines     = 4000
+	xrayActiveConnectionsWindow = 90 * time.Second
+)
+
+// xrayAccessLogLineRE matches Xray's default access-log line shape, e.g.
+// "2026/10/12 15:04:05 from 1.2.3.4:56789 accepted tcp:example.com:443 [api -> direct] email: <email>"
+// Only the pieces this needs (timestamp, source IP, email) are captured;
+// everything else on the line is ignored.
+var xrayAccessLogLineRE = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) from (\d+\.\d+\.\d+\.\d+):\d+ .*email: (\S+)`)
+
+// addXrayActiveConnections tails Xray's access log (only written when
+// AccessLogPath is configured — see Render) inside the container and
+// counts, per grant, the number of distinct source IPs seen in the last
+// xrayActiveConnectionsWindow. This is Xray's only source of per-connection
+// IPs: StatsService's counters (addXrayUsage) are traffic totals only.
+func (a XrayAdapter) addXrayActiveConnections(ctx context.Context, emailToGrant map[string]string, totals map[string]*GrantUsage) error {
+	out, err := a.dockerExec(ctx, a.cfg.DockerContainer, []string{
+		"tail", "-n", strconv.Itoa(xrayAccessLogTailLines), a.cfg.AccessLogPath,
+	})
+	if err != nil {
+		return err
+	}
+	cutoff := time.Now().Add(-xrayActiveConnectionsWindow)
+	seen := make(map[string]map[string]struct{}, len(emailToGrant)) // grantID -> set of IPs
+	for _, line := range strings.Split(out, "\n") {
+		m := xrayAccessLogLineRE.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		ts, err := time.ParseInLocation("2006/01/02 15:04:05", m[1], time.Local)
+		if err != nil || ts.Before(cutoff) {
+			continue
+		}
+		grantID, ok := emailToGrant[m[3]]
+		if !ok {
+			continue
+		}
+		if seen[grantID] == nil {
+			seen[grantID] = make(map[string]struct{})
+		}
+		seen[grantID][m[2]] = struct{}{}
+	}
+	for grantID, ips := range seen {
+		usage := totals[grantID]
+		if usage == nil {
+			continue
+		}
+		usage.ActiveConnections += len(ips)
 	}
 	return nil
 }
