@@ -9,6 +9,8 @@ import 'package:wavebreak_links/wavebreak_links.dart'
         ShareLink,
         SubscriptionUserInfo,
         decodeProfileTitle,
+        TunnelEngine,
+        parseShareLink,
         parseSubscription,
         parseUpdateIntervalHours;
 
@@ -22,6 +24,17 @@ import '../vpn/connection_manager.dart';
 import '../vpn/personal_locations.dart';
 import 'custom_subscription.dart';
 import 'share_link_parsing.dart';
+
+/// Proxy protocols people paste that neither engine runs (Xray on Android,
+/// sing-box on Windows): refused with their own message.
+const _unsupportedSchemes = {
+  'ssr',
+  'naive+https',
+  'naive+quic',
+  'juicity',
+  'brook',
+  'snell',
+};
 
 final customServersProvider =
     NotifierProvider<CustomServerController, List<CustomSubscriptionGroup>>(
@@ -83,7 +96,24 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     if (uri.scheme == 'http' || uri.scheme == 'https') {
       return _addFromSubscriptionUrl(trimmed, uri, known);
     }
+    // ShadowsocksR and others neither engine runs: said so now, not as a
+    // failure on connect.
+    if (_unsupportedSchemes.contains(uri.scheme.toLowerCase())) {
+      return 'unsupported';
+    }
     if (!knownShareSchemes.contains(uri.scheme)) return 'invalid';
+    // A link this device can't build a config from (a vmess:// without its
+    // server, a garbled ss://) is refused here too.
+    final parsedLink = ShareLink.tryParse(trimmed);
+    if (parsedLink == null) return 'invalid';
+    if (!parsedLink.supportedBy(PersonalLocations.engine)) return 'unsupported';
+    if (PersonalLocations.engine == TunnelEngine.xray) {
+      try {
+        parseShareLink(trimmed);
+      } catch (_) {
+        return 'invalid';
+      }
+    }
 
     final server = locationFromUri(uri, trimmed);
     // Naming every single-link group after the bare protocol ("VLESS")

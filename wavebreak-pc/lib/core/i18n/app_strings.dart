@@ -107,7 +107,7 @@ class AppStrings {
     required this.subscriptionActive,
     required this.subscriptionExpiredTitle,
     required this.chooseAPlanToConnect,
-    required this.daysRemaining,
+    required this.daysRemainingForms,
     required this.active,
     required this.protected,
     required this.chooseLocation,
@@ -261,6 +261,7 @@ class AppStrings {
     required this.addSubscriptionLinkHint,
     required this.addSubscription,
     required this.invalidSubscriptionLink,
+    required this.linkProtocolUnsupported,
     required this.remove,
     required this.more,
     required this.updated,
@@ -602,7 +603,25 @@ class AppStrings {
   final String subscriptionActive;
   final String subscriptionExpiredTitle;
   final String chooseAPlanToConnect;
-  final String daysRemaining;
+  /// "one|few|many" (Russian) or "one|other": see [daysLeft].
+  final String daysRemainingForms;
+
+  /// "1 день остался", "3 дня осталось", "5 дней осталось", "1 day remaining".
+  String daysLeft(int n) {
+    final f = daysRemainingForms.split('|');
+    final String form;
+    if (f.length >= 3) {
+      final m10 = n % 10, m100 = n % 100;
+      form = (m10 == 1 && m100 != 11)
+          ? f[0]
+          : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14))
+              ? f[1]
+              : f[2];
+    } else {
+      form = n == 1 ? f.first : f.last;
+    }
+    return '$n $form';
+  }
   final String active;
   final String protected;
   final String chooseLocation;
@@ -776,6 +795,7 @@ class AppStrings {
   final String addSubscriptionLinkHint;
   final String addSubscription;
   final String invalidSubscriptionLink;
+  final String linkProtocolUnsupported;
   final String remove;
   final String more;
   final String updated;
@@ -955,7 +975,7 @@ const kEnglishStrings = AppStrings(
   subscriptionActive: 'Subscription active',
   subscriptionExpiredTitle: 'Subscription expired',
   chooseAPlanToConnect: 'Choose a plan to connect',
-  daysRemaining: 'days remaining',
+  daysRemainingForms: 'day remaining|days remaining',
   active: 'Active',
   protected: 'Protected',
   chooseLocation: 'Choose location',
@@ -1114,6 +1134,8 @@ const kEnglishStrings = AppStrings(
       'Paste a subscription URL or a vless:// / trojan:// / hysteria2:// link.',
   addSubscription: 'Add',
   invalidSubscriptionLink: 'This link doesn\'t look valid',
+  linkProtocolUnsupported:
+      "This protocol isn't supported (e.g. ShadowsocksR). Ask your provider for a VLESS, Trojan, Shadowsocks or Hysteria2 link",
   remove: 'Remove',
   more: 'More',
   updated: 'Updated',
@@ -1380,7 +1402,7 @@ const kRussianStrings = AppStrings(
   subscriptionActive: 'Подписка активна',
   subscriptionExpiredTitle: 'Подписка истекла',
   chooseAPlanToConnect: 'Выберите тариф для подключения',
-  daysRemaining: 'дней осталось',
+  daysRemainingForms: 'день остался|дня осталось|дней осталось',
   active: 'Активна',
   protected: 'Защищено',
   chooseLocation: 'Выбор локации',
@@ -1541,6 +1563,8 @@ const kRussianStrings = AppStrings(
       'Вставьте ссылку на подписку или vless:// / trojan:// / hysteria2:// ссылку.',
   addSubscription: 'Добавить',
   invalidSubscriptionLink: 'Похоже, ссылка некорректна',
+  linkProtocolUnsupported:
+      "Этот протокол не поддерживается (например, ShadowsocksR). Попросите у провайдера ссылку VLESS, Trojan, Shadowsocks или Hysteria2",
   remove: 'Удалить',
   more: 'Ещё',
   updated: 'Обновлено',
@@ -1809,7 +1833,7 @@ const kSpanishStrings = AppStrings(
   subscriptionActive: 'Suscripción activa',
   subscriptionExpiredTitle: 'Suscripción vencida',
   chooseAPlanToConnect: 'Elige un plan para conectar',
-  daysRemaining: 'días restantes',
+  daysRemainingForms: 'día restante|días restantes',
   active: 'Activa',
   protected: 'Protegido',
   chooseLocation: 'Elegir ubicación',
@@ -1970,6 +1994,8 @@ const kSpanishStrings = AppStrings(
       'Pega una URL de suscripción o un enlace vless:// / trojan:// / hysteria2://.',
   addSubscription: 'Agregar',
   invalidSubscriptionLink: 'Este enlace no parece válido',
+  linkProtocolUnsupported:
+      "Este protocolo no es compatible (p. ej., ShadowsocksR). Pide a tu proveedor un enlace VLESS, Trojan, Shadowsocks o Hysteria2",
   remove: 'Eliminar',
   more: 'Más',
   updated: 'Actualizado',
@@ -2241,7 +2267,7 @@ const kGermanStrings = AppStrings(
   subscriptionActive: 'Abo aktiv',
   subscriptionExpiredTitle: 'Abo abgelaufen',
   chooseAPlanToConnect: 'Wähle einen Tarif zum Verbinden',
-  daysRemaining: 'Tage verbleibend',
+  daysRemainingForms: 'Tag verbleibend|Tage verbleibend',
   active: 'Aktiv',
   protected: 'Geschützt',
   chooseLocation: 'Standort wählen',
@@ -2403,6 +2429,8 @@ const kGermanStrings = AppStrings(
       'Füge eine Abo-URL oder einen vless:// / trojan:// / hysteria2://-Link ein.',
   addSubscription: 'Hinzufügen',
   invalidSubscriptionLink: 'Dieser Link scheint ungültig zu sein',
+  linkProtocolUnsupported:
+      "Dieses Protokoll wird nicht unterstützt (z. B. ShadowsocksR). Fragen Sie Ihren Anbieter nach einem VLESS-, Trojan-, Shadowsocks- oder Hysteria2-Link",
   remove: 'Entfernen',
   more: 'Mehr',
   updated: 'Aktualisiert',
@@ -2674,7 +2702,7 @@ const kFrenchStrings = AppStrings(
   subscriptionActive: 'Abonnement actif',
   subscriptionExpiredTitle: 'Abonnement expiré',
   chooseAPlanToConnect: 'Choisissez un forfait pour vous connecter',
-  daysRemaining: 'jours restants',
+  daysRemainingForms: 'jour restant|jours restants',
   active: 'Actif',
   protected: 'Protégé',
   chooseLocation: 'Choisir un emplacement',
@@ -2838,6 +2866,8 @@ const kFrenchStrings = AppStrings(
       'Collez une URL d\'abonnement ou un lien vless:// / trojan:// / hysteria2://.',
   addSubscription: 'Ajouter',
   invalidSubscriptionLink: 'Ce lien ne semble pas valide',
+  linkProtocolUnsupported:
+      "Ce protocole n’est pas pris en charge (p. ex. ShadowsocksR). Demandez à votre fournisseur un lien VLESS, Trojan, Shadowsocks ou Hysteria2",
   remove: 'Supprimer',
   more: 'Plus',
   updated: 'Mis à jour',
@@ -3108,7 +3138,7 @@ const kPortugueseStrings = AppStrings(
   subscriptionActive: 'Assinatura ativa',
   subscriptionExpiredTitle: 'Assinatura expirada',
   chooseAPlanToConnect: 'Escolha um plano para conectar',
-  daysRemaining: 'dias restantes',
+  daysRemainingForms: 'dia restante|dias restantes',
   active: 'Ativa',
   protected: 'Protegido',
   chooseLocation: 'Escolher local',
@@ -3269,6 +3299,8 @@ const kPortugueseStrings = AppStrings(
       'Cole uma URL de assinatura ou um link vless:// / trojan:// / hysteria2://.',
   addSubscription: 'Adicionar',
   invalidSubscriptionLink: 'Este link não parece válido',
+  linkProtocolUnsupported:
+      "Este protocolo não é compatível (ex.: ShadowsocksR). Peça ao seu provedor um link VLESS, Trojan, Shadowsocks ou Hysteria2",
   remove: 'Remover',
   more: 'Mais',
   updated: 'Atualizado',
@@ -3535,7 +3567,7 @@ const kTurkishStrings = AppStrings(
   subscriptionActive: 'Abonelik aktif',
   subscriptionExpiredTitle: 'Abonelik süresi doldu',
   chooseAPlanToConnect: 'Bağlanmak için bir plan seçin',
-  daysRemaining: 'gün kaldı',
+  daysRemainingForms: 'gün kaldı|gün kaldı',
   active: 'Aktif',
   protected: 'Korunuyor',
   chooseLocation: 'Konum seç',
@@ -3696,6 +3728,8 @@ const kTurkishStrings = AppStrings(
       'Bir abonelik URL\'si veya vless:// / trojan:// / hysteria2:// bağlantısı yapıştırın.',
   addSubscription: 'Ekle',
   invalidSubscriptionLink: 'Bu bağlantı geçerli görünmüyor',
+  linkProtocolUnsupported:
+      "Bu protokol desteklenmiyor (ör. ShadowsocksR). Sağlayıcınızdan VLESS, Trojan, Shadowsocks veya Hysteria2 bağlantısı isteyin",
   remove: 'Kaldır',
   more: 'Daha fazla',
   updated: 'Güncellendi',

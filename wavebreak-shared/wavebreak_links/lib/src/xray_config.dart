@@ -25,6 +25,20 @@ import 'share_link.dart';
 /// for minutes" the owner saw (06.10).
 const kTcpUserTimeoutMs = 20000;
 
+/// Text inside base64 — standard or URL-safe, padded or not, with stray
+/// whitespace; null when it isn't base64 of UTF-8 text.
+String? _base64Text(String raw) {
+  var s = raw.trim().replaceAll(RegExp(r'\s'), '');
+  if (s.isEmpty) return null;
+  s = s.replaceAll('-', '+').replaceAll('_', '/');
+  if (s.length % 4 > 0) s += '=' * (4 - s.length % 4);
+  try {
+    return utf8.decode(base64Decode(s));
+  } catch (_) {
+    return null;
+  }
+}
+
 abstract class V2RayURL {
   V2RayURL({required this.url});
   final String url;
@@ -318,7 +332,8 @@ abstract class V2RayURL {
       };
     } else if (transport == 'ws') {
       streamSetting['wsSettings'] = {
-        "path": path ?? ['/'],
+        // A string: Xray rejects a list here (ws links without a path).
+        "path": (path == null || path.isEmpty) ? '/' : path,
         "headers": {"Host": host ?? ""},
         "maxEarlyData": null,
         "useBrowserForwarding": null,
@@ -528,35 +543,34 @@ class VmessURL extends V2RayURL {
     if (!url.startsWith('vmess://')) {
       throw ArgumentError('url is invalid');
     }
-    String raw = url.substring(8);
-    if (raw.length % 4 > 0) {
-      raw += "=" * (4 - raw.length % 4);
+    rawConfig = _vmessFields(url.substring(8));
+    // Third-party panels leave keys out or send numbers as strings and
+    // the other way round: every field is read as optional text, and the
+    // three a server can't do without are checked up front — a readable
+    // error instead of a crash in the middle of building the config.
+    if (_f('add') == null) throw ArgumentError('vmess: no server address');
+    if (int.tryParse(_f('port') ?? '') == null) {
+      throw ArgumentError('vmess: no port');
     }
-    try {
-      rawConfig = jsonDecode(utf8.decode(base64Decode(raw)));
-    } catch (_) {
-      throw ArgumentError('url is invalid');
-    }
-    var sni = super.populateTransportSettings(
-      transport: rawConfig['net'],
-      headerType: rawConfig['type'],
-      host: rawConfig['host'],
-      path: rawConfig['path'],
-      seed: rawConfig['path'],
-      quicSecurity: rawConfig['host'],
-      key: rawConfig['path'],
-      mode: rawConfig['type'],
-      serviceName: rawConfig['path'],
+    if (_f('id') == null) throw ArgumentError('vmess: no user id');
+    final sni = super.populateTransportSettings(
+      transport: _f('net') ?? 'tcp',
+      headerType: _f('type'),
+      host: _f('host'),
+      path: _f('path'),
+      seed: _f('path'),
+      quicSecurity: _f('host'),
+      key: _f('path'),
+      mode: _f('type'),
+      serviceName: _f('path'),
     );
-    String? fingerprint = (rawConfig['fp'] != null && rawConfig['fp'] != '')
-        ? rawConfig['fp']
-        : streamSetting['tlsSettings']?['fingerprint'];
+    final tls = _f('tls');
     super.populateTlsSettings(
-      streamSecurity: rawConfig['tls'],
+      streamSecurity: tls == 'none' ? '' : (tls ?? ''),
       allowInsecure: allowInsecure,
-      sni: sni,
-      fingerprint: fingerprint,
-      alpns: rawConfig['alpn'],
+      sni: _f('sni') ?? sni,
+      fingerprint: _f('fp'),
+      alpns: _f('alpn'),
       publicKey: null,
       shortId: null,
       spiderX: null,
@@ -564,14 +578,56 @@ class VmessURL extends V2RayURL {
   }
   late final Map<String, dynamic> rawConfig;
 
-  @override
-  String get remark => rawConfig['ps'];
+  /// A field as trimmed text; null when missing or empty.
+  String? _f(String key) {
+    final v = rawConfig[key];
+    if (v == null) return null;
+    final s = v.toString().trim();
+    return s.isEmpty ? null : s;
+  }
+
+  /// The JSON inside base64 (v2rayN), or the URI form some panels send
+  /// (`vmess://uuid@host:port?type=ws&security=tls#name`) mapped onto the
+  /// same keys.
+  static Map<String, dynamic> _vmessFields(String body) {
+    final decoded = _base64Text(body.split('#').first);
+    if (decoded != null) {
+      try {
+        final json = jsonDecode(decoded);
+        if (json is Map) return json.cast<String, dynamic>();
+      } catch (_) {}
+    }
+    final uri = Uri.tryParse('vmess://$body');
+    if (uri != null && uri.host.isNotEmpty && uri.userInfo.isNotEmpty) {
+      final q = uri.queryParameters;
+      return {
+        'add': uri.host,
+        'port': uri.hasPort ? uri.port : 443,
+        'id': Uri.decodeComponent(uri.userInfo),
+        'aid': q['aid'] ?? '0',
+        'scy': q['encryption'],
+        'net': q['type'],
+        'type': q['headerType'],
+        'host': q['host'],
+        'path': q['path'] ?? q['serviceName'],
+        'tls': q['security'],
+        'sni': q['sni'],
+        'fp': q['fp'],
+        'alpn': q['alpn'],
+        'ps': uri.fragment.isEmpty ? null : Uri.decodeComponent(uri.fragment),
+      };
+    }
+    throw ArgumentError('vmess: unreadable link');
+  }
 
   @override
-  String get address => rawConfig['add'] ?? '';
+  String get remark => _f('ps') ?? '';
 
   @override
-  int get port => int.tryParse(rawConfig['port'].toString()) ?? super.port;
+  String get address => _f('add') ?? '';
+
+  @override
+  int get port => int.tryParse(_f('port') ?? '') ?? super.port;
 
   @override
   Map<String, dynamic> get outbound1 => {
@@ -584,11 +640,9 @@ class VmessURL extends V2RayURL {
               "port": port,
               "users": [
                 {
-                  "id": rawConfig['id'] ?? '',
-                  "alterId": int.tryParse(rawConfig['aid'].toString()) ?? 0,
-                  "security": (rawConfig['scy']?.isEmpty ?? true)
-                      ? security
-                      : rawConfig['scy'],
+                  "id": _f('id') ?? '',
+                  "alterId": int.tryParse(_f('aid') ?? '') ?? 0,
+                  "security": _f('scy') ?? security,
                   "level": level,
                   "encryption": "",
                   "flow": ""
@@ -628,46 +682,51 @@ class TrojanURL extends V2RayURL {
       throw ArgumentError('url is invalid');
     }
     uri = temp;
-    if (uri.queryParameters.isNotEmpty) {
-      var sni = super.populateTransportSettings(
-        transport: uri.queryParameters['type'] ?? "tcp",
-        headerType: uri.queryParameters['headerType'],
-        host: uri.queryParameters["host"],
-        path: uri.queryParameters["path"],
-        seed: uri.queryParameters["seed"],
-        quicSecurity: uri.queryParameters["quicSecurity"],
-        key: uri.queryParameters["key"],
-        mode: uri.queryParameters["mode"],
-        serviceName: uri.queryParameters["serviceName"],
-      );
-
-      super.populateTlsSettings(
-        streamSecurity: uri.queryParameters['security'] ?? 'tls',
-        allowInsecure: allowInsecure,
-        sni: uri.queryParameters["sni"] ?? sni,
-        fingerprint:
-            streamSetting['tlsSettings']?['fingerprint'] ?? "randomized",
-        alpns: uri.queryParameters['alpn'],
-        publicKey: null,
-        shortId: null,
-        spiderX: null,
-      );
-      flow = uri.queryParameters["flow"] ?? "";
-    } else {
-      super.populateTlsSettings(
-        streamSecurity: 'tls',
-        allowInsecure: allowInsecure,
-        sni: '',
-        fingerprint:
-            streamSetting['tlsSettings']?['fingerprint'] ?? "randomized",
-        alpns: null,
-        publicKey: null,
-        shortId: null,
-        spiderX: null,
-      );
+    if (uri.host.isEmpty) throw ArgumentError('trojan: no server address');
+    if (password.isEmpty) throw ArgumentError('trojan: no password');
+    // One path whether the link has a query or not: panels send
+    // "trojan://pw@host:443", "...?" and "...?security=" alike; each is
+    // plain TLS over TCP. Empty values count as missing.
+    String? q(String key) {
+      final v = uri.queryParameters[key]?.trim();
+      return (v == null || v.isEmpty) ? null : v;
     }
+
+    final sni = super.populateTransportSettings(
+      transport: q('type') ?? 'tcp',
+      headerType: q('headerType'),
+      host: q('host'),
+      path: q('path'),
+      seed: q('seed'),
+      quicSecurity: q('quicSecurity'),
+      key: q('key'),
+      mode: q('mode'),
+      serviceName: q('serviceName'),
+    );
+    final sec = q('security') ?? 'tls';
+    super.populateTlsSettings(
+      streamSecurity: sec == 'none' ? '' : sec,
+      allowInsecure: allowInsecure,
+      // "peer": the older name of the same parameter.
+      sni: q('sni') ?? q('peer') ?? sni,
+      fingerprint: q('fp') ?? 'randomized',
+      alpns: q('alpn'),
+      publicKey: q('pbk'),
+      shortId: q('sid'),
+      spiderX: q('spx'),
+    );
+    flow = q('flow') ?? '';
   }
   String flow = "";
+
+  /// The password, percent-decoded ("p%40ss" → "p@ss").
+  String get password {
+    try {
+      return Uri.decodeComponent(uri.userInfo);
+    } catch (_) {
+      return uri.userInfo;
+    }
+  }
 
   @override
   String get address => uri.host;
@@ -691,7 +750,7 @@ class TrojanURL extends V2RayURL {
               "address": address,
               "method": "chacha20-poly1305",
               "ota": false,
-              "password": uri.userInfo,
+              "password": password,
               "port": port,
               "level": level,
               "email": null,
@@ -727,42 +786,80 @@ class ShadowSocksURL extends V2RayURL {
     if (temp == null) {
       throw ArgumentError('url is invalid');
     }
-    uri = temp;
-    if (uri.userInfo.isNotEmpty) {
-      String raw = uri.userInfo;
-      if (raw.length % 4 > 0) {
-        raw += "=" * (4 - raw.length % 4);
+    if (temp.userInfo.isEmpty) {
+      // The old form: ss://BASE64(method:password@host:port)#name — no "@"
+      // outside the base64, so the parser takes the base64 for the host.
+      final decoded = _base64Text(url.substring(5).split('#').first);
+      final at = decoded?.lastIndexOf('@') ?? -1;
+      final hostPort = at < 0 ? null : Uri.tryParse('ss://${decoded!.substring(at + 1)}');
+      if (hostPort == null || hostPort.host.isEmpty) {
+        throw ArgumentError('ss: unreadable link');
       }
-      try {
-        final methodpass = utf8.decode(base64Decode(raw));
-        method = methodpass.split(':')[0];
-        password = methodpass.substring(method.length + 1);
-      } catch (_) {}
+      _setMethodPassword(decoded!.substring(0, at));
+      uri = Uri(
+        scheme: 'ss',
+        host: hostPort.host,
+        port: hostPort.hasPort ? hostPort.port : null,
+        fragment: temp.fragment.isEmpty ? null : temp.fragment,
+      );
+    } else {
+      uri = temp;
+      // SIP002: base64url("method:password"), or — for the 2022 ciphers —
+      // "method:password" percent-encoded as it is.
+      final raw = uri.userInfo;
+      final decoded = _base64Text(raw);
+      if (decoded != null && decoded.contains(':')) {
+        _setMethodPassword(decoded);
+      } else {
+        String plain;
+        try {
+          plain = Uri.decodeComponent(raw);
+        } catch (_) {
+          plain = raw;
+        }
+        if (plain.contains(':')) _setMethodPassword(plain);
+      }
+    }
+    if (method == 'none' || method.isEmpty || password.isEmpty) {
+      throw ArgumentError('ss: no cipher or password');
     }
 
-    if (uri.queryParameters.isNotEmpty) {
-      var sni = super.populateTransportSettings(
-        transport: uri.queryParameters['type'] ?? "tcp",
-        headerType: uri.queryParameters['headerType'],
-        host: uri.queryParameters["host"],
-        path: uri.queryParameters["path"],
-        seed: uri.queryParameters["seed"],
-        quicSecurity: uri.queryParameters["quicSecurity"],
-        key: uri.queryParameters["key"],
-        mode: uri.queryParameters["mode"],
-        serviceName: uri.queryParameters["serviceName"],
-      );
-      super.populateTlsSettings(
-        streamSecurity: uri.queryParameters['security'] ?? '',
-        allowInsecure: allowInsecure,
-        sni: uri.queryParameters["sni"] ?? sni,
-        fingerprint: streamSetting['tlsSettings']?['fingerprint'],
-        alpns: uri.queryParameters['alpn'],
-        publicKey: null,
-        shortId: null,
-        spiderX: null,
-      );
+    // One path whether the link has a query or not (empty values count as
+    // missing): plain TCP unless the link says otherwise.
+    String? q(String key) {
+      final v = uri.queryParameters[key]?.trim();
+      return (v == null || v.isEmpty) ? null : v;
     }
+
+    final sni = super.populateTransportSettings(
+      transport: q('type') ?? 'tcp',
+      headerType: q('headerType'),
+      host: q('host'),
+      path: q('path'),
+      seed: q('seed'),
+      quicSecurity: q('quicSecurity'),
+      key: q('key'),
+      mode: q('mode'),
+      serviceName: q('serviceName'),
+    );
+    final sec = q('security');
+    super.populateTlsSettings(
+      streamSecurity: (sec == null || sec == 'none') ? '' : sec,
+      allowInsecure: allowInsecure,
+      sni: q('sni') ?? sni,
+      fingerprint: q('fp'),
+      alpns: q('alpn'),
+      publicKey: null,
+      shortId: null,
+      spiderX: null,
+    );
+  }
+
+  void _setMethodPassword(String methodPassword) {
+    final colon = methodPassword.indexOf(':');
+    if (colon <= 0) return;
+    method = methodPassword.substring(0, colon).trim().toLowerCase();
+    password = methodPassword.substring(colon + 1);
   }
 
   @override
@@ -820,18 +917,31 @@ class ShadowSocksURL extends V2RayURL {
 
 class SocksURL extends V2RayURL {
   SocksURL({required super.url}) {
-    if (!url.startsWith('socks://')) {
+    if (!url.startsWith('socks://') && !url.startsWith('socks5://')) {
       throw ArgumentError('url is invalid');
     }
     final temp = Uri.tryParse(url);
-    if (temp == null) {
-      throw ArgumentError('url is invalid');
+    if (temp == null || temp.host.isEmpty) {
+      throw ArgumentError('socks: no server address');
     }
     uri = temp;
-    if (uri.userInfo.isNotEmpty) {
-      final String userpass = utf8.decode(base64Decode(uri.userInfo));
-      username = userpass.split(':')[0];
-      password = userpass.substring(username!.length + 1);
+    // base64("user:pass") (v2rayN) or "user:pass" as it is.
+    final raw = uri.userInfo;
+    final decoded = _base64Text(raw);
+    String userpass;
+    if (decoded != null && decoded.contains(':')) {
+      userpass = decoded;
+    } else {
+      try {
+        userpass = Uri.decodeComponent(raw);
+      } catch (_) {
+        userpass = raw;
+      }
+    }
+    final colon = userpass.indexOf(':');
+    if (colon > 0) {
+      username = userpass.substring(0, colon);
+      password = userpass.substring(colon + 1);
     } else {
       username = null;
       password = null;
@@ -1019,6 +1129,7 @@ V2RayURL parseShareLink(String url) {
     case 'ss':
       return ShadowSocksURL(url: url);
     case 'socks':
+    case 'socks5':
       return SocksURL(url: url);
     case 'hysteria2':
     case 'hy2':

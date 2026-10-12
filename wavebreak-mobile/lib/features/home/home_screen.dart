@@ -1228,7 +1228,7 @@ class _SubscriptionStrip extends ConsumerWidget {
                 title: s.subscriptionActive,
                 subtitle: days == null
                     ? sub.planName
-                    : '${sub.planName} · $days ${s.daysRemaining}',
+                    : '${sub.planName} · ${s.daysLeft(days)}',
               ),
               if (usage != null) ...[
                 const SizedBox(height: 12),
@@ -1332,7 +1332,7 @@ class _SharedSubscriptionStrip extends StatelessWidget {
                   ? s.shareOwnerInactive
                   : days == null
                       ? title
-                      : '$days ${s.daysRemaining} · $title',
+                      : '${s.daysLeft(days)} · $title',
           style: TextStyle(
             color: sub != null && !active ? WbColors.warning : WbColors.ice60,
             fontSize: 13,
@@ -1396,7 +1396,7 @@ class _SubscriptionFooter extends ConsumerWidget {
                   child: Text(
                     days == null
                         ? sub.planName
-                        : '${sub.planName} · $days ${s.daysRemaining}',
+                        : '${sub.planName} · ${s.daysLeft(days)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: muted,

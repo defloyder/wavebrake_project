@@ -70,7 +70,7 @@ func TestShareURLBase(t *testing.T) {
 	for base, want := range map[string]string{
 		"https://core.example.test/v1/sub/": "https://core.example.test/v1/share/",
 		"https://core.example.test/v1/sub":  "https://core.example.test/v1/share/",
-		"":                                  "https://core.wavebreak.com.tr/v1/share/",
+		"":                                  "https://api.wavebreak.com.tr/v1/share/",
 	} {
 		s := &Server{app: &app.App{Config: config.Config{Accounts: config.AccountsConfig{SubscriptionURLBase: base}}}}
 		if got := s.shareURLBase(); got != want {

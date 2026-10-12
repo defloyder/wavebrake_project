@@ -137,7 +137,7 @@ class AccountHero extends ConsumerWidget {
       if (active)
         days == null
             ? sub.planName
-            : '${sub.planName} · $days ${s.daysRemaining}',
+            : '${sub.planName} · ${s.daysLeft(days)}',
       if (active && own?.deviceLimit != null)
         '${s.devices}: ${own!.devicesUsed} / ${own.deviceLimit}',
       if (active && usage != null)

@@ -266,7 +266,7 @@ func Load() (Config, error) {
 			ReplyTo:  env("WAVEBREAK_SMTP_REPLY_TO", "support@wavebreak.com.tr"),
 		},
 		Accounts: AccountsConfig{
-			SubscriptionURLBase:    env("WAVEBREAK_SUBSCRIPTION_URL_BASE", "https://core.wavebreak.com.tr/v1/sub/"),
+			SubscriptionURLBase:    env("WAVEBREAK_SUBSCRIPTION_URL_BASE", "https://api.wavebreak.com.tr/v1/sub/"),
 			PasswordResetURLBase:   env("WAVEBREAK_PASSWORD_RESET_URL_BASE", "https://wavebreak.com.tr/reset-password"),
 			PasswordResetTTL:       mustDuration(env("WAVEBREAK_PASSWORD_RESET_TTL", "1h")),
 			AccessProtocol:         env("WAVEBREAK_ADMIN_ACCESS_PROTOCOL", "vless"),

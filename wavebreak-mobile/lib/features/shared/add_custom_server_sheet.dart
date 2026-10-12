@@ -75,6 +75,7 @@ Future<void> showAddCustomServerSheet(
                 'share_own' => s.shareOwnSubscription,
                 'share_inactive' => s.shareOwnerInactive,
                 'duplicate' => s.linkAlreadyAdded,
+                'unsupported' => s.linkProtocolUnsupported,
                 _ => s.invalidSubscriptionLink,
               };
             });
