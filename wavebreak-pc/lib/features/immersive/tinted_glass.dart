@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/theme/wb_colors.dart';
 import '../shared/wave_params.dart';
 import 'effects_quality.dart';
@@ -168,7 +169,9 @@ class _FocusableGlassState extends State<_FocusableGlass> {
 
   @override
   Widget build(BuildContext context) {
-    final ring = _focused &&
+    // On TV the app-wide frame (tv_focus_frame.dart) marks the focus.
+    final ring = !AppEnv.isTv &&
+        _focused &&
         FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
     return Material(
       color: Colors.transparent,
