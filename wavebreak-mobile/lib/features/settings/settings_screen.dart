@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/i18n/language_controller.dart';
+import '../../core/theme/wb_colors.dart';
+import '../../services/system/launcher_app.dart';
 import '../../services/update/update_service.dart';
 import '../shared/anchored_page.dart';
+import '../shared/notice.dart';
 import '../shared/ocean_background.dart';
 import '../shared/wave_params.dart';
 import '../shell/app_shell.dart';
@@ -112,6 +115,27 @@ class SettingsScreen extends ConsumerWidget {
                                 badge: pendingUpdate != null,
                                 onTap: () => context.push('/settings/help'),
                               ),
+                              // Windows: every WAVEBREAK program for this PC
+                              // (owner, 13.10).
+                              if (LauncherApp.available)
+                                SettingsRow(
+                                  icon: Icons.apps_rounded,
+                                  title: s.launcherRow,
+                                  subtitle: s.launcherRowHint,
+                                  trailing: const Icon(
+                                      Icons.open_in_new_rounded,
+                                      size: 20,
+                                      color: WbColors.ice60),
+                                  onTap: () async {
+                                    showNotice(s.launcherOpening);
+                                    try {
+                                      await const LauncherApp().open();
+                                    } catch (_) {
+                                      showNotice(s.launcherFailed,
+                                          kind: NoticeKind.error);
+                                    }
+                                  },
+                                ),
                             ]),
                           ],
                         ),

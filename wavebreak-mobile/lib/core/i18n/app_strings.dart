@@ -332,6 +332,10 @@ class AppStrings {
     required this.appearanceRowHint,
     required this.notificationsRowHint,
     required this.helpRowHint,
+    required this.launcherRow,
+    required this.launcherRowHint,
+    required this.launcherOpening,
+    required this.launcherFailed,
     required this.supportPageHint,
     required this.devicesPageHint,
     required this.quickServer,
@@ -487,6 +491,10 @@ class AppStrings {
   final String appearanceRowHint;
   final String notificationsRowHint;
   final String helpRowHint;
+  final String launcherRow;
+  final String launcherRowHint;
+  final String launcherOpening;
+  final String launcherFailed;
   final String supportPageHint;
   final String devicesPageHint;
   final String quickServer;
@@ -1210,6 +1218,10 @@ const kEnglishStrings = AppStrings(
   appearanceRowHint: 'Language, colors, text size, effects',
   notificationsRowHint: 'Connection and subscription',
   helpRowHint: 'Support, updates, about the app',
+  launcherRow: 'WAVEBREAK programs',
+  launcherRowHint: 'Launcher: Lite, phone and TV, updates',
+  launcherOpening: 'Opening the launcher…',
+  launcherFailed: 'Could not open the launcher — check your connection',
   supportPageHint: 'We answer in Telegram and by email',
   devicesPageHint: 'Where your account is signed in',
   quickServer: 'Change server',
@@ -1639,6 +1651,10 @@ const kRussianStrings = AppStrings(
   appearanceRowHint: 'Язык, цвета, размер текста, эффекты',
   notificationsRowHint: 'Подключение и подписка',
   helpRowHint: 'Поддержка, обновления, о приложении',
+  launcherRow: 'Программы WAVEBREAK',
+  launcherRowHint: 'Лаунчер: Lite, телефон и ТВ, обновления',
+  launcherOpening: 'Открываю лаунчер…',
+  launcherFailed: 'Не удалось открыть лаунчер — проверьте связь',
   supportPageHint: 'Ответим в Telegram и по почте',
   devicesPageHint: 'Где выполнен вход в ваш аккаунт',
   quickServer: 'Сменить сервер',
@@ -2071,6 +2087,10 @@ const kSpanishStrings = AppStrings(
   appearanceRowHint: 'Idioma, colores, tamaño del texto, efectos',
   notificationsRowHint: 'Conexión y suscripción',
   helpRowHint: 'Soporte, actualizaciones, acerca de',
+  launcherRow: 'Programas WAVEBREAK',
+  launcherRowHint: 'Lanzador: Lite, móvil y TV, actualizaciones',
+  launcherOpening: 'Abriendo el lanzador…',
+  launcherFailed: 'No se pudo abrir el lanzador: revisa la conexión',
   supportPageHint: 'Respondemos en Telegram y por correo',
   devicesPageHint: 'Dónde está abierta tu cuenta',
   quickServer: 'Cambiar servidor',
@@ -2507,6 +2527,10 @@ const kGermanStrings = AppStrings(
   appearanceRowHint: 'Sprache, Farben, Textgröße, Effekte',
   notificationsRowHint: 'Verbindung und Abo',
   helpRowHint: 'Support, Updates, über die App',
+  launcherRow: 'WAVEBREAK-Programme',
+  launcherRowHint: 'Launcher: Lite, Handy und TV, Updates',
+  launcherOpening: 'Launcher wird geöffnet…',
+  launcherFailed: 'Launcher konnte nicht geöffnet werden – Verbindung prüfen',
   supportPageHint: 'Wir antworten per Telegram und E-Mail',
   devicesPageHint: 'Wo Ihr Konto angemeldet ist',
   quickServer: 'Server wechseln',
@@ -2943,6 +2967,10 @@ const kFrenchStrings = AppStrings(
   appearanceRowHint: 'Langue, couleurs, taille du texte, effets',
   notificationsRowHint: 'Connexion et abonnement',
   helpRowHint: 'Assistance, mises à jour, à propos',
+  launcherRow: 'Programmes WAVEBREAK',
+  launcherRowHint: 'Lanceur : Lite, téléphone et TV, mises à jour',
+  launcherOpening: 'Ouverture du lanceur…',
+  launcherFailed: 'Impossible d\x27ouvrir le lanceur — vérifiez la connexion',
   supportPageHint: 'Nous répondons sur Telegram et par e-mail',
   devicesPageHint: 'Où votre compte est connecté',
   quickServer: 'Changer de serveur',
@@ -3375,6 +3403,10 @@ const kPortugueseStrings = AppStrings(
   appearanceRowHint: 'Idioma, cores, tamanho do texto, efeitos',
   notificationsRowHint: 'Conexão e assinatura',
   helpRowHint: 'Suporte, atualizações, sobre o app',
+  launcherRow: 'Programas WAVEBREAK',
+  launcherRowHint: 'Iniciador: Lite, celular e TV, atualizações',
+  launcherOpening: 'Abrindo o iniciador…',
+  launcherFailed: 'Não foi possível abrir o iniciador — verifique a conexão',
   supportPageHint: 'Respondemos no Telegram e por e-mail',
   devicesPageHint: 'Onde sua conta está conectada',
   quickServer: 'Trocar servidor',
@@ -3805,6 +3837,10 @@ const kTurkishStrings = AppStrings(
   appearanceRowHint: 'Dil, renkler, yazı boyutu, efektler',
   notificationsRowHint: 'Bağlantı ve abonelik',
   helpRowHint: 'Destek, güncellemeler, uygulama hakkında',
+  launcherRow: 'WAVEBREAK programları',
+  launcherRowHint: 'Başlatıcı: Lite, telefon ve TV, güncellemeler',
+  launcherOpening: 'Başlatıcı açılıyor…',
+  launcherFailed: 'Başlatıcı açılamadı — bağlantıyı kontrol edin',
   supportPageHint: 'Telegram ve e-posta ile yanıtlıyoruz',
   devicesPageHint: 'Hesabınızın açık olduğu yerler',
   quickServer: 'Sunucuyu değiştir',
