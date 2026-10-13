@@ -18,3 +18,7 @@ wavebreak-infrastructure/runtime/
 # templates in wavebreak-infrastructure/wireguard/ are meant to be tracked.
 wavebreak-infrastructure/wireguard/*.conf
 !wavebreak-infrastructure/wireguard/*.conf.example
+
+# Real grant UUIDs for the ru-entry package — deploy-time local data, not
+# meant to be tracked (see wavebreak-infrastructure/ru-entry/README.md).
+wavebreak-infrastructure/ru-entry/clients.json

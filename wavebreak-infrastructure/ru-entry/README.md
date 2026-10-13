@@ -1,8 +1,19 @@
 # WaveBreak RU entry node — ready to deploy
 
-Built and validated tonight (2026-10-08) against the real xray-core binary
-(`Configuration OK` both server- and client-side). Not deployed anywhere
-yet — waiting on a target IP.
+Built and validated against the real xray-core binary (`Configuration OK`
+both server- and client-side), and deployed live (Yandex Cloud Moscow,
+replacing the dead RU-YC-01) with all three transports verified end to
+end through the Istanbul chain.
+
+## Before you deploy: `clients.json`
+
+The real grant UUIDs this node should accept are **not** in this script or
+in git — put them in `clients.json` next to `deploy.sh`, a JSON array of
+`{"id": "<grant-uuid>"}` objects (same shape the other nodes' configs
+use). `.gitignore` already excludes this file; it's local, deploy-time
+data, not something to commit. `deploy.sh` refuses to run with a clear
+error if it's missing. Override the path with `CLIENTS_FILE=/some/path`
+if you keep it elsewhere.
 
 ## What it is
 

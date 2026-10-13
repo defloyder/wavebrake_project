@@ -106,24 +106,21 @@ echo "    private key: $REALITY_PRIV"
 echo "    public key:  $REALITY_PUB"
 echo "    short id:    $SHORT_ID"
 
-# The 14 grant UUIDs already live on every other WaveBreak node — reused
+# Real WaveBreak grant UUIDs, same ones live on every other node — reused
 # here so the same subscription works across nodes without Core changes.
-CLIENTS_JSON='[
-  {"id":"57afe491-b30b-498f-a8f9-4422d6de1231"},
-  {"id":"7a83b697-52dd-4de2-a4a0-6def16966260"},
-  {"id":"44f8635a-8e4f-4bed-958f-3c90a0fe4e12"},
-  {"id":"ace3ccc2-8921-4719-87b4-20b18fd3bff9"},
-  {"id":"4fe6b104-0cf9-4c93-8a7e-1e299b2ebe1e"},
-  {"id":"7926bc13-8655-473b-9083-67adff27d7fa"},
-  {"id":"e80e62dc-118c-4a69-af1f-8aa95880c84b"},
-  {"id":"b4226b48-410a-454b-8f93-5b507047710d"},
-  {"id":"6de98486-291d-4874-8a2a-8c1f20a99b0f"},
-  {"id":"3eb47ef0-93c8-4cbe-9d35-cc0df9ce5526"},
-  {"id":"51548156-9c04-4cdd-bc72-af1fb4f35d20"},
-  {"id":"d762d06b-85a1-461e-9da5-def23abb4ce9"},
-  {"id":"5f81f3f7-5d71-41f5-8190-6600d67c1d51"},
-  {"id":"1f2c54bf-ef87-42e1-93bf-2c9193c23108"}
-]'
+# Deliberately NOT inlined in this script: these are real users' own
+# credentials, and this file is meant to live in git. Put them in a
+# clients.json next to this script instead (gitignored) — see README.
+CLIENTS_FILE="${CLIENTS_FILE:-$(dirname "$0")/clients.json}"
+if [ ! -f "$CLIENTS_FILE" ]; then
+  echo "ERROR: $CLIENTS_FILE not found." >&2
+  echo "Create it as a JSON array of {\"id\": \"<grant-uuid>\"} objects" >&2
+  echo "(one entry per real grant this node should accept), or point" >&2
+  echo "CLIENTS_FILE at wherever you keep it. Not committed to git on" >&2
+  echo "purpose — these are real users' own credentials." >&2
+  exit 1
+fi
+CLIENTS_JSON=$(cat "$CLIENTS_FILE")
 CLIENTS_VISION=$(echo "$CLIENTS_JSON" | jq -c '[.[] | . + {flow:"xtls-rprx-vision"}]')
 REALITY_SERVER_NAMES_JSON=$(printf '%s\n' "${REALITY_SERVER_NAMES[@]}" | jq -R . | jq -sc .)
 
