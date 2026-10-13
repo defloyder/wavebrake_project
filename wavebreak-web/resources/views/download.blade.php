@@ -73,13 +73,15 @@
             </div>
 
             <div class="download-extras" data-reveal data-reveal-delay="320">
-                <a href="{{ asset('downloads/WAVEBREAK-Launcher.exe') }}" download>
-                    <b>{{ __('site.download.launcher') }}</b>
-                    <small>{{ __('site.download.launcher_note') }}</small>
+                <a class="download-extra" href="{{ asset('downloads/WAVEBREAK-Launcher.exe') }}" download>
+                    <span class="download-extra-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></svg></span>
+                    <span><b>{{ __('site.download.launcher') }}</b><small>{{ __('site.download.launcher_note') }}</small></span>
+                    <em>{{ __('site.download.get') }}</em>
                 </a>
-                <a href="{{ asset('downloads/wavebreak-tv-arm32.apk') }}" download>
-                    <b>{{ __('site.download.tv32') }}</b>
-                    <small>{{ __('site.download.tv32_note') }}</small>
+                <a class="download-extra" href="{{ asset('downloads/wavebreak-tv-arm32.apk') }}" download>
+                    <span class="download-extra-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+                    <span><b>{{ __('site.download.tv32') }}</b><small>{{ __('site.download.tv32_note') }}</small></span>
+                    <em>{{ __('site.download.get') }}</em>
                 </a>
             </div>
             </div>
