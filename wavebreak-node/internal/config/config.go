@@ -101,6 +101,15 @@ type XrayConfig struct {
 	// multi-device visibility (see QueryUsage) needs this separate log
 	// instead. Empty keeps Xray's access log off as before.
 	AccessLogPath string
+	// ChainEgress*: when all three of IP/Port/HopID are set, this node's
+	// Xray forwards everything onward to another WaveBreak node (the
+	// "landing") over VLESS+TCP+TLS instead of doing its own freedom/direct
+	// egress — see Render's outbound-building for why. SNI is the landing's
+	// own hostname (e.g. the Istanbul landing's hop.wavebreak.com.tr).
+	ChainEgressIP    string
+	ChainEgressPort  int
+	ChainEgressSNI   string
+	ChainEgressHopID string
 }
 
 // Load builds the node's configuration from the environment. It returns an
@@ -159,6 +168,10 @@ func Load() (Config, error) {
 			HysteriaStatsPort:       intEnv("WAVEBREAK_HYSTERIA_STATS_PORT", 0),
 			StatsAPIPort:            intEnv("WAVEBREAK_XRAY_STATS_API_PORT", 0),
 			AccessLogPath:           env("WAVEBREAK_XRAY_ACCESS_LOG_PATH", ""),
+			ChainEgressIP:           env("WAVEBREAK_XRAY_CHAIN_EGRESS_IP", ""),
+			ChainEgressPort:         intEnv("WAVEBREAK_XRAY_CHAIN_EGRESS_PORT", 0),
+			ChainEgressSNI:          env("WAVEBREAK_XRAY_CHAIN_EGRESS_SNI", ""),
+			ChainEgressHopID:        env("WAVEBREAK_XRAY_CHAIN_EGRESS_HOP_ID", ""),
 			DirectTLSListenPort:     intEnv("WAVEBREAK_XRAY_DIRECT_TLS_LISTEN_PORT", 0),
 			DirectTLSWSPath:         env("WAVEBREAK_XRAY_DIRECT_TLS_WS_PATH", "/wvb-dt"),
 			DirectTLSCertPath:       env("WAVEBREAK_XRAY_DIRECT_TLS_CERT_PATH", ""),

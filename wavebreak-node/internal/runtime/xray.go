@@ -410,18 +410,54 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			"outboundTag": "blocked",
 		},
 	}
-	outbounds := []map[string]any{
-		{
-			"tag":      "direct",
-			"protocol": "freedom",
-			"settings": map[string]any{},
-			"sockopt": map[string]any{
-				"domainStrategy": "UseIPv4",
-				"tcpMaxSeg":      1200,
-				"tcpFastOpen":    true,
-			},
+	directOutbound := map[string]any{
+		"tag":      "direct",
+		"protocol": "freedom",
+		"settings": map[string]any{},
+		"sockopt": map[string]any{
+			"domainStrategy": "UseIPv4",
+			"tcpMaxSeg":      1200,
+			"tcpFastOpen":    true,
 		},
-		{"protocol": "blackhole", "tag": "blocked"},
+	}
+	outbounds := []map[string]any{directOutbound, {"protocol": "blackhole", "tag": "blocked"}}
+	// Chained egress: this node's own network can't reach the open internet
+	// reliably (e.g. a Russia-hosted entry point that can't itself reach
+	// Telegram — confirmed earlier in this project via direct testing), so
+	// instead of this node doing its own freedom/direct egress, everything
+	// gets forwarded on to another WaveBreak node (the "landing") over a
+	// second VLESS+TCP+TLS hop using one shared hop UUID. Same pattern
+	// already hand-built and verified end-to-end in
+	// wavebreak-infrastructure/ru-entry/deploy.sh; this just makes it a
+	// first-class, Core-enrollable node option instead of a one-off script.
+	// Unset (every node today) → output is byte-identical to before.
+	if a.cfg.ChainEgressIP != "" && a.cfg.ChainEgressPort > 0 && a.cfg.ChainEgressHopID != "" {
+		toChain := map[string]any{
+			"tag":      "to-chain",
+			"protocol": "vless",
+			"settings": map[string]any{
+				"vnext": []map[string]any{
+					{
+						"address": a.cfg.ChainEgressIP,
+						"port":    a.cfg.ChainEgressPort,
+						"users": []map[string]any{
+							{"id": a.cfg.ChainEgressHopID, "encryption": "none"},
+						},
+					},
+				},
+			},
+			"streamSettings": map[string]any{
+				"network":  "tcp",
+				"security": "tls",
+				"tlsSettings": map[string]any{
+					"serverName": a.cfg.ChainEgressSNI,
+				},
+			},
+		}
+		// to-chain first so it's the implicit default outbound (nothing
+		// tags "direct" via any routing rule); direct/blocked stay present
+		// but only reachable if something explicitly routes to them later.
+		outbounds = []map[string]any{toChain, directOutbound, {"protocol": "blackhole", "tag": "blocked"}}
 	}
 	var api map[string]any
 	var stats map[string]any
