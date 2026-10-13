@@ -1,0 +1,156 @@
+{
+  "remarks": "🇷🇺 WaveBreak RU — Auto",
+  "log": { "loglevel": "warning" },
+  "dns": {
+    "servers": [
+      {
+        "address": "77.88.8.8",
+        "domains": ["geosite:category-ru", "geosite:private"],
+        "timeoutMs": 600,
+        "unexpectedIPs": ["geoip:private"]
+      },
+      "1.1.1.1",
+      "8.8.8.8"
+    ],
+    "queryStrategy": "UseIPv4"
+  },
+  "inbounds": [
+    {
+      "tag": "socks",
+      "listen": "127.0.0.1",
+      "port": 10808,
+      "protocol": "socks",
+      "settings": { "auth": "noauth", "udp": true },
+      "sniffing": { "enabled": true, "destOverride": ["http", "tls", "quic"] }
+    },
+    {
+      "tag": "http",
+      "listen": "127.0.0.1",
+      "port": 10809,
+      "protocol": "http",
+      "settings": { "allowTransparent": false },
+      "sniffing": { "enabled": true, "destOverride": ["http", "tls", "quic"] }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "reality",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "__PUBLIC_IP__",
+            "port": 443,
+            "users": [
+              { "id": "__UUID__", "encryption": "none", "flow": "xtls-rprx-vision" }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "fingerprint": "chrome",
+          "serverName": "__REALITY_SNI__",
+          "publicKey": "__REALITY_PUBLIC_KEY__",
+          "shortId": "__SHORT_ID__"
+        }
+      }
+    },
+    {
+      "tag": "grpc",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "__PUBLIC_IP__",
+            "port": 443,
+            "users": [{ "id": "__UUID__", "encryption": "none" }]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "security": "tls",
+        "tlsSettings": { "serverName": "__OWN_DOMAIN__", "fingerprint": "chrome" },
+        "grpcSettings": { "serviceName": "wvb.entry.v1.AccountService" }
+      }
+    },
+    {
+      "tag": "ws",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "__PUBLIC_IP__",
+            "port": 443,
+            "users": [{ "id": "__UUID__", "encryption": "none" }]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": { "serverName": "__OWN_DOMAIN__", "fingerprint": "chrome", "alpn": ["http/1.1"] },
+        "wsSettings": { "path": "/api/ws" }
+      }
+    },
+    { "protocol": "freedom", "tag": "direct" },
+    { "protocol": "blackhole", "tag": "block" }
+  ],
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "balancers": [
+      {
+        "tag": "auto",
+        "selector": ["reality", "grpc", "ws"],
+        "strategy": { "type": "leastPing" }
+      }
+    ],
+    "rules": [
+      { "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" },
+      { "type": "field", "ip": ["geoip:private"], "outboundTag": "direct" },
+      { "type": "field", "ip": ["geoip:ru"], "outboundTag": "direct" },
+      { "type": "field", "domain": ["geosite:private"], "outboundTag": "direct" },
+      {
+        "type": "field",
+        "domain": [
+          "regexp:(^|\\.)ru$",
+          "regexp:(^|\\.)su$",
+          "domain:ya.ru",
+          "domain:yandex.ru",
+          "domain:yandex.net",
+          "domain:yandex.com",
+          "domain:yastatic.net",
+          "domain:vk.com",
+          "domain:vk.ru",
+          "domain:mail.ru",
+          "domain:ok.ru",
+          "domain:gosuslugi.ru",
+          "domain:sberbank.ru",
+          "domain:wildberries.ru",
+          "domain:ozon.ru",
+          "domain:dzen.ru",
+          "domain:rutube.ru"
+        ],
+        "outboundTag": "direct"
+      },
+      { "type": "field", "network": "tcp,udp", "balancerTag": "auto" }
+    ]
+  },
+  "observatory": {
+    "subjectSelector": ["reality", "grpc", "ws"],
+    "probeURL": "https://www.gstatic.com/generate_204",
+    "probeInterval": "10s"
+  },
+  "policy": {
+    "system": {
+      "statsInboundDownlink": true,
+      "statsInboundUplink": true,
+      "statsOutboundDownlink": true,
+      "statsOutboundUplink": true
+    }
+  }
+}
