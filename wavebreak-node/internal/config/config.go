@@ -40,7 +40,18 @@ type XrayConfig struct {
 	// proven first in wavebreak-infrastructure/ru-entry/deploy.sh. Empty
 	// keeps every existing node's single-SNI behavior unchanged.
 	RealityServerNamesExtra []string
-	Flow                    string
+	// AcceptProxyProtocol: when true, every VLESS inbound (REALITY/CDN-WS/
+	// CDN-gRPC) is told to expect a PROXY-protocol v1 preamble before the
+	// real TLS bytes. Needed whenever an nginx `stream{}` block with
+	// `proxy_protocol on` sits in front of this node's Xray (so the real
+	// client IP survives the hop) — without it, every connection fails
+	// with an immediate reset (the PROXY header gets parsed as garbage TLS
+	// ClientHello data). Found live deploying wavebreak-infrastructure/
+	// ru-entry/deploy.sh; false by default since not every node sits
+	// behind such a proxy and turning this on for one that doesn't would
+	// break it the same way, just in the opposite direction.
+	AcceptProxyProtocol bool
+	Flow                string
 	ShadowsocksPort   int
 	ShadowsocksMethod string
 	DockerSocket      string
@@ -157,6 +168,7 @@ func Load() (Config, error) {
 			RealityDest:             env("WAVEBREAK_XRAY_REALITY_DEST", "www.microsoft.com:443"),
 			RealityServerName:       env("WAVEBREAK_XRAY_REALITY_SERVER_NAME", "www.microsoft.com"),
 			RealityServerNamesExtra: listEnv("WAVEBREAK_XRAY_REALITY_SERVER_NAMES_EXTRA"),
+			AcceptProxyProtocol:     boolEnv("WAVEBREAK_XRAY_ACCEPT_PROXY_PROTOCOL", false),
 			Flow:                    env("WAVEBREAK_XRAY_FLOW", "xtls-rprx-vision"),
 			ShadowsocksPort:         intEnv("WAVEBREAK_XRAY_SS_PORT", 0),
 			ShadowsocksMethod:       env("WAVEBREAK_XRAY_SS_METHOD", "aes-256-gcm"),
@@ -210,6 +222,18 @@ func durationEnv(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+func boolEnv(key string, fallback bool) bool {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
 }
 
 func intEnv(key string, fallback int) int {

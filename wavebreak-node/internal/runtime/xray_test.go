@@ -151,6 +151,49 @@ func TestRender_ChainEgress_PrependsToChainOutbound(t *testing.T) {
 	}
 }
 
+// TestRender_AcceptProxyProtocol_DefaultsOffMatchesTodaysBehavior locks in
+// every existing node's config (the flag unset): no inbound should carry
+// acceptProxyProtocol, since a node not sitting behind an nginx
+// `proxy_protocol on` stream block would break if Xray suddenly expected
+// a PROXY preamble that never arrives.
+func TestRender_AcceptProxyProtocol_DefaultsOffMatchesTodaysBehavior(t *testing.T) {
+	cfg := baseRealityConfig()
+	inbounds, _ := renderConfig(t, cfg)
+	for _, ib := range inbounds {
+		stream, _ := ib["streamSettings"].(map[string]any)
+		if stream == nil {
+			continue
+		}
+		sockopt, _ := stream["sockopt"].(map[string]any)
+		if sockopt["acceptProxyProtocol"] != nil {
+			t.Fatalf("inbound %v: acceptProxyProtocol must be absent when AcceptProxyProtocol is unset, got %v", ib["tag"], sockopt["acceptProxyProtocol"])
+		}
+	}
+}
+
+// TestRender_AcceptProxyProtocol_EnabledSetsItOnRealityInbound covers the
+// new opt-in path this node needs — found live deploying it behind
+// wavebreak-infrastructure/ru-entry-style nginx SNI routing with
+// `proxy_protocol on`; without this, every connection through that proxy
+// fails with an immediate reset.
+func TestRender_AcceptProxyProtocol_EnabledSetsItOnRealityInbound(t *testing.T) {
+	cfg := baseRealityConfig()
+	cfg.AcceptProxyProtocol = true
+	inbounds, _ := renderConfig(t, cfg)
+	for _, ib := range inbounds {
+		stream, _ := ib["streamSettings"].(map[string]any)
+		if stream == nil || stream["security"] != "reality" {
+			continue
+		}
+		sockopt, _ := stream["sockopt"].(map[string]any)
+		if accept, _ := sockopt["acceptProxyProtocol"].(bool); !accept {
+			t.Fatalf("expected acceptProxyProtocol=true on the REALITY inbound, got %v", sockopt["acceptProxyProtocol"])
+		}
+		return
+	}
+	t.Fatal("no REALITY inbound found")
+}
+
 // TestRender_RealityServerNames_SingularOnlyMatchesTodaysBehavior locks in
 // every existing node's config (only WAVEBREAK_XRAY_REALITY_SERVER_NAME
 // set, the new _EXTRA var left unset): REALITY must still accept exactly

@@ -74,6 +74,22 @@ func (a XrayAdapter) realityServerNames() []string {
 	return names
 }
 
+// sockopt builds an inbound's sockopt map, adding acceptProxyProtocol when
+// this node is configured to sit behind an nginx stream proxy that sends
+// the PROXY protocol preamble (see AcceptProxyProtocol's doc comment).
+// extra carries whatever sockopt fields that specific inbound already
+// sets (tcpFastOpen, tcpMaxSeg, ...).
+func (a XrayAdapter) sockopt(extra map[string]any) map[string]any {
+	out := make(map[string]any, len(extra)+1)
+	for k, v := range extra {
+		out[k] = v
+	}
+	if a.cfg.AcceptProxyProtocol {
+		out["acceptProxyProtocol"] = true
+	}
+	return out
+}
+
 func (a XrayAdapter) Validate(_ context.Context, state json.RawMessage) error {
 	if a.cfg.ListenPort > 0 {
 		if strings.TrimSpace(a.cfg.RealityPrivateKey) == "" {
@@ -172,9 +188,9 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"privateKey":  a.cfg.RealityPrivateKey,
 					"shortIds":    []string{a.cfg.RealityShortID},
 				},
-				"sockopt": map[string]any{
+				"sockopt": a.sockopt(map[string]any{
 					"tcpMaxSeg": 1200,
-				},
+				}),
 			},
 			"sniffing": map[string]any{
 				"enabled":      true,
@@ -230,9 +246,9 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				// used) because this listener only ever sees ordinary
 				// TLS+WebSocket traffic proxied in by the CDN, not a
 				// direct client needing to look indistinguishable.
-				"sockopt": map[string]any{
+				"sockopt": a.sockopt(map[string]any{
 					"tcpFastOpen": true,
-				},
+				}),
 			},
 			"sniffing": map[string]any{
 				"enabled":      true,
@@ -269,9 +285,9 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"path": xhttpPath,
 					"mode": "auto",
 				},
-				"sockopt": map[string]any{
+				"sockopt": a.sockopt(map[string]any{
 					"tcpFastOpen": true,
-				},
+				}),
 			},
 			"sniffing": map[string]any{
 				"enabled":      true,
@@ -311,9 +327,9 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 				"grpcSettings": map[string]any{
 					"serviceName": grpcService,
 				},
-				"sockopt": map[string]any{
+				"sockopt": a.sockopt(map[string]any{
 					"tcpFastOpen": true,
-				},
+				}),
 			},
 			"sniffing": map[string]any{
 				"enabled":      true,
@@ -355,9 +371,9 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"path":            directPath,
 					"heartbeatPeriod": 10,
 				},
-				"sockopt": map[string]any{
+				"sockopt": a.sockopt(map[string]any{
 					"tcpFastOpen": true,
-				},
+				}),
 			},
 			"sniffing": map[string]any{
 				"enabled":      true,
@@ -397,9 +413,9 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"path":            trojanPath,
 					"heartbeatPeriod": 10,
 				},
-				"sockopt": map[string]any{
+				"sockopt": a.sockopt(map[string]any{
 					"tcpFastOpen": true,
-				},
+				}),
 			},
 			"sniffing": map[string]any{
 				"enabled":      true,
