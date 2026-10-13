@@ -8,7 +8,7 @@ import (
 	"wavebreak-node/internal/config"
 )
 
-func renderOutbounds(t *testing.T, cfg config.XrayConfig) []map[string]any {
+func renderConfig(t *testing.T, cfg config.XrayConfig) (inbounds, outbounds []map[string]any) {
 	t.Helper()
 	adapter := NewXrayAdapter(cfg)
 	out, err := adapter.Render(context.Background(), json.RawMessage(`{}`))
@@ -16,12 +16,53 @@ func renderOutbounds(t *testing.T, cfg config.XrayConfig) []map[string]any {
 		t.Fatalf("Render: %v", err)
 	}
 	var rendered struct {
+		Inbounds  []map[string]any `json:"inbounds"`
 		Outbounds []map[string]any `json:"outbounds"`
 	}
 	if err := json.Unmarshal(out, &rendered); err != nil {
 		t.Fatalf("unmarshal rendered config: %v", err)
 	}
-	return rendered.Outbounds
+	return rendered.Inbounds, rendered.Outbounds
+}
+
+func renderOutbounds(t *testing.T, cfg config.XrayConfig) []map[string]any {
+	t.Helper()
+	_, outbounds := renderConfig(t, cfg)
+	return outbounds
+}
+
+// realityInbound finds the REALITY-security vless inbound among the
+// rendered inbounds and returns its realitySettings.serverNames, or fails
+// the test if no such inbound is present.
+func realityServerNames(t *testing.T, inbounds []map[string]any) []string {
+	t.Helper()
+	for _, ib := range inbounds {
+		stream, _ := ib["streamSettings"].(map[string]any)
+		if stream == nil || stream["security"] != "reality" {
+			continue
+		}
+		reality, _ := stream["realitySettings"].(map[string]any)
+		rawNames, _ := reality["serverNames"].([]any)
+		names := make([]string, len(rawNames))
+		for i, n := range rawNames {
+			names[i], _ = n.(string)
+		}
+		return names
+	}
+	t.Fatal("no REALITY inbound found in rendered config")
+	return nil
+}
+
+// baseRealityConfig is the minimum XrayConfig that makes Render produce a
+// REALITY inbound at all (ListenPort > 0 gates it, Validate requires the
+// key/shortID pair) — callers add RealityServerName(sExtra) on top.
+func baseRealityConfig() config.XrayConfig {
+	return config.XrayConfig{
+		ListenPort:        18443,
+		RealityPrivateKey: "test-private-key",
+		RealityShortID:    "0123456789abcdef",
+		RealityDest:       "ya.ru:443",
+	}
 }
 
 // TestRender_NoChainEgress_DefaultsToDirectOutbound locks in today's
@@ -107,5 +148,40 @@ func TestRender_ChainEgress_PrependsToChainOutbound(t *testing.T) {
 	}
 	if !sawDirect || !sawBlocked {
 		t.Errorf("expected direct and blocked outbounds to still be present, sawDirect=%v sawBlocked=%v", sawDirect, sawBlocked)
+	}
+}
+
+// TestRender_RealityServerNames_SingularOnlyMatchesTodaysBehavior locks in
+// every existing node's config (only WAVEBREAK_XRAY_REALITY_SERVER_NAME
+// set, the new _EXTRA var left unset): REALITY must still accept exactly
+// one SNI, unchanged.
+func TestRender_RealityServerNames_SingularOnlyMatchesTodaysBehavior(t *testing.T) {
+	cfg := baseRealityConfig()
+	cfg.RealityServerName = "www.microsoft.com"
+	inbounds, _ := renderConfig(t, cfg)
+	names := realityServerNames(t, inbounds)
+	if len(names) != 1 || names[0] != "www.microsoft.com" {
+		t.Fatalf("serverNames = %v, want exactly [\"www.microsoft.com\"]", names)
+	}
+}
+
+// TestRender_RealityServerNames_ExtraAppendsAllValues covers the new
+// opt-in multi-SNI path (same masquerade-domain diversification already
+// proven in wavebreak-infrastructure/ru-entry/deploy.sh): the primary
+// name plus every extra, no duplicates, primary always first.
+func TestRender_RealityServerNames_ExtraAppendsAllValues(t *testing.T) {
+	cfg := baseRealityConfig()
+	cfg.RealityServerName = "ya.ru"
+	cfg.RealityServerNamesExtra = []string{"yandex.ru", "mail.ru", "vk.com", "ya.ru"}
+	inbounds, _ := renderConfig(t, cfg)
+	names := realityServerNames(t, inbounds)
+	want := []string{"ya.ru", "yandex.ru", "mail.ru", "vk.com"}
+	if len(names) != len(want) {
+		t.Fatalf("serverNames = %v, want %v (duplicate primary name must be deduped)", names, want)
+	}
+	for i, w := range want {
+		if names[i] != w {
+			t.Errorf("serverNames[%d] = %q, want %q", i, names[i], w)
+		}
 	}
 }

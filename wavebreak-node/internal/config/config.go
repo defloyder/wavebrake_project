@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,7 +29,18 @@ type XrayConfig struct {
 	RealityShortID    string
 	RealityDest       string
 	RealityServerName string
-	Flow              string
+	// RealityServerNamesExtra, when set, adds MORE client-facing SNI values
+	// REALITY will accept, alongside RealityServerName. REALITY never shows
+	// the client a real certificate for whichever SNI it sent — there's no
+	// per-SNI cert check to satisfy — so these don't need to share hosting
+	// with RealityDest's single real probe target; they just need to be
+	// real, reachable TLS1.3 sites so the choice itself doesn't look odd.
+	// Lets one node accept several masquerade domains (if one gets blocked
+	// on a given network, a client can switch SNI without a redeploy) —
+	// proven first in wavebreak-infrastructure/ru-entry/deploy.sh. Empty
+	// keeps every existing node's single-SNI behavior unchanged.
+	RealityServerNamesExtra []string
+	Flow                    string
 	ShadowsocksPort   int
 	ShadowsocksMethod string
 	DockerSocket      string
@@ -144,6 +156,7 @@ func Load() (Config, error) {
 			RealityShortID:          env("WAVEBREAK_XRAY_REALITY_SHORT_ID", ""),
 			RealityDest:             env("WAVEBREAK_XRAY_REALITY_DEST", "www.microsoft.com:443"),
 			RealityServerName:       env("WAVEBREAK_XRAY_REALITY_SERVER_NAME", "www.microsoft.com"),
+			RealityServerNamesExtra: listEnv("WAVEBREAK_XRAY_REALITY_SERVER_NAMES_EXTRA"),
 			Flow:                    env("WAVEBREAK_XRAY_FLOW", "xtls-rprx-vision"),
 			ShadowsocksPort:         intEnv("WAVEBREAK_XRAY_SS_PORT", 0),
 			ShadowsocksMethod:       env("WAVEBREAK_XRAY_SS_METHOD", "aes-256-gcm"),
@@ -209,4 +222,24 @@ func intEnv(key string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+// listEnv splits a comma-separated env var, trimming whitespace and
+// dropping empty entries. Returns nil (not an empty slice) when the var
+// is unset so callers can tell "not configured" apart from "configured
+// as empty" with a plain nil check.
+func listEnv(key string) []string {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

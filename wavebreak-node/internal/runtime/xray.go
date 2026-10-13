@@ -50,6 +50,30 @@ func NewXrayAdapter(cfg config.XrayConfig) XrayAdapter {
 	return XrayAdapter{cfg: cfg, hyUsers: &[]hysteriaUser{}}
 }
 
+// realityServerNames resolves the full list of client-facing SNI values
+// REALITY accepts: the single required RealityServerName first, then any
+// RealityServerNamesExtra, skipping duplicates so a node that lists its
+// own primary name again in the extra list doesn't end up with it twice.
+func (a XrayAdapter) realityServerNames() []string {
+	names := make([]string, 0, 1+len(a.cfg.RealityServerNamesExtra))
+	seen := make(map[string]struct{}, 1+len(a.cfg.RealityServerNamesExtra))
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	add(a.cfg.RealityServerName)
+	for _, name := range a.cfg.RealityServerNamesExtra {
+		add(name)
+	}
+	return names
+}
+
 func (a XrayAdapter) Validate(_ context.Context, state json.RawMessage) error {
 	if a.cfg.ListenPort > 0 {
 		if strings.TrimSpace(a.cfg.RealityPrivateKey) == "" {
@@ -144,7 +168,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"show":        false,
 					"xver":        0,
 					"dest":        a.cfg.RealityDest,
-					"serverNames": []string{a.cfg.RealityServerName},
+					"serverNames": a.realityServerNames(),
 					"privateKey":  a.cfg.RealityPrivateKey,
 					"shortIds":    []string{a.cfg.RealityShortID},
 				},
