@@ -137,6 +137,10 @@ class WaveEngineVpnService : VpnService() {
     private var pendingHealthCheck: Runnable? = null
     private var pendingConnectWatchdog: Runnable? = null
     private var consecutiveHealthCheckFailures = 0
+    // Health-check reconnects in a row that did not bring the tunnel back
+    // (reset by the first good check): the first is engine-only, the
+    // second rebuilds the TUN too — what the user's own "reconnect" does.
+    private var failedRecoveries = 0
     private var connectRetryCount = 0
 
     // Real-device bug this exists to fix: reported repeatedly as the phone
@@ -850,6 +854,7 @@ class WaveEngineVpnService : VpnService() {
     private fun scheduleHealthCheck() {
         pendingHealthCheck?.let { reconnectHandler.removeCallbacks(it) }
         consecutiveHealthCheckFailures = 0
+        failedRecoveries = 0
         val runnable = object : Runnable {
             override fun run() {
                 // Owner, 12.10: "it stops loading until I open the app" —
@@ -867,6 +872,11 @@ class WaveEngineVpnService : VpnService() {
                 Thread({
                     val ms = measureTunnelLatencyMs()
                     val alive = ms != null
+                    // Owner's log, 13.10 (Yota): the app's own API calls
+                    // timed out right while the tunnel "failed" — the
+                    // phone's network itself was down, and restarting the
+                    // engine then only cut every app's connections again.
+                    val networkUp = alive || directNetworkAlive()
                     reconnectHandler.post {
                         if (stopping) return@post
                         if (activeEngine == null) {
@@ -876,15 +886,31 @@ class WaveEngineVpnService : VpnService() {
                         if (alive) {
                             elog("health check ok $ms ms")
                             consecutiveHealthCheckFailures = 0
+                            failedRecoveries = 0
                             reconnectHandler.postDelayed(this, HEALTH_CHECK_INTERVAL_MS)
+                        } else if (!networkUp) {
+                            // Nothing to redial over: keep the tunnel as it
+                            // is (it carries on by itself once the network
+                            // is back) and look again soon.
+                            elog("health check failed: no network outside the tunnel either, waiting")
+                            consecutiveHealthCheckFailures = 0
+                            reconnectHandler.postDelayed(this, HEALTH_CHECK_RETRY_MS)
                         } else {
                             consecutiveHealthCheckFailures++
-                            elog("health check failed ($consecutiveHealthCheckFailures/$HEALTH_CHECK_FAILURE_THRESHOLD)")
+                            elog("health check failed ($consecutiveHealthCheckFailures/$HEALTH_CHECK_FAILURE_THRESHOLD), network outside the tunnel ok")
                             if (consecutiveHealthCheckFailures >= HEALTH_CHECK_FAILURE_THRESHOLD) {
                                 consecutiveHealthCheckFailures = 0
-                                scheduleReconnect("health check failed")
-                                // Keep watching the reconnected tunnel.
-                                reconnectHandler.postDelayed(this, HEALTH_CHECK_INTERVAL_MS)
+                                if (failedRecoveries == 1) {
+                                    // An engine restart already did not
+                                    // help: start over as a manual
+                                    // reconnect would (new TUN too).
+                                    reconnectFull("health check failed after an engine restart")
+                                } else {
+                                    scheduleReconnect("health check failed")
+                                }
+                                failedRecoveries++
+                                // Look at the reconnected tunnel sooner.
+                                reconnectHandler.postDelayed(this, HEALTH_CHECK_AFTER_RECONNECT_MS)
                             } else {
                                 // One failure could just be a genuinely slow
                                 // real network blip — only a SECOND
@@ -905,6 +931,47 @@ class WaveEngineVpnService : VpnService() {
     // Runs on a background thread (see scheduleHealthCheck) — blocking
     // socket I/O, never call this on the main thread.
     private fun probeTunnelAlive(): Boolean = measureTunnelLatencyMs() != null
+
+    // The same request straight over the phone's own network: this app is
+    // excluded from its tunnel (addDisallowedApplication), so a plain
+    // socket here never touches the VPN. Background threads only.
+    private fun directNetworkAlive(): Boolean = try {
+        Socket().use { socket ->
+            socket.soTimeout = DIRECT_CHECK_TIMEOUT_MS
+            socket.connect(InetSocketAddress(HEALTH_CHECK_HOST, 80), DIRECT_CHECK_TIMEOUT_MS)
+            socket.getOutputStream().apply {
+                write("HEAD $HEALTH_CHECK_PATH HTTP/1.1\r\nHost: $HEALTH_CHECK_HOST\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
+                flush()
+            }
+            socket.getInputStream().bufferedReader(Charsets.US_ASCII).readLine()?.startsWith("HTTP/") == true
+        }
+    } catch (t: Throwable) {
+        false
+    }
+
+    // Like the user's own reconnect: engine AND TUN from scratch. Only
+    // when an engine-only restart already failed to bring the tunnel back
+    // (the VPN icon blinks once — better than a tunnel that stays dead).
+    private fun reconnectFull(reason: String) {
+        if (stopping || activeEngine == null) return
+        pendingReconnect?.let { reconnectHandler.removeCallbacks(it) }
+        pendingReconnect = null
+        elog("full reconnect (new TUN) after $reason")
+        logStateTransition(STATE_RECONNECTING, reason)
+        val generation = ++connectGeneration
+        scheduleConnectWatchdog(generation, isReconnect = true, preserveTun = false)
+        val xrayConfig = lastXrayConfig
+        val link = lastLink
+        val engine = activeEngine
+        Thread({
+            synchronized(connectLock) { releaseEngineResources() }
+            when (engine) {
+                Engine.XRAY -> xrayConfig?.let { connectXray(it, generation, isReconnect = true, preserveTun = false) }
+                Engine.HYSTERIA -> link?.let { connectHysteria(it, generation, isReconnect = true, preserveTun = false) }
+                null -> {}
+            }
+        }, "WaveEngineFullReconnect").start()
+    }
 
     // Bugs 1/12: the old probe (plain TCP connect to 1.1.1.1:443) could not
     // detect a dead tunnel — tun2socks completes the TCP handshake locally
@@ -2084,7 +2151,11 @@ class WaveEngineVpnService : VpnService() {
         // through the engine's SOCKS inbound (see measureTunnelLatencyMs).
         private const val HEALTH_CHECK_HOST = "connectivitycheck.gstatic.com"
         private const val HEALTH_CHECK_PATH = "/generate_204"
-        private const val HEALTH_CHECK_TIMEOUT_MS = 6_000
+        // 13.10 log: on mobile a working tunnel answered in up to 6 s —
+        // a 6 s limit restarted good tunnels (and cut every connection).
+        private const val HEALTH_CHECK_TIMEOUT_MS = 10_000
+        private const val DIRECT_CHECK_TIMEOUT_MS = 5_000
+        private const val HEALTH_CHECK_AFTER_RECONNECT_MS = 20_000L
         private const val HEALTH_CHECK_INTERVAL_MS = 45_000L
         private const val HEALTH_CHECK_RETRY_MS = 10_000L
         private const val HEALTH_CHECK_RETRY_AFTER_FAILURE_MS = 3_000L
