@@ -198,7 +198,19 @@ for sni in "${REALITY_SERVER_NAMES[@]}"; do
 done
 
 cat > /opt/wavebreak-stream-nginx/nginx.conf <<NGINXEOF
-events {}
+# worker_connections defaults to 512 — nowhere near enough for a VPN relay:
+# a single real client app routinely holds hundreds of concurrent streams
+# (found live: one phone on a restricted network opened 200+ simultaneous
+# connections, nginx logged "512 worker_connections are not enough" and
+# started hard-rejecting the overflow, which is why Telegram just hung on
+# "Connecting..." — most of the underlying streams it needed were being
+# refused at the TCP proxy layer, nothing to do with the carrier or chain).
+# worker_rlimit_nofile must rise to match — a high worker_connections is
+# capped by the OS file-descriptor limit otherwise.
+worker_rlimit_nofile 65535;
+events {
+  worker_connections 65535;
+}
 stream {
   map \$ssl_preread_server_name \$tls_backend {
 $REALITY_NGINX_MAP_LINES    $OWN_DOMAIN  127.0.0.1:18502;
@@ -221,11 +233,15 @@ echo "==> Starting containers..."
 docker rm -f wavebreak-ru-entry wavebreak-stream-nginx >/dev/null 2>&1 || true
 
 docker run -d --name wavebreak-ru-entry --restart unless-stopped --network host \
+  --ulimit nofile=65535:65535 \
   -v /opt/wavebreak-ru-entry:/c \
   -v /etc/letsencrypt:/etc/letsencrypt:ro \
   teddysun/xray:latest xray run -config /c/config.json
 
+# --ulimit: a container's default fd limit (1024) would silently cap
+# worker_rlimit_nofile below what nginx.conf asks for.
 docker run -d --name wavebreak-stream-nginx --restart unless-stopped --network host \
+  --ulimit nofile=65535:65535 \
   -v /opt/wavebreak-stream-nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
   nginx:1.27-alpine
 
