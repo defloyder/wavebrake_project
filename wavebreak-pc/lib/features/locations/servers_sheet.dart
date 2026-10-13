@@ -17,10 +17,11 @@ import '../shared/wave_params.dart';
 /// The server list (sections, places, protocols) — the Servers tab and
 /// the pop-up from Home's location header show this same widget.
 ///
-/// Anchored to the bottom, near the thumb (owner, 06.10): a short list sits
-/// right above the nav bar with [hero] (the Servers tab: the server in
-/// use) in the room above it; a long one scrolls, opening at its top
-/// (owner, 07.10). See [AnchoredPage].
+/// On the Servers tab [hero] (the server in use) stays on top in its full
+/// form and the sections start right under it; a long list scrolls,
+/// opening at its top (owner, 13.10: rows anchored to the bottom squeezed
+/// the hero into a lone flag when a section opened, and the list jumped
+/// as sections opened and closed). See [AnchoredPage].
 class ServersList extends ConsumerWidget {
   const ServersList({
     super.key,
@@ -50,6 +51,8 @@ class ServersList extends ConsumerWidget {
           )
         : AnchoredPage(
             padding: EdgeInsets.only(bottom: bottomPadding),
+            rowsUnderHero: true,
+            heroKeepsSize: true,
             hero: hero,
             content: list,
           );

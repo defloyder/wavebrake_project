@@ -398,6 +398,8 @@ class AppStrings {
     required this.mThisDevice,
     required this.mTunnel,
     required this.mNoTunnel,
+    required this.mTunnelNoAnswer,
+    required this.mNoConnection,
     required this.mExit,
     required this.mInternet,
     required this.mSitesSeeServer,
@@ -428,6 +430,8 @@ class AppStrings {
   final String mThisDevice;
   final String mTunnel;
   final String mNoTunnel;
+  final String mTunnelNoAnswer;
+  final String mNoConnection;
   final String mExit;
   final String mInternet;
   final String mSitesSeeServer;
@@ -1272,6 +1276,8 @@ const kEnglishStrings = AppStrings(
   mThisDevice: 'This device',
   mTunnel: 'encrypted tunnel',
   mNoTunnel: 'no tunnel',
+  mTunnelNoAnswer: 'no answer through the tunnel',
+  mNoConnection: 'no connection',
   mExit: 'exit to the internet',
   mInternet: 'Internet',
   mSitesSeeServer: 'sites see the server\'s address ({country})',
@@ -1699,6 +1705,8 @@ const kRussianStrings = AppStrings(
   mThisDevice: 'Это устройство',
   mTunnel: 'зашифрованный туннель',
   mNoTunnel: 'туннель не установлен',
+  mTunnelNoAnswer: 'нет ответа через туннель',
+  mNoConnection: 'нет соединения',
   mExit: 'выход в интернет',
   mInternet: 'Интернет',
   mSitesSeeServer: 'сайты видят адрес сервера ({country})',
@@ -2129,6 +2137,8 @@ const kSpanishStrings = AppStrings(
   mThisDevice: 'Este dispositivo',
   mTunnel: 'túnel cifrado',
   mNoTunnel: 'sin túnel',
+  mTunnelNoAnswer: 'sin respuesta por el túnel',
+  mNoConnection: 'sin conexión',
   mExit: 'salida a internet',
   mInternet: 'Internet',
   mSitesSeeServer: 'los sitios ven la dirección del servidor ({country})',
@@ -2563,6 +2573,8 @@ const kGermanStrings = AppStrings(
   mThisDevice: 'Dieses Gerät',
   mTunnel: 'verschlüsselter Tunnel',
   mNoTunnel: 'kein Tunnel',
+  mTunnelNoAnswer: 'keine Antwort durch den Tunnel',
+  mNoConnection: 'keine Verbindung',
   mExit: 'Ausgang ins Internet',
   mInternet: 'Internet',
   mSitesSeeServer: 'Websites sehen die Adresse des Servers ({country})',
@@ -2997,6 +3009,8 @@ const kFrenchStrings = AppStrings(
   mThisDevice: 'Cet appareil',
   mTunnel: 'tunnel chiffré',
   mNoTunnel: 'pas de tunnel',
+  mTunnelNoAnswer: 'pas de réponse via le tunnel',
+  mNoConnection: 'pas de connexion',
   mExit: 'sortie vers Internet',
   mInternet: 'Internet',
   mSitesSeeServer: 'les sites voient l\'adresse du serveur ({country})',
@@ -3427,6 +3441,8 @@ const kPortugueseStrings = AppStrings(
   mThisDevice: 'Este dispositivo',
   mTunnel: 'túnel criptografado',
   mNoTunnel: 'sem túnel',
+  mTunnelNoAnswer: 'sem resposta pelo túnel',
+  mNoConnection: 'sem conexão',
   mExit: 'saída para a internet',
   mInternet: 'Internet',
   mSitesSeeServer: 'os sites veem o endereço do servidor ({country})',
@@ -3855,6 +3871,8 @@ const kTurkishStrings = AppStrings(
   mThisDevice: 'Bu cihaz',
   mTunnel: 'şifreli tünel',
   mNoTunnel: 'tünel yok',
+  mTunnelNoAnswer: 'tünelden yanıt yok',
+  mNoConnection: 'bağlantı yok',
   mExit: 'internete çıkış',
   mInternet: 'İnternet',
   mSitesSeeServer: 'siteler sunucunun adresini görür ({country})',

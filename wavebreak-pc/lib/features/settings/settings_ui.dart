@@ -13,9 +13,10 @@ import '../shared/nav_utils.dart';
 // layout. Icons and surfaces are neutral; the accent marks only what is
 // on or selected (switches, badges, the chosen option).
 
-/// A settings page: back button and title, the rows at the bottom by the
-/// thumb and [hero] (usually a [PageEmblem]) in the room above them; a
-/// long page scrolls from its top (see [AnchoredPage]).
+/// A settings page: back button and title, [hero] (usually a [PageEmblem])
+/// on top and the rows right under it (owner, 13.10: rows pressed to the
+/// bottom sat too low); a long page scrolls from its top (see
+/// [AnchoredPage]).
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
     super.key,
@@ -39,6 +40,7 @@ class SettingsPage extends StatelessWidget {
       onBack: () => safePop(context, fallback: fallback),
       child: AnchoredPage(
         padding: const EdgeInsets.only(bottom: 4),
+        rowsUnderHero: true,
         hero: hero,
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -249,6 +249,11 @@ class _MobileShell extends ConsumerWidget {
         if (!didPop) navigationShell.goBranch(0);
       },
       child: Scaffold(
+        // The keyboard of a sheet over a tab (e.g. "Add your own link")
+        // must not squeeze the tab behind it (owner, 13.10: the server
+        // list jumped and lost its top). Pages with their own Scaffold
+        // still make room for it themselves.
+        resizeToAvoidBottomInset: false,
         // No slot-based bottomNavigationBar — that slot paints the
         // Scaffold's own flat background behind it. Floating the pill over
         // a full-height body instead means nothing but the pill's own

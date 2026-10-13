@@ -27,6 +27,8 @@ class AnchoredPage extends StatefulWidget {
     this.hero,
     this.padding = EdgeInsets.zero,
     this.gap = 16,
+    this.rowsUnderHero = false,
+    this.heroKeepsSize = false,
   });
 
   final Widget content;
@@ -38,6 +40,16 @@ class AnchoredPage extends StatefulWidget {
 
   /// The least room above and below the hero.
   final double gap;
+
+  /// The rows right under the hero, the room left over below them
+  /// (settings pages, owner 13.10: rows pressed to the bottom looked
+  /// lost), instead of at the bottom by the thumb.
+  final bool rowsUnderHero;
+
+  /// With [rowsUnderHero]: the hero always in its full form, the page
+  /// scrolls instead (the server list, owner 13.10: opening a section
+  /// squeezed the server in use into a lone flag, and the list jumped).
+  final bool heroKeepsSize;
 
   @override
   State<AnchoredPage> createState() => _AnchoredPageState();
@@ -73,6 +85,8 @@ class _AnchoredPageState extends State<AnchoredPage> {
         child: _HeroAbove(
           minHeight: math.max(0, box.maxHeight - widget.padding.vertical),
           gap: widget.gap,
+          rowsUnderHero: widget.rowsUnderHero,
+          heroKeepsSize: widget.heroKeepsSize,
           hero: widget.hero ?? const SizedBox.shrink(),
           content: widget.content,
         ),
@@ -85,22 +99,31 @@ class _HeroAbove extends MultiChildRenderObjectWidget {
   _HeroAbove({
     required this.minHeight,
     required this.gap,
+    required this.rowsUnderHero,
+    required this.heroKeepsSize,
     required Widget hero,
     required Widget content,
   }) : super(children: [hero, content]);
 
   final double minHeight;
   final double gap;
+  final bool rowsUnderHero;
+  final bool heroKeepsSize;
 
   @override
-  RenderObject createRenderObject(BuildContext context) =>
-      _RenderHeroAbove(minHeight: minHeight, gap: gap);
+  RenderObject createRenderObject(BuildContext context) => _RenderHeroAbove(
+      minHeight: minHeight,
+      gap: gap,
+      rowsUnderHero: rowsUnderHero,
+      heroKeepsSize: heroKeepsSize);
 
   @override
   void updateRenderObject(BuildContext context, _RenderHeroAbove renderObject) {
     renderObject
       ..minHeight = minHeight
-      ..gap = gap;
+      ..gap = gap
+      ..rowsUnderHero = rowsUnderHero
+      ..heroKeepsSize = heroKeepsSize;
   }
 }
 
@@ -110,9 +133,29 @@ class _RenderHeroAbove extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, _HeroAboveData>,
         RenderBoxContainerDefaultsMixin<RenderBox, _HeroAboveData> {
-  _RenderHeroAbove({required double minHeight, required double gap})
+  _RenderHeroAbove(
+      {required double minHeight,
+      required double gap,
+      required bool rowsUnderHero,
+      required bool heroKeepsSize})
       : _minHeight = minHeight,
-        _gap = gap;
+        _gap = gap,
+        _rowsUnderHero = rowsUnderHero,
+        _heroKeepsSize = heroKeepsSize;
+
+  bool _heroKeepsSize;
+  set heroKeepsSize(bool value) {
+    if (value == _heroKeepsSize) return;
+    _heroKeepsSize = value;
+    markNeedsLayout();
+  }
+
+  bool _rowsUnderHero;
+  set rowsUnderHero(bool value) {
+    if (value == _rowsUnderHero) return;
+    _rowsUnderHero = value;
+    markNeedsLayout();
+  }
 
   double _minHeight;
   set minHeight(double value) {
@@ -149,7 +192,13 @@ class _RenderHeroAbove extends RenderBox
     double height;
     double heroY = _gap;
     double contentY;
-    if (contentH <= _minHeight) {
+    if (_rowsUnderHero && _heroKeepsSize) {
+      // Hero as it is, rows under it; scrolls when that is taller.
+      _hero.layout(BoxConstraints(maxWidth: width), parentUsesSize: true);
+      _heroShown = _hero.size.height > 0;
+      contentY = _heroShown ? _hero.size.height + 2 * _gap : 0;
+      height = math.max(_minHeight, contentY + contentH);
+    } else if (contentH <= _minHeight) {
       // The rows fit: the hero gets exactly the room above them and picks
       // its own form for it (HeroFit: full, compact, or nothing).
       final room = math.max(0.0, _minHeight - contentH - 2 * _gap);
@@ -158,8 +207,13 @@ class _RenderHeroAbove extends RenderBox
       _heroShown = _hero.size.height > 0;
       height = _minHeight;
       if (_heroShown) {
-        heroY = (_minHeight - contentH - _hero.size.height) / 2;
-        contentY = height - contentH;
+        if (_rowsUnderHero) {
+          heroY = _gap;
+          contentY = heroY + _hero.size.height + _gap;
+        } else {
+          heroY = (_minHeight - contentH - _hero.size.height) / 2;
+          contentY = height - contentH;
+        }
       } else {
         // No hero fits: the rows at the top, not under an empty screen
         // (owner, 12.10).

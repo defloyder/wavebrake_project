@@ -185,20 +185,31 @@ class _ConnectionSettingsScreenState
                 ),
               // Always here (not just the one-time prompt after the first
               // connect), so declining that prompt is never a one-way door.
-              SettingsRow(
-                icon: Icons.battery_charging_full_outlined,
-                title: s.batteryOptSettingsRow,
-                onTap: () =>
-                    const BatteryOptimizationService().requestExemption(),
-              ),
-              // Xiaomi's own limits on top of Android's (OemBackground.kt).
+              // One battery row (owner, 13.10: two looked like a repeat).
+              // On Xiaomi it lifts Android's limit first, then opens the
+              // vendor's own screen on top of it (OemBackground.kt).
+              if (!_xiaomi)
+                SettingsRow(
+                  icon: Icons.battery_charging_full_outlined,
+                  title: s.batteryOptSettingsRow,
+                  onTap: () =>
+                      const BatteryOptimizationService().requestExemption(),
+                ),
               if (_xiaomi) ...[
                 SettingsRow(
-                  icon: Icons.battery_saver_outlined,
+                  icon: Icons.battery_charging_full_outlined,
                   title: s.bgSaverRow,
                   subtitle: s.bgSaverHint,
-                  onTap: () => const BatteryOptimizationService()
-                      .openBackgroundSettings(),
+                  onTap: () async {
+                    const battery = BatteryOptimizationService();
+                    // Android's dialog is fire-and-forget: one screen per
+                    // tap, the vendor's once Android's limit is off.
+                    if (!await battery.isExempt()) {
+                      await battery.requestExemption();
+                    } else {
+                      await battery.openBackgroundSettings();
+                    }
+                  },
                 ),
                 SettingsRow(
                   icon: Icons.restart_alt_rounded,

@@ -1,5 +1,6 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -163,6 +164,10 @@ class RouteTab extends StatelessWidget {
     final loc = connection.location;
     final (place, _) = splitPlaceAndProtocol(loc.city);
     final connected = connection.status == ConnectionStatus.connected;
+    // Connected, but probes through the tunnel get no answer: the route is
+    // shown broken, not flowing.
+    final silent = connected && metrics.tunnelSilent;
+    final flowing = connected && !silent;
     return TintedGlass(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
       child: Column(
@@ -176,12 +181,15 @@ class RouteTab extends StatelessWidget {
             ),
           ),
           _Link(
-            active: connected,
+            active: flowing,
+            broken: silent,
             color: Ic.arctic,
-            label: connected
-                ? '${s.mTunnel}'
-                    '${metrics.pingMs != null ? ' · ${metrics.pingMs} ${s.unitMs}' : ''}'
-                : s.mNoTunnel,
+            label: silent
+                ? s.mTunnelNoAnswer
+                : connected
+                    ? '${s.mTunnel}'
+                        '${metrics.pingMs != null ? ' · ${metrics.pingMs} ${s.unitMs}' : ''}'
+                    : s.mNoTunnel,
           ),
           _Node(
             icon: loc.countryCode.isNotEmpty
@@ -191,16 +199,20 @@ class RouteTab extends StatelessWidget {
             subtitle: protocolLabel(loc) ?? '',
           ),
           _Link(
-            active: connected,
+            active: flowing,
+            broken: silent,
             color: context.brand,
-            label: connected ? s.mExit : '',
+            label: flowing ? s.mExit : '',
           ),
           _Node(
             icon: const Icon(Icons.public_rounded, color: Ic.text),
             title: s.mInternet,
-            subtitle: connected
-                ? s.mSitesSeeServer.replaceAll('{country}', loc.country)
-                : s.mDirect,
+            subtitle: silent
+                ? s.mNoConnection
+                : connected
+                    ? s.mSitesSeeServer.replaceAll('{country}', loc.country)
+                    : s.mDirect,
+            warn: silent,
           ),
         ],
       ),
@@ -210,11 +222,17 @@ class RouteTab extends StatelessWidget {
 
 class _Node extends StatelessWidget {
   const _Node(
-      {required this.icon, required this.title, required this.subtitle});
+      {required this.icon,
+      required this.title,
+      required this.subtitle,
+      this.warn = false});
 
   final Widget icon;
   final String title;
   final String subtitle;
+
+  /// The subtitle in amber: this hop is not reached.
+  final bool warn;
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +265,8 @@ class _Node extends StatelessWidget {
                 Text(subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Ic.textMuted, fontSize: 13)),
+                    style: TextStyle(
+                        color: warn ? Ic.amber : Ic.textMuted, fontSize: 13)),
             ],
           ),
         ),
@@ -258,9 +277,16 @@ class _Node extends StatelessWidget {
 
 /// Vertical connector; dots flow along it while the tunnel is up.
 class _Link extends StatelessWidget {
-  const _Link({required this.active, required this.color, required this.label});
+  const _Link(
+      {required this.active,
+      required this.color,
+      required this.label,
+      this.broken = false});
 
   final bool active;
+
+  /// Connected but silent: an amber dashed line with a gap, no flow.
+  final bool broken;
   final Color color;
   final String label;
 
@@ -277,6 +303,7 @@ class _Link extends StatelessWidget {
               painter: _FlowPainter(
                 time: ImmersiveClock.of(context),
                 active: active,
+                broken: broken,
                 color: color,
               ),
             ),
@@ -285,7 +312,8 @@ class _Link extends StatelessWidget {
           Expanded(
             child: Text(label,
                 style: TextStyle(
-                    color: active ? color : Ic.textMuted, fontSize: 12)),
+                    color: broken ? Ic.amber : (active ? color : Ic.textMuted),
+                    fontSize: 12)),
           ),
         ],
       ),
@@ -294,16 +322,36 @@ class _Link extends StatelessWidget {
 }
 
 class _FlowPainter extends CustomPainter {
-  _FlowPainter({required this.time, required this.active, required this.color})
+  _FlowPainter(
+      {required this.time,
+      required this.active,
+      required this.color,
+      this.broken = false})
       : super(repaint: active ? time : null);
 
   final ValueListenable<double> time;
   final bool active;
+  final bool broken;
   final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final x = size.width / 2;
+    if (broken) {
+      // Dashes to a gap in the middle, where the link breaks.
+      final dash = Paint()
+        ..strokeWidth = 1.5
+        ..color = Ic.amber.withValues(alpha: 0.7);
+      final mid = size.height / 2;
+      for (var y = 2.0; y < size.height - 2; y += 7) {
+        if ((y - mid).abs() < 7) continue;
+        canvas.drawLine(
+            Offset(x, y), Offset(x, math.min(y + 4, size.height - 2)), dash);
+      }
+      canvas.drawLine(Offset(x - 4, mid - 4), Offset(x + 4, mid + 4), dash);
+      canvas.drawLine(Offset(x + 4, mid - 4), Offset(x - 4, mid + 4), dash);
+      return;
+    }
     final line = Paint()
       ..strokeWidth = 1.5
       ..color = (active ? color : Ic.glassBorder).withValues(alpha: 0.6);
@@ -320,5 +368,5 @@ class _FlowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FlowPainter old) =>
-      old.active != active || old.color != color;
+      old.active != active || old.broken != broken || old.color != color;
 }
