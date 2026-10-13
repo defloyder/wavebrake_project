@@ -26,7 +26,11 @@
 # <OWN_DOMAIN>  A domain you control, already DNS-A'd to PUBLIC_IP, with a
 #               Let's Encrypt cert obtainable (used for gRPC/WS's real TLS
 #               cert — these two are NOT camouflaged, so this domain name
-#               will be visible in their SNI).
+#               will be visible in their SNI). ALSO DNS-A "ws.<OWN_DOMAIN>"
+#               to the same PUBLIC_IP before running this — gRPC keeps
+#               OWN_DOMAIN itself, WS gets that subdomain (same cert, one
+#               extra SAN) because nginx's SNI router can only dispatch by
+#               the SNI string, so the two can't share one.
 # [REALITY_SNI] Real external site to masquerade as for transport #1.
 #               Default: ya.ru (confirmed TLS1.3, widely reachable).
 # [CHAIN_IP]/[CHAIN_PORT]/[CHAIN_SNI]
@@ -73,12 +77,24 @@ if ! command -v certbot >/dev/null 2>&1; then
   apt-get update -qq && apt-get install -y -qq certbot
 fi
 
+# gRPC and WS both need a real cert, and nginx's SNI router can only
+# dispatch by the SNI string itself — so they can't share $OWN_DOMAIN as
+# their client-facing SNI (whichever got the map entry would swallow the
+# other's traffic; this was a real bug found by actually running a WS
+# client against a live deploy, not a hypothetical). One cert, two SANs:
+# $OWN_DOMAIN stays gRPC's; WS gets its own subdomain on the same cert.
+WS_DOMAIN="ws.$OWN_DOMAIN"
 CERT_DIR="/etc/letsencrypt/live/$OWN_DOMAIN"
-if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
-  echo "==> Issuing a Let's Encrypt cert for $OWN_DOMAIN via standalone HTTP-01."
-  echo "    (Port 80 must be free and DNS for $OWN_DOMAIN must already point here.)"
-  certbot certonly --standalone --non-interactive --agree-tos \
-    --register-unsafely-without-email -d "$OWN_DOMAIN"
+# --expand (not a plain existence check) because a cert from before this
+# subdomain requirement existed would otherwise be silently kept as-is —
+# missing the ws. SAN entirely — and every WS handshake would fail on a
+# cert/SNI mismatch with no obviously-related error message. --expand is
+# a no-op when the cert already covers both names, so safe to always run.
+if [ ! -f "$CERT_DIR/fullchain.pem" ] || ! openssl x509 -in "$CERT_DIR/fullchain.pem" -noout -text | grep -q "DNS:$WS_DOMAIN"; then
+  echo "==> Issuing/expanding the Let's Encrypt cert for $OWN_DOMAIN + $WS_DOMAIN via standalone HTTP-01."
+  echo "    (Port 80 must be free and DNS for both names must already point here.)"
+  certbot certonly --standalone --expand --non-interactive --agree-tos \
+    --register-unsafely-without-email -d "$OWN_DOMAIN" -d "$WS_DOMAIN"
 fi
 
 echo "==> Generating a fresh REALITY keypair for this node."
@@ -146,6 +162,7 @@ jq -n \
         settings: { decryption: "none", clients: $clientsPlain },
         streamSettings: {
           network: "grpc", security: "tls",
+          sockopt: { acceptProxyProtocol: true },
           tlsSettings: { certificates: [{ certificateFile: ("/etc/letsencrypt/live/" + $ownDomain + "/fullchain.pem"), keyFile: ("/etc/letsencrypt/live/" + $ownDomain + "/privkey.pem") }] },
           grpcSettings: { serviceName: "wvb.entry.v1.AccountService" }
         },
@@ -156,6 +173,7 @@ jq -n \
         settings: { decryption: "none", clients: $clientsPlain },
         streamSettings: {
           network: "ws", security: "tls",
+          sockopt: { acceptProxyProtocol: true },
           tlsSettings: { alpn: ["http/1.1"], certificates: [{ certificateFile: ("/etc/letsencrypt/live/" + $ownDomain + "/fullchain.pem"), keyFile: ("/etc/letsencrypt/live/" + $ownDomain + "/privkey.pem") }] },
           wsSettings: { path: "/api/ws", heartbeatPeriod: 15 }
         },
@@ -187,6 +205,7 @@ events {}
 stream {
   map \$ssl_preread_server_name \$tls_backend {
 $REALITY_NGINX_MAP_LINES    $OWN_DOMAIN  127.0.0.1:18502;
+    $WS_DOMAIN   127.0.0.1:18503;
     default      127.0.0.1:18503;
   }
   server {
@@ -234,8 +253,9 @@ $REALITY_ALT_SNI_LINKS
 # gRPC fallback (own cert on $OWN_DOMAIN):
 vless://57afe491-b30b-498f-a8f9-4422d6de1231@$PUBLIC_IP:443?security=tls&sni=$OWN_DOMAIN&fp=chrome&type=grpc&serviceName=wvb.entry.v1.AccountService&mode=gun#WaveBreak-RU-gRPC
 
-# WebSocket fallback (own cert on $OWN_DOMAIN):
-vless://57afe491-b30b-498f-a8f9-4422d6de1231@$PUBLIC_IP:443?type=ws&path=/api/ws&security=tls&sni=$OWN_DOMAIN&fp=chrome&alpn=http/1.1#WaveBreak-RU-WS
+# WebSocket fallback (own cert, same file, second SAN $WS_DOMAIN — gRPC and
+# WS can't share one SNI since nginx dispatches by SNI alone):
+vless://57afe491-b30b-498f-a8f9-4422d6de1231@$PUBLIC_IP:443?type=ws&path=/api/ws&security=tls&sni=$WS_DOMAIN&fp=chrome&alpn=http/1.1#WaveBreak-RU-WS
 LINKSEOF
 
 echo "==> Done. Client links saved to /opt/wavebreak-ru-entry/client-links.txt:"

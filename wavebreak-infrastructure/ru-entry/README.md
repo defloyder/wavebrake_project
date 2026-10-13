@@ -44,7 +44,12 @@ Russia-hosted exit cannot itself reach Telegram's DC IPs.
 - `OWN_DOMAIN` — a domain you already control, DNS-A'd to `PUBLIC_IP`
   (needed for #2/#3's real cert via certbot standalone — port 80 must be
   free). Doesn't need to look innocuous; it's never shown to anyone except
-  as the SNI for the two non-camouflaged fallbacks.
+  as the SNI for the two non-camouflaged fallbacks. **Also DNS-A
+  `ws.<OWN_DOMAIN>` to the same `PUBLIC_IP` before running this** — gRPC
+  uses `OWN_DOMAIN` itself, WS uses that subdomain (same cert, one extra
+  SAN). Found the hard way: nginx's SNI router dispatches purely by SNI
+  string, so gRPC and WS can't share one — whichever got the map entry
+  silently swallowed the other's traffic until this was split.
 - Everything else has sane defaults (masquerade as `ya.ru`, chain to the
   existing Istanbul landing). Only override `CHAIN_*`/`HOP_ID` if deploying
   a fresh landing elsewhere instead of reusing Istanbul's.
