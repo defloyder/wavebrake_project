@@ -1,0 +1,130 @@
+# RU-LTE-01: a real, Core-enrolled WaveBreak node whose Xray chains all
+# egress to the Istanbul landing (see wavebreak-node's ChainEgress* config
+# — this node's own network can't reach the open internet directly,
+# confirmed earlier in the project). Mirrors
+# wavebreak-infrastructure/docker-compose.pilot.yml's wavebreak-node/
+# docker-socket-proxy/wavebreak-xray service shapes, parameterized for
+# this node instead of Istanbul, minus Hysteria2 (not needed for v1 — see
+# the project plan/handoff notes) and minus Istanbul's start-xray.sh
+# wrapper (the node-agent already writes a complete, ready-to-run Xray
+# config directly; that wrapper exists only for Istanbul's own separate
+# env-var-to-config translation layer).
+
+services:
+  # 2026-10 security audit pattern (see docker-compose.pilot.yml for the
+  # original reasoning): wavebreak-node only ever needs container restart
+  # + exec, never the raw docker.sock — this proxy fronts the real socket
+  # and exposes only CONTAINERS+EXEC+POST, nothing else.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    container_name: wavebreak-ru-lte-docker-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      EXEC: 1
+      POST: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "127.0.0.1:2375:2375"
+
+  wavebreak-xray:
+    image: teddysun/xray:latest
+    container_name: wavebreak-ru-lte-xray
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # host networking: same reasoning as Istanbul's own wavebreak-xray —
+    # Docker's userland proxy for published ports has been observed to
+    # hang right after the REALITY TLS ClientHello even when Xray itself
+    # answers correctly container-internally.
+    network_mode: host
+    # A container's default fd limit (1024) would silently cap nginx's
+    # worker_rlimit_nofile below 65535 — found the hard way in
+    # ru-entry/deploy.sh when a real client's 200+ simultaneous
+    # connections started getting hard-rejected.
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    command: ["xray", "run", "-config", "/etc/wavebreak/xray/config.json"]
+    volumes:
+      - wavebreak_xray_config:/etc/wavebreak/xray
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+  wavebreak-node:
+    build:
+      context: ../../wavebreak-node
+    container_name: wavebreak-ru-lte-node
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    network_mode: host
+    environment:
+      WAVEBREAK_CORE_URL: https://api.wavebreak.com.tr
+      WAVEBREAK_NODE_ENROLLMENT_TOKEN: ${WAVEBREAK_NODE_ENROLLMENT_TOKEN:-}
+      WAVEBREAK_NODE_CODE: RU-LTE-01
+      WAVEBREAK_NODE_REGION: RU
+      WAVEBREAK_NODE_HEARTBEAT_INTERVAL: 30s
+      WAVEBREAK_NODE_SYNC_INTERVAL: 20s
+      WAVEBREAK_NODE_USAGE_INTERVAL: 60s
+      WAVEBREAK_RUNTIME_ADAPTER: xray
+      WAVEBREAK_XRAY_CONFIG_PATH: /etc/wavebreak/xray/config.json
+      WAVEBREAK_XRAY_LISTEN_PORT: "18501"
+      WAVEBREAK_XRAY_REALITY_PRIVATE_KEY: ${WAVEBREAK_XRAY_REALITY_PRIVATE_KEY:?set in .env, not committed}
+      WAVEBREAK_XRAY_REALITY_SHORT_ID: ${WAVEBREAK_XRAY_REALITY_SHORT_ID:?set in .env, not committed}
+      WAVEBREAK_XRAY_REALITY_DEST: "ya.ru:443"
+      WAVEBREAK_XRAY_REALITY_SERVER_NAME: "ya.ru"
+      WAVEBREAK_XRAY_REALITY_SERVER_NAMES_EXTRA: "yandex.ru,mail.ru,vk.com"
+      WAVEBREAK_XRAY_FLOW: "xtls-rprx-vision"
+      WAVEBREAK_XRAY_CDN_LISTEN_PORT: "18503"
+      WAVEBREAK_XRAY_CDN_WS_PATH: "/api/ws"
+      WAVEBREAK_XRAY_CDN_TLS_CERT_PATH: "/etc/letsencrypt/live/ru2.wavebreak.com.tr/fullchain.pem"
+      WAVEBREAK_XRAY_CDN_TLS_KEY_PATH: "/etc/letsencrypt/live/ru2.wavebreak.com.tr/privkey.pem"
+      WAVEBREAK_XRAY_CDN_GRPC_LISTEN_PORT: "18502"
+      WAVEBREAK_XRAY_CDN_GRPC_SERVICE: "wvb.entry.v1.AccountService"
+      WAVEBREAK_XRAY_DOCKER_CONTAINER: wavebreak-ru-lte-xray
+      WAVEBREAK_XRAY_DOCKER_SOCKET: tcp://127.0.0.1:2375
+      WAVEBREAK_XRAY_STATS_API_PORT: "19999"
+      # nginx in front sends PROXY protocol v1 (see wavebreak-edge below) —
+      # every VLESS inbound needs to expect it or connections reset
+      # immediately. Found live in ru-entry/deploy.sh; off by default in
+      # wavebreak-node for nodes that aren't behind such a proxy.
+      WAVEBREAK_XRAY_ACCEPT_PROXY_PROTOCOL: "true"
+      # Chained egress — the actual payoff of this whole node: forwards to
+      # the existing, already-trusted Istanbul landing instead of trying
+      # (and failing) to egress directly.
+      WAVEBREAK_XRAY_CHAIN_EGRESS_IP: "45.15.41.3"
+      WAVEBREAK_XRAY_CHAIN_EGRESS_PORT: "443"
+      WAVEBREAK_XRAY_CHAIN_EGRESS_SNI: "hop.wavebreak.com.tr"
+      WAVEBREAK_XRAY_CHAIN_EGRESS_HOP_ID: ${WAVEBREAK_XRAY_CHAIN_EGRESS_HOP_ID:?set in .env, not committed}
+    volumes:
+      - wavebreak_xray_config:/etc/wavebreak/xray
+    depends_on:
+      - wavebreak-xray
+      - docker-socket-proxy
+
+  # SNI router on the shared public 443 — same shape already built and
+  # proven in wavebreak-infrastructure/ru-entry/deploy.sh (multi-SNI
+  # REALITY map + separate WS subdomain + the worker_connections fix found
+  # the hard way), just repointed at the agent-managed Xray's ports.
+  wavebreak-edge:
+    image: nginx:1.27-alpine
+    container_name: wavebreak-ru-lte-nginx
+    restart: unless-stopped
+    network_mode: host
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
+volumes:
+  wavebreak_xray_config:

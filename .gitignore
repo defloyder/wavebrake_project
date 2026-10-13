@@ -22,3 +22,7 @@ wavebreak-infrastructure/wireguard/*.conf
 # Real grant UUIDs for the ru-entry package — deploy-time local data, not
 # meant to be tracked (see wavebreak-infrastructure/ru-entry/README.md).
 wavebreak-infrastructure/ru-entry/clients.json
+
+# RU-LTE-01 node's REALITY private key / short ID / chain-egress hop UUID —
+# same reasoning as clients.json above, deploy-time secrets, not committed.
+wavebreak-infrastructure/ru-lte-node/.env
