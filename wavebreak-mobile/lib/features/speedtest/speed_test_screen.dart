@@ -8,13 +8,11 @@ import '../../core/theme/wb_colors.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/speed_test_controller.dart';
 import '../home/location_bar.dart';
-import '../shared/menu_button.dart';
 import '../shared/ocean_background.dart';
 import '../shared/wave_params.dart';
 import '../immersive/tinted_glass.dart';
 import '../shell/app_shell.dart';
-import 'speed_gauge.dart';
-import 'wave_meter.dart' show WaveMeterVisualState;
+import 'wave_meter.dart';
 
 /// A reasonable ceiling for the meter's fill — most mobile/VPN
 /// connections this app will ever measure land well under this, and a
@@ -88,14 +86,14 @@ class SpeedTestScreen extends ConsumerWidget {
       },
       style: const TextStyle(color: WbColors.ice60, fontSize: 13),
     );
-    final meter = SpeedGauge(
+    // The cube the water pours into (owner, 13.10: keep the cube, fill it
+    // from its top-left corner).
+    final meter = WaveMeter(
       visualState: visualState,
       valueMbps: meterValue,
       maxMbps: _meterMaxMbps,
       unit: 'Mbps',
-      // Idle: the title already says it.
-      label: state.status == SpeedTestStatus.idle ? '' : phaseLabel,
-      accent: context.accent,
+      label: phaseLabel,
     );
     // One glass block of rows, like every settings group (owner, 13.10:
     // the page should look like the rest of the new design).
@@ -125,12 +123,8 @@ class SpeedTestScreen extends ConsumerWidget {
               ),
             ),
     );
-    Widget title({required bool withMenu}) => Row(
+    Widget title() => Row(
           children: [
-            if (withMenu) ...[
-              const MenuButton(),
-              const SizedBox(width: 12),
-            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,7 +172,7 @@ class SpeedTestScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    title(withMenu: true),
+                    title(),
                     const SizedBox(height: 16),
                     Expanded(
                       child: LayoutBuilder(
@@ -245,14 +239,18 @@ class SpeedTestScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      title(withMenu: false),
+                      title(),
                       const SizedBox(height: 8),
                       // Always names what's actively being measured (or
                       // that nothing is yet, or that it's finished/failed)
                       // — the plain-language version of the porthole.
                       statusText,
                       const SizedBox(height: 12),
-                      Expanded(child: meter),
+                      Expanded(
+                        child: Center(
+                          child: AspectRatio(aspectRatio: 1, child: meter),
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       // Determinate progress for whichever leg is running;
                       // latency (one TCP connect) gets an indeterminate bar.

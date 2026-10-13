@@ -74,6 +74,11 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
   )..repeat();
 
   double _animatedFraction = 0;
+
+  // 0..1: how strongly water pours in from the top-left corner (owner,
+  // 13.10: "as if water were poured into the cube from its top-left
+  // corner"). Eases in when a test starts and out when it ends.
+  double _pour = 0;
   double? _lastFrameSeconds;
   double _spawnAccumulator = 0;
   final math.Random _rng = math.Random(1337);
@@ -150,6 +155,8 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
         // a burst of quick samples just keeps nudging this smoothly
         // instead of each one cutting off the previous animation.
         _animatedFraction += (target - _animatedFraction) * 0.08;
+        final pouring = widget.visualState == WaveMeterVisualState.running;
+        _pour += ((pouring ? 1.0 : 0.0) - _pour) * (pouring ? 0.06 : 0.04);
         final nowSeconds = DateTime.now().millisecondsSinceEpoch / 1000;
         final dt = (_lastFrameSeconds == null
                 ? 1 / 60
@@ -162,7 +169,8 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
             _spawnAccumulator -= 1;
             for (final drop in _foam) {
               if (drop.t >= 1) {
-                drop.respawn(_rng);
+                drop.respawn(_rng, _WaveMeterPainter.impactX(_animatedFraction),
+                    1 - _animatedFraction);
                 break;
               }
             }
@@ -196,6 +204,7 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
             settle: _settleController.value,
             isDone: widget.visualState == WaveMeterVisualState.done,
             foam: _foam,
+            pour: _pour,
           ),
           child: _MeterCenter(
             visualState: widget.visualState,
@@ -391,12 +400,14 @@ class _FoamDrop {
   double t = 1;
   double x = 0.5, y = 0.55, vx = 0, vy = 0, size = 2;
 
-  void respawn(math.Random rng) {
+  /// Thrown up where the pouring water hits the surface ([atX], [atY]
+  /// normalized to the panel).
+  void respawn(math.Random rng, double atX, double atY) {
     t = 0;
-    x = 0.5 + (rng.nextDouble() - 0.5) * 0.5;
-    y = 0.5;
-    final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.5;
-    final speed = 0.45 + rng.nextDouble() * 0.55;
+    x = atX + (rng.nextDouble() - 0.5) * 0.08;
+    y = atY.clamp(0.08, 0.98);
+    final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.8;
+    final speed = 0.30 + rng.nextDouble() * 0.45;
     vx = math.cos(angle) * speed;
     vy = math.sin(angle) * speed;
     size = 1.3 + rng.nextDouble() * 2.0;
@@ -420,9 +431,17 @@ class _WaveMeterPainter extends CustomPainter {
     required this.settle,
     required this.isDone,
     required this.foam,
+    this.pour = 0,
   });
 
   final double fraction;
+
+  /// 0..1 strength of the stream pouring in from the top-left corner.
+  final double pour;
+
+  /// Where the stream meets the water, as a share of the width: the
+  /// faster the flow, the further it reaches.
+  static double impactX(double fraction) => 0.20 + 0.22 * fraction;
   final double time;
   final Color color;
   final bool calm;
@@ -535,6 +554,7 @@ class _WaveMeterPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
 
+    if (pour > 0.01) _pourStream(canvas, size);
     _shimmer(canvas, size);
     _foamSpray(canvas, size);
 
@@ -582,6 +602,87 @@ class _WaveMeterPainter extends CustomPainter {
           ..color = Colors.white
               .withValues(alpha: (strength * 0.85).clamp(0.0, 0.85)),
       );
+    }
+  }
+
+  /// Water pouring in from the top-left corner: a jet leaving the corner
+  /// sideways and falling in a parabola to the surface, thicker the
+  /// faster the connection, with light running down it and rings where
+  /// it lands.
+  void _pourStream(Canvas canvas, Size size) {
+    final hitX = size.width * impactX(fraction);
+    final hitY = _crestY(size, impactX(fraction));
+    final start = Offset(0, size.height * 0.07);
+    if (hitY <= start.dy + 8) return;
+    // y = start.y + k·x²: leaves the corner level, falls ever faster.
+    final k = (hitY - start.dy) / (hitX * hitX);
+    Offset at(double s) {
+      final x = hitX * s;
+      return Offset(x, start.dy + k * x * x);
+    }
+
+    final thick = (4.0 + fraction * 10.0) * pour;
+    const n = 28;
+    final left = <Offset>[], right = <Offset>[];
+    for (var i = 0; i <= n; i++) {
+      final s = i / n;
+      final p = at(s);
+      final q = at(math.min(1, s + 0.01)) - at(math.max(0, s - 0.01));
+      final len = q.distance == 0 ? 1.0 : q.distance;
+      final normal = Offset(-q.dy / len, q.dx / len);
+      // A falling stream thins as it speeds up, with a slight wobble.
+      final w = thick *
+          (1.0 - 0.35 * s) *
+          (1 + 0.08 * math.sin(time * 9 + s * 12)) /
+          2;
+      left.add(p + normal * w);
+      right.add(p - normal * w);
+    }
+    final stream = Path()..moveTo(left.first.dx, left.first.dy);
+    for (final p in left.skip(1)) {
+      stream.lineTo(p.dx, p.dy);
+    }
+    for (final p in right.reversed) {
+      stream.lineTo(p.dx, p.dy);
+    }
+    stream.close();
+    canvas.drawPath(
+      stream,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(color, Colors.white, 0.35)!
+                .withValues(alpha: 0.85 * pour),
+            color.withValues(alpha: 0.75 * pour),
+          ],
+        ).createShader(Rect.fromPoints(start, Offset(hitX, hitY))),
+    );
+
+    // Light running down the stream.
+    final glint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.55 * pour)
+      ..strokeWidth = math.max(1.0, thick * 0.28)
+      ..strokeCap = StrokeCap.round;
+    for (var j = 0; j < 4; j++) {
+      final s0 = (time * 0.9 + j / 4) % 1.0;
+      final s1 = math.min(1.0, s0 + 0.07);
+      canvas.drawLine(at(s0), at(s1), glint);
+    }
+
+    // Rings spreading on the surface where it lands.
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    for (var j = 0; j < 3; j++) {
+      final p = (time * 0.8 + j / 3) % 1.0;
+      ring.color = Colors.white.withValues(alpha: 0.35 * (1 - p) * pour);
+      final r = 4 + p * (18 + fraction * 26);
+      canvas.drawOval(
+          Rect.fromCenter(
+              center: Offset(hitX, hitY + 2), width: r * 2, height: r * 0.55),
+          ring);
     }
   }
 

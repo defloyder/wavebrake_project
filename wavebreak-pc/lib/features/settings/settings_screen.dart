@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../services/update/update_service.dart';
 import '../shared/anchored_page.dart';
-import '../shared/menu_button.dart';
 import '../shared/ocean_background.dart';
 import '../shared/wave_params.dart';
 import '../shell/app_shell.dart';
@@ -51,11 +50,6 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        // The side rail this toggles only exists on desktop.
-                        if (isDesktop) ...[
-                          const MenuButton(),
-                          const SizedBox(width: 12),
-                        ],
                         Text(
                           s.settings,
                           style: const TextStyle(

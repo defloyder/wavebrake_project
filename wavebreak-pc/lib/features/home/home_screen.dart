@@ -26,7 +26,6 @@ import '../shared/data_providers.dart';
 import '../shared/traffic_wave_bar.dart';
 import '../shared/traffic_format.dart';
 import '../../services/vpn/server_catalog.dart';
-import '../shared/menu_button.dart';
 import '../shell/app_shell.dart';
 import '../shared/ocean_background.dart';
 import '../shared/subscription_accordion.dart';
@@ -405,11 +404,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     : Alignment.centerLeft,
                 child: const WavebreakWordmarkText(size: 14),
               ),
-              // Mobile has no side rail to expand — the menu button belongs
-              // to desktop only.
-              if (isDesktop)
-                const Align(
-                    alignment: Alignment.centerLeft, child: MenuButton()),
               Align(
                 alignment: Alignment.centerRight,
                 child: _ToolbarChip(

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../shared/data_providers.dart';
-import '../shared/menu_button.dart';
 import '../shared/ocean_background.dart';
 import '../shared/page_hero.dart';
 import '../shell/app_shell.dart';
@@ -47,10 +46,6 @@ class LocationsScreen extends ConsumerWidget {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        if (isDesktop) ...[
-                          const MenuButton(),
-                          const SizedBox(width: 12),
-                        ],
                         Expanded(
                           child: Text(
                             s.chooseLocation,

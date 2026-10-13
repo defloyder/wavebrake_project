@@ -48,6 +48,15 @@ flutter:
   assets:
     - assets/branding/
     - assets/textures/
+    # Inter and Michroma ship with the app: google_fonts finds them here
+    # instead of downloading (blocked or slow on some networks).
+    - assets/google_fonts/
+  # Titles use "serif": Android has Noto Serif built in, Windows has no
+  # such font and fell back to a random one (owner, 13.10).
+  fonts:
+    - family: serif
+      fonts:
+        - asset: assets/fonts/NotoSerif-Regular.ttf
   shaders:
     - shaders/living_sphere.frag
 
