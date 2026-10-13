@@ -118,7 +118,7 @@ func main() {
 		return openURL(u)
 	}))
 
-	w.SetHtml(page)
+	w.SetHtml(withAssets(page))
 	w.Run()
 }
 

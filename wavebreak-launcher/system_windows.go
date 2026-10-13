@@ -94,10 +94,62 @@ func installed(appID string) *Installed {
 	return nil
 }
 
-// runInstaller starts a downloaded setup; Inno asks for administrator
-// rights itself (UAC).
+// runInstaller starts a downloaded setup (Inno asks for administrator
+// rights itself, UAC) and waits for it: the owner saw "the install was
+// interrupted" (13.10) with no word on why. Inno's exit code says it.
 func runInstaller(path string) error {
-	return shellExecute("open", path, "")
+	proc, err := shellExecuteWait("open", path, "")
+	if err != nil {
+		if err == windows.ERROR_CANCELLED {
+			return fmt.Errorf("установка отменена: нет разрешения администратора")
+		}
+		return err
+	}
+	defer windows.CloseHandle(proc)
+	windows.WaitForSingleObject(proc, windows.INFINITE)
+	var code uint32
+	if err := windows.GetExitCodeProcess(proc, &code); err != nil {
+		return nil
+	}
+	return installerResult(code)
+}
+
+// shellExecuteWait is ShellExecuteExW with SEE_MASK_NOCLOSEPROCESS: the
+// started process's handle, to wait on.
+func shellExecuteWait(verb, file, args string) (windows.Handle, error) {
+	type shellExecuteInfo struct {
+		cbSize       uint32
+		fMask        uint32
+		hwnd         uintptr
+		lpVerb       *uint16
+		lpFile       *uint16
+		lpParameters *uint16
+		lpDirectory  *uint16
+		nShow        int32
+		hInstApp     uintptr
+		lpIDList     uintptr
+		lpClass      *uint16
+		hkeyClass    uintptr
+		dwHotKey     uint32
+		hIcon        uintptr
+		hProcess     windows.Handle
+	}
+	const seeMaskNoCloseProcess = 0x40
+	info := shellExecuteInfo{fMask: seeMaskNoCloseProcess, nShow: windows.SW_SHOWNORMAL}
+	info.cbSize = uint32(unsafe.Sizeof(info))
+	info.lpVerb, _ = syscall.UTF16PtrFromString(verb)
+	info.lpFile, _ = syscall.UTF16PtrFromString(file)
+	if args != "" {
+		info.lpParameters, _ = syscall.UTF16PtrFromString(args)
+	}
+	r, _, e := windows.NewLazySystemDLL("shell32.dll").NewProc("ShellExecuteExW").Call(uintptr(unsafe.Pointer(&info)))
+	if r == 0 {
+		return 0, e
+	}
+	if info.hProcess == 0 {
+		return 0, fmt.Errorf("установщик не запустился")
+	}
+	return info.hProcess, nil
 }
 
 func launch(dir, exe string) error {

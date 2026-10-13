@@ -59,7 +59,7 @@ var catalog = []Product{
 		},
 		AppID:    "{B1E4C1E4-3B8F-4C6F-9C3A-1D2E5A7F9B10}",
 		Exe:      "wavebreak.exe",
-		Features: []string{"Сфера, метрики, все протоколы", "Свои ссылки и подписки", "Автообновление"},
+		Features: []string{"Все серверы и протоколы", "Скорость связи в реальном времени", "Свои ссылки и подписки"},
 	},
 	{
 		ID:       "wavebreak-lite",
@@ -74,7 +74,7 @@ var catalog = []Product{
 		},
 		AppID:    "{6E0B7C4A-2F1D-4B8E-9A55-3C7D2E91F4A0}",
 		Exe:      "wavebreak-lite.exe",
-		Features: []string{"Подключение в один клик", "Мало памяти и места", "Работает на x86"},
+		Features: []string{"Подключение в один клик", "Для 32-битных и слабых ПК", "Почти не занимает места"},
 	},
 	{
 		ID:       "android",
@@ -82,7 +82,7 @@ var catalog = []Product{
 		Tagline:  "Android, Android TV, Google TV, Fire TV",
 		Kind:     "link",
 		URL:      "https://wavebreak.com.tr/ru/download",
-		Features: []string{"Тот же аккаунт", "Вход на ТВ по QR с телефона"},
+		Features: []string{"Тот же аккаунт и подписка", "Вход на ТВ по QR с телефона", "Ставится со страницы загрузок"},
 	},
 }
 

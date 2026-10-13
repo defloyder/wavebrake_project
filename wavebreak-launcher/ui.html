@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WAVEBREAK</title>
 <style>
+/* The app's own fonts and mark, built into the exe (assets.go). */
+@font-face{font-family:Michroma;src:url({{MICHROMA}}) format("truetype")}
+@font-face{font-family:"Noto Serif";src:url({{SERIF}}) format("truetype")}
+@font-face{font-family:Inter;font-weight:400;src:url({{INTER400}}) format("truetype")}
+@font-face{font-family:Inter;font-weight:600;src:url({{INTER600}}) format("truetype")}
 /* The app's V5 look (wb_colors / immersive_colors / TintedGlass / settings
    groups): near-black ocean, crimson waves, glass blocks with a hairline
    border, neutral icon tiles, a light primary button, crimson accent. */
@@ -16,7 +21,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--bg);color:var(--text);
-  font-family:"Segoe UI Variable Text","Segoe UI",Inter,Arial,sans-serif;user-select:none}
+  font-family:Inter,"Segoe UI",Arial,sans-serif;user-select:none}
 body{overflow:hidden}
 #waves{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 .glow{position:fixed;width:80vmax;height:80vmax;right:-30vmax;top:-35vmax;border-radius:50%;z-index:0;pointer-events:none;
@@ -26,7 +31,9 @@ body{overflow:hidden}
   scrollbar-color:rgba(245,242,240,.18) transparent}
 main{max-width:1120px;margin:0 auto;padding:22px clamp(16px,3vw,32px) 28px}
 header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:12px;font-weight:600;letter-spacing:.32em;font-size:14px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand img{height:22px;width:auto;display:block}
+.brand span{font-family:Michroma,Inter,sans-serif;font-size:13px;letter-spacing:.24em;line-height:1;padding-top:1px}
 .chip{margin-left:auto;display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;
   border:1px solid var(--border);background:var(--glass-b);color:var(--soft);font-size:12.5px;white-space:nowrap}
 .chip i{width:7px;height:7px;border-radius:50%;background:var(--arctic);box-shadow:0 0 10px var(--arctic)}
@@ -36,11 +43,17 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .hero p{color:var(--muted);margin-top:8px;font-size:14px}
 .caption{color:var(--muted);font-size:13px;font-weight:600;letter-spacing:.2px;margin:0 4px 8px}
 .glass{background:linear-gradient(180deg,var(--glass-a),var(--glass-b));border:1px solid var(--border);
-  border-radius:18px;backdrop-filter:blur(16px);box-shadow:0 14px 40px rgba(0,0,0,.45)}
-/* Product cards: fixed shape, as many per row as fit. */
+  border-radius:18px;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+/* No backdrop blur: with the waves redrawn under it every frame, WebView
+   re-blurred every block each frame and the page lagged and smeared
+   when switching (owner, 13.10). The glass is near-opaque anyway. */
+/* Product cards, as many per row as fit. Their five parts (head, badge,
+   features, CPUs, buttons) share the row's tracks (subgrid), so the
+   lines and buttons of neighbouring cards are level (owner, 13.10). */
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-.card{display:flex;flex-direction:column;padding:16px;transition:border-color .2s,transform .2s}
-.card:hover{border-color:rgba(124,238,232,.35);transform:translateY(-2px)}
+.card{display:grid;grid-row:span 5;grid-template-rows:subgrid;row-gap:0;padding:16px;transition:border-color .2s}
+.card:hover{border-color:rgba(124,238,232,.35)}
+.badge-slot{min-height:0}
 .card.rec{border-color:rgba(255,52,78,.55);box-shadow:0 14px 40px rgba(0,0,0,.45),0 0 32px rgba(255,52,78,.12)}
 .card.off{opacity:.55}
 .head{display:flex;align-items:center;gap:12px}
@@ -48,7 +61,7 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .card.rec .tile{background:rgba(255,52,78,.16)}
 .head h2{font-size:17px;font-weight:600;line-height:1.2}
 .head .tag{color:var(--muted);font-size:12.5px;margin-top:2px}
-.rec-badge{display:inline-flex;align-items:center;gap:6px;margin-top:12px;align-self:flex-start;font-size:11.5px;
+.rec-badge{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:11.5px;
   font-weight:600;color:#ff8f9c;padding:4px 10px;border-radius:999px;background:rgba(255,52,78,.12);border:1px solid rgba(255,52,78,.35)}
 .rows{margin-top:12px;border-top:1px solid var(--hair)}
 .row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--hair);font-size:13px;color:var(--soft)}
@@ -56,7 +69,7 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .arch{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .arch span{font-size:11px;color:var(--muted);border:1px solid var(--hair);border-radius:8px;padding:3px 8px}
 .arch span.me{color:var(--arctic);border-color:rgba(124,238,232,.35)}
-.foot{margin-top:auto;padding-top:14px}
+.foot{align-self:end;padding-top:14px}
 .status{font-size:12.5px;color:var(--muted);margin-bottom:10px;min-height:17px}
 .status b{color:var(--text);font-weight:600}
 .bar{height:5px;border-radius:999px;background:var(--hair);overflow:hidden;margin-bottom:10px;display:none}
@@ -104,8 +117,7 @@ button:disabled{opacity:.45;cursor:default}
 <div class="scroll"><main>
   <header>
     <div class="brand">
-      <svg width="32" height="20" viewBox="0 0 34 22" aria-hidden="true"><path d="M2 4l6 14 6-12 6 12 6-14" fill="none" stroke="url(#g)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 11c5-3 9-4 15-4" stroke="#F5F2F0" stroke-width="1.4" stroke-linecap="round"/><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#7CEEE8"/><stop offset="1" stop-color="#348BD1"/></linearGradient></defs></svg>
-      WAVEBREAK
+      <img src="{{MARK}}" alt=""><span>WAVEBREAK</span>
     </div>
     <div class="chip" id="sys"><i></i><span>Определяю систему…</span></div>
   </header>
@@ -144,7 +156,10 @@ button:disabled{opacity:.45;cursor:default}
   const lines=[{y:.66,a:30,f:1.6,s:.35,c:'#ff344e',o:.30},{y:.72,a:26,f:2.1,s:.28,c:'#ff344e',o:.18},
     {y:.78,a:36,f:1.2,s:.22,c:'#7ceee8',o:.12},{y:.84,a:22,f:2.6,s:.4,c:'#ff344e',o:.12},{y:.9,a:30,f:1.8,s:.18,c:'#7ceee8',o:.08}];
   function frame(){
-    mx+=(tx-mx)*.04;my+=(ty-my)*.04;t+=reduce?0:.016;
+    // ~30 fps is plenty for slow waves and halves the GPU work.
+    const now=performance.now();if(now-(frame.at||0)<32){if(!document.hidden)requestAnimationFrame(frame);return}
+    frame.at=now;
+    mx+=(tx-mx)*.06;my+=(ty-my)*.06;t+=reduce?0:.032;
     x.clearRect(0,0,w,h);
     for(const l of lines){
       x.beginPath();x.lineWidth=1.3*dpr;x.strokeStyle=l.c;x.globalAlpha=l.o;
@@ -195,17 +210,20 @@ function render(){
   $('#sys span').textContent=`${s.name} · ${s.arch==='x86'?'32 бита (x86)':s.arch==='arm64'?'ARM64':'64 бита (x64)'}`;
   const rec=state.products.find(p=>p.recommended);
   $('#sub').textContent=rec?`Для этого компьютера подходит ${rec.name}.`:'Лаунчер подберёт версию под вашу Windows и её разрядность.';
-  $('#grid').innerHTML=state.products.map(p=>`
+  const html=state.products.map(p=>`
     <article class="card glass${p.recommended?' rec':''}${!p.compatible?' off':''}${busy[p.id]?' busy':''}" data-id="${p.id}">
       <div class="head"><div class="tile">${ICON[p.id]||ICON.wavebreak}</div>
         <div><h2>${p.name}</h2><div class="tag">${p.tagline}</div></div></div>
-      ${p.recommended?'<span class="rec-badge">● Рекомендуем для этого ПК</span>':''}
+      <div class="badge-slot">${p.recommended?'<span class="rec-badge">● Рекомендуем для этого ПК</span>':''}</div>
       <div class="rows">${(p.features||[]).map(f=>`<div class="row">${CHECK}<span>${f}</span></div>`).join('')}</div>
-      ${p.arch&&p.arch.length?`<div class="arch">${p.arch.map(a=>`<span class="${a===s.arch?'me':''}">${a}</span>`).join('')}</div>`:''}
+      <div class="arch">${(p.arch||[]).map(a=>`<span class="${a===s.arch?'me':''}">${a}</span>`).join('')}</div>
       <div class="foot"><div class="bar"><i></i></div>
         <div class="status">${busy[p.id]||statusLine(p)}</div>
         <div class="actions">${actions(p)}</div></div>
     </article>`).join('');
+  // Only when something changed: rebuilding the cards every few seconds
+  // (while a setup runs) made them flicker.
+  if(html!==render.last){render.last=html;$('#grid').innerHTML=html}
 }
 async function load(){try{state=await wbState();render()}catch(e){toast('Не удалось прочитать каталог: '+e,true)}}
 document.addEventListener('click',async e=>{
@@ -241,7 +259,7 @@ async function net(){
   $('#probes').innerHTML='<div class="line"><div class="name">Проверяю…</div></div>';
   try{const ps=await wbNet();
     $('#probes').innerHTML=ps.map(p=>`<div class="line"><div class="tile">${SERVER}</div>
-      <div class="name">${p.name}<small>${p.host}</small></div>
+      <div class="name">${p.name}<small>${p.ms<0?'нет связи':p.ms<300?'отвечает быстро':'отвечает медленно'}</small></div>
       <div class="meter"><i style="width:${p.ms<0?0:Math.max(10,100-Math.min(p.ms,1000)/10)}%"></i></div>
       <div class="ms ${p.ms<0?'bad':p.ms<300?'ok':'slow'}">${p.ms<0?'нет':p.ms+' мс'}</div></div>`).join('');
     const down=ps.filter(p=>p.ms<0).map(p=>p.name);

@@ -124,3 +124,14 @@ func TestDownloadsOnlyFromWavebreak(t *testing.T) {
 		t.Fatalf("https links only: %v", got)
 	}
 }
+
+func TestInstallerResult(t *testing.T) {
+	if installerResult(0) != nil {
+		t.Fatal("0 is success")
+	}
+	for _, code := range []uint32{2, 5, 7, 8, 3} {
+		if installerResult(code) == nil {
+			t.Fatalf("code %d must be reported", code)
+		}
+	}
+}

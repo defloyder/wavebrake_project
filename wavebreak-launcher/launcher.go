@@ -196,15 +196,21 @@ func (l *Launcher) Install(ctx context.Context, id string, run func(path string)
 	return last
 }
 
+// download fetches link into file. A dropped or stalled connection (no
+// byte for 30 s) is retried a few times, resuming where it stopped
+// (HTTP Range), instead of failing the whole install (owner, 13.10).
 func (l *Launcher) download(ctx context.Context, id, link, file string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("User-Agent", "WAVEBREAK-Launcher/"+launcherVersion)
+	tmp := file + ".part"
+	os.Remove(tmp)
 	client := &http.Client{
-		// No overall timeout (big files on slow lines); a stalled
-		// connection is cut by the transport's own timeouts.
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           (&net.Dialer{Timeout: 15 * time.Second}).DialContext,
+			TLSHandshakeTimeout:   15 * time.Second,
+			ResponseHeaderTimeout: 20 * time.Second,
+		},
+		// No overall timeout (big files on slow lines): a stall is cut by
+		// the watchdog below.
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
 			if !allowedURL(r.URL.String()) || len(via) > 5 {
 				return fmt.Errorf("redirect outside WAVEBREAK")
@@ -212,29 +218,94 @@ func (l *Launcher) download(ctx context.Context, id, link, file string) error {
 			return nil
 		},
 	}
+	var last error
+	for attempt := 0; attempt < downloadAttempts; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(attempt) * 2 * time.Second):
+			}
+		}
+		done, total, err := l.downloadOnce(ctx, client, id, link, tmp)
+		if err == nil {
+			if done < 1<<20 || (total > 0 && done != total) {
+				os.Remove(tmp)
+				return fmt.Errorf("файл скачался не полностью")
+			}
+			l.progress(id, done, total, "download")
+			os.Remove(file)
+			return os.Rename(tmp, file)
+		}
+		last = err
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	os.Remove(tmp)
+	return last
+}
+
+const (
+	downloadAttempts = 4
+	downloadStall    = 30 * time.Second
+)
+
+// downloadOnce continues tmp from its current size; returns the bytes
+// on disk and the full size (-1 when the server didn't say).
+func (l *Launcher) downloadOnce(ctx context.Context, client *http.Client, id, link, tmp string) (int64, int64, error) {
+	var have int64
+	if st, err := os.Stat(tmp); err == nil {
+		have = st.Size()
+	}
+	attemptCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stall := time.AfterFunc(downloadStall, cancel)
+	defer stall.Stop()
+
+	req, err := http.NewRequestWithContext(attemptCtx, http.MethodGet, link, nil)
+	if err != nil {
+		return have, -1, err
+	}
+	req.Header.Set("User-Agent", "WAVEBREAK-Launcher/"+launcherVersion)
+	if have > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", have))
+	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return have, -1, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s: %d", path.Base(link), resp.StatusCode)
+	flags := os.O_CREATE | os.O_WRONLY
+	var total int64 = -1
+	switch {
+	case have > 0 && resp.StatusCode == http.StatusPartialContent:
+		flags |= os.O_APPEND
+		if resp.ContentLength >= 0 {
+			total = have + resp.ContentLength
+		}
+	case resp.StatusCode == http.StatusOK:
+		// A server that ignores Range sends it all again.
+		flags |= os.O_TRUNC
+		have = 0
+		total = resp.ContentLength
+	default:
+		return have, -1, fmt.Errorf("%s: %d", path.Base(link), resp.StatusCode)
 	}
-	tmp := file + ".part"
-	out, err := os.Create(tmp)
+	out, err := os.OpenFile(tmp, flags, 0o644)
 	if err != nil {
-		return err
+		return have, total, err
 	}
-	total := resp.ContentLength
-	var done int64
+	defer out.Close()
+	done := have
 	buf := make([]byte, 256<<10)
 	lastReport := time.Time{}
 	for {
 		n, rerr := resp.Body.Read(buf)
 		if n > 0 {
+			stall.Reset(downloadStall)
 			if _, werr := out.Write(buf[:n]); werr != nil {
-				out.Close()
-				return werr
+				return done, total, werr
 			}
 			done += int64(n)
 			if time.Since(lastReport) > 150*time.Millisecond {
@@ -243,28 +314,23 @@ func (l *Launcher) download(ctx context.Context, id, link, file string) error {
 			}
 		}
 		if rerr == io.EOF {
-			break
+			return done, total, nil
 		}
 		if rerr != nil {
-			out.Close()
-			os.Remove(tmp)
-			return rerr
+			if attemptCtx.Err() != nil && ctx.Err() == nil {
+				return done, total, fmt.Errorf("скачивание зависло, пробую снова")
+			}
+			return done, total, rerr
 		}
 	}
-	out.Close()
-	if done < 1<<20 || (total > 0 && done != total) {
-		os.Remove(tmp)
-		return fmt.Errorf("файл скачался не полностью")
-	}
-	l.progress(id, done, total, "download")
-	os.Remove(file)
-	return os.Rename(tmp, file)
 }
 
 // Probe is one server in the network check.
 type Probe struct {
 	Name string `json:"name"`
-	Host string `json:"host"`
+	// Not shown: the page names the service, not its address (owner,
+	// 13.10: no need to show every domain).
+	Host string `json:"-"`
 	Ms   int    `json:"ms"` // TLS handshake time; -1 = unreachable
 }
 
@@ -273,7 +339,7 @@ func NetCheck(ctx context.Context) []Probe {
 	probes := []Probe{
 		{Name: "Сайт", Host: "wavebreak.com.tr"},
 		{Name: "Аккаунт", Host: "core.wavebreak.com.tr"},
-		{Name: "API", Host: "api.wavebreak.com.tr"},
+		{Name: "Аккаунт, запасной путь", Host: "api.wavebreak.com.tr"},
 		{Name: "Загрузки", Host: "dl.wavebreak.com.tr"},
 	}
 	var wg sync.WaitGroup
@@ -294,4 +360,21 @@ func NetCheck(ctx context.Context) []Probe {
 	}
 	wg.Wait()
 	return probes
+}
+
+// installerResult: what an Inno Setup exit code means for the person
+// (https://jrsoftware.org/ishelp/topic_setupexitcodes.htm). nil = done.
+func installerResult(code uint32) error {
+	switch code {
+	case 0:
+		return nil
+	case 2, 5:
+		return fmt.Errorf("установка отменена")
+	case 7:
+		return fmt.Errorf("установка прервана: не удалось закрыть работающую программу — закройте WAVEBREAK (и VPN в нём) и нажмите ещё раз")
+	case 8:
+		return fmt.Errorf("установка почти завершена: перезагрузите компьютер")
+	default:
+		return fmt.Errorf("установщик завершился с ошибкой (код %d) — попробуйте ещё раз", code)
+	}
 }
