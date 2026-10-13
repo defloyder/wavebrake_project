@@ -225,7 +225,23 @@ class WaveEngineVpnService : VpnService() {
     private val speedTick = object : Runnable {
         override fun run() {
             sampleTunnelSpeed()
+            if (speedTicks % STUCK_CHECK_EVERY_TICKS == 0) checkStuckFlows()
             speedHandler.postDelayed(this, 1000)
+        }
+    }
+
+    // Connections an app waits on in vain (Telegram "connecting", a search
+    // that never loads — owner, 13.10): the bridge closes them so the app
+    // redials at once. See native/hysteria_bridge/stuckflows.go.
+    private val stuckChecker = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    private fun checkStuckFlows() {
+        if (stopping || activeEngine == null || pendingConnectWatchdog != null) return
+        stuckChecker.execute {
+            val closed = runCatching {
+                Bridge.closeStuckFlows(STUCK_OPEN_SEC, STUCK_SILENT_SEC)
+            }.getOrDefault("")
+            if (closed.isNotEmpty()) elog("closed stuck connections, the apps redial: $closed")
         }
     }
 
@@ -606,6 +622,16 @@ class WaveEngineVpnService : VpnService() {
                     lostNetwork = network
                     lostAtMs = SystemClock.elapsedRealtime()
                     elog("default network lost, waiting for a new one")
+                }
+            }
+
+            // Android (or the vendor's battery saver) cutting this app's
+            // network while it is in the background stalls every app in
+            // the tunnel until WAVEBREAK is opened again — logged so a
+            // diagnostic log shows it (owner, 13.10).
+            override fun onBlockedStatusChanged(network: Network, blocked: Boolean) {
+                if (network == trackedNetwork) {
+                    elog(if (blocked) "system blocked this app's network (background restriction)" else "system unblocked this app's network")
                 }
             }
         }
@@ -2156,6 +2182,9 @@ class WaveEngineVpnService : VpnService() {
         private const val HEALTH_CHECK_TIMEOUT_MS = 10_000
         private const val DIRECT_CHECK_TIMEOUT_MS = 5_000
         private const val HEALTH_CHECK_AFTER_RECONNECT_MS = 20_000L
+        private const val STUCK_CHECK_EVERY_TICKS = 5
+        private const val STUCK_OPEN_SEC = 15L
+        private const val STUCK_SILENT_SEC = 20L
         private const val HEALTH_CHECK_INTERVAL_MS = 45_000L
         private const val HEALTH_CHECK_RETRY_MS = 10_000L
         private const val HEALTH_CHECK_RETRY_AFTER_FAILURE_MS = 3_000L
