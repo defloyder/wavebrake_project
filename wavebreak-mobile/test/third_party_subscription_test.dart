@@ -87,4 +87,36 @@ void main() {
       isNull,
     );
   });
+
+  // net4.su, 13.10 (owner): note entries at localhost before the real
+  // nodes, a bare text line, names form-encoded ("Россия+МСК"). Keys made up.
+  test('provider notes are not servers; form-encoded names read right', () {
+    const id = '00000000-0000-4000-8000-000000000031';
+    const body = '''
+vless://$id@localhost:80?security=none#📆 Осталось: 6 дней
+vless://$id@localhost:444?security=none#➡️t.me/Example_vpn_bot
+vless://$id@localhost:8443?security=none#🟢 Остаток трафика LTE: 80/80GB
+➡️ t.me/Example_vpn_bot
+vless://$id@203.0.113.7:443?security=reality&sni=www.example.org&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&type=tcp#%D0%A0%D0%BE%D1%81%D1%81%D0%B8%D1%8F+%D0%9C%D0%A1%D0%9A%F0%9F%87%B7%F0%9F%87%BA
+vless://$id@203.0.113.8:443?security=reality&sni=www.example.org&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&type=tcp#%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F%F0%9F%87%A9%F0%9F%87%AAv2.1%F0%9F%9F%A2LTE %E2%84%962
+''';
+    final group = CustomServerController.groupFromResponse(body, const {},
+        id: 'g4', link: 'https://net.example.com/keys/1/A', now: now)!;
+    expect(group.servers, hasLength(2));
+    expect(group.servers.every((s) => !s.rawLink!.contains('@localhost')),
+        isTrue);
+    expect(group.servers.first.countryCode, 'RU');
+    expect(group.servers.first.city, isNot(contains('+')));
+    expect(group.servers.last.countryCode, 'DE');
+    expect(group.notes,
+        ['📆 Осталось: 6 дней', '🟢 Остаток трафика LTE: 80/80GB']);
+
+    final section = buildSubscriptionSections(
+      wavebreakLocations: const [],
+      customGroups: [group],
+      s: kRussianStrings,
+    ).last;
+    expect(section.limitsTraffic,
+        '📆 Осталось: 6 дней · 🟢 Остаток трафика LTE: 80/80GB');
+  });
 }

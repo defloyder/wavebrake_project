@@ -123,6 +123,9 @@ String? _providerLine(CustomSubscriptionGroup g, AppStrings s,
               ? s.subscriptionExpiredLine
               : s.subscriptionUntilLine)
           .replaceAll('{date}', _date(g.expiresAt!.toLocal())),
+    // No header: what the provider wrote in its note entries instead
+    // ("📆 Осталось: 6 дней · 🟢 Остаток трафика LTE: 80/80GB").
+    if (g.usedBytes == null && g.expiresAt == null) ...g.notes,
   ];
   return parts.isEmpty ? null : parts.join(' · ');
 }

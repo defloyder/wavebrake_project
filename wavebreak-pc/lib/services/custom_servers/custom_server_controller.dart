@@ -272,6 +272,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       updateIntervalHours: parseUpdateIntervalHours(
           fetched.headers.value('profile-update-interval')),
       updatedAt: now ?? DateTime.now(),
+      notes: subscriptionNotes(parsed),
     );
   }
 
@@ -446,6 +447,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
                 'interval': g.updateIntervalHours,
               if (g.updatedAt != null)
                 'updated': g.updatedAt!.toIso8601String(),
+              if (g.notes.isNotEmpty) 'notes': g.notes,
               'servers': g.servers
                   .map((s) => {
                         'id': s.id,
@@ -485,6 +487,9 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       expiresAt: DateTime.tryParse((json['expire'] ?? '').toString()),
       updateIntervalHours: (json['interval'] as num?)?.toInt(),
       updatedAt: DateTime.tryParse((json['updated'] ?? '').toString()),
+      notes: [
+        for (final n in (json['notes'] as List? ?? const [])) n.toString(),
+      ],
     );
   }
 }

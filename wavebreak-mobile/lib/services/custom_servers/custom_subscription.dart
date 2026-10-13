@@ -15,6 +15,7 @@ class CustomSubscriptionGroup {
     this.expiresAt,
     this.updateIntervalHours,
     this.updatedAt,
+    this.notes = const [],
   });
 
   final String id;
@@ -44,6 +45,10 @@ class CustomSubscriptionGroup {
 
   /// When the URL was last read successfully.
   final DateTime? updatedAt;
+
+  /// What the provider says about the subscription in place of servers
+  /// ("📆 Осталось: 6 дней"), see `subscriptionNotes`.
+  final List<String> notes;
 
   bool get isSubscriptionUrl =>
       sourceLink.startsWith('http://') || sourceLink.startsWith('https://');

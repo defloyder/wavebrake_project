@@ -35,7 +35,7 @@ List<LocationItem> serversFromSubscription(ParsedSubscription parsed,
     for (final link in parsed.links)
       () {
         final uri = Uri.tryParse(link);
-        if (uri == null) return null;
+        if (uri == null || isInfoPlaceholder(uri)) return null;
         final item = locationFromUri(uri, link);
         final runs = ShareLink.tryParse(link)?.supportedBy(engine) ?? false;
         return runs ? item : _unavailable(item);
@@ -67,7 +67,7 @@ LocationItem _unavailable(LocationItem l) => LocationItem(
 
 LocationItem locationFromUri(Uri uri, String rawLink) {
   final label = uri.fragment.isNotEmpty
-      ? Uri.decodeComponent(uri.fragment)
+      ? decodeNodeName(uri.fragment)
       : (uri.host.isNotEmpty ? uri.host : rawLink);
   final parsed = parseNodeLabel(label);
   return LocationItem(
@@ -113,4 +113,50 @@ String? wavebreakShareToken(String link) {
     return null;
   }
   return _shareCodePath.firstMatch(uri.path)?.group(1);
+}
+
+/// Providers (net4.su, 13.10) open their list with "servers" that only
+/// carry a note in their name — "📆 Осталось: 6 дней", the support bot,
+/// "🟢 Остаток трафика LTE: 80/80GB" — pointed at localhost. They are not
+/// servers: Happ shows them as the subscription's notes.
+bool isInfoPlaceholder(Uri uri) {
+  final host = uri.host.toLowerCase();
+  return host.isEmpty ||
+      host == 'localhost' ||
+      host == '0.0.0.0' ||
+      host == '::1' ||
+      host.startsWith('127.');
+}
+
+/// The notes of a subscription's placeholder entries ([isInfoPlaceholder])
+/// that say something about it (days left, traffic left); links to the
+/// provider's bot or channel are left out.
+List<String> subscriptionNotes(ParsedSubscription parsed) {
+  final notes = <String>[];
+  for (final link in parsed.links) {
+    final uri = Uri.tryParse(link);
+    if (uri == null || !isInfoPlaceholder(uri) || uri.fragment.isEmpty) {
+      continue;
+    }
+    final note = decodeNodeName(uri.fragment).trim();
+    if (note.isNotEmpty && !_linkLike.hasMatch(note)) notes.add(note);
+  }
+  return notes;
+}
+
+final _linkLike = RegExp(r't\.me/|https?://|@\w{4,}', caseSensitive: false);
+
+/// A node name from a link's #fragment: percent-decoded, "+" as a space
+/// when the provider form-encoded it ("Россия+МСК"), never throwing on a
+/// stray "%".
+String decodeNodeName(String fragment) {
+  var text = fragment;
+  if (text.contains('+') && text.contains('%')) {
+    text = text.replaceAll('+', ' ');
+  }
+  try {
+    return Uri.decodeComponent(text);
+  } catch (_) {
+    return text;
+  }
 }
