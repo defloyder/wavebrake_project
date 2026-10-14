@@ -2485,7 +2485,7 @@ const kGermanStrings = AppStrings(
   locationsWord: 'Standorte',
   shareSubscription: 'Teilen',
   copyLink: 'Link kopieren',
-  providerSupport: 'Support',
+  providerSupport: 'Kundendienst',
   autoSelect: 'Automatisch wählen',
   autoSelectHint: 'Der Server mit dem besten Ping',
   linkCopied: 'Link kopiert',
