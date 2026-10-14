@@ -1,6 +1,5 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
@@ -363,24 +362,30 @@ class _PhaseLabelState extends State<_PhaseLabel>
 /// short life, `t >= 1` marks it dead/available, so the pool never
 /// allocates once built. Position is normalized to the panel (0..1 on
 /// both axes) so the physics doesn't care about actual pixel size.
-/// The water in the cube, in panel units (0..1 on both axes, y down):
-/// a surface of spring columns (waves run, reflect off the walls and die
-/// out) and drops of water pouring in from the top-left corner on a
-/// ballistic arc. Where a drop lands it pushes the surface down — the
-/// ripple spreads — and throws up spray (owner, 14.10: "like live water
-/// that pours in, falls and moves, with physics", not a thin stream).
+/// The water in the cube, in panel units (0..1 on both axes, y down): a
+/// surface of spring columns (waves run, reflect off the walls and die
+/// out), fed by a thin sheet of water running down the left wall from the
+/// top-left corner — the way water poured into a glass runs down its side
+/// (owner, 14.10: a jet across the middle and falling blobs both looked
+/// wrong). The sheet keeps pushing the surface near the wall, so waves
+/// roll across; a few bubbles rise in the water.
 class _WaterSim {
   static const columns = 60;
   final List<double> _h = List.filled(columns, 0); // offset from the level
   final List<double> _v = List.filled(columns, 0);
-  final List<_Drop> drops = [];
   final math.Random _rng = math.Random(7);
+
+  /// Rising bubbles: x, y (panel units), speed, radius (share of width).
+  final List<({double x, double y, double speed, double r})> bubbles = [];
 
   /// Where the still surface sits: a thin layer when empty, near the top
   /// at full scale.
   double level = 0.97;
-  double _emit = 0;
+
+  /// 0..1: how much is running down the wall right now.
+  double flow = 0;
   double _ambient = 0;
+  double _bubbleClock = 0;
   double _time = 0;
 
   double get time => _time;
@@ -400,60 +405,64 @@ class _WaterSim {
     if (dt <= 0) return;
     _time += dt;
     this.level = 0.975 - level.clamp(0.0, 1.0) * 0.9;
+    // The sheet thickens and thins a little, like a hand pouring.
+    final pulse =
+        0.75 + 0.25 * math.sin(_time * 2.1) * math.sin(_time * 0.7 + 1);
+    flow = pour * pulse * (0.45 + 0.55 * level.clamp(0.0, 1.0));
 
-    // Fixed sub-steps: the spring maths stays stable at any frame rate.
     const sub = 1 / 120;
     var left = dt;
     while (left > 1e-6) {
       final h = math.min(sub, left);
       left -= h;
-      _springs(h / sub);
+      final k = h / sub;
+      // Where the sheet meets the surface it keeps pushing it down.
+      if (flow > 0.01) {
+        for (var i = 0; i < 4; i++) {
+          _v[i] +=
+              flow * (0.6 + _rng.nextDouble() * 0.8) * 0.009 * k / (i + 1);
+        }
+      }
+      _springs(k);
     }
 
-    // A breath of wind on the surface while measuring.
     if (running) {
       _ambient += dt;
-      while (_ambient > 0.25) {
-        _ambient -= 0.25;
-        _v[_rng.nextInt(columns)] += (_rng.nextDouble() - 0.5) * 0.0018;
+      while (_ambient > 0.3) {
+        _ambient -= 0.3;
+        _v[_rng.nextInt(columns)] += (_rng.nextDouble() - 0.5) * 0.0012;
       }
     }
 
-    // New water: a gush when the line is fast, a trickle when slow.
-    // It comes in gushes, like water poured from a jug, not a steady jet.
-    final gush = 0.55 + 0.45 * math.sin(_time * 2.6) * math.sin(_time * 0.9 + 1);
-    _emit += dt * pour * gush * (26 + 70 * level.clamp(0.0, 1.0));
-    while (_emit >= 1) {
-      _emit -= 1;
-      _spawn(level);
-    }
-
-    // A copy: landing drops throw new spray into the list.
-    for (final d in List.of(drops)) {
-      d.vy += 2.4 * dt;
-      d.x += d.vx * dt;
-      d.y += d.vy * dt;
-      if (d.x > 0.985) {
-        d.x = 0.985;
-        d.vx = -d.vx * 0.35;
-      }
-      if (d.x < 0.015) {
-        d.x = 0.015;
-        d.vx = -d.vx * 0.35;
-      }
-      final surface = surfaceAt(d.x);
-      if (d.vy > 0 && d.y >= surface) {
-        d.dead = true;
-        _land(d, surface);
+    // Bubbles: mostly near the wall where the water comes in.
+    _bubbleClock += dt * (0.6 + flow * 6);
+    while (_bubbleClock > 1) {
+      _bubbleClock -= 1;
+      if (bubbles.length < 18 && this.level < 0.93) {
+        final nearWall = _rng.nextDouble() < 0.65;
+        bubbles.add((
+          x: nearWall
+              ? 0.03 + _rng.nextDouble() * 0.12
+              : 0.1 + _rng.nextDouble() * 0.85,
+          y: 0.985,
+          speed: 0.08 + _rng.nextDouble() * 0.12,
+          r: 0.004 + _rng.nextDouble() * 0.006,
+        ));
       }
     }
-    drops.removeWhere((d) => d.dead);
-    // Bounded: no more drops than look like water.
-    if (drops.length > 260) drops.removeRange(0, drops.length - 260);
+    for (var i = bubbles.length - 1; i >= 0; i--) {
+      final b = bubbles[i];
+      final y = b.y - b.speed * dt;
+      if (y <= surfaceAt(b.x) + 0.01) {
+        bubbles.removeAt(i);
+      } else {
+        bubbles[i] = (x: b.x, y: y, speed: b.speed, r: b.r);
+      }
+    }
   }
 
   void _springs(double k) {
-    const tension = 0.022, damping = 0.035, spread = 0.24;
+    const tension = 0.022, damping = 0.022, spread = 0.24;
     for (var i = 0; i < columns; i++) {
       final a = -tension * _h[i] - damping * _v[i];
       _v[i] += a * k;
@@ -461,74 +470,14 @@ class _WaterSim {
     }
     for (var pass = 0; pass < 2; pass++) {
       for (var i = 0; i < columns; i++) {
-        if (i > 0) {
-          final d = spread * (_h[i] - _h[i - 1]) * k;
-          _v[i - 1] += d;
-        }
-        if (i < columns - 1) {
-          final d = spread * (_h[i] - _h[i + 1]) * k;
-          _v[i + 1] += d;
-        }
+        if (i > 0) _v[i - 1] += spread * (_h[i] - _h[i - 1]) * k;
+        if (i < columns - 1) _v[i + 1] += spread * (_h[i] - _h[i + 1]) * k;
       }
     }
     for (var i = 0; i < columns; i++) {
-      _h[i] = _h[i].clamp(-0.12, 0.12);
+      _h[i] = _h[i].clamp(-0.08, 0.08);
     }
   }
-
-  void _spawn(double strength) {
-    // Down the left wall from the top-left corner, the way water poured
-    // into a glass runs down its side (owner, 14.10: a jet across the
-    // middle looked wrong) — only a fast line throws it a little further.
-    final r = 0.008 + _rng.nextDouble() * 0.010 + strength * 0.004;
-    drops.add(_Drop(
-      x: 0.018 + _rng.nextDouble() * 0.025,
-      y: 0.02 + _rng.nextDouble() * 0.03,
-      vx: 0.03 + _rng.nextDouble() * 0.08 + strength * 0.10,
-      vy: 0.08 + _rng.nextDouble() * 0.12,
-      r: r,
-    ));
-  }
-
-  void _land(_Drop d, double surface) {
-    final i = (d.x * (columns - 1)).round().clamp(0, columns - 1);
-    // The surface gives way under the drop's weight and speed.
-    final push = d.vy * d.r * (d.splash ? 0.35 : 1.15);
-    _v[i] += push;
-    if (i > 0) _v[i - 1] += push * 0.5;
-    if (i < columns - 1) _v[i + 1] += push * 0.5;
-    if (d.splash) return;
-    // Spray: a couple of small drops thrown back up and sideways.
-    final n = d.r > 0.012 ? 2 : (_rng.nextDouble() < 0.6 ? 1 : 0);
-    for (var k = 0; k < n; k++) {
-      drops.add(_Drop(
-        x: d.x,
-        y: surface - 0.004,
-        vx: (_rng.nextDouble() - 0.35) * 0.45,
-        vy: -(0.25 + _rng.nextDouble() * 0.45) * math.min(1.6, d.vy),
-        r: d.r * (0.35 + _rng.nextDouble() * 0.25),
-        splash: true,
-      ));
-    }
-  }
-}
-
-class _Drop {
-  _Drop({
-    required this.x,
-    required this.y,
-    required this.vx,
-    required this.vy,
-    required this.r,
-    this.splash = false,
-  });
-
-  double x, y, vx, vy;
-
-  /// Radius as a share of the panel's width.
-  final double r;
-  final bool splash;
-  bool dead = false;
 }
 
 class _WaveMeterPainter extends CustomPainter {
@@ -559,7 +508,6 @@ class _WaveMeterPainter extends CustomPainter {
       const Radius.circular(_radius),
     );
 
-    // A soft glow behind the panel, brighter right after finishing.
     final glowAlpha = 0.10 + (isDone ? (1 - settle) * 0.18 : 0.0);
     canvas.drawRRect(
       rrect.inflate(isDone ? (1 - settle) * 8 : 4),
@@ -585,21 +533,6 @@ class _WaveMeterPainter extends CustomPainter {
         ).createShader(Offset.zero & size),
     );
 
-    // Where the water comes in: a faint light in the top-left corner.
-    if (pour > 0.02) {
-      final c = Offset(size.width * 0.04, size.height * 0.05);
-      canvas.drawCircle(
-        c,
-        size.width * 0.16,
-        Paint()
-          ..shader = RadialGradient(colors: [
-            color.withValues(alpha: 0.22 * pour),
-            color.withValues(alpha: 0),
-          ]).createShader(
-              Rect.fromCircle(center: c, radius: size.width * 0.16)),
-      );
-    }
-
     // The body of water: a smooth curve through the spring columns.
     const n = _WaterSim.columns;
     Offset col(int i) =>
@@ -607,8 +540,8 @@ class _WaveMeterPainter extends CustomPainter {
     final surface = Path()..moveTo(col(0).dx, col(0).dy);
     for (var i = 0; i < n - 1; i++) {
       final a = col(i), b = col(i + 1);
-      final mid = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
-      surface.quadraticBezierTo(a.dx, a.dy, mid.dx, mid.dy);
+      surface.quadraticBezierTo(
+          a.dx, a.dy, (a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
     }
     surface.lineTo(col(n - 1).dx, col(n - 1).dy);
     final body = Path.from(surface)
@@ -616,7 +549,9 @@ class _WaveMeterPainter extends CustomPainter {
       ..lineTo(0, size.height)
       ..close();
     final top = size.height * water.level;
-    _goo(canvas, size, body);
+
+    _sheet(canvas, size);
+
     canvas.drawPath(
       body,
       Paint()
@@ -629,7 +564,7 @@ class _WaveMeterPainter extends CustomPainter {
           ],
         ).createShader(Rect.fromLTRB(0, top - 20, size.width, size.height)),
     );
-    // Light on the surface.
+    _bubbles(canvas, size);
     canvas.drawPath(
       surface,
       Paint()
@@ -639,7 +574,6 @@ class _WaveMeterPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
     _glints(canvas, size);
-
     canvas.restore();
 
     canvas.drawRRect(
@@ -651,39 +585,82 @@ class _WaveMeterPainter extends CustomPainter {
     );
   }
 
-  /// The falling water as one liquid: drops drawn as discs, blurred and
-  /// cut at an alpha threshold, so neighbours run together into a pouring
-  /// sheet and melt into the surface where they land (metaballs) — not a
-  /// row of separate dashes.
-  void _goo(Canvas canvas, Size size, Path body) {
-    if (water.drops.isEmpty) return;
-    final sigma = size.width * 0.012;
-    final dropColor = Color.lerp(color, Colors.white, 0.3)!;
-    canvas.saveLayer(
-      Offset.zero & size,
-      Paint()
-        ..imageFilter = ui.ImageFilter.compose(
-          outer: const ColorFilter.matrix(<double>[
-            1, 0, 0, 0, 0, //
-            0, 1, 0, 0, 0, //
-            0, 0, 1, 0, 0, //
-            0, 0, 0, 24, -10 * 255, //
-          ]),
-          inner: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-        ),
-    );
-    final fill = Paint()..color = dropColor;
-    canvas.drawPath(body, fill);
-    for (final d in water.drops) {
-      final p = Offset(d.x * size.width, d.y * size.height);
-      final r = d.r * size.width * (d.splash ? 1.2 : 1.7);
-      // A falling drop is a little longer than wide.
-      final stretch = d.splash ? 1.0 : 1.0 + (d.vy * 0.35).clamp(0.0, 0.8);
-      canvas.drawOval(
-          Rect.fromCenter(center: p, width: r * 2, height: r * 2 * stretch),
-          fill);
+  /// The water running down the left wall: a thin translucent film from
+  /// the top-left corner to the surface, its free edge rippling, light
+  /// sliding down it; it widens a little where it meets the water.
+  void _sheet(Canvas canvas, Size size) {
+    final flow = water.flow;
+    if (flow < 0.02) return;
+    final bottom = size.height * water.surfaceAt(0.02);
+    final t = water.time;
+    final base = size.width * (0.035 + 0.035 * flow);
+    final a = math.min(1.0, flow * 1.8);
+    double edge(double y) {
+      final f = y / size.height;
+      final ripple = math.sin(f * 22 - t * 7) * 0.22 +
+          math.sin(f * 9 - t * 3.3 + 1) * 0.18;
+      // Thicker as it runs down, a small fan where it lands.
+      final fan = math.pow((y / bottom).clamp(0.0, 1.0), 6) * base * 1.6;
+      return base * (0.55 + 0.45 * f + ripple) + fan;
     }
-    canvas.restore();
+
+    final path = Path()..moveTo(0, 0);
+    const steps = 40;
+    for (var i = 0; i <= steps; i++) {
+      final y = bottom * i / steps;
+      path.lineTo(edge(y), y);
+    }
+    path
+      ..lineTo(0, bottom)
+      ..close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color.lerp(color, Colors.white, 0.45)!
+                .withValues(alpha: 0.75 * a),
+            color.withValues(alpha: 0.92 * a),
+          ],
+        ).createShader(Rect.fromLTRB(0, 0, base * 3, bottom)),
+    );
+    // Light sliding down the film.
+    final streak = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = math.max(1.0, base * 0.35);
+    for (var j = 0; j < 3; j++) {
+      final p = (t * 0.55 + j / 3) % 1.0;
+      final y0 = bottom * p, y1 = math.min(bottom, y0 + bottom * 0.12);
+      streak.color =
+          Colors.white.withValues(alpha: 0.35 * flow * (1 - p * 0.6));
+      canvas.drawLine(
+          Offset(edge(y0) * 0.5, y0), Offset(edge(y1) * 0.5, y1), streak);
+    }
+    // Foam where it enters the water.
+    final foam = Paint()..color = Colors.white.withValues(alpha: 0.30 * flow);
+    for (var j = 0; j < 5; j++) {
+      final a = t * 3 + j * 1.7;
+      canvas.drawCircle(
+        Offset(base * (1.2 + 1.4 * ((math.sin(a) + 1) / 2)),
+            bottom + 2 + 3 * math.cos(a * 1.3)),
+        1.2 + (j % 2),
+        foam,
+      );
+    }
+  }
+
+  void _bubbles(Canvas canvas, Size size) {
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = Colors.white.withValues(alpha: 0.35);
+    for (final b in water.bubbles) {
+      final wobble = math.sin(water.time * 5 + b.y * 30) * size.width * 0.004;
+      canvas.drawCircle(Offset(b.x * size.width + wobble, b.y * size.height),
+          b.r * size.width, ring);
+    }
   }
 
   static final List<({double x, double y, double phase})> _seeds =

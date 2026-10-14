@@ -43,6 +43,9 @@ final customServersProvider =
   CustomServerController.new,
 );
 
+/// Bumped when saved groups need one fresh read of their URL.
+const _storeVersion = 2;
+
 class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
   @override
   List<CustomSubscriptionGroup> build() {
@@ -262,7 +265,10 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     if (servers.isEmpty) return null;
     final info = SubscriptionUserInfo.parse(
         fetched.headers.value('subscription-userinfo'));
+    // The provider's contact: its support-url, else its web page header,
+    // else a bot link in its note entries.
     final support = supportUrlIn(fetched.headers.value('support-url') ?? '') ??
+        supportUrlIn(fetched.headers.value('profile-web-page-url') ?? '') ??
         subscriptionSupportUrl(parsed);
     return CustomSubscriptionGroup(
       id: id,
@@ -445,6 +451,8 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
               'id': g.id,
               'name': g.name,
               'link': g.sourceLink,
+              // Saved by this version: older saves are re-read at once.
+              'v': _storeVersion,
               if (g.sharedWithMe) 'shared': true,
               if (g.usedBytes != null) 'used': g.usedBytes,
               if (g.totalBytes != null) 'total': g.totalBytes,
@@ -505,7 +513,11 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       totalBytes: (json['total'] as num?)?.toInt(),
       expiresAt: DateTime.tryParse((json['expire'] ?? '').toString()),
       updateIntervalHours: (json['interval'] as num?)?.toInt(),
-      updatedAt: DateTime.tryParse((json['updated'] ?? '').toString()),
+      // Saved before 14.10 (no "v"): the provider's bot link and name were
+      // dropped then — stale now, so the next look re-reads the URL.
+      updatedAt: json['v'] == _storeVersion
+          ? DateTime.tryParse((json['updated'] ?? '').toString())
+          : null,
       notes: json['notes'] is List
           ? [for (final n in json['notes'] as List) n.toString()]
           : subscriptionNotes(placeholders),

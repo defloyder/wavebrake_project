@@ -304,6 +304,9 @@ class _SectionCardState extends State<_SectionCard> {
                                       data.limitsTraffic!,
                                       style: const TextStyle(
                                           color: WbColors.ice60, fontSize: 12),
+                                      // The provider's notes (days, traffic left)
+                                      // can be long: two lines, not cut (14.10).
+                                      maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
