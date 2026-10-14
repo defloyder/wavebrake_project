@@ -483,11 +483,17 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			"outboundTag": "blocked",
 		},
 	}
+	// UDP out through Cloudflare WARP when the node has its keys (warp.go).
+	warp := a.warp()
+	if warp != nil {
+		inbounds = append(inbounds, warpSocksInbound())
+		routingRules = append(routingRules, warpRules()...)
+	}
 	outbounds := []map[string]any{
 		{
 			"tag":      "direct",
 			"protocol": "freedom",
-			"settings": map[string]any{"domainStrategy": "UseIPv4"},
+			"settings": map[string]any{},
 			// Under streamSettings — a top-level "sockopt" on an outbound is
 			// ignored by Xray, so none of this ever applied (found 13.10).
 			// tcpUserTimeout: a connection to a site whose data goes
@@ -498,6 +504,7 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			// smaller segment toward ordinary sites only costs speed.
 			"streamSettings": map[string]any{
 				"sockopt": map[string]any{
+					"domainStrategy":       "UseIPv4",
 					"tcpFastOpen":          true,
 					"tcpUserTimeout":       20000,
 					"tcpKeepAliveIdle":     60,
@@ -506,6 +513,9 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			},
 		},
 		{"protocol": "blackhole", "tag": "blocked"},
+	}
+	if warp != nil {
+		outbounds = append(outbounds, warp.outbound())
 	}
 	var api map[string]any
 	var stats map[string]any
@@ -690,6 +700,11 @@ func (a XrayAdapter) renderHysteriaYAML(inst hysteriaInstance) string {
 	// Salamander: every datagram obfuscated, so nothing on the path can
 	// recognise the flow as QUIC (some carriers cut QUIC to foreign servers
 	// right after the handshake).
+	// UDP through WARP (warp.go), when the node has its keys.
+	var hyWarp string
+	if a.warp() != nil {
+		hyWarp = hysteriaWarpYAML()
+	}
 	var obfs string
 	if inst.obfsPassword != "" {
 		obfs = fmt.Sprintf("obfs:\n  type: salamander\n  salamander:\n    password: %q\n", inst.obfsPassword)
@@ -727,7 +742,7 @@ auth:
   proxy:
     url: %q
     rewriteHost: true
-%s`, inst.listenPort, a.cfg.HysteriaTLSCertPath, a.cfg.HysteriaTLSKeyPath, obfs, userpass.String(), masqueradeURL, trafficStats)
+%s%s`, inst.listenPort, a.cfg.HysteriaTLSCertPath, a.cfg.HysteriaTLSKeyPath, obfs, userpass.String(), masqueradeURL, trafficStats, hyWarp)
 }
 
 func (a XrayAdapter) applyHysteriaInstance(ctx context.Context, inst hysteriaInstance) error {
