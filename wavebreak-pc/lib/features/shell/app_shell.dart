@@ -440,9 +440,9 @@ class _MobileNavButton extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   // Shrinks to fit ("Настройки" was cut on a 320 px phone
-                  // and at a large text size).
+                  // and touched the selected pill's edges, 14.10).
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(

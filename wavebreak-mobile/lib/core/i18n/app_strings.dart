@@ -404,6 +404,7 @@ class AppStrings {
     required this.mStatus,
     required this.mSessionStart,
     required this.mPhoneNetwork,
+    required this.mDeviceNetwork,
     required this.mThisDevice,
     required this.mTunnel,
     required this.mNoTunnel,
@@ -436,6 +437,7 @@ class AppStrings {
   final String mStatus;
   final String mSessionStart;
   final String mPhoneNetwork;
+  final String mDeviceNetwork;
   final String mThisDevice;
   final String mTunnel;
   final String mNoTunnel;
@@ -1300,6 +1302,7 @@ const kEnglishStrings = AppStrings(
   mStatus: 'Status',
   mSessionStart: 'Session started',
   mPhoneNetwork: 'Phone network',
+  mDeviceNetwork: 'Network',
   mThisDevice: 'This device',
   mTunnel: 'encrypted tunnel',
   mNoTunnel: 'no tunnel',
@@ -1738,6 +1741,7 @@ const kRussianStrings = AppStrings(
   mStatus: 'Статус',
   mSessionStart: 'Начало сессии',
   mPhoneNetwork: 'Сеть телефона',
+  mDeviceNetwork: 'Сеть',
   mThisDevice: 'Это устройство',
   mTunnel: 'зашифрованный туннель',
   mNoTunnel: 'туннель не установлен',
@@ -2179,6 +2183,7 @@ const kSpanishStrings = AppStrings(
   mStatus: 'Estado',
   mSessionStart: 'Inicio de la sesión',
   mPhoneNetwork: 'Red del teléfono',
+  mDeviceNetwork: 'Red',
   mThisDevice: 'Este dispositivo',
   mTunnel: 'túnel cifrado',
   mNoTunnel: 'sin túnel',
@@ -2624,6 +2629,7 @@ const kGermanStrings = AppStrings(
   mStatus: 'Status',
   mSessionStart: 'Sitzungsbeginn',
   mPhoneNetwork: 'Netz des Telefons',
+  mDeviceNetwork: 'Netzwerk',
   mThisDevice: 'Dieses Gerät',
   mTunnel: 'verschlüsselter Tunnel',
   mNoTunnel: 'kein Tunnel',
@@ -3069,6 +3075,7 @@ const kFrenchStrings = AppStrings(
   mStatus: 'Statut',
   mSessionStart: 'Début de session',
   mPhoneNetwork: 'Réseau du téléphone',
+  mDeviceNetwork: 'Réseau',
   mThisDevice: 'Cet appareil',
   mTunnel: 'tunnel chiffré',
   mNoTunnel: 'pas de tunnel',
@@ -3510,6 +3517,7 @@ const kPortugueseStrings = AppStrings(
   mStatus: 'Status',
   mSessionStart: 'Início da sessão',
   mPhoneNetwork: 'Rede do telefone',
+  mDeviceNetwork: 'Rede',
   mThisDevice: 'Este dispositivo',
   mTunnel: 'túnel criptografado',
   mNoTunnel: 'sem túnel',
@@ -3949,6 +3957,7 @@ const kTurkishStrings = AppStrings(
   mStatus: 'Durum',
   mSessionStart: 'Oturum başlangıcı',
   mPhoneNetwork: 'Telefon ağı',
+  mDeviceNetwork: 'Ağ',
   mThisDevice: 'Bu cihaz',
   mTunnel: 'şifreli tünel',
   mNoTunnel: 'tünel yok',

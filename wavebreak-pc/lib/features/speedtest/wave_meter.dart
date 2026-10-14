@@ -210,17 +210,18 @@ class _MeterCenter extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 150),
-                child: Text(
-                  numberText,
-                  key: ValueKey(numberText),
-                  style: TextStyle(
-                    fontSize: 44,
-                    fontWeight: FontWeight.w700,
-                    color: WbColors.ice,
-                    height: 1,
-                  ),
+              // Plain text, not a cross-fade: the number changes every
+              // frame, and fading each value into the next kept it half
+              // transparent and doubled — dim and blurry (owner, 14.10).
+              Text(
+                numberText,
+                style: const TextStyle(
+                  fontSize: 44,
+                  fontWeight: FontWeight.w700,
+                  color: WbColors.ice,
+                  height: 1,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                  shadows: [Shadow(color: Color(0x99000000), blurRadius: 12)],
                 ),
               ),
               // A settle checkmark — the concrete "distinct done state"
@@ -350,6 +351,8 @@ class _PhaseLabelState extends State<_PhaseLabel>
             fontWeight: FontWeight.w600,
             color: widget.color,
             letterSpacing: 0.6,
+            // Readable over the water when it rises to the label.
+            shadows: const [Shadow(color: Color(0xCC000000), blurRadius: 8)],
           ),
         ),
       ),

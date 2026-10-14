@@ -1,11 +1,14 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/live_metrics.dart';
@@ -28,12 +31,30 @@ Future<String?> _networkLabel() {
   final now = DateTime.now();
   if (_networkCache == null || now.difference(_networkAt).inSeconds > 10) {
     _networkAt = now;
-    _networkCache = _vpnState
-        .invokeMethod<String>('networkLabel')
-        .catchError((Object _) => null);
+    _networkCache = Platform.isAndroid
+        ? _vpnState
+            .invokeMethod<String>('networkLabel')
+            .catchError((Object _) => null)
+        : _desktopNetworkLabel();
   }
   return _networkCache!;
 }
+
+/// Windows: the kind of connection (no carrier name there).
+Future<String?> _desktopNetworkLabel() async {
+  try {
+    final kinds = await Connectivity().checkConnectivity();
+    if (kinds.contains(ConnectivityResult.ethernet)) return 'Ethernet';
+    if (kinds.contains(ConnectivityResult.wifi)) return 'Wi-Fi';
+    if (kinds.contains(ConnectivityResult.mobile)) return 'LTE';
+  } catch (_) {}
+  return null;
+}
+
+/// "Phone network" only on a phone; a TV or a PC has just "Network"
+/// (owner, 14.10).
+String _networkTitle(AppStrings s) =>
+    Platform.isAndroid && !AppEnv.isTv ? s.mPhoneNetwork : s.mDeviceNetwork;
 
 String _statusText(ConnectionStatus status, AppStrings s) => switch (status) {
       ConnectionStatus.connected => s.connected,
@@ -101,7 +122,7 @@ class InfoTab extends StatelessWidget {
           FutureBuilder<String?>(
             future: _networkLabel(),
             builder: (_, snap) =>
-                _Row(label: s.mPhoneNetwork, value: snap.data ?? '—'),
+                _Row(label: _networkTitle(s), value: snap.data ?? '—'),
           ),
           for (final (l, v) in rows) _Row(label: l, value: v),
         ],
@@ -177,7 +198,7 @@ class RouteTab extends StatelessWidget {
             builder: (_, snap) => _Node(
               icon: const Icon(Icons.smartphone_rounded, color: Ic.text),
               title: s.mThisDevice,
-              subtitle: snap.data ?? s.mPhoneNetwork,
+              subtitle: snap.data ?? _networkTitle(s),
             ),
           ),
           _Link(
