@@ -149,7 +149,7 @@ class SpeedTestController extends Notifier<SpeedTestState> {
   // this state (the wave meter's fill AND its own number display, which
   // used to read the raw value straight from the outer screen,
   // bypassing whatever smoothing lived only inside the meter widget)
-  // sees the same already-smoothed number. WaveMeter's own per-frame
+  // sees the same already-smoothed number. TideWave's own per-frame
   // interpolation on top of this handles animating BETWEEN these
   // updates smoothly; this is what keeps the updates themselves from
   // being noisy in the first place.

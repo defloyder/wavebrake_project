@@ -9,7 +9,7 @@ import 'test_helpers.dart';
 
 /// A fixed-state stand-in for the real controller — the redesign this
 /// covers (idle -> testing-latency -> testing-download -> testing-upload
-/// -> done/failed all rendering distinctly, see wave_meter.dart and
+/// -> done/failed all rendering distinctly, see tide_wave.dart and
 /// speed_test_screen.dart) is a UI/rendering concern, not a state-machine
 /// one (that's already covered by speed_test_controller_test.dart), so
 /// this drives the screen off an arbitrary fixed [SpeedTestState] rather
@@ -56,7 +56,7 @@ Future<void> _pumpWithState(
     ),
   );
   // The wave meter's own motion is driven by a repeating
-  // AnimationController (see wave_meter.dart) — a single pump is enough
+  // ticker (see tide_wave.dart) — a single pump is enough
   // to read the static text/icon content this test actually checks,
   // without needing to settle a continuously-repeating animation (which
   // pumpAndSettle would never do).
