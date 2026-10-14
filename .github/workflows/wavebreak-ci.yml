@@ -70,3 +70,73 @@ jobs:
       - run: docker build -t wavebreak-core ./wavebreak-core
       - run: docker build -t wavebreak-node ./wavebreak-node
       - run: docker compose -f wavebreak-infrastructure/docker-compose.yml config --quiet
+
+  # Apps (owner, 14.10: "work to the CI/CD standard"): every push runs the
+  # same analyze + tests the release script relies on, for both clients.
+  flutter:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [wavebreak-mobile, wavebreak-pc]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+
+  links:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wavebreak-shared/wavebreak_links
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: true
+      - run: dart pub get
+      - run: dart test
+
+  launcher:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wavebreak-launcher
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: wavebreak-launcher/go.mod
+      - run: go vet ./...
+      - run: go test ./...
+      # The exe itself (32-bit Windows, pure Go): it must build on every push.
+      - run: GOOS=windows GOARCH=386 CGO_ENABLED=0 go vet ./...
+      - run: GOOS=windows GOARCH=386 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -H windowsgui" -o WAVEBREAK-Launcher.exe .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WAVEBREAK-Launcher
+          path: wavebreak-launcher/WAVEBREAK-Launcher.exe
+
+  bridge:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wavebreak-mobile/native/hysteria_bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: wavebreak-mobile/native/hysteria_bridge/go.mod
+      - run: go vet .
+      - run: go test -run 'TestCloseStuckFlows' -count=1 .
