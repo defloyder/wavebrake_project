@@ -11,7 +11,7 @@
 **Сервер 14.10:**
 - `sockopt` агента ноды теперь применяется (`streamSettings`, `tcpUserTimeout`).
 - Звонки Telegram: хостер пропускает UDP-ответы только на порты 1194 и 3478, поэтому исходящий UDP прокси идёт через SNAT с этих портов (`wavebreak-udp-egress`). Правила лежат в `/etc/ufw/before.rules` (копия `before.rules.bak-20261014-udp`); ufw запускается после `netfilter-persistent` (`/etc/systemd/system/ufw.service.d/after-netfilter-persistent.conf`), так что правила переживают перезагрузку. Проверено через `ufw reload`. Запись звонка 14.10: рукопожатие с ретранслятором Telegram проходит (ответы на 1194 и 3478), наш голос уходит, но голос собеседника ретранслятор не присылает. Вероятнее всего, у собеседника нет связи с ретранслятором (Россия без VPN). Проверить звонок, когда обе стороны на нашем VPN или собеседник вне России.
-- Агент: перенести `domainStrategy` из `freedom.settings` в `sockopt` (Xray пишет, что параметр устарел), при следующей выкладке агента.
+- **WARP (14.10):** хостер режет UDP-ответы с портов ниже 1024 (ретрансляторы звонков Telegram 596–599, QUIC 443). Весь UDP ноды, кроме DNS, уходит через Cloudflare WARP (бесплатное устройство, ключи в `/root/warp` и `…/wavebreak_xray_config/_data/warp.json` — владелец uid 1000, права 600). Агент сам добавляет выход `warp` в Xray и ACL в Hysteria (`warp.go`), если файл есть. Проверено: STUN, DNS и QUIC 443 через VLESS отвечают. `domainStrategy` перенесён в `sockopt`. hysteria-obfs пока без WARP.
 Core на сервере выдаёт ссылки на `api.` (env `WAVEBREAK_SUBSCRIPTION_URL_BASE`). **Core на сервере
 расходится с git** (п. 0), сайт на сервере = git с 13.10 (п. 0б), **в `main` 26 коммитов
 коллеги, которых нет в `app-main-sync`** (п. 0в). Подробности — `CHANGELOG.md` («Не выпущено»),
