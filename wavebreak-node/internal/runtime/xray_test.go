@@ -228,3 +228,26 @@ func TestRender_RealityServerNames_ExtraAppendsAllValues(t *testing.T) {
 		}
 	}
 }
+
+// TestDockerClient_ReusesTransportPerSocket locks in the fix for a real
+// memory leak found live (owner, 14.10, ~300MB RSS after a week on a
+// ~1GB node): dockerClient must hand back the same *http.Client — and so
+// the same *http.Transport, connection pool and keep-alive goroutines —
+// for repeated calls against the same DockerSocket, since QueryUsage calls
+// it several times every UsageInterval via dockerExec/dockerRequest, and a
+// fresh never-reused Transport each time leaks until Go's GC finalizes it.
+func TestDockerClient_ReusesTransportPerSocket(t *testing.T) {
+	a1 := NewXrayAdapter(config.XrayConfig{DockerSocket: "tcp://127.0.0.1:2375"})
+	a2 := NewXrayAdapter(config.XrayConfig{DockerSocket: "tcp://127.0.0.1:2375"})
+	c1 := a1.dockerClient()
+	c2 := a2.dockerClient()
+	if c1 != c2 {
+		t.Fatal("dockerClient returned a different *http.Client for the same DockerSocket on a second call — the old Transport (and its connection pool/goroutines) leaks")
+	}
+
+	other := NewXrayAdapter(config.XrayConfig{DockerSocket: "tcp://127.0.0.1:9999"})
+	c3 := other.dockerClient()
+	if c3 == c1 {
+		t.Fatal("dockerClient returned the same *http.Client for a different DockerSocket — would dial the wrong target")
+	}
+}

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"wavebreak-node/internal/config"
@@ -708,14 +709,36 @@ func (a XrayAdapter) restartNamedDockerContainer(ctx context.Context, name strin
 	return nil
 }
 
+// dockerClients caches one *http.Client (and its *http.Transport, with its
+// own connection pool and keep-alive goroutines) per DockerSocket target,
+// instead of building a fresh Transport on every dockerRequest call. Found
+// live (owner, 14.10): QueryUsage calls dockerExec — and so dockerRequest,
+// and so dockerClient — multiple times every UsageInterval, and a fresh
+// never-reused Transport each time leaks its idle connection and read
+// goroutine until Go's GC finalizes it, which on these ~1GB nodes took
+// days to show up as real memory pressure (wavebreak-node alone reached
+// ~300MB RSS after a week). A package-level cache, not a field, since
+// XrayAdapter is deliberately copied by value everywhere.
+var (
+	dockerClientsMu sync.Mutex
+	dockerClients   = map[string]*http.Client{}
+)
+
 func (a XrayAdapter) dockerClient() *http.Client {
+	dockerClientsMu.Lock()
+	defer dockerClientsMu.Unlock()
+	if c, ok := dockerClients[a.cfg.DockerSocket]; ok {
+		return c
+	}
 	network, address := dockerDialTarget(a.cfg.DockerSocket)
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return (&net.Dialer{}).DialContext(ctx, network, address)
 		},
 	}
-	return &http.Client{Transport: transport, Timeout: 15 * time.Second}
+	c := &http.Client{Transport: transport, Timeout: 15 * time.Second}
+	dockerClients[a.cfg.DockerSocket] = c
+	return c
 }
 
 // dockerDialTarget lets WAVEBREAK_XRAY_DOCKER_SOCKET point at either the raw
