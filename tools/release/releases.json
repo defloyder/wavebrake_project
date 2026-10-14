@@ -116,7 +116,7 @@
     ]
   },
   "windows": {
-    "maxCode": 40,
+    "maxCode": 42,
     "releases": [
       {
         "name": "1.0.16",
