@@ -58,6 +58,7 @@ tools/release/release.sh publish   # только после «публикуй�
 | Лаунчер для Windows | `wavebreak-launcher/README.md` |
 | План перехода на микросервисы (черновик) | `docs/MICROSERVICES-PLAN.md` |
 | CI/CD: проверки, выкладки, что нужно от владельца | `docs/CI-CD.md` |
+| iPhone, iPad, Mac — план и что нужно от владельца | `docs/IOS-PLAN.md` |
 | ПК на Xray (бета) | `docs/HANDOFF-pc-xray-migration.md` |
 
 Общаться с владельцем — по-русски.
