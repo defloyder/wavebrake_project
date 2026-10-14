@@ -68,7 +68,9 @@ class AccountScreen extends ConsumerWidget {
     final canVerify = me != null &&
         me.emailVerified == false &&
         me.emailVerificationAvailable;
-    final verified = me?.emailVerified;
+    // The session's saved profile first, so the line doesn't pop in once
+    // /me answers (owner, 14.10: it appeared with a jolt).
+    final verified = me?.emailVerified ?? session.user?.emailVerified;
 
     return SettingsPage(
       title: s.account,
@@ -78,15 +80,16 @@ class AccountScreen extends ConsumerWidget {
           SettingsRow(
             icon: Icons.email_outlined,
             title: email,
+            // While unknown, an empty line keeps the row's height.
             subtitle: verified == null
-                ? null
+                ? ' '
                 : verified
                     ? s.emailVerifiedRow
                     : canVerify
                         ? '${s.emailNotVerifiedRow} · ${s.verifyEmailConfirm}'
                         : s.emailNotVerifiedRow,
             trailing: verified == null
-                ? null
+                ? const SizedBox(width: 20, height: 20)
                 : Icon(
                     verified
                         ? Icons.verified_outlined

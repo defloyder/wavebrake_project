@@ -357,6 +357,8 @@ class AppStrings {
     required this.planContactAdmin,
     required this.planContactSupport,
     required this.promoCodeHint,
+    required this.promoHave,
+    required this.navCollapse,
     required this.promoApply,
     required this.promoRemove,
     required this.promoAppliedLine,
@@ -466,6 +468,8 @@ class AppStrings {
   final String planContactAdmin;
   final String planContactSupport;
   final String promoCodeHint;
+  final String promoHave;
+  final String navCollapse;
   final String promoApply;
   final String promoRemove;
   final String promoAppliedLine;
@@ -1249,6 +1253,8 @@ const kEnglishStrings = AppStrings(
   planContactAdmin: 'To get access, contact the administration',
   planContactSupport: 'Write to support',
   promoCodeHint: 'Promo code',
+  promoHave: 'Have a promo code?',
+  navCollapse: 'Collapse',
   promoApply: 'Apply',
   promoRemove: 'Remove',
   promoAppliedLine: 'Promo code {code}: {discount}',
@@ -1685,6 +1691,8 @@ const kRussianStrings = AppStrings(
   planContactAdmin: 'Чтобы получить доступ, обратитесь к администрации',
   planContactSupport: 'Написать в поддержку',
   promoCodeHint: 'Промокод',
+  promoHave: 'Есть промокод?',
+  navCollapse: 'Свернуть',
   promoApply: 'Применить',
   promoRemove: 'Убрать',
   promoAppliedLine: 'Промокод {code}: {discount}',
@@ -2124,6 +2132,8 @@ const kSpanishStrings = AppStrings(
   planContactAdmin: 'Para obtener acceso, contacta con la administración',
   planContactSupport: 'Escribir a soporte',
   promoCodeHint: 'Código promocional',
+  promoHave: '¿Tienes un código promocional?',
+  navCollapse: 'Contraer',
   promoApply: 'Aplicar',
   promoRemove: 'Quitar',
   promoAppliedLine: 'Código {code}: {discount}',
@@ -2567,6 +2577,8 @@ const kGermanStrings = AppStrings(
   planContactAdmin: 'Für den Zugang wende dich bitte an die Administration',
   planContactSupport: 'Support kontaktieren',
   promoCodeHint: 'Promocode',
+  promoHave: 'Hast du einen Promocode?',
+  navCollapse: 'Einklappen',
   promoApply: 'Einlösen',
   promoRemove: 'Entfernen',
   promoAppliedLine: 'Promocode {code}: {discount}',
@@ -3010,6 +3022,8 @@ const kFrenchStrings = AppStrings(
   planContactAdmin: 'Pour obtenir l\'accès, contactez l\'administration',
   planContactSupport: 'Écrire au support',
   promoCodeHint: 'Code promo',
+  promoHave: 'Vous avez un code promo ?',
+  navCollapse: 'Réduire',
   promoApply: 'Appliquer',
   promoRemove: 'Retirer',
   promoAppliedLine: 'Code {code} : {discount}',
@@ -3449,6 +3463,8 @@ const kPortugueseStrings = AppStrings(
   planContactAdmin: 'Para obter acesso, entre em contato com a administração',
   planContactSupport: 'Falar com o suporte',
   promoCodeHint: 'Código promocional',
+  promoHave: 'Tem um código promocional?',
+  navCollapse: 'Recolher',
   promoApply: 'Aplicar',
   promoRemove: 'Remover',
   promoAppliedLine: 'Código {code}: {discount}',
@@ -3886,6 +3902,8 @@ const kTurkishStrings = AppStrings(
   planContactAdmin: 'Erişim için yönetimle iletişime geçin',
   planContactSupport: 'Desteğe yaz',
   promoCodeHint: 'Promosyon kodu',
+  promoHave: 'Promosyon kodun var mı?',
+  navCollapse: 'Daralt',
   promoApply: 'Uygula',
   promoRemove: 'Kaldır',
   promoAppliedLine: '{code} kodu: {discount}',

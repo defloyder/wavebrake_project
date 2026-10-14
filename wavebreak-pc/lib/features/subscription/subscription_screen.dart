@@ -35,6 +35,10 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   String? _promoError;
   bool _checking = false;
 
+  // The promo field opens from the last row of the plans block (owner,
+  // 14.10: a separate promo block at the very bottom looked tacked on).
+  bool _promoOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +80,45 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         _promoField.clear();
       });
 
+  /// "Have a promo code?" — opens the field in place; once applied, what
+  /// it gives and a way to remove it.
+  Widget _promoRow(AppStrings s) {
+    if (_promo != null) {
+      return SettingsBlock(
+          child: _PromoApplied(promo: _promo!, s: s, onRemove: _removePromo));
+    }
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: Column(
+        children: [
+          SettingsRow(
+            icon: Icons.confirmation_number_outlined,
+            title: s.promoHave,
+            trailing: AnimatedRotation(
+              turns: _promoOpen ? 0.5 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: const Icon(Icons.expand_more,
+                  color: WbColors.ice60, size: 20),
+            ),
+            onTap: () => setState(() => _promoOpen = !_promoOpen),
+          ),
+          if (_promoOpen)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              child: _PromoInput(
+                controller: _promoField,
+                checking: _checking,
+                s: s,
+                onApply: _applyPromo,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(stringsProvider);
@@ -85,11 +128,15 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       fallback: '/home',
       children: [
         ...asyncSub.when(
-          loading: () => const [
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
-            ),
+          // The same shape as the block it stands for: nothing jumps when
+          // the data comes (owner, 14.10).
+          loading: () => [
+            SettingsGroup(children: const [
+              _SkeletonRow(),
+              _SkeletonRow(),
+              _SkeletonRow(),
+              _SkeletonRow(),
+            ]),
           ],
           // 404 = simply no subscription yet: the plans below are the way in.
           error: (error, _) => error is AppException && error.statusCode == 404
@@ -102,22 +149,11 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                 ],
           data: (sub) => [_CurrentSubscription(sub: sub, s: s)],
         ),
-        _PlansGroup(s: s, promo: _promo),
-        SettingsGroup(
-          title: s.promoCodeHint,
+        _PlansGroup(
+          s: s,
+          promo: _promo,
           footer: _promoError,
-          children: [
-            SettingsBlock(
-              child: _promo == null
-                  ? _PromoInput(
-                      controller: _promoField,
-                      checking: _checking,
-                      s: s,
-                      onApply: _applyPromo,
-                    )
-                  : _PromoApplied(promo: _promo!, s: s, onRemove: _removePromo),
-            ),
-          ],
+          promoRow: _promoRow(s),
         ),
       ],
     );
@@ -180,40 +216,108 @@ class _CurrentSubscription extends ConsumerWidget {
 }
 
 class _PlansGroup extends ConsumerWidget {
-  const _PlansGroup({required this.s, required this.promo});
+  const _PlansGroup({
+    required this.s,
+    required this.promo,
+    required this.promoRow,
+    this.footer,
+  });
 
   final AppStrings s;
   final PromoCheck? promo;
 
+  /// The promo code row, last in the same block as the plans.
+  final Widget promoRow;
+  final String? footer;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncPlans = ref.watch(plansProvider);
-    return asyncPlans.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (error, _) => SettingsFooter(
-          error is AppException ? error.localized(s) : s.errUnavailable),
+    final List<Widget> tiles = asyncPlans.when(
+      // Placeholders the height of plan rows, so the block doesn't grow
+      // under the reader once the plans arrive (owner, 14.10).
+      loading: () => const [_SkeletonRow(), _SkeletonRow(), _SkeletonRow()],
+      error: (_, __) => const [],
       data: (plans) {
         final visible = plans.where((p) => p.isPublic && p.isActive).toList()
           ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-        if (visible.isEmpty) return const SizedBox.shrink();
-        return SettingsGroup(
-          title: s.choosePlan,
-          children: [
-            for (final plan in visible)
-              _PlanTile(
-                plan: plan,
-                promoPrice: promo?.prices[plan.id],
-                s: s,
-                onTap: () => ref
-                    .read(planPurchaseProvider)
-                    .purchase(context, plan, promo: promo),
-              ),
-          ],
-        );
+        return [
+          for (final plan in visible)
+            _PlanTile(
+              plan: plan,
+              promoPrice: promo?.prices[plan.id],
+              s: s,
+              onTap: () => ref
+                  .read(planPurchaseProvider)
+                  .purchase(context, plan, promo: promo),
+            ),
+        ];
       },
+    );
+    final error = asyncPlans.hasError
+        ? (asyncPlans.error is AppException
+            ? (asyncPlans.error as AppException).localized(s)
+            : s.errUnavailable)
+        : null;
+    return SettingsGroup(
+      title: s.choosePlan,
+      footer: footer ?? error,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          child: Column(
+            key: ValueKey(asyncPlans.isLoading),
+            children: _divided(tiles),
+          ),
+        ),
+        promoRow,
+      ],
+    );
+  }
+
+  static List<Widget> _divided(List<Widget> rows) => [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0)
+            const Divider(
+                height: 1, thickness: 1, indent: 62, color: WbColors.ice08),
+          rows[i],
+        ],
+      ];
+}
+
+/// A grey stand-in for one row while its data loads.
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bar(double w, double h) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: WbColors.ice08,
+            borderRadius: BorderRadius.circular(6),
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        children: [
+          bar(32, 32),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                bar(120, 12),
+                const SizedBox(height: 8),
+                bar(180, 10),
+              ],
+            ),
+          ),
+          bar(56, 14),
+        ],
+      ),
     );
   }
 }

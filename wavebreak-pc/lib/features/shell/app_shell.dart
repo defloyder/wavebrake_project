@@ -537,14 +537,6 @@ class _SideNav extends StatelessWidget {
                               )
                             : const WavebreakMark(size: 28),
                       ),
-                      // The one menu button, always in the same place (owner,
-                      // 13.10: on the pages it moved with each page's width
-                      // and was missing on Metrics).
-                      if (!AppEnv.isTv)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: _RailToggle(expanded: expanded),
-                        ),
                       const SizedBox(height: 12),
                       for (var i = 0; i < items.length; i++)
                         Padding(
@@ -560,6 +552,16 @@ class _SideNav extends StatelessWidget {
                             onTap: () => onSelect(i),
                           ),
                         ),
+                      // Opening and closing the rail: a row like the others at
+                      // its foot (owner, 14.10: the round button under the logo
+                      // looked awful).
+                      if (!AppEnv.isTv) ...[
+                        const Spacer(),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 5, 12, 16),
+                          child: _RailToggle(expanded: expanded),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -769,8 +771,8 @@ void _leaveRail() {
   WidgetsBinding.instance.addPostFrameCallback((_) => _focusPage());
 }
 
-/// Opens and closes the side rail: a menu icon in collapsed mode, a
-/// "collapse" icon at the rail's right edge when it is open.
+/// Opens and closes the side rail — a rail row like the destinations
+/// above it: ">>" when closed, "<< Collapse" when open.
 class _RailToggle extends ConsumerWidget {
   const _RailToggle({required this.expanded});
 
@@ -778,35 +780,26 @@ class _RailToggle extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tooltip = MaterialLocalizations.of(context).openAppDrawerTooltip;
-    return Align(
-      alignment: expanded ? Alignment.centerRight : Alignment.center,
-      child: Tooltip(
-        message: tooltip,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () =>
-                ref.read(navExpandedProvider.notifier).update((v) => !v),
-            customBorder: const CircleBorder(),
-            child: Container(
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: WbColors.card.withValues(alpha: 0.55),
-                border: Border.all(color: WbColors.ice08),
-              ),
-              child: Icon(
-                expanded ? Icons.menu_open_rounded : Icons.menu_rounded,
-                color: WbColors.ice60,
-                size: 18,
-              ),
-            ),
-          ),
-        ),
+    final s = ref.watch(stringsProvider);
+    final row = _RailItem(
+      data: _NavItemData(
+        icon: expanded
+            ? Icons.keyboard_double_arrow_left_rounded
+            : Icons.keyboard_double_arrow_right_rounded,
+        filledIcon: expanded
+            ? Icons.keyboard_double_arrow_left_rounded
+            : Icons.keyboard_double_arrow_right_rounded,
+        label: s.navCollapse,
       ),
+      expanded: expanded,
+      selected: false,
+      onTap: () => ref.read(navExpandedProvider.notifier).update((v) => !v),
     );
+    return expanded
+        ? row
+        : Tooltip(
+            message: MaterialLocalizations.of(context).openAppDrawerTooltip,
+            child: row,
+          );
   }
 }

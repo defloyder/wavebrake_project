@@ -165,7 +165,8 @@ class SpeedTestScreen extends ConsumerWidget {
             tint: waves.tint,
             waveSpeed: waves.speed,
             waveAmplitude: waves.amplitude,
-            maxContentWidth: 1040,
+            // Not stretched over a whole wide window (owner, 14.10).
+            maxContentWidth: 920,
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -180,7 +181,7 @@ class SpeedTestScreen extends ConsumerWidget {
                           final side = (box.maxHeight < box.maxWidth * 0.5
                                   ? box.maxHeight
                                   : box.maxWidth * 0.5)
-                              .clamp(160.0, 520.0);
+                              .clamp(160.0, 400.0);
                           return Row(
                             children: [
                               SizedBox(width: side, height: side, child: meter),

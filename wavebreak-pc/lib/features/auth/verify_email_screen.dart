@@ -184,6 +184,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   autofocus: true,
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
+                  textAlignVertical: TextAlignVertical.center,
                   maxLength: 6,
                   autofillHints: const [AutofillHints.oneTimeCode],
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -195,7 +196,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   ),
                   decoration: InputDecoration(
                     hintText: s.verifyEmailCodeHint,
-                    hintStyle: const TextStyle(fontSize: 16, letterSpacing: 0),
+                    // Grey and plain, not the code's bold accent digits (owner, 14.10).
+                    hintStyle: const TextStyle(
+                        fontSize: 16,
+                        letterSpacing: 0.2,
+                        fontWeight: FontWeight.w400,
+                        color: WbColors.muted),
                     counterText: '',
                   ),
                   onChanged: (v) {
