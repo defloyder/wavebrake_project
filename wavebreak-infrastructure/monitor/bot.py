@@ -6,10 +6,16 @@ Access: private chats only, Telegram user id must be on the whitelist
 confirm step and is executed as the bot's own Core account, so it shows up
 in Core's audit log.
 """
+import calendar
 import html as _html
+import json
+import os
 import secrets
+import sqlite3
+import subprocess
 import time
-from datetime import datetime, timezone
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
 
 import monitor as mon
 from core import CoreError
@@ -47,6 +53,9 @@ COMMANDS = [
     ("subs", "💳 Подписки"),
     ("keys", "🔑 Ключи доступа"),
     ("nodes", "🖥 Ноды"),
+    ("payments", "💰 Оплаты серверов"),
+    ("bans", "🚫 Заблокированные адреса"),
+    ("servers", "🖴 Диск и память серверов"),
     ("traffic", "📈 Трафик клиентов"),
     ("clients", "📡 Клиенты онлайн"),
     ("errors", "⚠️ Ошибки за час"),
@@ -55,6 +64,122 @@ COMMANDS = [
     ("help", "❔ Справка"),
 ]
 OWNER_COMMANDS = COMMANDS[:-1] + [("admins", "🛡 Доступ к боту"), COMMANDS[-1]]
+
+
+# ---------- other servers' disk/memory, over the private tunnels only ----------
+# The monitor runs on Istanbul and deliberately has no SSH key to the other
+# VPN servers — one compromised monitor host must not become a key to every
+# server. Each remote instead runs remote_metrics.py bound to its ops/chain
+# tunnel address (see that file's docstring), so this is just an HTTP GET
+# that is only reachable at all because the tunnel is already up.
+REMOTE_SERVERS = [
+    {"label": "RU-MSK-01 (Selectel)", "host": os.environ.get("WAVEBREAK_METRICS_RU_MSK", "10.66.0.4"), "port": 8787},
+    {"label": "DE-NR-01 (Hetzner)", "host": os.environ.get("WAVEBREAK_METRICS_DE_NR", "10.77.0.2"), "port": 8787},
+    {"label": "RU-LTE-01 (Yandex Cloud)", "host": os.environ.get("WAVEBREAK_METRICS_RU_LTE", "10.66.0.5"), "port": 8787},
+]
+
+
+def fetch_remote_metrics(host, port, timeout=3):
+    try:
+        with urllib.request.urlopen(f"http://{host}:{port}/metrics", timeout=timeout) as r:
+            return json.loads(r.read())
+    except Exception:
+        return None
+
+
+# ---------- server payments (read-only view of the admin panel's table) ----------
+PAYMENTS_DB = os.environ.get("WAVEBREAK_ADMIN_DB", "/home/wavebreakdeploy/wavebreak-pilot/shared/admin-data/database.sqlite")
+
+
+def _billing_on_or_after(day, billing_day):
+    last = calendar.monthrange(day.year, day.month)[1]
+    due = date(day.year, day.month, min(billing_day, last))
+    if due < day:
+        nxt = (date(day.year, day.month, 28) + timedelta(days=4)).replace(day=1)
+        last = calendar.monthrange(nxt.year, nxt.month)[1]
+        due = date(nxt.year, nxt.month, min(billing_day, last))
+    return due
+
+
+def next_payment_due(billing_day, paid_until, today):
+    """Same rule as the admin panel: a cycle marked paid moves to the following one."""
+    due = _billing_on_or_after(today, billing_day)
+    if paid_until and due <= paid_until:
+        due = _billing_on_or_after(paid_until + timedelta(days=1), billing_day)
+    return due
+
+
+def payment_rows(db_path=PAYMENTS_DB, today=None):
+    today = today or date.today()
+    try:
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return None
+    try:
+        rows = con.execute("select label, provider, region, billing_day, amount, currency, paid_until "
+                           "from infra_payments order by billing_day").fetchall()
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
+    out = []
+    for label, provider, region, billing_day, amount, currency, paid_until in rows:
+        paid = date.fromisoformat(paid_until) if paid_until else None
+        due = next_payment_due(billing_day, paid, today)
+        out.append({"label": label, "provider": provider, "region": region, "due": due,
+                    "days": (due - today).days, "amount": amount, "currency": currency})
+    return out
+
+
+# ---------- DPI bans (read + act, not just read — this is what lets an
+# admin unblock a wrongly-banned IP, e.g. our own relay, straight from
+# Telegram instead of needing someone to SSH in) ----------
+BAN_SETS = (("dpi_probe_ban", "5 мин"), ("dpi_probe_ban_repeat", "7 дн"))
+
+
+def _parse_ipset_members(raw):
+    """ipset list output: a 'Members:' line, then one '<ip> timeout <n>' per line."""
+    out = []
+    in_members = False
+    for line in raw.splitlines():
+        if line.strip() == "Members:":
+            in_members = True
+            continue
+        if not in_members:
+            continue
+        parts = line.split()
+        if not parts:
+            continue
+        timeout = None
+        if "timeout" in parts:
+            try:
+                timeout = int(parts[parts.index("timeout") + 1])
+            except (ValueError, IndexError):
+                timeout = None
+        out.append((parts[0], timeout))
+    return out
+
+
+def active_bans():
+    bans = []
+    for set_name, label in BAN_SETS:
+        try:
+            raw = subprocess.run(["ipset", "list", set_name], capture_output=True, text=True, timeout=5).stdout
+        except Exception:
+            continue
+        for ip, timeout in _parse_ipset_members(raw):
+            bans.append({"ip": ip, "set": set_name, "label": label, "timeout": timeout})
+    return bans
+
+
+def unban_ip(ip):
+    """Removes ip from every ban set it's in. True if it was actually banned somewhere."""
+    removed = False
+    for set_name, _ in BAN_SETS:
+        r = subprocess.run(["ipset", "del", set_name, ip], capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            removed = True
+    return removed
 
 
 # ---------- formatting ----------
@@ -129,6 +254,17 @@ def ago(value):
 def days_left(value):
     ts = parse_ts(value)
     return None if ts is None else int((ts - time.time()) // 86400)
+
+
+def node_status_icon(status, last_heartbeat_at, stale_after=90):
+    # Core's `status` column only changes on an explicit write, so a node whose
+    # agent stopped heartbeating keeps reporting "online" forever. Downgrade
+    # that here the same way wavebreak-admin's StatusBadge::nodeWithHeartbeat does.
+    if status == "online":
+        ts = parse_ts(last_heartbeat_at)
+        if ts is None or (time.time() - ts) > stale_after:
+            return "🔴"
+    return NODE_STATUS.get(status, "⚪")
 
 
 def sub_badge(status):
@@ -262,6 +398,12 @@ class Bot:
             return self.keys_screen(0)
         if cmd == "/nodes":
             return self.nodes_screen()
+        if cmd == "/payments":
+            return self.payments_screen()
+        if cmd == "/bans":
+            return self.bans_screen()
+        if cmd == "/servers":
+            return self.servers_screen()
         if cmd == "/traffic":
             return self.traffic_screen()
         if cmd == "/clients":
@@ -319,7 +461,8 @@ class Bot:
             "m": lambda: self.home(uid), "mon": self.status_screen, "tr": self.traffic_screen,
             "cl": self.clients_screen, "er": self.errors_screen, "lg": lambda: self.logs_screen(30),
             "rc": lambda: self.reconnects_screen(None), "n": self.nodes_screen, "a": self.audit_screen,
-            "h": lambda: self.help_screen(uid),
+            "h": lambda: self.help_screen(uid), "pay": self.payments_screen, "bn": self.bans_screen,
+            "srv": self.servers_screen,
         }
         if head in simple:
             return simple[head](), None
@@ -348,6 +491,11 @@ class Bot:
                         "<blockquote>Человек должен один раз нажать Start у бота, иначе бот не сможет ему писать.</blockquote>",
                         [[B("⬅ Назад", "ad")]]), None
             return self.confirm_screen(self.token({"kind": "admin_remove", "target": int(arg)})), None
+        if head == "ub":  # one-tap unban — reversible, re-bans itself if the IP misbehaves again
+            ok = unban_ip(arg)
+            banner = f"✅ Бан снят: {esc(arg)}" if ok else f"⚠️ {esc(arg)} не найден в банах (уже истёк?)"
+            html, kb = self.bans_screen()
+            return (f"<p>{banner}</p>{html}", kb), None
         if head == "p":   # action menu (plan picker / extend picker / device list)
             return self.picker(arg), None
         if head == "c":   # show confirmation
@@ -402,6 +550,8 @@ class Bot:
             [B("📊 Мониторинг", "mon", "primary"), B("👥 Пользователи", "ul:0", "primary")],
             [B("💳 Подписки", "sl:0"), B("🔑 Ключи", "kl:0")],
             [B("🖥 Ноды", "n"), B("🗂 Аудит", "a")],
+            [B("💰 Оплаты", "pay"), B("🚫 Баны", "bn")],
+            [B("🖴 Серверы", "srv")],
         ]
         last = [B("🔄 Обновить", "m")]
         if self.access.is_owner(uid):
@@ -690,11 +840,63 @@ class Bot:
             applied, desired = n.get("applied_revision"), n.get("desired_revision")
             sync = "🟢 синхронна" if applied == desired else f"🟡 {applied} → {desired}"
             if n.get("last_sync_error"):
-                sync = f"🔴 {esc(str(n['last_sync_error'])[:80])}"
-            rows.append([f"{NODE_STATUS.get(n.get('status'), '⚪')} <b>{esc(n.get('code'))}</b>", esc(n.get("region") or "—"),
+                sync = f"🔴 {esc(str(n['last_sync_error'])[:300])}"
+            rows.append([f"{node_status_icon(n.get('status'), n.get('last_heartbeat_at'))} <b>{esc(n.get('code'))}</b>", esc(n.get("region") or "—"),
                          esc(ago(n.get("last_heartbeat_at"))), sync])
         html = f"<h3>🖥 Ноды</h3>{table(['Нода', 'Регион', 'Heartbeat', 'Конфигурация'], rows) if rows else '<p>Нод нет.</p>'}{footer()}"
-        return html, [[B("⬅ Меню", "m"), B("🔄 Обновить", "n")]]
+        return html, [[B("⬅ Меню", "m"), B("🔄 Обновить", "n")], [B("💰 Оплаты", "pay"), B("🚫 Баны", "bn")]]
+
+    def payments_screen(self):
+        items = payment_rows()
+        if items is None:
+            return "<h3>💰 Оплаты серверов</h3><p>База админки недоступна.</p>", [[B("⬅ Меню", "m")]]
+        if not items:
+            return "<h3>💰 Оплаты серверов</h3><p>Оплат пока нет. Добавляются в админке, в разделе «Ноды».</p>", [[B("⬅ Меню", "m")]]
+        rows = []
+        for it in items:
+            left = "🔴 " if it["days"] <= 3 else ""
+            amount = f"{it['amount']} {it['currency']}" if it["amount"] is not None else "—"
+            rows.append([f"<b>{esc(it['label'])}</b>", esc(it["provider"]), esc(it["region"] or "—"),
+                         it["due"].strftime("%d.%m.%Y"), f"{left}{it['days']} дн.", esc(amount)])
+        html = (f"<h3>💰 Оплаты серверов</h3>"
+                f"{table(['Сервер', 'Провайдер', 'Регион', 'Следующая', 'Осталось', 'Сумма'], rows)}"
+                f"{footer()}")
+        return html, [[B("⬅ Меню", "m"), B("🔄 Обновить", "pay")]]
+
+    def servers_screen(self):
+        rows = []
+        ld = mon.load_snapshot()
+        mem_used = ld["mem_total"] - ld["mem_avail"]
+        mem_pct = mem_used / ld["mem_total"] * 100 if ld["mem_total"] else None
+        disk_pct = ld["disk_used"] / ld["disk_total"] * 100 if ld["disk_total"] else None
+        rows.append(["<b>TR-PILOT-01</b> (Istanbul)",
+                     f"{bar(mem_pct)} {gb(mem_used)}/{gb(ld['mem_total'])}",
+                     f"{bar(disk_pct)} {gb(ld['disk_used'])}/{gb(ld['disk_total'])}"])
+        for srv in REMOTE_SERVERS:
+            m = fetch_remote_metrics(srv["host"], srv["port"])
+            if m is None:
+                rows.append([f"<b>{esc(srv['label'])}</b>", "🔴 недоступен", "—"])
+                continue
+            mu = m["mem_total"] - m["mem_avail"]
+            mp = mu / m["mem_total"] * 100 if m["mem_total"] else None
+            dp = m["disk_used"] / m["disk_total"] * 100 if m["disk_total"] else None
+            rows.append([f"<b>{esc(srv['label'])}</b>",
+                         f"{bar(mp)} {gb(mu)}/{gb(m['mem_total'])}",
+                         f"{bar(dp)} {gb(m['disk_used'])}/{gb(m['disk_total'])}"])
+        html = f"<h3>🖴 Диск и память</h3>{table(['Сервер', 'Память', 'Диск'], rows)}{footer()}"
+        return html, [[B("⬅ Меню", "m"), B("🔄 Обновить", "srv")]]
+
+    def bans_screen(self):
+        bans = active_bans()
+        if not bans:
+            html = "<h3>🚫 Заблокированные адреса</h3><p>Сейчас никто не забанен.</p>" + footer()
+            return html, [[B("⬅ Меню", "m"), B("🔄 Обновить", "bn")]]
+        rows = [[f"<b>{esc(b['ip'])}</b>", b["label"], f"{b['timeout']//60} мин" if b["timeout"] else "?"]
+                for b in bans]
+        html = f"<h3>🚫 Заблокированные адреса</h3>{table(['IP', 'Срок бана', 'Осталось'], rows)}{footer()}"
+        kb = [[B(f"🔓 Снять {b['ip']}", f"ub:{b['ip']}")] for b in bans]
+        kb.append([B("⬅ Меню", "m"), B("🔄 Обновить", "bn")])
+        return html, kb
 
     def audit_screen(self):
         self._need_core()
