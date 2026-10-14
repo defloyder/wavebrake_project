@@ -370,7 +370,8 @@ class _SectionCardState extends State<_SectionCard> {
                         _AutoRow(
                           tag: tag,
                           s: widget.s,
-                          candidates: autoCandidates(data.servers, tag),
+                          candidates: autoCandidates(data.servers, tag,
+                              exclude: data.autoExclude),
                           livePings: _livePings,
                           onSelect: widget.onSelect,
                         ),

@@ -22,6 +22,7 @@ class SubscriptionSectionData {
     this.limitsNote,
     this.supportUrl,
     this.autoTags = const [],
+    this.autoExclude,
   });
 
   final String id;
@@ -52,6 +53,12 @@ class SubscriptionSectionData {
   /// all its servers, a tag ("LTE") among those whose name has it (owner,
   /// 14.10: Happ shows the provider's "Авто выбор" and "Авто выбор LTE").
   final List<String?> autoTags;
+
+  /// Left out of every [autoTags] row's own candidate pool (not just a
+  /// separate tagged row): RU-LTE-01 is its own standalone chain, not one
+  /// of the interchangeable real locations the WAVEBREAK section's plain
+  /// "Auto select" should balance across (owner, 14.10).
+  final String? autoExclude;
 }
 
 /// Stands in for the account's own share code: the share sheet asks Core
@@ -64,7 +71,10 @@ List<SubscriptionSectionData> buildSubscriptionSections({
   required AppStrings s,
   SharingOverview? sharing,
 }) {
-  // Bug 6: no "Auto · Fastest" row — only real locations.
+  // Bug 6 removed the old hardcoded "Auto · Fastest" row; this one (owner,
+  // 14.10) is the real thing, reusing the Auto select machinery built for
+  // third-party subscriptions — across the real WAVEBREAK locations only,
+  // not RU-LTE-01 (its own standalone chain, excluded via autoExclude).
   final wavebreakServers = [...wavebreakLocations];
   final own = sharing?.own;
   return [
@@ -82,6 +92,8 @@ List<SubscriptionSectionData> buildSubscriptionSections({
       shareable: false,
       limitsTraffic: own == null ? null : _trafficLine(own, s),
       limitsDevices: own == null ? null : _deviceLine(own),
+      autoTags: autoTagsFor(wavebreakServers, exclude: 'LTE'),
+      autoExclude: 'LTE',
     ),
     for (final g in customGroups) _sectionFor(g, s, sharing),
   ];
@@ -111,26 +123,39 @@ SubscriptionSectionData _sectionFor(
   );
 }
 
-/// See [SubscriptionSectionData.autoTags]: all servers when two or more
-/// run here, and "LTE" when two or more of those are marked for it.
-List<String?> autoTagsFor(List<LocationItem> servers) {
-  final ok = servers.where((s) => s.available && s.rawLink != null).toList();
+bool _nameHas(LocationItem s, String tag) =>
+    '${s.country} ${s.city}'.toUpperCase().contains(tag.toUpperCase());
+
+/// See [SubscriptionSectionData.autoTags]: all eligible servers when two or
+/// more run here (minus [exclude], e.g. "LTE" — a standalone location that
+/// doesn't belong in the "all" row's own candidate pool either), and a tag
+/// when two or more of those are marked for it.
+List<String?> autoTagsFor(List<LocationItem> servers, {String? exclude}) {
+  final ok = servers
+      .where((s) =>
+          s.available &&
+          s.rawLink != null &&
+          (exclude == null || !_nameHas(s, exclude)))
+      .toList();
   if (ok.length < 2) return const [];
-  bool tagged(LocationItem s, String tag) =>
-      '${s.country} ${s.city}'.toUpperCase().contains(tag);
   return [
     null,
-    if (ok.where((s) => tagged(s, 'LTE')).length >= 2) 'LTE',
+    if (ok.where((s) => _nameHas(s, 'LTE')).length >= 2) 'LTE',
   ];
 }
 
-/// The servers an "auto select" row picks from.
-List<LocationItem> autoCandidates(List<LocationItem> servers, String? tag) => [
+/// The servers an "auto select" row picks from: [tag] narrows to a subset
+/// ("LTE"), [exclude] drops one out of every row's pool regardless of tag
+/// (RU-LTE-01 out of the WAVEBREAK section's plain "Auto select" — it's its
+/// own standalone chain, not interchangeable with the others).
+List<LocationItem> autoCandidates(List<LocationItem> servers, String? tag,
+        {String? exclude}) =>
+    [
       for (final s in servers)
         if (s.available &&
             s.rawLink != null &&
-            (tag == null ||
-                '${s.country} ${s.city}'.toUpperCase().contains(tag)))
+            (tag == null || _nameHas(s, tag)) &&
+            (exclude == null || !_nameHas(s, exclude)))
           s,
     ];
 
