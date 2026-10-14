@@ -43,6 +43,15 @@ class ErrorMapper {
       final status = error.response?.statusCode;
       final text = _extractText(error.response?.data);
 
+      // Core answers every error in JSON. A 401/403 page that isn't JSON
+      // came from something in between — Cloudflare's check on `api.`
+      // after the IP changed, a relay — and must never read as "session
+      // rejected": the owner's colleague was signed out on the PC right
+      // after turning the VPN off (13.10).
+      if ((status == 401 || status == 403) && !_isJson(error.response)) {
+        return AppException(AppErrorKind.unavailable, statusCode: status);
+      }
+
       if (status == 401) {
         // login/register/refresh never send an Authorization header — a
         // 401 from one of those can only mean bad credentials, never an
@@ -171,6 +180,15 @@ class ErrorMapper {
   /// Both `code` and `error` fields, lowercased and concatenated, so a
   /// single `.contains(...)` check matches whichever field actually
   /// carries the useful text.
+  /// A body Core wrote: decoded JSON, or a JSON content type.
+  bool _isJson(Response<dynamic>? response) {
+    if (response == null) return false;
+    final data = response.data;
+    if (data is Map || data is List) return true;
+    final type = response.headers.value(Headers.contentTypeHeader) ?? '';
+    return type.contains('json');
+  }
+
   String _extractText(dynamic data) {
     if (data is! Map) return '';
     final code = data['code'];
