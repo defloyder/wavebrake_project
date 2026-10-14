@@ -1,7 +1,7 @@
 {
   "expectedCertSha256": "d0d706bf9211d6a4c50e6a86742a2452eee650f0f3a4db5d5463a24b63cc57b6",
   "android": {
-    "maxCode": 72,
+    "maxCode": 74,
     "releases": [
       {
         "name": "1.3.5",
@@ -105,7 +105,7 @@
     ]
   },
   "windows": {
-    "maxCode": 38,
+    "maxCode": 40,
     "releases": [
       {
         "name": "1.0.16",
