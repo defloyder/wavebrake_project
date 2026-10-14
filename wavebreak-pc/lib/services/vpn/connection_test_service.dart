@@ -70,7 +70,8 @@ class ConnectionTestService {
     // internet" for whatever tries to connect next. A short, hard cap
     // keeps a stuck attempt from ever running that long regardless of
     // what Core reports.
-    final timeoutMs = (location.connectionTest?.timeoutMs ?? 4000).clamp(1000, 4000);
+    final timeoutMs =
+        (location.connectionTest?.timeoutMs ?? 4000).clamp(1000, 4000);
 
     // On Android, while a tunnel is up, a plain dart:io socket to the
     // node's own host:port gets captured into that SAME tunnel (Android's
@@ -103,7 +104,8 @@ class ConnectionTestService {
     final stopwatch = Stopwatch()..start();
     Socket? socket;
     try {
-      socket = await Socket.connect(host, port, timeout: Duration(milliseconds: timeoutMs));
+      socket = await Socket.connect(host, port,
+          timeout: Duration(milliseconds: timeoutMs));
       stopwatch.stop();
       return stopwatch.elapsedMilliseconds;
     } catch (_) {
@@ -126,7 +128,39 @@ class ConnectionTestService {
   /// way. Null when no tunnel is up or the probe fails.
   Future<int?> measureTunnelLatency() async {
     if (!Platform.isWindows) return null;
-    return clashTunnelLatency();
+    // sing-box's own delay test; when it has no answer (the Xray engine
+    // has no Clash API, owner 14.10: no ping with Hysteria2), a plain
+    // request from this app — whose traffic runs through the tunnel too.
+    return await clashTunnelLatency() ?? await _http204Latency();
+  }
+
+  /// Round trip of a tiny request to Google's 204 check, the faster of
+  /// two (the first may include DNS). Null when it doesn't answer.
+  Future<int?> _http204Latency() async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 4)
+      ..findProxy = (_) => 'DIRECT';
+    int? best;
+    try {
+      for (var i = 0; i < 2; i++) {
+        final watch = Stopwatch()..start();
+        final request = await client.headUrl(
+            Uri.parse('http://connectivitycheck.gstatic.com/generate_204'));
+        request.persistentConnection = false;
+        final response =
+            await request.close().timeout(const Duration(seconds: 5));
+        await response.drain<void>();
+        watch.stop();
+        if (response.statusCode != 204) continue;
+        final ms = watch.elapsedMilliseconds;
+        if (best == null || ms < best) best = ms;
+      }
+    } catch (_) {
+      // No answer: keep whatever the first try measured.
+    } finally {
+      client.close(force: true);
+    }
+    return best;
   }
 
   /// Latency for [location]: through the tunnel when it is the connected
@@ -150,10 +184,13 @@ class ConnectionTestService {
   try {
     if (scheme == 'vmess') {
       final b64 = trimmed.substring('vmess://'.length).split('#').first;
-      final json = jsonDecode(utf8.decode(base64.decode(base64.normalize(b64)))) as Map<String, dynamic>;
+      final json = jsonDecode(utf8.decode(base64.decode(base64.normalize(b64))))
+          as Map<String, dynamic>;
       final host = json['add'] as String?;
       final port = int.tryParse('${json['port']}');
-      if (host == null || host.isEmpty || port == null || port <= 0) return null;
+      if (host == null || host.isEmpty || port == null || port <= 0) {
+        return null;
+      }
       return (host, port);
     }
     final uri = Uri.parse(trimmed);
