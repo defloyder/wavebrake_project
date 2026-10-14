@@ -16,10 +16,21 @@ import 'package:package_info_plus/package_info_plus.dart';
 ///
 /// The Moscow mirror (dl.) first: a Russian IP that Russian carriers
 /// don't throttle, carrying the same manifest; the site is the fallback.
-const _versionCheckUrls = [
+const _phoneManifests = [
   'https://dl.wavebreak.com.tr/downloads/version.json',
   'https://wavebreak.com.tr/downloads/version.json',
 ];
+
+/// The TV build is its own package (`.tv`) with its own numbers and its
+/// own manifest: the phone's APK is never offered to it (owner, 14.10: the
+/// TV needs the same updates as the phone and the PC).
+const _tvManifests = [
+  'https://dl.wavebreak.com.tr/downloads/version-tv.json',
+  'https://wavebreak.com.tr/downloads/version-tv.json',
+];
+
+List<String> get _versionCheckUrls =>
+    AppEnv.isTv ? _tvManifests : _phoneManifests;
 
 /// Real-device complaint this fixes: the update badge/notification only
 /// ever appeared right after a cold start (or a manual "Check for
@@ -226,8 +237,6 @@ Future<({bool checked, UpdateInfo? update})> _checkOnce() async {
 /// a StreamProvider restarts its whole async* body, which re-yields
 /// immediately and resumes the same polling cadence from there.
 final availableUpdateProvider = StreamProvider<UpdateInfo?>((ref) {
-  // The TV build is its own package: the phone's APK is never offered.
-  if (AppEnv.isTv) return Stream.value(null);
   final controller = StreamController<UpdateInfo?>();
   Timer? timer;
   var running = false;
