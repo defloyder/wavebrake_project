@@ -2,7 +2,9 @@ import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/i18n/app_strings.dart';
 import '../../core/theme/wb_colors.dart';
@@ -13,6 +15,8 @@ import '../home/location_bar.dart';
 import 'flag_icon.dart';
 import '../immersive/immersive_colors.dart';
 import 'share_subscription_sheet.dart';
+import 'notice.dart';
+import 'subscription_section.dart';
 import 'wave_params.dart';
 
 /// The server list of the Servers tab: one expandable card per
@@ -354,6 +358,22 @@ class _SectionCardState extends State<_SectionCard> {
                 ? Column(
                     children: [
                       const Divider(height: 1, color: WbColors.ice08),
+                      if (data.isCustom &&
+                          (data.supportUrl != null ||
+                              (data.shareLink != null && data.shareable)))
+                        _ProviderActions(
+                          s: widget.s,
+                          supportUrl: data.supportUrl,
+                          link: data.shareable ? data.shareLink : null,
+                        ),
+                      for (final tag in data.autoTags)
+                        _AutoRow(
+                          tag: tag,
+                          s: widget.s,
+                          candidates: autoCandidates(data.servers, tag),
+                          livePings: _livePings,
+                          onSelect: widget.onSelect,
+                        ),
                       for (final place in section.places)
                         _PlaceRow(
                           place: place,
@@ -676,6 +696,210 @@ class _ProtocolChip extends StatelessWidget {
               color: selected ? Ic.text : Ic.textMuted,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A third-party provider's own buttons: its support (Telegram bot, page)
+/// and copying the subscription link — like Happ's, without the clutter.
+class _ProviderActions extends StatelessWidget {
+  const _ProviderActions({required this.s, this.supportUrl, this.link});
+
+  final AppStrings s;
+  final String? supportUrl;
+  final String? link;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+      child: Row(
+        children: [
+          if (supportUrl != null)
+            Expanded(
+              child: _PillButton(
+                icon: Icons.support_agent_rounded,
+                label: s.providerSupport,
+                onTap: () => launchUrl(Uri.parse(supportUrl!),
+                    mode: LaunchMode.externalApplication),
+              ),
+            ),
+          if (supportUrl != null && link != null) const SizedBox(width: 8),
+          if (link != null)
+            Expanded(
+              child: _PillButton(
+                icon: Icons.copy_rounded,
+                label: s.copyLink,
+                onTap: () async {
+                  await Clipboard.setData(ClipboardData(text: link!));
+                  showNotice(s.linkCopied, kind: NoticeKind.success);
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PillButton extends StatelessWidget {
+  const _PillButton(
+      {required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Ic.text.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Ic.glassBorder),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: context.accent),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(label,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w500)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Auto select" (and "Auto select LTE"): pings its servers and connects to
+/// the fastest — the provider's own "Авто выбор" that Happ shows, done here
+/// since the plain link list carries no such entry.
+class _AutoRow extends StatefulWidget {
+  const _AutoRow({
+    required this.tag,
+    required this.s,
+    required this.candidates,
+    required this.livePings,
+    required this.onSelect,
+  });
+
+  final String? tag;
+  final AppStrings s;
+  final List<LocationItem> candidates;
+  final Map<String, int?> livePings;
+  final ValueChanged<LocationItem> onSelect;
+
+  @override
+  State<_AutoRow> createState() => _AutoRowState();
+}
+
+class _AutoRowState extends State<_AutoRow> {
+  static const _pingService = ConnectionTestService();
+  bool _busy = false;
+
+  (LocationItem, int)? get _best {
+    (LocationItem, int)? best;
+    for (final c in widget.candidates) {
+      final ms = widget.livePings[c.id];
+      if (ms != null && (best == null || ms < best.$2)) best = (c, ms);
+    }
+    return best;
+  }
+
+  Future<void> _pick() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final pings = await Future.wait(widget.candidates.map((c) async =>
+          widget.livePings[c.id] ?? await _pingService.testLocation(c)));
+      LocationItem? best;
+      int? bestMs;
+      for (var i = 0; i < pings.length; i++) {
+        final ms = pings[i];
+        if (ms != null && (bestMs == null || ms < bestMs)) {
+          best = widget.candidates[i];
+          bestMs = ms;
+        }
+      }
+      if (best != null) widget.onSelect(best);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _place(LocationItem l) => l.city.isNotEmpty && l.city != l.country
+      ? '${l.country} · ${l.city}'
+      : l.country;
+
+  @override
+  Widget build(BuildContext context) {
+    final best = _best;
+    final title = widget.tag == null
+        ? widget.s.autoSelect
+        : '${widget.s.autoSelect} ${widget.tag}';
+    final subtitle = best == null
+        ? widget.s.autoSelectHint
+        : '${_place(best.$1)} · ${best.$2} ${widget.s.unitMs}';
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _pick,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 22,
+                child: Icon(
+                    widget.tag == null
+                        ? Icons.auto_awesome_rounded
+                        : Icons.network_cell_rounded,
+                    color: context.accent,
+                    size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            color: WbColors.ice60, fontSize: 12),
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 28,
+                child: _busy
+                    ? const Padding(
+                        padding: EdgeInsets.all(5),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.bolt_rounded,
+                        color: WbColors.ice60, size: 18),
+              ),
+            ],
           ),
         ),
       ),

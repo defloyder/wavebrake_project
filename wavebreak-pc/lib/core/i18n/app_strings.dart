@@ -280,6 +280,9 @@ class AppStrings {
     required this.locationsWord,
     required this.shareSubscription,
     required this.copyLink,
+    required this.providerSupport,
+    required this.autoSelect,
+    required this.autoSelectHint,
     required this.linkCopied,
     required this.shareScanHint,
     required this.shareDevices,
@@ -828,6 +831,9 @@ class AppStrings {
   final String locationsWord;
   final String shareSubscription;
   final String copyLink;
+  final String providerSupport;
+  final String autoSelect;
+  final String autoSelectHint;
   final String linkCopied;
   final String shareScanHint;
   final String shareDevices;
@@ -1171,6 +1177,9 @@ const kEnglishStrings = AppStrings(
   locationsWord: 'locations',
   shareSubscription: 'Share',
   copyLink: 'Copy link',
+  providerSupport: 'Support',
+  autoSelect: 'Auto select',
+  autoSelectHint: 'The server with the best ping',
   linkCopied: 'Link copied',
   shareScanHint:
       'Works in WAVEBREAK and other apps (Happ, v2RayTun, Hiddify). Every device takes a place in the subscription',
@@ -1609,6 +1618,9 @@ const kRussianStrings = AppStrings(
   locationsWord: 'локаций',
   shareSubscription: 'Поделиться',
   copyLink: 'Скопировать ссылку',
+  providerSupport: 'Поддержка',
+  autoSelect: 'Автовыбор',
+  autoSelectHint: 'Сервер с лучшим пингом',
   linkCopied: 'Ссылка скопирована',
   shareScanHint:
       'Подходит для WAVEBREAK и других приложений (Happ, v2RayTun, Hiddify). Каждое устройство занимает место в подписке',
@@ -2049,6 +2061,9 @@ const kSpanishStrings = AppStrings(
   locationsWord: 'ubicaciones',
   shareSubscription: 'Compartir',
   copyLink: 'Copiar enlace',
+  providerSupport: 'Soporte',
+  autoSelect: 'Selección automática',
+  autoSelectHint: 'El servidor con mejor ping',
   linkCopied: 'Enlace copiado',
   shareScanHint:
       'Sirve en WAVEBREAK y otras apps (Happ, v2RayTun, Hiddify). Cada dispositivo ocupa un lugar en la suscripción',
@@ -2495,6 +2510,9 @@ const kGermanStrings = AppStrings(
   locationsWord: 'Standorte',
   shareSubscription: 'Teilen',
   copyLink: 'Link kopieren',
+  providerSupport: 'Support',
+  autoSelect: 'Automatisch wählen',
+  autoSelectHint: 'Der Server mit dem besten Ping',
   linkCopied: 'Link kopiert',
   shareScanHint:
       'Funktioniert in WAVEBREAK und anderen Apps (Happ, v2RayTun, Hiddify). Jedes Gerät belegt einen Platz im Abo',
@@ -2940,6 +2958,9 @@ const kFrenchStrings = AppStrings(
   locationsWord: 'emplacements',
   shareSubscription: 'Partager',
   copyLink: 'Copier le lien',
+  providerSupport: 'Assistance',
+  autoSelect: 'Choix automatique',
+  autoSelectHint: 'Le serveur au meilleur ping',
   linkCopied: 'Lien copié',
   shareScanHint:
       "Fonctionne dans WAVEBREAK et d'autres apps (Happ, v2RayTun, Hiddify). Chaque appareil occupe une place de l'abonnement",
@@ -3381,6 +3402,9 @@ const kPortugueseStrings = AppStrings(
   locationsWord: 'locais',
   shareSubscription: 'Compartilhar',
   copyLink: 'Copiar link',
+  providerSupport: 'Suporte',
+  autoSelect: 'Seleção automática',
+  autoSelectHint: 'O servidor com o melhor ping',
   linkCopied: 'Link copiado',
   shareScanHint:
       'Funciona no WAVEBREAK e em outros apps (Happ, v2RayTun, Hiddify). Cada dispositivo ocupa um lugar na assinatura',
@@ -3820,6 +3844,9 @@ const kTurkishStrings = AppStrings(
   locationsWord: 'konum',
   shareSubscription: 'Paylaş',
   copyLink: 'Bağlantıyı kopyala',
+  providerSupport: 'Destek',
+  autoSelect: 'Otomatik seçim',
+  autoSelectHint: 'Pingi en düşük sunucu',
   linkCopied: 'Bağlantı kopyalandı',
   shareScanHint:
       'WAVEBREAK ve diğer uygulamalarda çalışır (Happ, v2RayTun, Hiddify). Her cihaz abonelikte bir yer kaplar',

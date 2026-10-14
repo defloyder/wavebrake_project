@@ -160,3 +160,54 @@ String decodeNodeName(String fragment) {
     return text;
   }
 }
+
+/// The provider's support contact: a `t.me/…` or https link in one of its
+/// note entries (net4.su: "➡️t.me/Strelka_vpn_bot"), as an https URL.
+String? subscriptionSupportUrl(ParsedSubscription parsed) {
+  for (final link in parsed.links) {
+    final uri = Uri.tryParse(link);
+    if (uri == null || !isInfoPlaceholder(uri) || uri.fragment.isEmpty) {
+      continue;
+    }
+    final url = supportUrlIn(decodeNodeName(uri.fragment));
+    if (url != null) return url;
+  }
+  return null;
+}
+
+/// An https link in [text] ("t.me/x" counts), or null.
+String? supportUrlIn(String text) {
+  final m =
+      RegExp(r'(https?://\S+|t\.me/[A-Za-z0-9_+/]+)', caseSensitive: false)
+          .firstMatch(text);
+  if (m == null) return null;
+  final raw = m.group(1)!;
+  return raw.toLowerCase().startsWith('http') ? raw : 'https://$raw';
+}
+
+/// A note for a header line: without its leading emoji and colon spacing
+/// ("📆 Осталось: 6 дней" → "Осталось 6 дней").
+String shortNote(String note) => note
+    .replaceAll(RegExp(r'[^\p{L}\p{N}\s/.,:+\-%()]', unicode: true), '')
+    .replaceAll(':', '')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
+/// A provider's name from its Telegram bot when it sends no
+/// `profile-title` ("https://t.me/Strelka_vpn_bot" → "Strelka VPN").
+String? providerNameFromSupport(String? supportUrl) {
+  if (supportUrl == null) return null;
+  final m = RegExp(r't\.me/([A-Za-z0-9_]+)', caseSensitive: false)
+      .firstMatch(supportUrl);
+  if (m == null) return null;
+  var handle =
+      m.group(1)!.replaceAll(RegExp(r'_?bot$', caseSensitive: false), '');
+  final words = [
+    for (final w in handle.split('_'))
+      if (w.isNotEmpty)
+        w.toLowerCase() == 'vpn'
+            ? 'VPN'
+            : w[0].toUpperCase() + w.substring(1).toLowerCase(),
+  ];
+  return words.isEmpty ? null : words.join(' ');
+}

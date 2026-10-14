@@ -122,10 +122,8 @@ NodeLabel parseNodeLabel(String label) {
     // With a country found the name is structured: protocol words inside
     // a group go too ("Germany VLESS Reality"); a free name ("TUIC node")
     // stays whole.
-    final words = t
-        .split(' ')
-        .where((w) => code == null || !_isProtocolWord(w))
-        .toList();
+    final words =
+        t.split(' ').where((w) => code == null || !_isProtocolWord(w)).toList();
     numbers.addAll(
         words.where(_isNumber).map((w) => w.replaceAll(RegExp('[#№]'), '')));
     final text = words.where((w) => !_isNumber(w)).join(' ').trim();

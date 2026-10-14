@@ -116,7 +116,10 @@ vless://$id@203.0.113.8:443?security=reality&sni=www.example.org&pbk=AAAAAAAAAAA
       customGroups: [group],
       s: kRussianStrings,
     ).last;
-    expect(section.limitsTraffic,
-        '📆 Осталось: 6 дней · 🟢 Остаток трафика LTE: 80/80GB');
+    expect(section.limitsTraffic, 'Осталось 6 дней · Остаток трафика LTE 80/80GB');
+    expect(group.supportUrl, 'https://t.me/Example_vpn_bot');
+    expect(group.name, 'Example VPN');
+    expect(section.supportUrl, 'https://t.me/Example_vpn_bot');
+    expect(section.autoTags, [null]);
   });
 }

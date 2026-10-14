@@ -12,6 +12,8 @@ import 'package:wavebreak_links/wavebreak_links.dart'
         TunnelEngine,
         parseShareLink,
         parseSubscription,
+        ParsedSubscription,
+        SubscriptionFormat,
         parseUpdateIntervalHours;
 
 import '../../core/errors/app_exception.dart';
@@ -260,9 +262,12 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     if (servers.isEmpty) return null;
     final info = SubscriptionUserInfo.parse(
         fetched.headers.value('subscription-userinfo'));
+    final support = supportUrlIn(fetched.headers.value('support-url') ?? '') ??
+        subscriptionSupportUrl(parsed);
     return CustomSubscriptionGroup(
       id: id,
       name: decodeProfileTitle(fetched.headers.value('profile-title')) ??
+          providerNameFromSupport(support) ??
           uri.host,
       sourceLink: link,
       servers: servers,
@@ -273,6 +278,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
           fetched.headers.value('profile-update-interval')),
       updatedAt: now ?? DateTime.now(),
       notes: subscriptionNotes(parsed),
+      supportUrl: support,
     );
   }
 
@@ -448,6 +454,7 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
               if (g.updatedAt != null)
                 'updated': g.updatedAt!.toIso8601String(),
               if (g.notes.isNotEmpty) 'notes': g.notes,
+              if (g.supportUrl != null) 'support': g.supportUrl,
               'servers': g.servers
                   .map((s) => {
                         'id': s.id,
@@ -464,8 +471,20 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
   }
 
   CustomSubscriptionGroup _fromStored(Map<String, dynamic> json) {
+    // Saved before 13.10: a provider's note entries ("Осталось: 6 дней",
+    // its bot) were kept as servers. Turned back into notes here, not
+    // only on the next refresh hours later.
+    final storedLinks = [
+      for (final s in (json['servers'] as List? ?? []).whereType<Map>())
+        if (s['link'] is String) s['link'] as String,
+    ];
+    final placeholders = ParsedSubscription(SubscriptionFormat.shareLinks, [
+      for (final l in storedLinks)
+        if (Uri.tryParse(l) case final u? when isInfoPlaceholder(u)) l,
+    ]);
     final servers = (json['servers'] as List? ?? [])
         .whereType<Map>()
+        .where((s) => !placeholders.links.contains(s['link']))
         .map((s) => LocationItem(
               id: s['id'] as String,
               countryCode: (s['flag'] ?? '').toString(),
@@ -487,9 +506,11 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
       expiresAt: DateTime.tryParse((json['expire'] ?? '').toString()),
       updateIntervalHours: (json['interval'] as num?)?.toInt(),
       updatedAt: DateTime.tryParse((json['updated'] ?? '').toString()),
-      notes: [
-        for (final n in (json['notes'] as List? ?? const [])) n.toString(),
-      ],
+      notes: json['notes'] is List
+          ? [for (final n in json['notes'] as List) n.toString()]
+          : subscriptionNotes(placeholders),
+      supportUrl:
+          (json['support'] as String?) ?? subscriptionSupportUrl(placeholders),
     );
   }
 }

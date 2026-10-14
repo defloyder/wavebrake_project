@@ -16,6 +16,7 @@ class CustomSubscriptionGroup {
     this.updateIntervalHours,
     this.updatedAt,
     this.notes = const [],
+    this.supportUrl,
   });
 
   final String id;
@@ -49,6 +50,10 @@ class CustomSubscriptionGroup {
   /// What the provider says about the subscription in place of servers
   /// ("📆 Осталось: 6 дней"), see `subscriptionNotes`.
   final List<String> notes;
+
+  /// The provider's support contact (its `support-url` header, or a
+  /// t.me link in its note entries).
+  final String? supportUrl;
 
   bool get isSubscriptionUrl =>
       sourceLink.startsWith('http://') || sourceLink.startsWith('https://');

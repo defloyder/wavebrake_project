@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../services/core_api/models.dart';
 import '../../services/custom_servers/custom_subscription.dart';
+import '../../services/custom_servers/share_link_parsing.dart' show shortNote;
 import 'traffic_format.dart';
 
 class SubscriptionSectionData {
@@ -19,6 +20,8 @@ class SubscriptionSectionData {
     this.limitsTraffic,
     this.limitsDevices,
     this.limitsNote,
+    this.supportUrl,
+    this.autoTags = const [],
   });
 
   final String id;
@@ -41,6 +44,14 @@ class SubscriptionSectionData {
   final String? limitsTraffic;
   final String? limitsDevices;
   final String? limitsNote;
+
+  /// A third-party provider's support contact (button in the section).
+  final String? supportUrl;
+
+  /// "Auto select" rows for a third-party subscription: null picks among
+  /// all its servers, a tag ("LTE") among those whose name has it (owner,
+  /// 14.10: Happ shows the provider's "Авто выбор" and "Авто выбор LTE").
+  final List<String?> autoTags;
 }
 
 /// Stands in for the account's own share code: the share sheet asks Core
@@ -95,8 +106,33 @@ SubscriptionSectionData _sectionFor(
         ? _trafficLine(received, s)
         : _providerLine(g, s),
     limitsDevices: received != null && !inactive ? _deviceLine(received) : null,
+    supportUrl: g.supportUrl,
+    autoTags: autoTagsFor(g.servers),
   );
 }
+
+/// See [SubscriptionSectionData.autoTags]: all servers when two or more
+/// run here, and "LTE" when two or more of those are marked for it.
+List<String?> autoTagsFor(List<LocationItem> servers) {
+  final ok = servers.where((s) => s.available && s.rawLink != null).toList();
+  if (ok.length < 2) return const [];
+  bool tagged(LocationItem s, String tag) =>
+      '${s.country} ${s.city}'.toUpperCase().contains(tag);
+  return [
+    null,
+    if (ok.where((s) => tagged(s, 'LTE')).length >= 2) 'LTE',
+  ];
+}
+
+/// The servers an "auto select" row picks from.
+List<LocationItem> autoCandidates(List<LocationItem> servers, String? tag) => [
+      for (final s in servers)
+        if (s.available &&
+            s.rawLink != null &&
+            (tag == null ||
+                '${s.country} ${s.city}'.toUpperCase().contains(tag)))
+          s,
+    ];
 
 /// Our own section's title: the plan ("WAVEBREAK Fleet"), not a fixed name.
 String wavebreakSectionTitle(String? planName) {
@@ -125,7 +161,8 @@ String? _providerLine(CustomSubscriptionGroup g, AppStrings s,
           .replaceAll('{date}', _date(g.expiresAt!.toLocal())),
     // No header: what the provider wrote in its note entries instead
     // ("📆 Осталось: 6 дней · 🟢 Остаток трафика LTE: 80/80GB").
-    if (g.usedBytes == null && g.expiresAt == null) ...g.notes,
+    if (g.usedBytes == null && g.expiresAt == null)
+      for (final n in g.notes) shortNote(n),
   ];
   return parts.isEmpty ? null : parts.join(' · ');
 }
