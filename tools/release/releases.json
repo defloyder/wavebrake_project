@@ -119,6 +119,17 @@
     "maxCode": 42,
     "releases": [
       {
+        "name": "1.0.17",
+        "code": 41,
+        "commit": "fd189fc",
+        "rollback": {
+          "name": "1.0.16",
+          "code": 42,
+          "commit": "aff9d2c"
+        },
+        "published": "2026-10-14"
+      },
+      {
         "name": "1.0.16",
         "code": 37,
         "commit": "aff9d2c",
