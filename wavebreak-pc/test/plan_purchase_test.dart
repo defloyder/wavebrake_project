@@ -54,6 +54,8 @@ void main() {
     const s = kEnglishStrings;
     expect(find.text('9 \$'), findsOneWidget);
 
+    await tester.tap(find.text(s.promoHave));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'spring 20');
     await tester.tap(find.text(s.promoApply));
     await tester.pumpAndSettle();
@@ -71,6 +73,9 @@ void main() {
     await open(tester);
     const s = kEnglishStrings;
 
+    // The field opens from the last row of the plans block.
+    await tester.tap(find.text(s.promoHave));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'NOPE');
     await tester.tap(find.text(s.promoApply));
     await tester.pumpAndSettle();
