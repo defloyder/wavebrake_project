@@ -1,7 +1,9 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 
 import '../../core/theme/wb_colors.dart';
 
@@ -68,35 +70,34 @@ String _formatAnimatedMbps(double value) =>
     value.toStringAsFixed(value >= 100 ? 0 : 1);
 
 class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 8),
-  )..repeat();
+  // One frame clock for the whole simulation: the water moves on real
+  // elapsed time, never only when a new speed sample arrives.
+  late final Ticker _ticker = createTicker(_tick);
+  Duration? _lastElapsed;
+
+  final _water = _WaterSim();
 
   double _animatedFraction = 0;
 
-  // 0..1: how strongly water pours in from the top-left corner (owner,
-  // 13.10: "as if water were poured into the cube from its top-left
-  // corner"). Eases in when a test starts and out when it ends.
+  // 0..1: how strongly water pours in from the top-left corner. Eases in
+  // when a test starts and dries up when it ends.
   double _pour = 0;
-  double? _lastFrameSeconds;
-  double _spawnAccumulator = 0;
-  final math.Random _rng = math.Random(1337);
 
-  // Reused pool, never recreated per frame — advanced in build()'s
-  // AnimatedBuilder alongside the fraction catch-up, same "spawn while
-  // running, let existing drops finish their arc" pattern the panel used
-  // before this widget carried it.
-  final List<_FoamDrop> _foam = List.generate(10, (_) => _FoamDrop());
+  // Reduce motion: the water stays still (read in build, not per tick).
+  bool _still = false;
 
-  // A short, one-shot "just finished" pulse — separate from the
-  // continuous wave motion above, this is what makes `done` read as a
-  // distinct EVENT (a settle/confirm moment) rather than the wave simply
-  // stopping. Triggered once per done/failed transition, not repeated.
+  // A short, one-shot "just finished" pulse — makes `done` read as an
+  // event rather than the water simply going still.
   late final AnimationController _settleController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 700),
   );
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker.start();
+  }
 
   @override
   void didUpdateWidget(covariant WaveMeter oldWidget) {
@@ -106,13 +107,7 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
             widget.visualState != WaveMeterVisualState.running;
     if (justFinished) {
       _settleController.forward(from: 0);
-      // The catch-up animation is deliberately still mid-chase most of
-      // the time a real sample arrives (that's what makes it read as
-      // continuous motion) — but the FINAL result has to be exact, not
-      // wherever an asymptotic catch-up happened to be sitting the
-      // instant the test ended. Snap straight to the real value the
-      // moment a leg actually finishes rather than trusting the catch-up
-      // to have fully converged by then.
+      // The final result is exact, not wherever the easing happened to be.
       _animatedFraction = (widget.valueMbps / widget.maxMbps).clamp(0.0, 1.0);
     }
     if (widget.visualState == WaveMeterVisualState.idle &&
@@ -124,97 +119,69 @@ class _WaveMeterState extends State<WaveMeter> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _ticker.dispose();
     _settleController.dispose();
     super.dispose();
+  }
+
+  void _tick(Duration elapsed) {
+    final dt = _lastElapsed == null
+        ? 1 / 60
+        : ((elapsed - _lastElapsed!).inMicroseconds / 1e6).clamp(0.0, 0.05);
+    _lastElapsed = elapsed;
+    final running = widget.visualState == WaveMeterVisualState.running;
+    final target = widget.visualState == WaveMeterVisualState.idle
+        ? 0.0
+        : (widget.valueMbps / widget.maxMbps).clamp(0.0, 1.0);
+    // Frame-rate independent easing toward the reading and the pour.
+    _animatedFraction +=
+        (target - _animatedFraction) * (1 - math.pow(0.92, dt * 60));
+    _pour += ((running ? 1.0 : 0.0) - _pour) *
+        (1 - math.pow(running ? 0.94 : 0.965, dt * 60));
+    _water.step(
+      _still ? 0 : dt,
+      level: _animatedFraction,
+      pour: _pour,
+      running: running,
+    );
+    if (mounted) setState(() {});
   }
 
   Color get _tint => switch (widget.visualState) {
         WaveMeterVisualState.idle => WbColors.ice60,
         WaveMeterVisualState.running => context.accent,
-        // Deliberately a different hue from the running state's cyan —
-        // "the number stopped changing" isn't enough on its own to read
-        // as done; a genuinely different color is (see class doc).
+        // Done reads as a different hue, not just "the number stopped".
         WaveMeterVisualState.done => WbColors.oceanTeal,
         WaveMeterVisualState.failed => WbColors.error,
       };
 
-  bool get _calm => widget.visualState != WaveMeterVisualState.running;
-
   @override
   Widget build(BuildContext context) {
-    final target = widget.visualState == WaveMeterVisualState.idle
-        ? 0.0
-        : (widget.valueMbps / widget.maxMbps).clamp(0.0, 1.0);
-
+    _still = MediaQuery.disableAnimationsOf(context);
+    // The number reads off the same eased fraction the water level does,
+    // so both move together.
+    final numberText = widget.visualState == WaveMeterVisualState.idle
+        ? '–'
+        : _formatAnimatedMbps(_animatedFraction * widget.maxMbps);
     return AnimatedBuilder(
-      animation: Listenable.merge([_controller, _settleController]),
-      builder: (context, _) {
-        // Exponential catch-up toward the target every frame (~60x/sec)
-        // rather than a fixed-duration tween restarted on every sample —
-        // a burst of quick samples just keeps nudging this smoothly
-        // instead of each one cutting off the previous animation.
-        _animatedFraction += (target - _animatedFraction) * 0.08;
-        final pouring = widget.visualState == WaveMeterVisualState.running;
-        _pour += ((pouring ? 1.0 : 0.0) - _pour) * (pouring ? 0.06 : 0.04);
-        final nowSeconds = DateTime.now().millisecondsSinceEpoch / 1000;
-        final dt = (_lastFrameSeconds == null
-                ? 1 / 60
-                : nowSeconds - _lastFrameSeconds!)
-            .clamp(0.0, 0.25);
-        _lastFrameSeconds = nowSeconds;
-        if (widget.visualState == WaveMeterVisualState.running) {
-          _spawnAccumulator += dt * (1.0 + _animatedFraction * 7);
-          while (_spawnAccumulator >= 1) {
-            _spawnAccumulator -= 1;
-            for (final drop in _foam) {
-              if (drop.t >= 1) {
-                drop.respawn(_rng, _WaveMeterPainter.impactX(_animatedFraction),
-                    1 - _animatedFraction);
-                break;
-              }
-            }
-          }
-        }
-        for (final drop in _foam) {
-          drop.advance(dt);
-        }
-        // The displayed number reads off this SAME animated fraction,
-        // not the raw widget.valueMbps directly — that used to be the
-        // actual bug behind "the numbers jump around chaotically": the
-        // fill level was smoothed, but the number sat on this widget's
-        // `child:` (a static subtree AnimatedBuilder deliberately never
-        // rebuilds per-frame) reading the un-animated value straight
-        // through, so it hard-cut to every new sample while the wave
-        // eased. Computing it here means both move together, at the
-        // same rate, off the same number. (No `child:` optimization
-        // here as a result — the center content genuinely does need to
-        // rebuild every frame for this to work; a single dedicated
-        // full-screen meter is exactly the case where that cost is
-        // fine, unlike a widget instantiated per list row.)
-        final numberText = widget.visualState == WaveMeterVisualState.idle
-            ? '–'
-            : _formatAnimatedMbps(_animatedFraction * widget.maxMbps);
-        return CustomPaint(
-          painter: _WaveMeterPainter(
-            fraction: _animatedFraction,
-            time: nowSeconds,
-            color: _tint,
-            calm: _calm,
-            settle: _settleController.value,
-            isDone: widget.visualState == WaveMeterVisualState.done,
-            foam: _foam,
-            pour: _pour,
-          ),
-          child: _MeterCenter(
-            visualState: widget.visualState,
-            numberText: numberText,
-            unit: widget.unit,
-            label: widget.label,
-            tint: _tint,
-          ),
-        );
-      },
+      animation: _settleController,
+      builder: (context, _) => CustomPaint(
+        painter: _WaveMeterPainter(
+          water: _water,
+          fraction: _animatedFraction,
+          color: _tint,
+          settle: _settleController.value,
+          isDone: widget.visualState == WaveMeterVisualState.done,
+          pour: _pour,
+        ),
+        child: _MeterCenter(
+          visualState: widget.visualState,
+          numberText: numberText,
+          unit: widget.unit,
+          label: widget.label,
+          tint: _tint,
+        ),
+      ),
     );
   }
 }
@@ -396,85 +363,194 @@ class _PhaseLabelState extends State<_PhaseLabel>
 /// short life, `t >= 1` marks it dead/available, so the pool never
 /// allocates once built. Position is normalized to the panel (0..1 on
 /// both axes) so the physics doesn't care about actual pixel size.
-class _FoamDrop {
-  double t = 1;
-  double x = 0.5, y = 0.55, vx = 0, vy = 0, size = 2;
+/// The water in the cube, in panel units (0..1 on both axes, y down):
+/// a surface of spring columns (waves run, reflect off the walls and die
+/// out) and drops of water pouring in from the top-left corner on a
+/// ballistic arc. Where a drop lands it pushes the surface down — the
+/// ripple spreads — and throws up spray (owner, 14.10: "like live water
+/// that pours in, falls and moves, with physics", not a thin stream).
+class _WaterSim {
+  static const columns = 60;
+  final List<double> _h = List.filled(columns, 0); // offset from the level
+  final List<double> _v = List.filled(columns, 0);
+  final List<_Drop> drops = [];
+  final math.Random _rng = math.Random(7);
 
-  /// Thrown up where the pouring water hits the surface ([atX], [atY]
-  /// normalized to the panel).
-  void respawn(math.Random rng, double atX, double atY) {
-    t = 0;
-    x = atX + (rng.nextDouble() - 0.5) * 0.08;
-    y = atY.clamp(0.08, 0.98);
-    final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.8;
-    final speed = 0.30 + rng.nextDouble() * 0.45;
-    vx = math.cos(angle) * speed;
-    vy = math.sin(angle) * speed;
-    size = 1.3 + rng.nextDouble() * 2.0;
+  /// Where the still surface sits: a thin layer when empty, near the top
+  /// at full scale.
+  double level = 0.97;
+  double _emit = 0;
+  double _ambient = 0;
+  double _time = 0;
+
+  double get time => _time;
+
+  /// Surface height at [x] (0..1), with the column offsets.
+  double surfaceAt(double x) {
+    final f = (x.clamp(0.0, 1.0)) * (columns - 1);
+    final i = f.floor().clamp(0, columns - 2);
+    final t = f - i;
+    return level + _h[i] * (1 - t) + _h[i + 1] * t;
   }
 
-  void advance(double dt) {
-    if (t >= 1) return;
-    t += dt / 0.85;
-    x += vx * dt;
-    y += vy * dt;
-    vy += 1.7 * dt; // gravity, same 0..1-of-panel units as y
+  double columnY(int i) => level + _h[i];
+
+  void step(double dt,
+      {required double level, required double pour, required bool running}) {
+    if (dt <= 0) return;
+    _time += dt;
+    this.level = 0.975 - level.clamp(0.0, 1.0) * 0.9;
+
+    // Fixed sub-steps: the spring maths stays stable at any frame rate.
+    const sub = 1 / 120;
+    var left = dt;
+    while (left > 1e-6) {
+      final h = math.min(sub, left);
+      left -= h;
+      _springs(h / sub);
+    }
+
+    // A breath of wind on the surface while measuring.
+    if (running) {
+      _ambient += dt;
+      while (_ambient > 0.25) {
+        _ambient -= 0.25;
+        _v[_rng.nextInt(columns)] += (_rng.nextDouble() - 0.5) * 0.0018;
+      }
+    }
+
+    // New water: a gush when the line is fast, a trickle when slow.
+    // It comes in gushes, like water poured from a jug, not a steady jet.
+    final gush = 0.55 + 0.45 * math.sin(_time * 2.6) * math.sin(_time * 0.9 + 1);
+    _emit += dt * pour * gush * (26 + 70 * level.clamp(0.0, 1.0));
+    while (_emit >= 1) {
+      _emit -= 1;
+      _spawn(level);
+    }
+
+    // A copy: landing drops throw new spray into the list.
+    for (final d in List.of(drops)) {
+      d.vy += 2.4 * dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      if (d.x > 0.985) {
+        d.x = 0.985;
+        d.vx = -d.vx * 0.35;
+      }
+      if (d.x < 0.015) {
+        d.x = 0.015;
+        d.vx = -d.vx * 0.35;
+      }
+      final surface = surfaceAt(d.x);
+      if (d.vy > 0 && d.y >= surface) {
+        d.dead = true;
+        _land(d, surface);
+      }
+    }
+    drops.removeWhere((d) => d.dead);
+    // Bounded: no more drops than look like water.
+    if (drops.length > 260) drops.removeRange(0, drops.length - 260);
   }
+
+  void _springs(double k) {
+    const tension = 0.022, damping = 0.035, spread = 0.24;
+    for (var i = 0; i < columns; i++) {
+      final a = -tension * _h[i] - damping * _v[i];
+      _v[i] += a * k;
+      _h[i] += _v[i] * k;
+    }
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = 0; i < columns; i++) {
+        if (i > 0) {
+          final d = spread * (_h[i] - _h[i - 1]) * k;
+          _v[i - 1] += d;
+        }
+        if (i < columns - 1) {
+          final d = spread * (_h[i] - _h[i + 1]) * k;
+          _v[i + 1] += d;
+        }
+      }
+    }
+    for (var i = 0; i < columns; i++) {
+      _h[i] = _h[i].clamp(-0.12, 0.12);
+    }
+  }
+
+  void _spawn(double strength) {
+    // Down the left wall from the top-left corner, the way water poured
+    // into a glass runs down its side (owner, 14.10: a jet across the
+    // middle looked wrong) — only a fast line throws it a little further.
+    final r = 0.008 + _rng.nextDouble() * 0.010 + strength * 0.004;
+    drops.add(_Drop(
+      x: 0.018 + _rng.nextDouble() * 0.025,
+      y: 0.02 + _rng.nextDouble() * 0.03,
+      vx: 0.03 + _rng.nextDouble() * 0.08 + strength * 0.10,
+      vy: 0.08 + _rng.nextDouble() * 0.12,
+      r: r,
+    ));
+  }
+
+  void _land(_Drop d, double surface) {
+    final i = (d.x * (columns - 1)).round().clamp(0, columns - 1);
+    // The surface gives way under the drop's weight and speed.
+    final push = d.vy * d.r * (d.splash ? 0.35 : 1.15);
+    _v[i] += push;
+    if (i > 0) _v[i - 1] += push * 0.5;
+    if (i < columns - 1) _v[i + 1] += push * 0.5;
+    if (d.splash) return;
+    // Spray: a couple of small drops thrown back up and sideways.
+    final n = d.r > 0.012 ? 2 : (_rng.nextDouble() < 0.6 ? 1 : 0);
+    for (var k = 0; k < n; k++) {
+      drops.add(_Drop(
+        x: d.x,
+        y: surface - 0.004,
+        vx: (_rng.nextDouble() - 0.35) * 0.45,
+        vy: -(0.25 + _rng.nextDouble() * 0.45) * math.min(1.6, d.vy),
+        r: d.r * (0.35 + _rng.nextDouble() * 0.25),
+        splash: true,
+      ));
+    }
+  }
+}
+
+class _Drop {
+  _Drop({
+    required this.x,
+    required this.y,
+    required this.vx,
+    required this.vy,
+    required this.r,
+    this.splash = false,
+  });
+
+  double x, y, vx, vy;
+
+  /// Radius as a share of the panel's width.
+  final double r;
+  final bool splash;
+  bool dead = false;
 }
 
 class _WaveMeterPainter extends CustomPainter {
   _WaveMeterPainter({
+    required this.water,
     required this.fraction,
-    required this.time,
     required this.color,
-    required this.calm,
     required this.settle,
     required this.isDone,
-    required this.foam,
-    this.pour = 0,
+    required this.pour,
   });
 
+  final _WaterSim water;
   final double fraction;
-
-  /// 0..1 strength of the stream pouring in from the top-left corner.
-  final double pour;
-
-  /// Where the stream meets the water, as a share of the width: the
-  /// faster the flow, the further it reaches.
-  static double impactX(double fraction) => 0.20 + 0.22 * fraction;
-  final double time;
   final Color color;
-  final bool calm;
 
   /// 0..1 one-shot progress through the "just finished" pulse.
   final double settle;
   final bool isDone;
-  final List<_FoamDrop> foam;
+  final double pour;
 
   static const _radius = 26.0;
-
-  /// The crest line shared by the fill, the shimmer band and where foam
-  /// spawns, so every layer agrees on where "the water" is. A second
-  /// harmonic riding the first is what makes this read as a breaking
-  /// wave's peaked, slightly asymmetric crest instead of a mechanically
-  /// perfect sine — same shape language as the panel this replaced a
-  /// circle with, just driven by [fraction] instead of a separately
-  /// smoothed level.
-  ///
-  /// Motion always advances at a fixed rate (`time` only); [calm] and
-  /// [fraction] only ever scale amplitude, never the phase multiplier —
-  /// see wave_meter.dart's class doc / the jitter post-mortem this same
-  /// principle already fixed once for this exact widget.
-  double _crestY(Size size, double t) {
-    final baseline = size.height * (1 - fraction.clamp(0.0, 1.0));
-    final breathe = 0.82 + 0.18 * math.sin(time * 0.1);
-    final amp = calm ? 1.0 : 1.0 + fraction * 1.4;
-    final swell = (math.sin(t * math.pi * 2 + time * 0.4) * (9 + 6 * amp) +
-            math.sin(t * math.pi * 4 - time * 0.65 + 1.3) * (4 + 7 * amp)) *
-        breathe *
-        (calm ? 0.35 : 1.0);
-    return (baseline + swell).clamp(4.0, size.height - 4.0);
-  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -483,10 +559,7 @@ class _WaveMeterPainter extends CustomPainter {
       const Radius.circular(_radius),
     );
 
-    // A soft glow behind the panel — brighter right after finishing (the
-    // settle pulse), otherwise a steady low-key wash tied to the current
-    // tint so the meter doesn't read as a flat cutout against the ocean
-    // background behind it.
+    // A soft glow behind the panel, brighter right after finishing.
     final glowAlpha = 0.10 + (isDone ? (1 - settle) * 0.18 : 0.0);
     canvas.drawRRect(
       rrect.inflate(isDone ? (1 - settle) * 8 : 4),
@@ -497,7 +570,6 @@ class _WaveMeterPainter extends CustomPainter {
 
     canvas.save();
     canvas.clipRRect(rrect);
-
     canvas.drawRect(
       Offset.zero & size,
       Paint()
@@ -506,22 +578,45 @@ class _WaveMeterPainter extends CustomPainter {
           end: Alignment.bottomCenter,
           colors: [
             WbColors.midnight,
-            Color.lerp(WbColors.midnight, color, 0.14)!,
+            Color.lerp(WbColors.midnight, color, 0.12)!,
             Color.lerp(WbColors.midnight, WbColors.card, 0.65)!,
           ],
           stops: const [0, 0.6, 1],
         ).createShader(Offset.zero & size),
     );
 
-    const steps = 48;
-    final body = Path()..moveTo(0, size.height);
-    for (var i = 0; i <= steps; i++) {
-      final t = i / steps;
-      body.lineTo(size.width * t, _crestY(size, t));
+    // Where the water comes in: a faint light in the top-left corner.
+    if (pour > 0.02) {
+      final c = Offset(size.width * 0.04, size.height * 0.05);
+      canvas.drawCircle(
+        c,
+        size.width * 0.16,
+        Paint()
+          ..shader = RadialGradient(colors: [
+            color.withValues(alpha: 0.22 * pour),
+            color.withValues(alpha: 0),
+          ]).createShader(
+              Rect.fromCircle(center: c, radius: size.width * 0.16)),
+      );
     }
-    body
+
+    // The body of water: a smooth curve through the spring columns.
+    const n = _WaterSim.columns;
+    Offset col(int i) =>
+        Offset(size.width * i / (n - 1), size.height * water.columnY(i));
+    final surface = Path()..moveTo(col(0).dx, col(0).dy);
+    for (var i = 0; i < n - 1; i++) {
+      final a = col(i), b = col(i + 1);
+      final mid = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
+      surface.quadraticBezierTo(a.dx, a.dy, mid.dx, mid.dy);
+    }
+    surface.lineTo(col(n - 1).dx, col(n - 1).dy);
+    final body = Path.from(surface)
       ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
       ..close();
+    final top = size.height * water.level;
+    _goo(canvas, size, body);
     canvas.drawPath(
       body,
       Paint()
@@ -529,34 +624,21 @@ class _WaveMeterPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            color.withValues(alpha: 0.55 + fraction * 0.15),
-            Color.lerp(color, WbColors.midnight, 0.8)!.withValues(alpha: 0.92),
+            color.withValues(alpha: 0.62 + fraction * 0.12),
+            Color.lerp(color, WbColors.midnight, 0.78)!.withValues(alpha: 0.94),
           ],
-        ).createShader(Offset.zero & size),
+        ).createShader(Rect.fromLTRB(0, top - 20, size.width, size.height)),
     );
-
-    final crest = Path();
-    for (var i = 0; i <= steps; i++) {
-      final t = i / steps;
-      final p = Offset(size.width * t, _crestY(size, t));
-      if (i == 0) {
-        crest.moveTo(p.dx, p.dy);
-      } else {
-        crest.lineTo(p.dx, p.dy);
-      }
-    }
+    // Light on the surface.
     canvas.drawPath(
-      crest,
+      surface,
       Paint()
-        ..color = Color.lerp(color, Colors.white, 0.55)!.withValues(alpha: 0.88)
+        ..color = Color.lerp(color, Colors.white, 0.6)!.withValues(alpha: 0.9)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6 + fraction * 1.6
+        ..strokeWidth = 1.6 + fraction * 1.2
         ..strokeCap = StrokeCap.round,
     );
-
-    if (pour > 0.01) _pourStream(canvas, size);
-    _shimmer(canvas, size);
-    _foamSpray(canvas, size);
+    _glints(canvas, size);
 
     canvas.restore();
 
@@ -569,7 +651,42 @@ class _WaveMeterPainter extends CustomPainter {
     );
   }
 
-  static final List<({double x, double y, double phase})> _shimmerSeeds =
+  /// The falling water as one liquid: drops drawn as discs, blurred and
+  /// cut at an alpha threshold, so neighbours run together into a pouring
+  /// sheet and melt into the surface where they land (metaballs) — not a
+  /// row of separate dashes.
+  void _goo(Canvas canvas, Size size, Path body) {
+    if (water.drops.isEmpty) return;
+    final sigma = size.width * 0.012;
+    final dropColor = Color.lerp(color, Colors.white, 0.3)!;
+    canvas.saveLayer(
+      Offset.zero & size,
+      Paint()
+        ..imageFilter = ui.ImageFilter.compose(
+          outer: const ColorFilter.matrix(<double>[
+            1, 0, 0, 0, 0, //
+            0, 1, 0, 0, 0, //
+            0, 0, 1, 0, 0, //
+            0, 0, 0, 24, -10 * 255, //
+          ]),
+          inner: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+        ),
+    );
+    final fill = Paint()..color = dropColor;
+    canvas.drawPath(body, fill);
+    for (final d in water.drops) {
+      final p = Offset(d.x * size.width, d.y * size.height);
+      final r = d.r * size.width * (d.splash ? 1.2 : 1.7);
+      // A falling drop is a little longer than wide.
+      final stretch = d.splash ? 1.0 : 1.0 + (d.vy * 0.35).clamp(0.0, 0.8);
+      canvas.drawOval(
+          Rect.fromCenter(center: p, width: r * 2, height: r * 2 * stretch),
+          fill);
+    }
+    canvas.restore();
+  }
+
+  static final List<({double x, double y, double phase})> _seeds =
       List.generate(11, (i) {
     final rng = math.Random(i * 733 + 11);
     return (
@@ -579,19 +696,15 @@ class _WaveMeterPainter extends CustomPainter {
     );
   });
 
-  /// Sunlight-on-water glints scattered across the filled body — purely
-  /// phase-driven (sin(time + seed), never `fraction`), so the twinkle
-  /// itself never jitters regardless of how noisy the underlying
-  /// measurement is; only how many cross the visibility threshold reacts
-  /// to how full the meter currently is.
-  void _shimmer(Canvas canvas, Size size) {
+  /// Sunlight glints in the water body, twinkling on their own clock.
+  void _glints(Canvas canvas, Size size) {
     final threshold = 1 - (0.3 + fraction * 0.4);
-    for (final seed in _shimmerSeeds) {
-      final crestYAtX = _crestY(size, seed.x);
+    for (final seed in _seeds) {
+      final surfaceY = size.height * water.surfaceAt(seed.x);
       final floor = size.height - 6;
-      if (crestYAtX >= floor) continue;
-      final y = crestYAtX + 6 + seed.y * (floor - crestYAtX);
-      final twinkle = math.sin(time * 2.4 + seed.phase) * 0.5 + 0.5;
+      if (surfaceY >= floor) continue;
+      final y = surfaceY + 6 + seed.y * (floor - surfaceY);
+      final twinkle = math.sin(water.time * 2.4 + seed.phase) * 0.5 + 0.5;
       if (twinkle <= threshold) continue;
       final strength =
           ((twinkle - threshold) / (1 - threshold)).clamp(0.0, 1.0);
@@ -601,104 +714,6 @@ class _WaveMeterPainter extends CustomPainter {
         Paint()
           ..color = Colors.white
               .withValues(alpha: (strength * 0.85).clamp(0.0, 0.85)),
-      );
-    }
-  }
-
-  /// Water pouring in from the top-left corner: a jet leaving the corner
-  /// sideways and falling in a parabola to the surface, thicker the
-  /// faster the connection, with light running down it and rings where
-  /// it lands.
-  void _pourStream(Canvas canvas, Size size) {
-    final hitX = size.width * impactX(fraction);
-    final hitY = _crestY(size, impactX(fraction));
-    final start = Offset(0, size.height * 0.07);
-    if (hitY <= start.dy + 8) return;
-    // y = start.y + k·x²: leaves the corner level, falls ever faster.
-    final k = (hitY - start.dy) / (hitX * hitX);
-    Offset at(double s) {
-      final x = hitX * s;
-      return Offset(x, start.dy + k * x * x);
-    }
-
-    final thick = (4.0 + fraction * 10.0) * pour;
-    const n = 28;
-    final left = <Offset>[], right = <Offset>[];
-    for (var i = 0; i <= n; i++) {
-      final s = i / n;
-      final p = at(s);
-      final q = at(math.min(1, s + 0.01)) - at(math.max(0, s - 0.01));
-      final len = q.distance == 0 ? 1.0 : q.distance;
-      final normal = Offset(-q.dy / len, q.dx / len);
-      // A falling stream thins as it speeds up, with a slight wobble.
-      final w = thick *
-          (1.0 - 0.35 * s) *
-          (1 + 0.08 * math.sin(time * 9 + s * 12)) /
-          2;
-      left.add(p + normal * w);
-      right.add(p - normal * w);
-    }
-    final stream = Path()..moveTo(left.first.dx, left.first.dy);
-    for (final p in left.skip(1)) {
-      stream.lineTo(p.dx, p.dy);
-    }
-    for (final p in right.reversed) {
-      stream.lineTo(p.dx, p.dy);
-    }
-    stream.close();
-    canvas.drawPath(
-      stream,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(color, Colors.white, 0.35)!
-                .withValues(alpha: 0.85 * pour),
-            color.withValues(alpha: 0.75 * pour),
-          ],
-        ).createShader(Rect.fromPoints(start, Offset(hitX, hitY))),
-    );
-
-    // Light running down the stream.
-    final glint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.55 * pour)
-      ..strokeWidth = math.max(1.0, thick * 0.28)
-      ..strokeCap = StrokeCap.round;
-    for (var j = 0; j < 4; j++) {
-      final s0 = (time * 0.9 + j / 4) % 1.0;
-      final s1 = math.min(1.0, s0 + 0.07);
-      canvas.drawLine(at(s0), at(s1), glint);
-    }
-
-    // Rings spreading on the surface where it lands.
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    for (var j = 0; j < 3; j++) {
-      final p = (time * 0.8 + j / 3) % 1.0;
-      ring.color = Colors.white.withValues(alpha: 0.35 * (1 - p) * pour);
-      final r = 4 + p * (18 + fraction * 26);
-      canvas.drawOval(
-          Rect.fromCenter(
-              center: Offset(hitX, hitY + 2), width: r * 2, height: r * 0.55),
-          ring);
-    }
-  }
-
-  /// Spray thrown where the crest breaks — only visible while [foam]'s
-  /// pool actually has live drops in it (see [_WaveMeterState.build]),
-  /// which itself only spawns while a measurement is running.
-  void _foamSpray(Canvas canvas, Size size) {
-    for (final drop in foam) {
-      if (drop.t >= 1) continue;
-      final fade = (1 - drop.t).clamp(0.0, 1.0);
-      canvas.drawCircle(
-        Offset(size.width * drop.x, size.height * drop.y),
-        drop.size * (0.4 + fade * 0.6),
-        Paint()
-          ..color =
-              Colors.white.withValues(alpha: (fade * 0.9).clamp(0.0, 0.9)),
       );
     }
   }
