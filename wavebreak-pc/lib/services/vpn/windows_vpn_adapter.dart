@@ -9,6 +9,7 @@ import '../../core/logging/app_logger.dart';
 import '../../core/logging/file_log.dart';
 import '../core_api/models.dart';
 import 'conflicting_vpn_closer.dart';
+import 'stuck_flows.dart';
 import 'network_change_policy.dart';
 import 'vpn_adapter.dart';
 import 'windows_tunnel.dart';
@@ -121,6 +122,10 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   Timer? _networkDebounceTimer;
   Timer? _healthCheckTimer;
+  // Connections apps wait on in vain, closed so they redial (owner, 14.10:
+  // "on the PC the VPN stops loading after a while; a restart helps").
+  final _stuck = StuckFlows();
+  Timer? _stuckTimer;
   int _consecutiveHealthFailures = 0;
 
   // Bumped on every new recovery trigger and on disconnect() — lets a
@@ -476,9 +481,12 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
     final readyFile = File(
         '${Directory.systemTemp.path}\\wavebreak_cloak_proxy_${DateTime.now().microsecondsSinceEpoch}.txt');
     final args = [
-      '-listen', '127.0.0.1:0',
-      '-remote', '$bypassIp:${link.port}',
-      '-ready-file', readyFile.path,
+      '-listen',
+      '127.0.0.1:0',
+      '-remote',
+      '$bypassIp:${link.port}',
+      '-ready-file',
+      readyFile.path,
       if (link.cloakMinSize != null) ...['-min-size', '${link.cloakMinSize}'],
       if (link.cloakMaxSize != null) ...['-max-size', '${link.cloakMaxSize}'],
       if (link.cloakChaffMinMs != null) ...[
@@ -545,6 +553,11 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
       _healthCheckInterval,
       (_) => unawaited(_runHealthCheck()),
     );
+    _stuck.reset();
+    _stuckTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_closeStuckFlows()),
+    );
     // Bug 3: detect Windows sleep/hibernate without native hooks — a
     // short timer whose wall-clock gap suddenly jumps means the machine
     // was suspended. Check the tunnel right away instead of waiting up to
@@ -570,6 +583,8 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
     _networkDebounceTimer = null;
     _healthCheckTimer?.cancel();
     _healthCheckTimer = null;
+    _stuckTimer?.cancel();
+    _stuckTimer = null;
     _wakeWatchTimer?.cancel();
     _wakeWatchTimer = null;
   }
@@ -806,7 +821,8 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
           .timeout(const Duration(seconds: 3));
       request.headers.contentType = ContentType.json;
       request.write('{}');
-      final response = await request.close().timeout(const Duration(seconds: 5));
+      final response =
+          await request.close().timeout(const Duration(seconds: 5));
       await response.drain<void>();
       final ok = response.statusCode == 204 || response.statusCode == 200;
       AppLogger.debug(
@@ -959,7 +975,8 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
     try {
       final request = await client
           .getUrl(Uri.parse('http://127.0.0.1:$_kClashApiPort/connections'));
-      final response = await request.close().timeout(const Duration(seconds: 3));
+      final response =
+          await request.close().timeout(const Duration(seconds: 3));
       final body = await response.transform(utf8.decoder).join();
       if (response.statusCode != 200) return null;
       final json = jsonDecode(body) as Map<String, dynamic>;
@@ -969,6 +986,38 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
       );
     } catch (_) {
       return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// See [StuckFlows]: reads sing-box's connections, closes the stuck ones.
+  Future<void> _closeStuckFlows() async {
+    if (_process == null) return;
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 2)
+      ..findProxy = (_) => 'DIRECT';
+    try {
+      final request = await client
+          .getUrl(Uri.parse('http://127.0.0.1:$_kClashApiPort/connections'));
+      final response =
+          await request.close().timeout(const Duration(seconds: 3));
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) return;
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      final stuck = _stuck.observe(
+          json['connections'] as List? ?? const [], DateTime.now());
+      if (stuck.isEmpty) return;
+      for (final id in stuck.keys) {
+        final del = await client.deleteUrl(
+            Uri.parse('http://127.0.0.1:$_kClashApiPort/connections/$id'));
+        await (await del.close().timeout(const Duration(seconds: 3)))
+            .drain<void>();
+      }
+      AppLogger.info(
+          'Closed stuck connections, the apps redial: ${stuck.values.join(', ')}');
+    } catch (_) {
+      // Next round.
     } finally {
       client.close(force: true);
     }
@@ -1159,4 +1208,3 @@ Map<String, dynamic> singBoxConfigFor(ShareLink link,
     },
   };
 }
-
