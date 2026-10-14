@@ -1,0 +1,81 @@
+name: Deploy
+
+# Server deploys from the pipeline, not by hand (owner, 14.10). Run from
+# Actions → Deploy → Run workflow on app-main-sync; the `production`
+# environment waits for a second person's approval, then
+# tools/deploy/remote.sh backs up, builds, checks, switches, and rolls
+# back on any failure. See docs/CI-CD.md.
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: What to deploy
+        required: true
+        type: choice
+        options: [node, web]
+
+concurrency:
+  group: deploy-${{ inputs.component }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - if: inputs.component == 'node'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: wavebreak-node/go.mod
+      - if: inputs.component == 'node'
+        working-directory: wavebreak-node
+        run: |
+          go vet ./...
+          go test ./...
+      - if: inputs.component == 'web'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+      - if: inputs.component == 'web'
+        working-directory: wavebreak-web
+        run: |
+          composer install --no-interaction --prefer-dist
+          php artisan test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package the component at this commit
+        run: |
+          dir=wavebreak-${{ inputs.component }}
+          # Never the downloads folder: the release script owns it on the
+          # server (git still holds old version*.json from before that).
+          git archive --format=tar.gz -o component.tgz HEAD "$dir" \
+            ":(exclude)$dir/public/downloads"
+          if tar tzf component.tgz | grep -q "public/downloads"; then exit 1; fi
+          ls -la component.tgz
+      - name: SSH
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          # The server's host key, pinned (not trusted on first use).
+          echo "$HOST ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOuhEa0094zF+GYIhxoH7zsw/Zp70IZV+ge4D8oZClsa" > ~/.ssh/known_hosts
+      - name: Deploy
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          id=${{ inputs.component }}-${GITHUB_SHA::7}-${GITHUB_RUN_ID}
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes root@"$HOST" "mkdir -p /root/deploy"
+          scp -i ~/.ssh/deploy -o IdentitiesOnly=yes component.tgz root@"$HOST":/root/deploy/$id.tgz
+          scp -i ~/.ssh/deploy -o IdentitiesOnly=yes tools/deploy/remote.sh root@"$HOST":/root/deploy/remote.sh
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o ServerAliveInterval=30 root@"$HOST" \
+            "bash /root/deploy/remote.sh ${{ inputs.component }} /root/deploy/$id.tgz $GITHUB_SHA"
+      - name: Clean up the key
+        if: always()
+        run: rm -f ~/.ssh/deploy
