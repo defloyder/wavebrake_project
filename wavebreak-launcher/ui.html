@@ -34,6 +34,12 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:12px}
 .brand img{height:22px;width:auto;display:block}
 .brand span{font-family:Michroma,Inter,sans-serif;font-size:13px;letter-spacing:.24em;line-height:1;padding-top:1px}
+.brand small{font-size:11px;color:var(--muted);letter-spacing:.04em;margin-left:2px}
+/* The launcher's own update, under the header. */
+.self{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px;margin-top:14px}
+.self[hidden]{display:none}
+.self span{flex:1;font-size:13.5px;color:var(--soft)}
+.self button{flex:none;padding:8px 14px;font-size:13px}
 .chip{margin-left:auto;display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;
   border:1px solid var(--border);background:var(--glass-b);color:var(--soft);font-size:12.5px;white-space:nowrap}
 .chip i{width:7px;height:7px;border-radius:50%;background:var(--arctic);box-shadow:0 0 10px var(--arctic)}
@@ -117,10 +123,11 @@ button:disabled{opacity:.45;cursor:default}
 <div class="scroll"><main>
   <header>
     <div class="brand">
-      <img src="{{MARK}}" alt=""><span>WAVEBREAK</span>
+      <img src="{{MARK}}" alt=""><span>WAVEBREAK</span><small id="ver"></small>
     </div>
     <div class="chip" id="sys"><i></i><span>Определяю систему…</span></div>
   </header>
+  <div class="self glass" id="self" hidden><span id="selfText"></span><button class="primary update" id="selfBtn">Обновить</button></div>
   <section class="hero">
     <h1>Что установить на этот компьютер</h1>
     <p id="sub">Лаунчер подберёт версию под вашу Windows и её разрядность.</p>
@@ -238,6 +245,7 @@ document.addEventListener('click',async e=>{
   }catch(err){delete busy[id];render();toast(String(err),true)}
 });
 window.wbProgress=(id,done,total,phase)=>{
+  if(id==='launcher'){$('#selfText').textContent=phase==='starting'?'Перезапускаю лаунчер…':total>0?`Скачиваю новую версию: ${Math.floor(done*100/total)}%`:'Скачиваю новую версию…';return}
   const now=performance.now(),p=wbProgress.s[id]||(wbProgress.s[id]={t:now,d:0,speed:0});
   if(now-p.t>400){p.speed=(done-p.d)/((now-p.t)/1000);p.t=now;p.d=done}
   const mb=v=>(v/1048576).toFixed(1);
@@ -267,7 +275,12 @@ async function net(){
   }catch(e){$('#probes').innerHTML='<div class="line"><div class="name">Проверка не удалась</div></div>'}
 }
 $('#recheck').onclick=net;
-load();net();
+// The launcher itself: its version, and a newer one when published.
+async function self(){try{const s=await wbSelf();$('#ver').textContent='v'+s.version;
+  if(s.available){$('#selfText').textContent=`Доступна новая версия лаунчера ${s.available}`;$('#self').hidden=false}}catch(e){}}
+$('#selfBtn').onclick=()=>{$('#selfBtn').disabled=true;$('#selfText').textContent='Скачиваю новую версию…';wbSelfUpdate()};
+window.wbSelfFailed=msg=>{$('#selfBtn').disabled=false;toast(msg,true);self()};
+load();net();self();
 </script>
 </body>
 </html>

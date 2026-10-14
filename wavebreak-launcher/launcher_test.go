@@ -135,3 +135,19 @@ func TestInstallerResult(t *testing.T) {
 		}
 	}
 }
+
+func TestSelfUpdateOffer(t *testing.T) {
+	l := launcherFor(System{}, nil, nil)
+	l.fetch = func(_ context.Context, m []string) (*Release, error) {
+		return &Release{VersionName: "9.9.9", URL: "https://wavebreak.com.tr/downloads/l.exe"}, nil
+	}
+	if got := l.CheckSelf(context.Background()); got.Available != "9.9.9" || got.Version != launcherVersion {
+		t.Fatalf("got %+v", got)
+	}
+	l.fetch = func(_ context.Context, m []string) (*Release, error) {
+		return &Release{VersionName: launcherVersion, URL: "https://wavebreak.com.tr/downloads/l.exe"}, nil
+	}
+	if got := l.CheckSelf(context.Background()); got.Available != "" {
+		t.Fatalf("same version offered: %+v", got)
+	}
+}

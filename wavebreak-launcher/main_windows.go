@@ -27,6 +27,10 @@ var page string
 
 func main() {
 	sharpOnScaledScreens()
+	exe, _ := os.Executable()
+	if exe != "" {
+		CleanupSelf(exe)
+	}
 	dataDir := filepath.Join(os.Getenv("LOCALAPPDATA"), "WAVEBREAK Launcher")
 	_ = os.MkdirAll(dataDir, 0o755)
 
@@ -70,6 +74,22 @@ func main() {
 
 	must(w.Bind("wbState", func() State { return l.State(ctx) }))
 	must(w.Bind("wbNet", func() []Probe { return NetCheck(ctx) }))
+	must(w.Bind("wbSelf", func() SelfUpdate { return l.CheckSelf(ctx) }))
+	must(w.Bind("wbSelfUpdate", func() {
+		go func() {
+			err := l.UpdateSelf(ctx, exe, func(path string) error {
+				if err := shellExecute("open", path, ""); err != nil {
+					return err
+				}
+				w.Dispatch(w.Terminate)
+				return nil
+			})
+			if err != nil {
+				b, _ := json.Marshal(err.Error())
+				eval(fmt.Sprintf("window.wbSelfFailed&&wbSelfFailed(%s)", b))
+			}
+		}()
+	}))
 	must(w.Bind("wbInstall", func(id string) {
 		go func() {
 			err := l.Install(ctx, id, runInstaller)

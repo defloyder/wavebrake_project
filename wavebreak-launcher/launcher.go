@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const launcherVersion = "1.0.0"
+const launcherVersion = "1.1.0"
 
 // Downloads come only from WAVEBREAK's own hosts, whatever a manifest says.
 var allowedHosts = map[string]bool{
