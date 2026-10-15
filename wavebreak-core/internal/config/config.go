@@ -72,7 +72,9 @@ type AccountsConfig struct {
 	// SubRequireHWID: GET /v1/sub answers only apps that send a device id
 	// (x-hwid: Happ, v2RayTun, Hiddify …), so every app on every device
 	// takes a device slot. Apps without it get a notice instead of
-	// servers. On by default.
+	// servers. Off by default (15.10: the first deploy must not cut off
+	// v2rayNG and other apps that send no id); WAVEBREAK_SUB_REQUIRE_HWID=true
+	// turns it on.
 	SubRequireHWID bool
 }
 
@@ -279,7 +281,7 @@ func Load() (Config, error) {
 			AccessProtocol:         env("WAVEBREAK_ADMIN_ACCESS_PROTOCOL", "vless"),
 			SubscriptionGrace:      mustDuration(env("WAVEBREAK_SUBSCRIPTION_GRACE", "168h")),
 			SelfServeSubscriptions: boolEnv("WAVEBREAK_SELF_SERVE_SUBSCRIPTIONS", false),
-			SubRequireHWID:         boolEnv("WAVEBREAK_SUB_REQUIRE_HWID", true),
+			SubRequireHWID:         boolEnv("WAVEBREAK_SUB_REQUIRE_HWID", false),
 		},
 		RateLimit: RateLimitConfig{
 			LoginIPLimit:     loginIPLimit,
