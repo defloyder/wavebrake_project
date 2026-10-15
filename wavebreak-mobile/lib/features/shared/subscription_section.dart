@@ -126,17 +126,32 @@ SubscriptionSectionData _sectionFor(
 bool _nameHas(LocationItem s, String tag) =>
     '${s.country} ${s.city}'.toUpperCase().contains(tag.toUpperCase());
 
+/// Nodes a provider runs for one service ("YouTube без рекламы",
+/// "Netflix", "ChatGPT") rather than as a VPN location: often the lowest
+/// ping, so auto select picked them over the real locations (owner,
+/// 15.10). They stay in the list, but never in an auto select pool.
+final _serviceNode = RegExp(
+  r'youtube|ютуб|реклам|\bno[ -]?ads?\b|ad[ -]?free|adblock|'
+  r'netflix|spotify|chatgpt|openai|tiktok|torrent|торрент',
+  caseSensitive: false,
+  unicode: true,
+);
+
+bool isServiceNode(LocationItem s) =>
+    _serviceNode.hasMatch('${s.country} ${s.city}');
+
+bool _autoEligible(LocationItem s, String? exclude) =>
+    s.available &&
+    s.rawLink != null &&
+    !isServiceNode(s) &&
+    (exclude == null || !_nameHas(s, exclude));
+
 /// See [SubscriptionSectionData.autoTags]: all eligible servers when two or
 /// more run here (minus [exclude], e.g. "LTE" — a standalone location that
 /// doesn't belong in the "all" row's own candidate pool either), and a tag
 /// when two or more of those are marked for it.
 List<String?> autoTagsFor(List<LocationItem> servers, {String? exclude}) {
-  final ok = servers
-      .where((s) =>
-          s.available &&
-          s.rawLink != null &&
-          (exclude == null || !_nameHas(s, exclude)))
-      .toList();
+  final ok = servers.where((s) => _autoEligible(s, exclude)).toList();
   if (ok.length < 2) return const [];
   return [
     null,
@@ -152,11 +167,7 @@ List<LocationItem> autoCandidates(List<LocationItem> servers, String? tag,
         {String? exclude}) =>
     [
       for (final s in servers)
-        if (s.available &&
-            s.rawLink != null &&
-            (tag == null || _nameHas(s, tag)) &&
-            (exclude == null || !_nameHas(s, exclude)))
-          s,
+        if (_autoEligible(s, exclude) && (tag == null || _nameHas(s, tag))) s,
     ];
 
 /// Our own section's title: the plan ("WAVEBREAK Fleet"), not a fixed name.

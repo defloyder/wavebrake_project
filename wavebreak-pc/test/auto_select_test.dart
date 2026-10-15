@@ -56,4 +56,28 @@ void main() {
       expect(autoCandidates(servers, 'LTE'), [lte, lte2]);
     });
   });
+
+  group('service-only nodes stay out of auto select (owner, 15.10)', () {
+    final nl = _loc('n', 'Netherlands', 'Amsterdam');
+    final de = _loc('d', 'Germany', 'Frankfurt');
+    final yt = _loc('y', 'Netherlands', 'YouTube без рекламы');
+    final ru = _loc('r', 'Russia', 'Ютуб без рекламы');
+    final gpt = _loc('g', 'USA', 'ChatGPT');
+    final noAds = _loc('a', 'Finland', 'No Ads');
+
+    test('recognised by name', () {
+      for (final l in [yt, ru, gpt, noAds]) {
+        expect(isServiceNode(l), isTrue, reason: l.city);
+      }
+      for (final l in [nl, de, _loc('x', 'Kazakhstan', 'Almaty')]) {
+        expect(isServiceNode(l), isFalse, reason: l.city);
+      }
+    });
+
+    test('never a candidate, and not counted for the row', () {
+      final servers = [yt, nl, ru, de, gpt];
+      expect(autoCandidates(servers, null), [nl, de]);
+      expect(autoTagsFor([yt, nl, ru]), isEmpty);
+    });
+  });
 }

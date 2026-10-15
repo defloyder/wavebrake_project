@@ -9,7 +9,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/core_api/models.dart';
+import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/connection_test_service.dart';
+import 'data_providers.dart';
 import '../../services/vpn/server_catalog.dart';
 import '../home/location_bar.dart';
 import 'flag_icon.dart';
@@ -794,7 +796,7 @@ class _PillButton extends StatelessWidget {
 /// "Auto select" (and "Auto select LTE"): pings its servers and connects to
 /// the fastest — the provider's own "Авто выбор" that Happ shows, done here
 /// since the plain link list carries no such entry.
-class _AutoRow extends StatefulWidget {
+class _AutoRow extends ConsumerStatefulWidget {
   const _AutoRow({
     required this.tag,
     required this.s,
@@ -810,10 +812,10 @@ class _AutoRow extends StatefulWidget {
   final ValueChanged<LocationItem> onSelect;
 
   @override
-  State<_AutoRow> createState() => _AutoRowState();
+  ConsumerState<_AutoRow> createState() => _AutoRowState();
 }
 
-class _AutoRowState extends State<_AutoRow> {
+class _AutoRowState extends ConsumerState<_AutoRow> {
   static const _pingService = ConnectionTestService();
   bool _busy = false;
 
@@ -841,7 +843,18 @@ class _AutoRowState extends State<_AutoRow> {
           bestMs = ms;
         }
       }
-      if (best != null) widget.onSelect(best);
+      if (best == null) return;
+      // Read before onSelect: picking from the servers sheet closes it
+      // (and this row with it).
+      final manager = ref.read(connectionManagerProvider.notifier);
+      final idle = const {ConnectionStatus.idle, ConnectionStatus.error}
+          .contains(ref.read(connectionManagerProvider).status);
+      final canConnect = ref.read(canConnectProvider);
+      widget.onSelect(best);
+      // Auto select connects (owner, 15.10): with the VPN off it used to
+      // only switch the location. A running tunnel is switched by
+      // onSelect itself.
+      if (idle) await manager.connect(subscriptionActive: canConnect);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -895,10 +908,13 @@ class _AutoRowState extends State<_AutoRow> {
               ),
               SizedBox(
                 width: 28,
+                // Square: the row stretched it into an oval (15.10).
                 child: _busy
-                    ? const Padding(
-                        padding: EdgeInsets.all(5),
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                    ? const Center(
+                        child: SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       )
                     : const Icon(Icons.bolt_rounded,
                         color: WbColors.ice60, size: 18),
