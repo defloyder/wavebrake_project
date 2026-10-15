@@ -48,7 +48,7 @@ func TestPasswordResetE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	st := store.New(pool)
+	st := store.New(pool, openPIIPoolForTest(t))
 	a := &app.App{Config: config.Config{
 		JWTSecret: "e2e-secret", AccessTokenTTL: time.Hour, RefreshTokenTTL: time.Hour,
 		Accounts: config.AccountsConfig{PasswordResetURLBase: "https://wavebreak.com.tr/reset-password", PasswordResetTTL: time.Hour},

@@ -343,12 +343,43 @@ func (s *Store) ListDevices(ctx context.Context, userID string) ([]Device, error
 	return devices, rows.Err()
 }
 
+// CreateDevice registers a device for the user. The app forgets its device id
+// on sign-out, so it registers again on the next sign-in with the same name
+// and platform; an active device with that name and platform is returned
+// instead of taking another slot. The user row lock stops two concurrent
+// registrations from both creating the same device.
 func (s *Store) CreateDevice(ctx context.Context, userID, name, platform string) (Device, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return Device{}, err
 	}
 	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `select 1 from users where id = $1 for update`, userID); err != nil {
+		return Device{}, err
+	}
+	var existing Device
+	err = tx.QueryRow(ctx, `
+		select id::text, user_id::text, coalesce(device_public_id, ''), name, platform, created_at, updated_at, last_seen_at, revoked_at
+		from devices
+		where user_id = $1 and name = $2 and platform is not distinct from nullif($3, '') and revoked_at is null
+		order by created_at
+		limit 1`,
+		userID, name, platform,
+	).Scan(&existing.ID, &existing.UserID, &existing.DevicePublicID, &existing.Name, &existing.Platform, &existing.CreatedAt, &existing.UpdatedAt, &existing.LastSeenAt, &existing.RevokedAt)
+	if err == nil {
+		if err := tx.QueryRow(ctx, `
+			update devices set last_seen_at = now(), updated_at = now()
+			where id = $1
+			returning last_seen_at`, existing.ID,
+		).Scan(&existing.LastSeenAt); err != nil {
+			return Device{}, err
+		}
+		return existing, tx.Commit(ctx)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Device{}, err
+	}
 
 	limit, err := effectiveDeviceLimit(ctx, tx, userID)
 	if err != nil {
@@ -935,7 +966,7 @@ func (s *Store) AdminDashboard(ctx context.Context) (AdminDashboard, error) {
 
 func (s *Store) ListUsers(ctx context.Context) ([]AdminUser, error) {
 	rows, err := s.db.Query(ctx, `
-		select u.id::text, coalesce(u.email, ''), coalesce(u.username, ''), u.status, u.role,
+		select u.id::text, u.status, u.role,
 		       u.last_login_at, u.disabled_at, u.created_at,
 		       sub.id::text, sub.plan_id::text, sub.plan_name, sub.status, sub.current_period_end
 		from users u
@@ -955,11 +986,12 @@ func (s *Store) ListUsers(ctx context.Context) ([]AdminUser, error) {
 	}
 	defer rows.Close()
 	var users []AdminUser
+	var ids []string
 	for rows.Next() {
 		var u AdminUser
 		var subscriptionID, planID, planName, subscriptionStatus *string
 		var currentPeriodEnd *time.Time
-		if err := rows.Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt,
+		if err := rows.Scan(&u.ID, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt,
 			&subscriptionID, &planID, &planName, &subscriptionStatus, &currentPeriodEnd); err != nil {
 			return nil, err
 		}
@@ -967,8 +999,20 @@ func (s *Store) ListUsers(ctx context.Context) ([]AdminUser, error) {
 			u.Subscription = &AdminUserSubscription{ID: *subscriptionID, PlanID: *planID, PlanName: *planName, Status: *subscriptionStatus, CurrentPeriodEnd: *currentPeriodEnd}
 		}
 		users = append(users, u)
+		ids = append(ids, u.ID)
 	}
-	return users, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	pii, err := s.loadPIIMany(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range users {
+		p := pii[users[i].ID]
+		users[i].Email, users[i].Username = p.Email, p.Username
+	}
+	return users, nil
 }
 
 func (s *Store) AdminCreateUser(ctx context.Context, email, username, passwordHash, role, status string) (AdminUser, error) {
@@ -976,12 +1020,20 @@ func (s *Store) AdminCreateUser(ctx context.Context, email, username, passwordHa
 	username = strings.TrimSpace(username)
 	var u AdminUser
 	err := s.db.QueryRow(ctx, `
-		insert into users (email, username, password_hash, password_algo, role, status, disabled_at)
-		values ($1, nullif($2, ''), $3, 'argon2id', $4, $5, case when $5 = 'disabled' then now() else null end)
-		returning id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at`,
-		email, username, passwordHash, role, status,
-	).Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
-	return u, normalizeDatabaseError(err)
+		insert into users (role, status, disabled_at)
+		values ($1, $2, case when $2 = 'disabled' then now() else null end)
+		returning id::text, status, role, last_login_at, disabled_at, created_at`,
+		role, status,
+	).Scan(&u.ID, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	if err != nil {
+		return AdminUser{}, normalizeDatabaseError(err)
+	}
+	if err := s.upsertPII(ctx, u.ID, piiWrite{Email: email, Username: username, PasswordHash: passwordHash}); err != nil {
+		_, _ = s.db.Exec(ctx, `delete from users where id = $1`, u.ID)
+		return AdminUser{}, err
+	}
+	u.Email, u.Username = email, username
+	return u, nil
 }
 
 func (s *Store) AdminUpdateUser(ctx context.Context, userID, email, username, role, status, passwordHash string) (AdminUser, error) {
@@ -990,22 +1042,24 @@ func (s *Store) AdminUpdateUser(ctx context.Context, userID, email, username, ro
 	var u AdminUser
 	err := s.db.QueryRow(ctx, `
 		update users
-		set email = $2,
-		    username = nullif($3, ''),
-		    role = $4,
-		    status = $5,
-		    disabled_at = case when $5 = 'disabled' then coalesce(disabled_at, now()) else null end,
-		    password_hash = coalesce(nullif($6, ''), password_hash),
-		    password_algo = case when $6 <> '' then 'argon2id' else password_algo end,
+		set role = $2,
+		    status = $3,
+		    disabled_at = case when $3 = 'disabled' then coalesce(disabled_at, now()) else null end,
 		    updated_at = now()
 		where id = $1 and deleted_at is null
-		returning id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at`,
-		userID, email, username, role, status, passwordHash,
-	).Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+		returning id::text, status, role, last_login_at, disabled_at, created_at`,
+		userID, role, status,
+	).Scan(&u.ID, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AdminUser{}, ErrNotFound
 	}
-	return u, normalizeDatabaseError(err)
+	if err != nil {
+		return AdminUser{}, normalizeDatabaseError(err)
+	}
+	if err := s.upsertPII(ctx, u.ID, piiWrite{Email: email, Username: username, PasswordHash: passwordHash}); err != nil {
+		return AdminUser{}, err
+	}
+	return s.fillAdminPII(ctx, u)
 }
 
 func (s *Store) AdminUpdateUserRole(ctx context.Context, userID, role string) (AdminUser, error) {
@@ -1014,13 +1068,16 @@ func (s *Store) AdminUpdateUserRole(ctx context.Context, userID, role string) (A
 		update users
 		set role = $2, updated_at = now()
 		where id = $1 and deleted_at is null
-		returning id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at`,
+		returning id::text, status, role, last_login_at, disabled_at, created_at`,
 		userID, role,
-	).Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	).Scan(&u.ID, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AdminUser{}, ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return AdminUser{}, err
+	}
+	return s.fillAdminPII(ctx, u)
 }
 
 func (s *Store) AdminSetUserDisabled(ctx context.Context, userID string, disabled bool) (AdminUser, error) {
@@ -1031,13 +1088,16 @@ func (s *Store) AdminSetUserDisabled(ctx context.Context, userID string, disable
 		    status = case when $2 then 'disabled' else 'active' end,
 		    updated_at = now()
 		where id = $1 and deleted_at is null
-		returning id::text, coalesce(email, ''), coalesce(username, ''), status, role, last_login_at, disabled_at, created_at`,
+		returning id::text, status, role, last_login_at, disabled_at, created_at`,
 		userID, disabled,
-	).Scan(&u.ID, &u.Email, &u.Username, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	).Scan(&u.ID, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AdminUser{}, ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return AdminUser{}, err
+	}
+	return s.fillAdminPII(ctx, u)
 }
 
 func (s *Store) AdminDeleteUser(ctx context.Context, userID string) error {
@@ -1072,6 +1132,9 @@ func (s *Store) AdminDeleteUser(ctx context.Context, userID string) error {
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
+	}
+	if err := s.deletePII(ctx, userID); err != nil {
+		return err
 	}
 	for _, nodeID := range nodeIDs {
 		if _, err := refreshNodeDesiredStateTx(ctx, tx, nodeID); err != nil {

@@ -16,6 +16,7 @@ type Config struct {
 	Environment     string
 	HTTPAddr        string
 	DatabaseURL     string
+	PIIDatabaseURL  string
 	RedisAddr       string
 	RedisPassword   string
 	RedisDB         int
@@ -141,6 +142,11 @@ type VLESSConfig struct {
 	// DirectTLSLabel overrides the "(Direct-TLS)" suffix of this location's
 	// Direct-TLS link name, e.g. a mirror shown as "YouTube без рекламы".
 	DirectTLSLabel string
+	// LinkName, when set, is the exact name of this location's VLESS and
+	// Direct-TLS links (no "(suffix)" added).
+	LinkName string
+	// HysteriaLinkName, when set, is the exact name of the Hysteria2 links.
+	HysteriaLinkName string
 	// PublishDirect controls whether the direct REALITY link is included in
 	// a grant's links/subscription. Default true; set false once a network
 	// is confirmed to actively disrupt REALITY, so clients only see (and
@@ -238,6 +244,7 @@ func Load() (Config, error) {
 		Environment:     env("WAVEBREAK_ENV", "development"),
 		HTTPAddr:        env("WAVEBREAK_HTTP_ADDR", ":8080"),
 		DatabaseURL:     env("WAVEBREAK_DATABASE_URL", "postgres://wavebreak:wavebreak@localhost:5432/wavebreak?sslmode=disable"),
+		PIIDatabaseURL:  env("WAVEBREAK_PII_DATABASE_URL", "postgres://wavebreak_pii:wavebreak_pii@localhost:5432/wavebreak_pii?sslmode=disable"),
 		RedisAddr:       env("WAVEBREAK_REDIS_ADDR", "localhost:6379"),
 		RedisPassword:   env("WAVEBREAK_REDIS_PASSWORD", ""),
 		RedisDB:         redisDB,
@@ -296,6 +303,8 @@ func Load() (Config, error) {
 			CDNGRPCPort:               cdnGRPCPort,
 			CDNGRPCService:            env("WAVEBREAK_VLESS_CDN_GRPC_SERVICE", "wvb-grpc"),
 			HysteriaHost:              env("WAVEBREAK_HYSTERIA_HOST", ""),
+			LinkName:                  env("WAVEBREAK_VLESS_LINK_NAME", ""),
+			HysteriaLinkName:          env("WAVEBREAK_HYSTERIA_LINK_NAME", ""),
 			HysteriaPort:              hysteriaPort,
 			HysteriaSNI:               env("WAVEBREAK_HYSTERIA_SNI", ""),
 			HysteriaInsecure:          boolEnv("WAVEBREAK_HYSTERIA_INSECURE", true),
@@ -326,6 +335,9 @@ func Load() (Config, error) {
 		}
 		if strings.Contains(cfg.DatabaseURL, "wavebreak:wavebreak") {
 			return Config{}, fmt.Errorf("production database credentials must not use local defaults")
+		}
+		if strings.Contains(cfg.PIIDatabaseURL, "wavebreak_pii:wavebreak_pii") {
+			return Config{}, fmt.Errorf("production PII database credentials must not use local defaults")
 		}
 		if strings.Contains(cfg.RabbitMQURL, "wavebreak:wavebreak") {
 			return Config{}, fmt.Errorf("production rabbitmq credentials must not use local defaults")

@@ -31,13 +31,21 @@ var (
 func (s *Store) UserEmailState(ctx context.Context, userID string) (EmailState, error) {
 	var st EmailState
 	err := s.db.QueryRow(ctx, `
-		select email_verified_at, email_verification_required, email_language
+		select email_verification_required, email_language
 		from users where id = $1`, userID,
-	).Scan(&st.VerifiedAt, &st.Required, &st.Language)
+	).Scan(&st.Required, &st.Language)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EmailState{}, ErrNotFound
 	}
-	return st, err
+	if err != nil {
+		return EmailState{}, err
+	}
+	p, err := s.loadPII(ctx, userID)
+	if err != nil {
+		return EmailState{}, err
+	}
+	st.VerifiedAt = p.EmailVerifiedAt
+	return st, nil
 }
 
 // RequireEmailVerification marks an account created by an app that runs
@@ -117,9 +125,7 @@ func (s *Store) ConfirmEmailCode(ctx context.Context, userID, codeHash string) e
 	if _, err := tx.Exec(ctx, `delete from email_verification_codes where user_id = $1`, userID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		update users set email_verified_at = coalesce(email_verified_at, now()), updated_at = now()
-		where id = $1`, userID); err != nil {
+	if err := s.markPIIEmailVerified(ctx, userID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -139,15 +145,24 @@ func (n SubscriptionNotice) Live() bool { return n.Status == "active" || n.Statu
 
 func (s *Store) SubscriptionNoticeFor(ctx context.Context, subscriptionID string) (SubscriptionNotice, error) {
 	var n SubscriptionNotice
+	var userID string
 	err := s.db.QueryRow(ctx, `
-		select coalesce(u.email, ''), u.email_language, coalesce(p.name, ''), s.status, s.current_period_end
+		select s.user_id::text, u.email_language, coalesce(p.name, ''), s.status, s.current_period_end
 		from subscriptions s
 		join users u on u.id = s.user_id
 		left join plans p on p.id = s.plan_id
 		where s.id = $1`, subscriptionID,
-	).Scan(&n.Email, &n.Language, &n.PlanName, &n.Status, &n.PeriodEnd)
+	).Scan(&userID, &n.Language, &n.PlanName, &n.Status, &n.PeriodEnd)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SubscriptionNotice{}, ErrNotFound
 	}
-	return n, err
+	if err != nil {
+		return SubscriptionNotice{}, err
+	}
+	p, err := s.loadPII(ctx, userID)
+	if err != nil {
+		return SubscriptionNotice{}, err
+	}
+	n.Email = p.Email
+	return n, nil
 }

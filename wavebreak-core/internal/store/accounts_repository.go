@@ -212,7 +212,7 @@ func (r *AccountsRepository) ConsumeResetToken(ctx context.Context, tokenHash, p
 	if _, err := tx.Exec(ctx, `update password_reset_tokens set used_at = $2 where user_id = $1 and used_at is null`, userID, now); err != nil {
 		return "", err
 	}
-	if _, err := tx.Exec(ctx, `update users set password_hash = $2, password_algo = $3, updated_at = now() where id = $1`, userID, passwordHash, passwordAlgo); err != nil {
+	if err := r.st.setPIIPassword(ctx, userID, passwordHash, passwordAlgo); err != nil {
 		return "", err
 	}
 	if _, err := tx.Exec(ctx, `update sessions set revoked_at = now(), revoked_reason = 'password_reset' where user_id = $1 and revoked_at is null`, userID); err != nil {

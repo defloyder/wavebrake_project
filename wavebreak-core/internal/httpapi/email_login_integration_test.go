@@ -43,7 +43,7 @@ func TestEmailLoginCodeE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	a := &app.App{Config: config.Config{JWTSecret: "e2e-secret", AccessTokenTTL: time.Hour, RefreshTokenTTL: time.Hour}, Store: store.New(pool)}
+	a := &app.App{Config: config.Config{JWTSecret: "e2e-secret", AccessTokenTTL: time.Hour, RefreshTokenTTL: time.Hour}, Store: store.New(pool, openPIIPoolForTest(t))}
 	srv := newServer(a)
 	mail := &capturedMail{}
 	srv.mail = mail

@@ -39,8 +39,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+	piiDB, err := database.Open(ctx, cfg.PIIDatabaseURL)
+	if err != nil {
+		log.Error("open PII database", "error", err)
+		os.Exit(1)
+	}
+	defer piiDB.Close()
 
-	st := store.New(db)
+	st := store.New(db, piiDB)
 	switch os.Args[1] + " " + os.Args[2] {
 	case "admin create":
 		if err := adminCreate(ctx, st, os.Args[3:]); err != nil {
@@ -52,6 +58,13 @@ func main() {
 			log.Error("admin reset-password failed", "error", err)
 			os.Exit(1)
 		}
+	case "pii import":
+		n, err := st.ImportLegacyPII(ctx)
+		if err != nil {
+			log.Error("pii import failed", "error", err)
+			os.Exit(1)
+		}
+		fmt.Printf("imported %d user credential rows into the PII database\n", n)
 	case "node token":
 		if err := nodeToken(ctx, st, os.Args[3:]); err != nil {
 			log.Error("node token failed", "error", err)
@@ -223,6 +236,7 @@ func usage() {
 	fmt.Println("usage:")
 	fmt.Println("  wavebreak-cli admin create [--email EMAIL] [--role superadmin] [--password PASSWORD]")
 	fmt.Println("  wavebreak-cli admin reset-password [--email EMAIL] [--password PASSWORD]")
+	fmt.Println("  wavebreak-cli pii import")
 	fmt.Println("  wavebreak-cli node token [--region REGION] [--ttl 24h]")
 	fmt.Println("  wavebreak-cli node mirror --node CODE --of CODE --config FILE.json")
 	fmt.Println("  wavebreak-cli subscriptions lifecycle [--dry-run]")
