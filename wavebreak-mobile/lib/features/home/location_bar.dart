@@ -32,6 +32,26 @@ String? protocolLabel(LocationItem l) {
   if (name.contains('reality')) return 'REALITY';
   if (name.contains('direct')) return 'Direct';
   if (name.contains('cdn')) return 'CDN';
+  // A WAVEBREAK location's own custom note (Core's DirectTLSLabel, e.g.
+  // "YouTube без рекламы") that matched none of the known keywords above:
+  // a deliberate, meant-to-be-seen label, not noise to classify away.
+  // [LocationItem.isCustom] can't tell own vs third-party apart here —
+  // locationFromUri (share_link_parsing.dart) sets it true unconditionally
+  // for every link this function parses, WAVEBREAK's own bundled ones
+  // included — so this instead keys on the link pointing at our own
+  // domain, the one thing every WAVEBREAK-issued link actually has in
+  // common. A third-party note falling through here instead of the
+  // generic scheme name is the exact regression the 12.10 fix below
+  // exists to prevent (a third-party node's own arbitrary text read as
+  // one of WAVEBREAK's categories, or just confusingly inconsistent with
+  // every other third-party row) — scoping to our own domain keeps that
+  // fix intact for every link that isn't ours.
+  if (link.contains('wavebreak.com.tr') &&
+      fromName != null &&
+      fromName.isNotEmpty) {
+    return fromName;
+  }
+
   // Any other link: its own protocol (owner, 12.10: a third-party VLESS
   // node read as WAVEBREAK's "Direct", and "cdn" anywhere in the address
   // made it "CDN").

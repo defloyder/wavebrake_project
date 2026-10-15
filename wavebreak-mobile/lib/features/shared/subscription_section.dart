@@ -92,8 +92,14 @@ List<SubscriptionSectionData> buildSubscriptionSections({
       shareable: false,
       limitsTraffic: own == null ? null : _trafficLine(own, s),
       limitsDevices: own == null ? null : _deviceLine(own),
-      autoTags: autoTagsFor(wavebreakServers, exclude: 'LTE'),
-      autoExclude: 'LTE',
+      // Every current Russia-based WAVEBREAK location (LTE, Moscow) chains
+      // its egress through Istanbul rather than reaching the internet
+      // directly — a restricted-network bypass mechanism, not an
+      // interchangeable "pick whichever's fastest" location (owner,
+      // 15.10: Moscow specifically flagged after LTE was excluded here
+      // but Moscow wasn't).
+      autoTags: autoTagsFor(wavebreakServers, exclude: 'Russia'),
+      autoExclude: 'Russia',
     ),
     for (final g in customGroups) _sectionFor(g, s, sharing),
   ];

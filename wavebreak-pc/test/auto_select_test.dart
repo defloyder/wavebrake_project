@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wavebreak/core/i18n/app_strings.dart';
 import 'package:wavebreak/features/shared/subscription_section.dart';
 import 'package:wavebreak/services/core_api/models.dart';
 
@@ -54,6 +55,25 @@ void main() {
       final servers = [istanbul, lte, lte2];
       expect(autoTagsFor(servers), [null, 'LTE']);
       expect(autoCandidates(servers, 'LTE'), [lte, lte2]);
+    });
+
+    test(
+        'the real WAVEBREAK section excludes every Russia-based location '
+        '(every one currently chains egress through Istanbul rather than '
+        'reaching the internet directly, a restricted-network bypass, not '
+        'an interchangeable "pick fastest" candidate — owner, 15.10: Moscow '
+        'flagged after LTE alone was excluded here) from its plain row\'s '
+        'own candidate pool, not just a subset of them', () {
+      final sections = buildSubscriptionSections(
+        wavebreakLocations: [istanbul, germany, moscow, lte],
+        customGroups: const [],
+        s: kRussianStrings,
+      );
+      final wavebreak = sections.first;
+      expect(wavebreak.autoExclude, 'Russia');
+      expect(wavebreak.autoTags, [null]);
+      expect(autoCandidates(wavebreak.servers, null, exclude: wavebreak.autoExclude),
+          [istanbul, germany]);
     });
   });
 
