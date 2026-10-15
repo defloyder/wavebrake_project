@@ -217,6 +217,14 @@ class ApiClient {
     return _run(() => _dio.patch<dynamic>(path, data: body), parse);
   }
 
+  Future<T> put<T>(
+    String path, {
+    Object? body,
+    T Function(dynamic data)? parse,
+  }) {
+    return _run(() => _dio.put<dynamic>(path, data: body), parse);
+  }
+
   Future<T> delete<T>(
     String path, {
     T Function(dynamic data)? parse,

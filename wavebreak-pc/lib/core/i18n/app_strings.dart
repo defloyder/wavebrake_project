@@ -423,6 +423,8 @@ class AppStrings {
     required this.splitWindowsNote,
     required this.splitEmpty,
     required this.splitChosen,
+    required this.syncLinksTitle,
+    required this.syncLinksHint,
     required this.mThisDevice,
     required this.mTunnel,
     required this.mNoTunnel,
@@ -469,6 +471,8 @@ class AppStrings {
   final String splitWindowsNote;
   final String splitEmpty;
   final String splitChosen;
+  final String syncLinksTitle;
+  final String syncLinksHint;
   final String mThisDevice;
   final String mTunnel;
   final String mNoTunnel;
@@ -1357,6 +1361,8 @@ const kEnglishStrings = AppStrings(
   splitWindowsNote: 'Programs with an open window are listed. Not applied on the Xray (beta) engine.',
   splitEmpty: 'No apps found',
   splitChosen: '{n} directly',
+  syncLinksTitle: 'Sync my links',
+  syncLinksHint: 'Your own VPN links on every device of this account. Stored encrypted on the WAVEBREAK server.',
   mThisDevice: 'This device',
   mTunnel: 'encrypted tunnel',
   mNoTunnel: 'no tunnel',
@@ -1814,6 +1820,8 @@ const kRussianStrings = AppStrings(
   splitWindowsNote: 'В списке — программы с открытым окном. На движке Xray (бета) не действует.',
   splitEmpty: 'Ничего не найдено',
   splitChosen: 'Напрямую: {n}',
+  syncLinksTitle: 'Синхронизировать мои ссылки',
+  syncLinksHint: 'Свои VPN-ссылки на всех устройствах аккаунта. Хранятся на сервере WAVEBREAK в зашифрованном виде.',
   mThisDevice: 'Это устройство',
   mTunnel: 'зашифрованный туннель',
   mNoTunnel: 'туннель не установлен',
@@ -2274,6 +2282,8 @@ const kSpanishStrings = AppStrings(
   splitWindowsNote: 'Se muestran los programas con una ventana abierta. No se aplica con el motor Xray (beta).',
   splitEmpty: 'No se encontraron apps',
   splitChosen: '{n} directas',
+  syncLinksTitle: 'Sincronizar mis enlaces',
+  syncLinksHint: 'Tus enlaces VPN en todos los dispositivos de esta cuenta. Se guardan cifrados en el servidor de WAVEBREAK.',
   mThisDevice: 'Este dispositivo',
   mTunnel: 'túnel cifrado',
   mNoTunnel: 'sin túnel',
@@ -2738,6 +2748,8 @@ const kGermanStrings = AppStrings(
   splitWindowsNote: 'Aufgeführt sind Programme mit offenem Fenster. Mit der Xray-Engine (Beta) nicht wirksam.',
   splitEmpty: 'Keine Apps gefunden',
   splitChosen: '{n} direkt',
+  syncLinksTitle: 'Meine Links synchronisieren',
+  syncLinksHint: 'Deine eigenen VPN-Links auf allen Geräten dieses Kontos. Verschlüsselt auf dem WAVEBREAK-Server gespeichert.',
   mThisDevice: 'Dieses Gerät',
   mTunnel: 'verschlüsselter Tunnel',
   mNoTunnel: 'kein Tunnel',
@@ -3202,6 +3214,8 @@ const kFrenchStrings = AppStrings(
   splitWindowsNote: 'Les programmes avec une fenêtre ouverte sont listés. Sans effet avec le moteur Xray (bêta).',
   splitEmpty: 'Aucune appli trouvée',
   splitChosen: '{n} en direct',
+  syncLinksTitle: 'Synchroniser mes liens',
+  syncLinksHint: 'Vos liens VPN sur tous les appareils de ce compte. Stockés chiffrés sur le serveur WAVEBREAK.',
   mThisDevice: 'Cet appareil',
   mTunnel: 'tunnel chiffré',
   mNoTunnel: 'pas de tunnel',
@@ -3662,6 +3676,8 @@ const kPortugueseStrings = AppStrings(
   splitWindowsNote: 'São listados os programas com uma janela aberta. Não se aplica no motor Xray (beta).',
   splitEmpty: 'Nenhum app encontrado',
   splitChosen: '{n} diretos',
+  syncLinksTitle: 'Sincronizar meus links',
+  syncLinksHint: 'Seus links de VPN em todos os dispositivos desta conta. Guardados criptografados no servidor WAVEBREAK.',
   mThisDevice: 'Este dispositivo',
   mTunnel: 'túnel criptografado',
   mNoTunnel: 'sem túnel',
@@ -4120,6 +4136,8 @@ const kTurkishStrings = AppStrings(
   splitWindowsNote: 'Açık penceresi olan programlar listelenir. Xray (beta) motorunda geçerli değildir.',
   splitEmpty: 'Uygulama bulunamadı',
   splitChosen: '{n} doğrudan',
+  syncLinksTitle: 'Bağlantılarımı eşitle',
+  syncLinksHint: 'Kendi VPN bağlantılarınız bu hesabın tüm cihazlarında. WAVEBREAK sunucusunda şifreli saklanır.',
   mThisDevice: 'Bu cihaz',
   mTunnel: 'şifreli tünel',
   mNoTunnel: 'tünel yok',

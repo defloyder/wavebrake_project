@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/shared/data_providers.dart';
+import 'custom_servers/custom_link_sync.dart';
 import 'custom_servers/custom_server_controller.dart';
 
 /// How often the server lists are read again while the app runs.
@@ -17,19 +18,27 @@ class ServerListRefresher {
 
   final Ref _ref;
   Timer? _timer;
+  Timer? _first;
 
   void start() {
-    _timer ??= Timer.periodic(serverListRefreshEvery, (_) => refresh());
+    if (_timer != null) return;
+    _timer = Timer.periodic(serverListRefreshEvery, (_) => refresh());
+    // Own links synced across devices, if on: once shortly after start.
+    _first = Timer(const Duration(seconds: 5),
+        () => unawaited(_ref.read(customLinkSyncProvider).sync()));
   }
 
   void stop() {
     _timer?.cancel();
+    _first?.cancel();
     _timer = null;
+    _first = null;
   }
 
   Future<void> refresh() async {
     _ref.invalidate(locationsProvider);
     await _ref.read(customServersProvider.notifier).refreshAll();
+    await _ref.read(customLinkSyncProvider).sync();
   }
 }
 

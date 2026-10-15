@@ -21,6 +21,20 @@ class MockCoreBackend {
   String? refreshToken = 'mock-refresh';
   bool refreshShouldFail = false;
 
+  /// GET/PUT /me/custom-links, like Core: a version, 409 when stale.
+  Map<String, dynamic> customLinksDoc = {'version': 0, 'entries': []};
+
+  Map<String, dynamic> customLinks() => Map.of(customLinksDoc);
+
+  Future<int> putCustomLinks(Map<String, dynamic> doc) async {
+    final current = (customLinksDoc['version'] as num).toInt();
+    if ((doc['version'] as num?)?.toInt() != current) {
+      throw AppException(AppErrorKind.unavailable, statusCode: 409);
+    }
+    customLinksDoc = {'version': current + 1, 'entries': doc['entries']};
+    return current + 1;
+  }
+
   /// Distinct from [refreshShouldFail] (Core genuinely rejecting the
   /// refresh token) — simulates the refresh HTTP call itself failing for
   /// a network reason, to cover SessionController.refreshTokens()'s own

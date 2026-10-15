@@ -200,6 +200,17 @@ class CoreGateway {
     return live.myShare();
   }
 
+  /// See [CoreApi.customLinks]. The mock keeps them in memory.
+  Future<Map<String, dynamic>> customLinks() {
+    if (useMock) return Future.value(mock.customLinks());
+    return live.customLinks();
+  }
+
+  Future<int> putCustomLinks(Map<String, dynamic> doc) {
+    if (useMock) return mock.putCustomLinks(doc);
+    return live.putCustomLinks(doc);
+  }
+
   Future<SharingOverview> sharing() {
     if (useMock) return Future.value(SharingOverview.empty);
     return live.mySharing();

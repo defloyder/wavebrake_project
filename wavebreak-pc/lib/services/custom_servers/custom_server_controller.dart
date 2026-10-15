@@ -24,6 +24,7 @@ import '../device/device_service.dart';
 import '../providers.dart';
 import '../vpn/connection_manager.dart';
 import '../vpn/personal_locations.dart';
+import 'custom_link_sync.dart';
 import 'custom_subscription.dart';
 import 'share_link_parsing.dart';
 
@@ -85,7 +86,16 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
   /// Returns null on success, or an error code: 'invalid', 'blocked',
   /// 'unreachable', 'empty', or for share codes 'share_limit',
   /// 'share_invalid', 'share_own', 'share_inactive'.
-  Future<String?> addFromLink(String link) async {
+  Future<String?> addFromLink(String link, {bool fromSync = false}) async {
+    final result = await _addFromLink(link);
+    // To the account's other devices, when the user turned that on.
+    if (result == null && !fromSync) {
+      ref.read(customLinkSyncProvider).schedule();
+    }
+    return result;
+  }
+
+  Future<String?> _addFromLink(String link) async {
     final trimmed = link.trim();
     final shareToken = wavebreakShareToken(trimmed);
     if (shareToken != null) return _addFromShareCode(shareToken);
@@ -152,7 +162,6 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
   /// `#label` (same server under another name), a subscription URL with
   /// its host lowercased and trailing slash dropped — and WAVEBREAK's two
   /// API hosts (api. behind Cloudflare, core. direct) as one.
-  @visibleForTesting
   static String sameLinkKey(String link) {
     final t = link.trim();
     final uri = Uri.tryParse(t);
@@ -357,9 +366,10 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     return null;
   }
 
-  Future<void> removeGroup(String id) async {
+  Future<void> removeGroup(String id, {bool fromSync = false}) async {
     state = state.where((g) => g.id != id).toList();
     await _persist();
+    if (!fromSync) ref.read(customLinkSyncProvider).schedule();
   }
 
   final _redeemedAt = <String, DateTime>{};

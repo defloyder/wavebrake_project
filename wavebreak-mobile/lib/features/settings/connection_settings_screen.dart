@@ -10,6 +10,7 @@ import '../../core/theme/wb_colors.dart';
 import '../../services/system/battery_optimization.dart';
 import '../../services/system/quick_tile.dart';
 import '../../services/system/vpn_lockdown.dart';
+import '../../services/custom_servers/custom_link_sync.dart';
 import '../../services/split_tunnel/split_tunnel.dart';
 import 'package:go_router/go_router.dart';
 import '../shared/anchored_page.dart';
@@ -34,6 +35,7 @@ class _ConnectionSettingsScreenState
   bool _xiaomi = false;
   late bool _xrayEngine = PrefsStore.getBool(PrefsStore.pcXrayEngine);
   int _splitCount = 0;
+  late bool _syncLinks = PrefsStore.getBool(PrefsStore.syncCustomLinks);
 
   @override
   void initState() {
@@ -159,6 +161,19 @@ class _ConnectionSettingsScreenState
                   await context.push('/settings/connection/split');
                   final ids = await ref.read(splitTunnelStoreProvider).load();
                   if (mounted) setState(() => _splitCount = ids.length);
+                },
+              ),
+            // Own links on every device of the account (owner, 15.10; off
+            // by default). Not for a guest: there's no account to sync to.
+            if (!PrefsStore.getBool(PrefsStore.guestMode))
+              SettingsSwitchRow(
+                icon: Icons.sync_rounded,
+                title: s.syncLinksTitle,
+                subtitle: s.syncLinksHint,
+                value: _syncLinks,
+                onChanged: (value) async {
+                  setState(() => _syncLinks = value);
+                  await ref.read(customLinkSyncProvider).setEnabled(value);
                 },
               ),
             // WAVEBREAK locations only; applies on the next connect.

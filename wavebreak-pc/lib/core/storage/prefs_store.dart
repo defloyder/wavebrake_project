@@ -34,6 +34,10 @@ class PrefsStore {
   static const pcXrayEngine = 'pc_xray_engine';
   /// Windows: programs sent past the tunnel (split tunneling, 15.10).
   static const splitBypassProcesses = 'split_bypass_processes';
+  /// Own links synced across the account's devices (off by default) and
+  /// the list as last synced (custom_link_sync.dart).
+  static const syncCustomLinks = 'sync_custom_links';
+  static const customLinksSynced = 'custom_links_synced';
   static const notifyConnection = 'notify_connection';
   static const notifySubscription = 'notify_subscription';
   static const biometricPromptShown = 'biometric_prompt_shown';

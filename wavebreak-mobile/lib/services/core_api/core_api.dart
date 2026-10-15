@@ -261,6 +261,22 @@ class CoreApi {
     );
   }
 
+  /// The account's own links, synced between its devices (GET/PUT
+  /// /me/custom-links): `{"version": n, "entries": [...]}`.
+  Future<Map<String, dynamic>> customLinks() {
+    return _client.get('/me/custom-links', parse: (data) => _asMap(data));
+  }
+
+  /// Stores [doc]; returns the new version. 409 when another device wrote
+  /// since [doc]'s version.
+  Future<int> putCustomLinks(Map<String, dynamic> doc) {
+    return _client.put(
+      '/me/custom-links',
+      body: doc,
+      parse: (data) => (_asMap(data)['version'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   /// The account's own subscription and the ones shared with it.
   Future<SharingOverview> mySharing() {
     return _client.get(
