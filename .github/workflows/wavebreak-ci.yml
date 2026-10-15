@@ -25,6 +25,34 @@ jobs:
           working-directory: wavebreak-core
       - run: go build ./cmd/wavebreak-api ./cmd/wavebreak-worker ./cmd/wavebreak-cli ./cmd/wavebreak-migrate
 
+  # Core's database tests (*_integration_test.go, custom links): skipped in
+  # the job above without WAVEBREAK_TEST_DATABASE_URL, so they never ran in
+  # CI before 15.10. A throwaway Postgres like production's (17).
+  core-db:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: wb
+          POSTGRES_PASSWORD: wb
+          POSTGRES_DB: wb_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U wb -d wb_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      WAVEBREAK_TEST_DATABASE_URL: postgres://wb:wb@localhost:5432/wb_test?sslmode=disable
+    defaults:
+      run:
+        working-directory: wavebreak-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+      - run: go test -p 1 ./...
+
   node:
     runs-on: ubuntu-latest
     defaults:

@@ -118,6 +118,8 @@ func (s *Server) router() http.Handler {
 			r.Post("/me/access", s.meAccess)
 			r.Post("/me/share", s.meShare)
 			r.Get("/me/sharing", s.meSharing)
+			r.Get("/me/custom-links", s.getCustomLinks)
+			r.Put("/me/custom-links", s.putCustomLinks)
 			r.Post("/share/redeem", s.redeemShare)
 			r.Get("/me/device-login/{code}", s.inspectDeviceLogin)
 			r.With(ipRateLimitMiddleware(s.limiter, "device-login-approve", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
