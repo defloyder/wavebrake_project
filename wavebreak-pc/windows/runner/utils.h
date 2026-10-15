@@ -16,4 +16,12 @@ std::string Utf8FromUtf16(const wchar_t* utf16_string);
 // encoded in UTF-8. Returns an empty std::vector<std::string> on failure.
 std::vector<std::string> GetCommandLineArguments();
 
+// Appends a line to %LOCALAPPDATA%/WAVEBREAK/logs/native.log (next to the
+// Dart log): the runner's own start-up steps and failures.
+void NativeLog(const std::string& line);
+
+// Logs an unhandled native crash (exception code and address) to
+// native.log before Windows ends the process.
+void InstallCrashLogger();
+
 #endif  // RUNNER_UTILS_H_

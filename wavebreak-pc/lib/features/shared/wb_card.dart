@@ -1,19 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/wb_colors.dart';
-import 'wave_params.dart';
+import '../immersive/tinted_glass.dart';
 
-/// A translucent card: alpha-blended rather than a flat opaque fill, so the
-/// ocean background (and its current flag tint) reads through every
-/// surface instead of stopping at the card's edge. Deliberately NOT a live
-/// [BackdropFilter] blur — this type is instantiated many times per screen
-/// (every settings row, every device, every plan), and a real-time blur
-/// pass per instance is the kind of cost that reads fine on a desktop/
-/// emulator but turns visibly janky on real mid-range phones once several
-/// are on screen at once. Save blur for the few chrome surfaces that only
-/// ever have one instance on screen (nav bar, sheets, connect button).
-class WbCard extends ConsumerWidget {
+/// The app's card: since V5 the shared [TintedGlass] surface — dark glass
+/// with blur and a gradient leaning towards the selected location's flag
+/// accent, so every screen that uses cards follows the new design and the
+/// current flag tint without each call site threading it through.
+class WbCard extends StatelessWidget {
   const WbCard({
     super.key,
     required this.child,
@@ -26,35 +19,21 @@ class WbCard extends ConsumerWidget {
   final VoidCallback? onTap;
   final EdgeInsets padding;
 
-  /// Accent tinting the border a little instead of the flat default.
-  /// Defaults to the app's current location-accent tint (see
-  /// [appWaveParamsProvider]) when not given explicitly, so every card
-  /// picks it up without each call site having to thread it through.
+  /// Accent override; defaults to the current location-accent tint.
   final Color? tint;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final effectiveTint = tint ?? ref.watch(appWaveParamsProvider).tint;
-    final borderColor =
-        effectiveTint == null ? WbColors.ice08 : effectiveTint.withValues(alpha: 0.28);
-    final body = Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: WbColors.card.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor),
-      ),
+  Widget build(BuildContext context) {
+    // Personalization: compact density trims the default padding.
+    final compact = Theme.of(context).visualDensity.vertical < 0;
+    return TintedGlass(
+      padding: compact && padding == const EdgeInsets.all(16)
+          ? const EdgeInsets.all(12)
+          : padding,
+      radius: 18,
+      onTap: onTap,
+      tint: tint,
       child: child,
-    );
-    if (onTap == null) return body;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: body,
-      ),
     );
   }
 }

@@ -221,6 +221,59 @@ paths:
       responses:
         "200":
           description: Usage history
+  /v1/auth/device-login/start:
+    post:
+      summary: Start a QR sign-in for a device without a keyboard (TV)
+      description: >-
+        Returns a code (shown as a QR of `url` and as text) and a secret
+        poll_token. A signed-in WAVEBREAK app approves the code; the device
+        then polls for its own session. Pending for 10 minutes.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_name: {type: string}
+                platform: {type: string}
+      responses:
+        "200":
+          description: "{code, poll_token, url, expires_in, interval}"
+  /v1/auth/device-login/poll:
+    post:
+      summary: Poll a QR sign-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                poll_token: {type: string}
+      responses:
+        "200":
+          description: "{status: pending} or {status: approved, tokens}; the tokens are handed over once"
+        "410":
+          description: device_login_expired
+  /v1/me/device-login/{code}:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Which device asks to be signed in with this code
+      responses:
+        "200":
+          description: "{device_name, platform, expires_in}"
+        "404":
+          description: device_login_not_found
+  /v1/me/device-login/{code}/approve:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Sign the device in to the caller's account (a new session of its own; the caller's session is untouched)
+      responses:
+        "200":
+          description: Approved
+        "404":
+          description: device_login_not_found
   /v1/me/devices:
     get:
       security:
@@ -233,7 +286,29 @@ paths:
       security:
         - bearerAuth: []
       summary: Register a current user device while enforcing subscription device limits
+      description: >-
+        With install_id (the app's id of its installation, kept across
+        sign-outs) an active device of this user with the same install_id is
+        returned (200) instead of creating another one — signing in again
+        never takes a new slot. A revoked device is not brought back.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                platform:
+                  type: string
+                install_id:
+                  type: string
+                  maxLength: 128
       responses:
+        "200":
+          description: Existing device of this installation returned
         "201":
           description: Device created
         "403":
@@ -269,7 +344,10 @@ paths:
           description: Device revoked
   /v1/plans:
     get:
-      summary: Active plans
+      summary: Active public plans
+      description: >
+        Each plan may carry an offer: original_price_minor (the price
+        before the discount, shown struck through) and badge ("-17%").
       responses:
         "200":
           description: Plan list
@@ -285,9 +363,12 @@ paths:
     post:
       security:
         - bearerAuth: []
-      summary: Buy a plan (one subscription per user)
+      summary: Activate a plan without payment (off unless WAVEBREAK_SELF_SERVE_SUBSCRIPTIONS)
       description: >
-        Creates and activates the subscription (201). When the user's
+        Off by default: 402 PAYMENT_REQUIRED (choosing a plan does not grant
+        it; access is issued by the administration until a payment step
+        exists). When enabled: creates and activates the subscription
+        (201). When the user's
         subscription is past_due (period over or traffic exhausted, within
         the grace period) it is renewed in place instead (200): same
         subscription and credential, so the subscription link keeps
@@ -301,6 +382,26 @@ paths:
           description: Subscription created
         "409":
           description: SUBSCRIPTION_ALREADY_ACTIVE
+  /v1/promo-codes/check:
+    post:
+      security:
+        - bearerAuth: []
+      summary: Check a promo code for the signed-in user
+      description: >
+        Body {code, plan_id?}. Codes match case-insensitively, spaces
+        ignored. 200 {code, description, discount_type (percent|fixed),
+        discount_value, currency?, plan_id?, valid_until?, plans: [{plan_id,
+        price_minor, discounted_price_minor, currency}]} for the public plans
+        it applies to. Checking doesn't use up an activation (that happens at
+        the payment step). Rate-limited per IP like login.
+      responses:
+        "200":
+          description: The code applies; prices with the discount
+        "422":
+          description: >
+            PROMO_NOT_FOUND, PROMO_INACTIVE, PROMO_NOT_STARTED, PROMO_EXPIRED,
+            PROMO_EXHAUSTED, PROMO_ALREADY_USED, PROMO_NOT_FOR_PLAN or
+            PROMO_CURRENCY_MISMATCH
   /v1/subscriptions/current:
     get:
       security:
@@ -774,6 +875,59 @@ paths:
       responses:
         "200":
           description: Plan deleted
+  /v1/admin/promo-codes:
+    get:
+      security:
+        - bearerAuth: []
+      summary: Promo codes with their activation counts
+      responses:
+        "200":
+          description: "{promo_codes: [...]}"
+    post:
+      security:
+        - bearerAuth: []
+      summary: Create a promo code
+      description: >
+        Body {code (3-40, A-Z 0-9 - _), description?, discount_type
+        (percent 1-100 | fixed in minor units), discount_value, currency
+        (required for fixed), plan_id? (only for this plan), valid_from?,
+        valid_until?, max_activations?, is_active? (default true)}.
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Invalid fields
+        "409":
+          description: PROMO_CODE_TAKEN
+  /v1/admin/promo-codes/{promoID}:
+    put:
+      security:
+        - bearerAuth: []
+      summary: Update a promo code (same body as create)
+      parameters:
+        - name: promoID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Updated
+    delete:
+      security:
+        - bearerAuth: []
+      summary: Delete a promo code and its activation history
+      parameters:
+        - name: promoID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Deleted
   /v1/admin/subscriptions:
     get:
       security:

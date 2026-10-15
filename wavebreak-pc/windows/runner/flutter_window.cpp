@@ -1,4 +1,5 @@
 #include "flutter_window.h"
+#include "utils.h"
 
 #include <flutter/standard_method_codec.h>
 
@@ -86,6 +87,8 @@ bool FlutterWindow::OnCreate() {
       frame.right - frame.left, frame.bottom - frame.top, project_);
   // Ensure that basic setup of the controller was successful.
   if (!flutter_controller_->engine() || !flutter_controller_->view()) {
+    NativeLog(!flutter_controller_->engine() ? "Flutter engine failed to start"
+                                             : "Flutter view failed to create");
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());

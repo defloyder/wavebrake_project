@@ -1,4 +1,3 @@
-
 package config
 
 import (
@@ -42,14 +41,14 @@ type Config struct {
 // login-only (register/refresh have no stable per-account key to key on
 // before the account exists / without trusting an unverified claim).
 type RateLimitConfig struct {
-	LoginIPLimit        int
-	LoginIPWindow       time.Duration
-	LoginEmailLimit     int
-	LoginEmailWindow    time.Duration
-	RegisterIPLimit     int
-	RegisterIPWindow    time.Duration
-	RefreshIPLimit      int
-	RefreshIPWindow     time.Duration
+	LoginIPLimit     int
+	LoginIPWindow    time.Duration
+	LoginEmailLimit  int
+	LoginEmailWindow time.Duration
+	RegisterIPLimit  int
+	RegisterIPWindow time.Duration
+	RefreshIPLimit   int
+	RefreshIPWindow  time.Duration
 }
 
 // AccountsConfig drives admin account management (internal/accounts).
@@ -65,6 +64,16 @@ type AccountsConfig struct {
 	// SubscriptionGrace: how long a past_due subscription waits for renewal
 	// (VPN blocked) before it expires and the account is reset.
 	SubscriptionGrace time.Duration
+	// SelfServeSubscriptions: POST /v1/subscriptions activates a plan
+	// for the caller without payment. Off by default (there is no payment
+	// step yet: access is issued by the administration); on only for
+	// tests and closed trials.
+	SelfServeSubscriptions bool
+	// SubRequireHWID: GET /v1/sub answers only apps that send a device id
+	// (x-hwid: Happ, v2RayTun, Hiddify …), so every app on every device
+	// takes a device slot. Apps without it get a notice instead of
+	// servers. On by default.
+	SubRequireHWID bool
 }
 
 type VLESSConfig struct {
@@ -264,11 +273,13 @@ func Load() (Config, error) {
 			ReplyTo:  env("WAVEBREAK_SMTP_REPLY_TO", "support@wavebreak.com.tr"),
 		},
 		Accounts: AccountsConfig{
-			SubscriptionURLBase:  env("WAVEBREAK_SUBSCRIPTION_URL_BASE", "https://core.wavebreak.com.tr/v1/sub/"),
-			PasswordResetURLBase: env("WAVEBREAK_PASSWORD_RESET_URL_BASE", "https://wavebreak.com.tr/reset-password"),
-			PasswordResetTTL:     mustDuration(env("WAVEBREAK_PASSWORD_RESET_TTL", "1h")),
-			AccessProtocol:       env("WAVEBREAK_ADMIN_ACCESS_PROTOCOL", "vless"),
-			SubscriptionGrace:    mustDuration(env("WAVEBREAK_SUBSCRIPTION_GRACE", "168h")),
+			SubscriptionURLBase:    env("WAVEBREAK_SUBSCRIPTION_URL_BASE", "https://api.wavebreak.com.tr/v1/sub/"),
+			PasswordResetURLBase:   env("WAVEBREAK_PASSWORD_RESET_URL_BASE", "https://wavebreak.com.tr/reset-password"),
+			PasswordResetTTL:       mustDuration(env("WAVEBREAK_PASSWORD_RESET_TTL", "1h")),
+			AccessProtocol:         env("WAVEBREAK_ADMIN_ACCESS_PROTOCOL", "vless"),
+			SubscriptionGrace:      mustDuration(env("WAVEBREAK_SUBSCRIPTION_GRACE", "168h")),
+			SelfServeSubscriptions: boolEnv("WAVEBREAK_SELF_SERVE_SUBSCRIPTIONS", false),
+			SubRequireHWID:         boolEnv("WAVEBREAK_SUB_REQUIRE_HWID", true),
 		},
 		RateLimit: RateLimitConfig{
 			LoginIPLimit:     loginIPLimit,
@@ -398,4 +409,3 @@ func firstName(list string) string {
 	}
 	return ""
 }
-

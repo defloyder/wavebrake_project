@@ -90,6 +90,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
     CreateAndAttachConsole();
   }
+  InstallCrashLogger();
+  NativeLog("runner start");
 
   // A sing-box left behind by a crashed or killed WAVEBREAK still holds
   // the TUN adapter: stop it before this run tries to connect.
@@ -110,8 +112,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Point origin(80, 40);
   Win32Window::Size size(1200, 800);
   if (!window.Create(L"WAVEBREAK", origin, size)) {
+    NativeLog("window or Flutter engine could not be created");
+    ::MessageBoxW(nullptr,
+                  L"WAVEBREAK could not start (graphics / Flutter engine).\n"
+                  L"Log: %LOCALAPPDATA%\\WAVEBREAK\\logs\\native.log",
+                  L"WAVEBREAK", MB_OK | MB_ICONERROR);
     return EXIT_FAILURE;
   }
+  NativeLog("window created");
   window.SetQuitOnClose(true);
 
   ::MSG msg;

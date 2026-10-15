@@ -1,3 +1,5 @@
+import '../../core/env/app_env.dart';
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -19,13 +21,20 @@ import '../shared/wavebreak_mark.dart';
 /// user in (Core returns tokens), exactly like a login.
 class VerifyEmailScreen extends ConsumerStatefulWidget {
   const VerifyEmailScreen(
-      {super.key, required this.email, this.codeSent = true});
+      {super.key,
+      required this.email,
+      this.codeSent = true,
+      this.loginCode = false});
 
   final String email;
 
   /// False when Core created the account but the email didn't go out —
   /// the screen then offers "send again" straight away.
   final bool codeSent;
+
+  /// Sign-in with an emailed code (an existing account) instead of
+  /// confirming a new one: same screen, Core's login-code endpoints.
+  final bool loginCode;
 
   @override
   ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
@@ -67,9 +76,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       _info = null;
     });
     try {
-      final tokens = await ref
-          .read(coreGatewayProvider)
-          .verifyEmail(email: widget.email, code: code)
+      final gateway = ref.read(coreGatewayProvider);
+      final tokens = await (widget.loginCode
+              ? gateway.confirmLoginCode(email: widget.email, code: code)
+              : gateway.verifyEmail(email: widget.email, code: code))
           .timeout(const Duration(seconds: 30),
               onTimeout: () => throw AppException(AppErrorKind.unavailable));
       await ref
@@ -95,10 +105,13 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       _info = null;
     });
     try {
-      await ref.read(coreGatewayProvider).resendEmailCode(
-            email: widget.email,
-            language: ref.read(languageProvider).name,
-          );
+      final gateway = ref.read(coreGatewayProvider);
+      await (widget.loginCode
+          ? gateway.requestLoginCode
+          : gateway.resendEmailCode)(
+        email: widget.email,
+        language: ref.read(languageProvider).name,
+      );
       if (!mounted) return;
       setState(
           () => _info = s.verifyEmailSent.replaceAll('{email}', widget.email));
@@ -129,121 +142,144 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     final notSent = !widget.codeSent && _info == null;
     return Scaffold(
       body: OceanBackground(
+        stars: true,
         illuminate: true,
         tint: waves.tint,
         waveSpeed: waves.speed,
         waveAmplitude: waves.amplitude,
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    onPressed: () => safePop(context, fallback: '/login'),
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          // TV: at the top, clear of the remote's keyboard (owner, 15.10).
+          child: Align(
+            alignment: AppEnv.isTv ? Alignment.topCenter : Alignment.center,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed: () => safePop(context,
+                          fallback:
+                              widget.loginCode ? '/email-code' : '/login'),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                    ),
                   ),
-                ),
-                const WavebreakMark(size: 64),
-                const SizedBox(height: 16),
-                Text(
-                  s.verifyEmailTitle,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  notSent
-                      ? s.errEmailSendFailed
-                      : s.verifyEmailBody.replaceAll('{email}', widget.email),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: notSent ? WbColors.warning : WbColors.muted,
-                    height: 1.4,
+                  // TV: no mark, so the field sits high — the remote's
+                  // keyboard covers the lower half (owner, 15.10).
+                  if (!AppEnv.isTv) ...[
+                    const WavebreakMark(size: 64),
+                    const SizedBox(height: 16),
+                  ],
+                  Text(
+                    widget.loginCode ? s.emailCodeTitle : s.verifyEmailTitle,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontFamily: 'serif', fontSize: 26),
                   ),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _code,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  maxLength: 6,
-                  autofillHints: const [AutofillHints.oneTimeCode],
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: const TextStyle(
-                    fontSize: 28,
-                    letterSpacing: 10,
-                    fontWeight: FontWeight.w600,
-                    color: WbColors.waveCyan,
+                  const SizedBox(height: 10),
+                  Text(
+                    notSent
+                        ? s.errEmailSendFailed
+                        : (widget.loginCode
+                                ? s.emailCodeBody
+                                : s.verifyEmailBody)
+                            .replaceAll('{email}', widget.email),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: notSent ? WbColors.warning : WbColors.muted,
+                      height: 1.4,
+                    ),
                   ),
-                  decoration: InputDecoration(
-                    hintText: s.verifyEmailCodeHint,
-                    hintStyle: const TextStyle(fontSize: 16, letterSpacing: 0),
-                    counterText: '',
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: _code,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    textAlignVertical: TextAlignVertical.center,
+                    maxLength: 6,
+                    autofillHints: const [AutofillHints.oneTimeCode],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    style: TextStyle(
+                      fontSize: 28,
+                      letterSpacing: 10,
+                      fontWeight: FontWeight.w600,
+                      color: context.accent,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: s.verifyEmailCodeHint,
+                      // Grey and plain, not the code's bold accent digits (owner, 14.10).
+                      hintStyle: const TextStyle(
+                          fontSize: 16,
+                          letterSpacing: 0.2,
+                          fontWeight: FontWeight.w400,
+                          color: WbColors.muted),
+                      counterText: '',
+                    ),
+                    onChanged: (v) {
+                      if (v.length == 6) _submit();
+                    },
+                    onSubmitted: (_) => _submit(),
                   ),
-                  onChanged: (v) {
-                    if (v.length == 6) _submit();
-                  },
-                  onSubmitted: (_) => _submit(),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: WbColors.error)),
-                ],
-                if (_info != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_info!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: WbColors.waveCyan)),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
-                      foregroundColor: WbColors.midnight,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: WbColors.error)),
+                  ],
+                  if (_info != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_info!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: context.accent)),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton(
+                      onPressed: _busy ? null : _submit,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: context.accent,
+                        foregroundColor: WbColors.midnight,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: _busy
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2.4),
+                            )
+                          : Text(widget.loginCode
+                              ? s.emailCodeSignIn
+                              : s.verifyEmailConfirm),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: (_busy || _resendIn > 0) ? null : _resend,
+                    child: Text(
+                      _resendIn > 0
+                          ? s.verifyEmailResendIn
+                              .replaceAll('{s}', '$_resendIn')
+                          : s.verifyEmailResend,
+                      style: TextStyle(
+                        color: _resendIn > 0 ? WbColors.muted : context.accent,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    child: _busy
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.4),
-                          )
-                        : Text(s.verifyEmailConfirm),
                   ),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: (_busy || _resendIn > 0) ? null : _resend,
-                  child: Text(
-                    _resendIn > 0
-                        ? s.verifyEmailResendIn.replaceAll('{s}', '$_resendIn')
-                        : s.verifyEmailResend,
-                    style: TextStyle(
-                      color: _resendIn > 0 ? WbColors.muted : WbColors.waveCyan,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    s.verifyEmailCheckSpam,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: WbColors.muted, fontSize: 12),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  s.verifyEmailCheckSpam,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: WbColors.muted, fontSize: 12),
-                ),
-                const SizedBox(height: 24),
-              ],
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
         ),

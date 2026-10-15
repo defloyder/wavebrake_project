@@ -1,3 +1,4 @@
+import '../env/app_env.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -69,7 +70,8 @@ class WbTheme {
       hoverColor: accent.withValues(alpha: 0.07),
       splashColor: accent.withValues(alpha: 0.12),
       highlightColor: accent.withValues(alpha: 0.06),
-      focusColor: accent.withValues(alpha: 0.16),
+      // A TV is watched from the sofa: the remote focus must be obvious.
+      focusColor: accent.withValues(alpha: AppEnv.isTv ? 0.42 : 0.16),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: const Color(0xF20C1418),
         contentTextStyle: text.bodyMedium,
@@ -88,7 +90,9 @@ class WbTheme {
           foregroundColor: WbColors.midnight,
           disabledBackgroundColor: WbColors.ice08,
           minimumSize: const Size(44, 48),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          // The app font (a bare TextStyle here fell back to the system one).
+          textStyle: text.labelLarge
+              ?.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
         ),
@@ -144,7 +148,7 @@ class WbTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: accent, width: 1.2),
+          borderSide: BorderSide(color: accent, width: AppEnv.isTv ? 2.5 : 1.2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

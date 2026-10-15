@@ -1,77 +1,113 @@
 @extends('layout')
-
-@section('title', 'Скачать WAVEBREAK')
-@section('description', 'WAVEBREAK для компьютера и смартфона. Один аккаунт, ваши профили и управление защищённым подключением внутри приложения.')
+@php use App\Support\Locales; @endphp
+@section('title', __('site.download.title'))
+@section('description', __('site.download.description'))
+@section('breadcrumb', __('site.nav.apps'))
 @section('body_class', 'wb-shell wb-public wb-download-page')
 
+@php
+    // priceCurrency was hardcoded 'RUB' on every locale even though the
+    // download itself is free and the currency has no real meaning here —
+    // still, claiming RUB specifically on /en and /tr is misleading. Pick
+    // it from the page's own locale instead of assuming Russia.
+    $downloadCurrency = ['ru' => 'RUB', 'en' => 'USD', 'tr' => 'TRY'][Locales::current()] ?? 'USD';
+@endphp
+@push('schema')
+<script type="application/ld+json">{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'SoftwareApplication',
+    'name' => 'WAVEBREAK',
+    'description' => __('site.meta.app_description'),
+    'applicationCategory' => 'SecurityApplication',
+    'operatingSystem' => 'Windows, Android, Android TV',
+    'inLanguage' => ['ru', 'en', 'tr'],
+    'url' => Locales::url('download'),
+    'downloadUrl' => Locales::url('download'),
+    'image' => 'https://wavebreak.com.tr/images/og-cover.png',
+    'publisher' => ['@id' => 'https://wavebreak.com.tr/#organization'],
+    'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => $downloadCurrency],
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}</script>
+@endpush
 @section('content')
 
 
 <main id="main" class="download-site">
     <section class="download-hero" aria-labelledby="download-title">
-        <canvas id="download-tide" aria-hidden="true"></canvas>
-        <div class="download-grid" aria-hidden="true"></div>
-        <div class="download-wordmark download-wordmark--wave" aria-hidden="true">WAVE</div>
-        <div class="download-wordmark download-wordmark--break" aria-hidden="true">BREAK</div>
+        @include('partials.tide')
 
         <div class="wb-container download-hero-inner">
             <div class="download-intro" data-reveal>
-                <p class="download-kicker"><span></span> Приложение WAVEBREAK</p>
-                <h1 id="download-title">Волна меняется.<br><em>Доступ остаётся.</em></h1>
-                <p>Аккаунт, тарифы и ваши ссылки живут там, где вы ими пользуетесь: на компьютере и в смартфоне.</p>
+                <p class="download-kicker"><span></span> {{ __('site.download.kicker') }}</p>
+                <h1 id="download-title">{!! __('site.download.h1') !!}</h1>
+                <p>{{ __('site.download.lede') }}</p>
                 <a class="download-discover" href="#platforms">
-                    <span>Выбрать платформу</span>
+                    <span>{{ __('site.download.choose') }}</span>
                     <span aria-hidden="true">↓</span>
                 </a>
             </div>
 
-            <div class="download-signal" data-reveal data-reveal-delay="180" aria-label="Статус подготовки приложений">
+            <div class="download-signal" data-reveal data-reveal-delay="180" aria-label="{{ __('site.download.signal_label') }}">
                 <span class="download-signal-dot"></span>
-                <span>Windows и Android доступны, остальные сборки готовятся</span>
-                <b>02</b>
+                <span>{{ __('site.download.signal') }}</span>
+                <b>03</b>
             </div>
 
+            <div class="download-platforms">
             <div class="download-platform-switch" id="platforms" data-platform-switch data-reveal data-reveal-delay="260">
                 <div class="download-platform-glass" aria-hidden="true"></div>
                 <a class="download-platform-btn" href="{{ asset('downloads/wavebreak-windows.exe') }}" data-platform="0" download>
                     <span class="download-platform-index">01</span>
-                    <span><b>Windows</b><small>Десктоп</small></span>
-                    <em>Скачать</em>
+                    <span><b>Windows</b><small>{{ __('site.download.desktop') }}</small></span>
+                    <em>{{ __('site.download.get') }}</em>
                 </a>
                 <a class="download-platform-btn" href="{{ asset('downloads/wavebreak-android.apk') }}" data-platform="1" download>
                     <span class="download-platform-index">02</span>
-                    <span><b>Android</b><small>Смартфон</small></span>
-                    <em>Скачать</em>
+                    <span><b>Android</b><small>{{ __('site.download.phone') }}</small></span>
+                    <em>{{ __('site.download.get') }}</em>
                 </a>
-                <button type="button" class="download-platform-btn" data-platform="2" aria-describedby="release-note" disabled>
+                <a class="download-platform-btn" href="{{ asset('downloads/wavebreak-tv.apk') }}" data-platform="2" download>
                     <span class="download-platform-index">03</span>
-                    <span><b>iOS</b><small>Смартфон</small></span>
-                    <em>Скоро</em>
-                </button>
+                    <span><b>Android TV</b><small>{{ __('site.download.tv') }}</small></span>
+                    <em>{{ __('site.download.get') }}</em>
+                </a>
+            </div>
+
+            <div class="download-extras" data-reveal data-reveal-delay="320">
+                <a class="download-extra" href="{{ asset('downloads/WAVEBREAK-Launcher.exe') }}" download>
+                    <span class="download-extra-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></svg></span>
+                    <span><b>{{ __('site.download.launcher') }}</b><small>{{ __('site.download.launcher_note') }}</small></span>
+                    <em>{{ __('site.download.get') }}</em>
+                </a>
+                <a class="download-extra" href="{{ asset('downloads/wavebreak-tv-arm32.apk') }}" download>
+                    <span class="download-extra-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+                    <span><b>{{ __('site.download.tv32') }}</b><small>{{ __('site.download.tv32_note') }}</small></span>
+                    <em>{{ __('site.download.get') }}</em>
+                </a>
+            </div>
             </div>
         </div>
     </section>
 
     <section class="download-continuity" aria-labelledby="continuity-title">
         <div class="wb-container download-continuity-head" data-reveal>
-            <p class="download-kicker"><span></span> Один ритм</p>
-            <h2 id="continuity-title">Начали на компьютере.<br>Продолжили в телефоне.</h2>
-            <p>Профили и состояние аккаунта остаются понятными на каждом устройстве. Без веб-кабинета и лишних переходов.</p>
+            <p class="download-kicker"><span></span> {{ __('site.download.cont_kicker') }}</p>
+            <h2 id="continuity-title">{!! __('site.download.cont_title') !!}</h2>
+            <p>{{ __('site.download.cont_text') }}</p>
         </div>
 
         <div class="wb-container download-device-scene" data-reveal data-reveal-delay="120">
             <div class="download-device download-device--desktop">
-                <div class="download-device-bar"><i></i><span>WAVEBREAK / DESKTOP</span><b>готово</b></div>
+                <div class="download-device-bar"><i></i><span>WAVEBREAK / DESKTOP</span><b>{{ __('site.download.ready') }}</b></div>
                 <div class="download-device-core">
-                    <span class="download-device-mode">АВТО</span>
-                    <b class="download-device-location">Самая быстрая</b>
+                    <span class="download-device-mode">{{ __('site.download.mode_auto') }}</span>
+                    <b class="download-device-location">{{ __('site.download.fastest') }}</b>
                     <span class="download-core-ring">
-                        <i class="download-globe-meridian"></i>
-                        <i class="download-globe-latitude"></i>
+                        <span class="earth-fallback" aria-hidden="true"></span>
+                        <canvas data-earth data-hologram="true" data-texture="{{ asset('images/earth-blue-marble.jpg') }}" aria-hidden="true"></canvas>
                         <img src="{{ asset('images/wavebreak-mark.png') }}" alt="">
                     </span>
-                    <strong>Не подключено</strong>
-                    <small>Нажмите для подключения</small>
+                    <strong>{{ __('site.download.not_connected') }}</strong>
+                    <small>{{ __('site.download.tap') }}</small>
                 </div>
             </div>
 
@@ -82,45 +118,45 @@
             <div class="download-device download-device--phone">
                 <div class="download-phone-island"></div>
                 <div class="download-device-core">
-                    <span class="download-device-mode">АВТО</span>
-                    <b class="download-device-location">Самая быстрая</b>
+                    <span class="download-device-mode">{{ __('site.download.mode_auto') }}</span>
+                    <b class="download-device-location">{{ __('site.download.fastest') }}</b>
                     <span class="download-core-ring">
-                        <i class="download-globe-meridian"></i>
-                        <i class="download-globe-latitude"></i>
+                        <span class="earth-fallback" aria-hidden="true"></span>
+                        <canvas data-earth data-hologram="true" data-texture="{{ asset('images/earth-blue-marble.jpg') }}" aria-hidden="true"></canvas>
                         <img src="{{ asset('images/wavebreak-mark.png') }}" alt="">
                     </span>
-                    <strong>Не подключено</strong>
-                    <small>Нажмите для подключения</small>
+                    <strong>{{ __('site.download.not_connected') }}</strong>
+                    <small>{{ __('site.download.tap') }}</small>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="download-manifest" aria-label="Возможности приложений">
+    <section class="download-manifest" aria-label="{{ __('site.download.manifest_label') }}">
         <div class="wb-container download-manifest-grid">
             <div data-reveal>
                 <span>01</span>
-                <h3>Свои ссылки</h3>
-                <p>Добавляйте профили других сервисов рядом с WAVEBREAK.</p>
+                <h3>{{ __('site.download.manifest')[0][0] }}</h3>
+                <p>{{ __('site.download.manifest')[0][1] }}</p>
             </div>
             <div data-reveal data-reveal-delay="80">
                 <span>02</span>
-                <h3>Всё на месте</h3>
-                <p>Тариф, расход и устройства собраны внутри приложения.</p>
+                <h3>{{ __('site.download.manifest')[1][0] }}</h3>
+                <p>{{ __('site.download.manifest')[1][1] }}</p>
             </div>
             <div data-reveal data-reveal-delay="160">
                 <span>03</span>
-                <h3>Выбор локации</h3>
-                <p>Выбирайте доступную локацию и проверяйте состояние подключения в приложении.</p>
+                <h3>{{ __('site.download.manifest')[2][0] }}</h3>
+                <p>{{ __('site.download.manifest')[2][1] }}</p>
             </div>
         </div>
     </section>
 
     <section class="download-release" id="release-note">
         <div class="wb-container" data-reveal>
-            <p class="download-kicker"><span></span> Скоро здесь</p>
-            <h2>Windows и Android уже доступны.<br>iOS — после публикации сборки.</h2>
-            <p>Официальные сборки для Windows и Android доступны для скачивания выше. iOS появится здесь по мере готовности.</p>
+            <p class="download-kicker"><span></span> {{ __('site.download.release_kicker') }}</p>
+            <h2>{!! __('site.download.release_title') !!}</h2>
+            <p>{{ __('site.download.release_text') }}</p>
         </div>
     </section>
 </main>

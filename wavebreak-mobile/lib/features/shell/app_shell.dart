@@ -4,15 +4,18 @@ import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/update/update_service.dart';
-import '../immersive/effects_quality.dart';
 import '../immersive/immersive_colors.dart';
+import '../shared/anchored_page.dart';
+import '../shared/notice.dart';
 import '../shared/wave_params.dart';
 import '../shared/wavebreak_mark.dart';
 
@@ -41,6 +44,9 @@ const kMobileBottomBarReserve = 74.0;
 /// which follows the current location's flag.
 Color _selectedNavColor(BuildContext context) => context.accent;
 
+/// The update version the in-app notice was shown for (once per launch).
+String? _noticedUpdate;
+
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.navigationShell});
 
@@ -56,13 +62,26 @@ class AppShell extends ConsumerWidget {
     // offline indicator once both needed header space — this is the
     // same "there's something pending" signal without any header at all.
     // Settings > Updates (updates_screen.dart) is what it always points to.
-    final pendingUpdate = Platform.isAndroid
+    final pendingUpdate = (Platform.isAndroid || Platform.isWindows)
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid || Platform.isWindows) {
       ref.listen(availableUpdateProvider, (previous, next) {
         final info = next.asData?.value;
         if (info == null) return;
+        // In the app: the same notice as every other message, once per
+        // version per launch, straight to Updates (owner, 12.10).
+        if (_noticedUpdate != info.versionName) {
+          _noticedUpdate = info.versionName;
+          showNotice(
+            '${s.updateAvailable} · ${info.versionName}',
+            icon: Icons.system_update_rounded,
+            actionLabel: s.updateNow,
+            onAction: () => GoRouter.of(context).push('/settings/updates'),
+            duration: const Duration(seconds: 8),
+          );
+        }
+        if (!Platform.isAndroid) return;
         final lastNotified =
             PrefsStore.getInt(PrefsStore.lastNotifiedUpdateVersionCode) ?? 0;
         if (info.versionCode <= lastNotified) return;
@@ -111,15 +130,15 @@ class AppShell extends ConsumerWidget {
         }
 
         final expanded = ref.watch(navExpandedProvider);
-        return Scaffold(
-          body: Stack(
+        final shell = Scaffold(
+          body: _tvArrows(Stack(
             children: [
               // The content always sees a constant-width rail slot —
               // expanding the rail never reflows or squeezes this.
               Row(
                 children: [
                   const SizedBox(width: _kRailCollapsedWidth),
-                  Expanded(child: navigationShell),
+                  Expanded(child: _tvContent(navigationShell)),
                 ],
               ),
               if (expanded)
@@ -142,22 +161,40 @@ class AppShell extends ConsumerWidget {
                 left: 0,
                 top: 0,
                 bottom: 0,
-                child: _SideNav(
-                  expanded: expanded,
-                  selectedIndex: navigationShell.currentIndex,
-                  items: items,
-                  waveParams: waveParams,
-                  onSelect: (i) {
-                    ref.read(navExpandedProvider.notifier).state = false;
-                    navigationShell.goBranch(
-                      i,
-                      initialLocation: i == navigationShell.currentIndex,
-                    );
-                  },
+                child: _tvRail(
+                  ref,
+                  _SideNav(
+                    expanded: expanded,
+                    selectedIndex: navigationShell.currentIndex,
+                    items: items,
+                    waveParams: waveParams,
+                    onSelect: (i) {
+                      ref.read(navExpandedProvider.notifier).state = false;
+                      shellTabTaps.value++;
+                      navigationShell.goBranch(
+                        i,
+                        initialLocation: i == navigationShell.currentIndex,
+                      );
+                      if (AppEnv.isTv) _leaveRail();
+                    },
+                  ),
                 ),
               ),
             ],
-          ),
+          )),
+        );
+        if (!AppEnv.isTv) return shell;
+        // TV: Back at a section's root goes Home; on Home it leaves the
+        // app (as the phone does).
+        return PopScope(
+          canPop: navigationShell.currentIndex == 0,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) {
+              navigationShell.goBranch(0);
+              _leaveRail();
+            }
+          },
+          child: shell,
         );
       },
     );
@@ -198,41 +235,57 @@ class _MobileShell extends ConsumerWidget {
     // See AppShell's own copy of this same watch for the full comment —
     // this one's needed here too since the mobile bottom bar builds its
     // three buttons directly rather than from the desktop rail's `items`.
-    final pendingUpdate = Platform.isAndroid
+    final pendingUpdate = (Platform.isAndroid || Platform.isWindows)
         ? ref.watch(availableUpdateProvider).asData?.value
         : null;
 
-    return Scaffold(
-      // No slot-based bottomNavigationBar — that slot paints the
-      // Scaffold's own flat background behind it. Floating the pill over
-      // a full-height body instead means nothing but the pill's own
-      // frosted glass paints anything down there; the screen's real
-      // (moving, tinted) background shows through everywhere else.
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Positioned.fill(child: navigationShell),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
-                  child: BackdropFilter(
-                    // Economy effects (older phones): no live blur.
-                    enabled: !ref.watch(effectsEconomyProvider),
-                    filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+    // System back (gesture or button): pages inside a tab close first
+    // (Settings → its subpages are that tab's own stack), then any other
+    // tab returns to Home, and only Home lets the app close (owner, 06.10:
+    // back on any tab used to leave the app).
+    return PopScope(
+      canPop: navigationShell.currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) navigationShell.goBranch(0);
+      },
+      child: Scaffold(
+        // The keyboard of a sheet over a tab (e.g. "Add your own link")
+        // must not squeeze the tab behind it (owner, 13.10: the server
+        // list jumped and lost its top). Pages with their own Scaffold
+        // still make room for it themselves.
+        resizeToAvoidBottomInset: false,
+        // No slot-based bottomNavigationBar — that slot paints the
+        // Scaffold's own flat background behind it. Floating the pill over
+        // a full-height body instead means nothing but the pill's own
+        // frosted glass paints anything down there; the screen's real
+        // (moving, tinted) background shows through everywhere else.
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Positioned.fill(child: navigationShell),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    // No backdrop blur: under a 90 % fill it barely showed, and as
+                    // a filter of its own (outside the page's glass group) it cost
+                    // a full extra GPU pass every frame (P5).
                     child: Container(
                       height: 64,
+                      // Equal inner gap all round: the active tab's outline
+                      // used to touch the bar's rounded ends (owner, P7).
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         // Same gentle wash as the desktop rail — tinted a
                         // little toward the selected location's accent
                         // color instead of a flat, unchanging navy.
-                        color: Ic.glassMid.withValues(alpha: 0.82),
+                        color: Ic.glassMid.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(28),
                         border: Border.all(color: Ic.glassBorder),
                         boxShadow: [
@@ -289,11 +342,14 @@ class _MobileShell extends ConsumerWidget {
                               selected: activeButton == i,
                               tint: waveParams.tint,
                               showBadge: branch == 2 && pendingUpdate != null,
-                              onTap: () => navigationShell.goBranch(
-                                branch,
-                                initialLocation:
-                                    navigationShell.currentIndex == branch,
-                              ),
+                              onTap: () {
+                                shellTabTaps.value++;
+                                navigationShell.goBranch(
+                                  branch,
+                                  initialLocation:
+                                      navigationShell.currentIndex == branch,
+                                );
+                              },
                             ),
                         ],
                       ),
@@ -302,8 +358,8 @@ class _MobileShell extends ConsumerWidget {
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -338,15 +394,16 @@ class _MobileNavButton extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
             // The whole fifth of the bar is the tap target, not just the
             // icon+label — a big, easy, unmissable thumb target.
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               height: 56,
-              margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+              // Concentric with the bar (28 - its 4 px inner gap).
+              margin: const EdgeInsets.symmetric(horizontal: 2),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(24),
                 color: selected
                     ? context.brand.withValues(alpha: 0.16)
                     : Colors.transparent,
@@ -382,15 +439,23 @@ class _MobileNavButton extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.fade,
-                    softWrap: false,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 10.5,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  // Shrinks to fit ("Настройки" was cut on a 320 px phone
+                  // and touched the selected pill's edges, 14.10).
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 10.5,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -481,10 +546,22 @@ class _SideNav extends StatelessWidget {
                             data: items[i],
                             expanded: expanded,
                             selected: selectedIndex == i,
+                            focusNode:
+                                selectedIndex == i ? _tvRailSelected : null,
                             tint: waveParams.tint,
                             onTap: () => onSelect(i),
                           ),
                         ),
+                      // Opening and closing the rail: a row like the others at
+                      // its foot (owner, 14.10: the round button under the logo
+                      // looked awful).
+                      if (!AppEnv.isTv) ...[
+                        const Spacer(),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 5, 12, 16),
+                          child: _RailToggle(expanded: expanded),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -504,6 +581,7 @@ class _RailItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.tint,
+    this.focusNode,
   });
 
   final _NavItemData data;
@@ -511,6 +589,9 @@ class _RailItem extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final Color? tint;
+
+  /// TV: the selected section's node — where ← from the page lands.
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
@@ -562,6 +643,7 @@ class _RailItem extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        focusNode: focusNode,
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
@@ -582,5 +664,215 @@ class _RailItem extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// --- TV remote (owner, 12.10: the side panel didn't go away once opened,
+// and the remote was awkward) ---------------------------------------------
+//
+// Each section is its own navigator, and the arrows only search inside it:
+// ← from the page never reached the rail. Here:
+// - ← at the page's left edge goes to the rail (on the current section),
+//   which opens while the focus is in it;
+// - → or Back from the rail goes back to where the focus was on the page
+//   (or the page's first control), and the rail closes;
+// - picking a section hands the focus to that section's page.
+
+/// The rail's wrapper — `hasFocus` while a rail item is focused.
+final _tvRailNode = FocusNode(
+    debugLabel: 'tv-rail', canRequestFocus: false, skipTraversal: true);
+
+/// The selected section's rail item.
+final _tvRailSelected = FocusNode(debugLabel: 'tv-rail-selected');
+
+/// The pages (navigationShell).
+final _tvContentScope = FocusScopeNode(debugLabel: 'tv-content');
+
+/// Where the focus was on the page before ← took it to the rail.
+FocusNode? _tvLastPageFocus;
+
+Widget _tvRail(WidgetRef ref, Widget rail) {
+  if (!AppEnv.isTv) return rail;
+  return Focus(
+    focusNode: _tvRailNode,
+    onFocusChange: (inside) =>
+        ref.read(navExpandedProvider.notifier).state = inside,
+    onKeyEvent: (node, event) {
+      if (event is KeyDownEvent &&
+          (event.logicalKey == LogicalKeyboardKey.goBack ||
+              event.logicalKey == LogicalKeyboardKey.escape ||
+              event.logicalKey == LogicalKeyboardKey.browserBack)) {
+        _focusPage();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    },
+    child: FocusTraversalGroup(child: rail),
+  );
+}
+
+/// The pages, in their own focus scope, with the arrow handling above.
+Widget _tvContent(Widget pages) {
+  if (!AppEnv.isTv) return pages;
+  return FocusScope(node: _tvContentScope, child: pages);
+}
+
+/// Wraps the whole shell: arrows that leave the page or the rail.
+Widget _tvArrows(Widget shell) {
+  if (!AppEnv.isTv) return shell;
+  return Actions(
+    actions: {DirectionalFocusIntent: _TvDirectionalFocusAction()},
+    child: shell,
+  );
+}
+
+class _TvDirectionalFocusAction extends Action<DirectionalFocusIntent> {
+  @override
+  void invoke(DirectionalFocusIntent intent) {
+    final node = FocusManager.instance.primaryFocus;
+    if (node == null) return;
+    final inRail = _tvRailNode.hasFocus;
+    if (inRail) {
+      switch (intent.direction) {
+        case TraversalDirection.right:
+          _focusPage();
+        case TraversalDirection.up:
+        case TraversalDirection.down:
+          // Item to item, in order, never out of the rail: a geometric
+          // search from a rail item found the page's controls next to it
+          // (owner, 15.10: ↑ on Metrics jumped into the page).
+          _stepRail(node, intent.direction == TraversalDirection.down);
+        case TraversalDirection.left:
+          break;
+      }
+      return;
+    }
+    if (node.focusInDirection(intent.direction)) return;
+    // Nothing focusable that way (Metrics: a chart and rows, no
+    // controls): the remote scrolls the page instead (owner, 15.10).
+    if (intent.direction == TraversalDirection.up ||
+        intent.direction == TraversalDirection.down) {
+      if (_scrollPage(node, intent.direction == TraversalDirection.down)) {
+        return;
+      }
+    }
+    if (intent.direction == TraversalDirection.left) {
+      _tvLastPageFocus = node;
+      _tvRailSelected.requestFocus();
+    }
+  }
+}
+
+/// Scrolls the vertical list around [node] by 40 % of its height; false
+/// when there is none or it's already at that end.
+bool _scrollPage(FocusNode node, bool down) {
+  final ctx = node.context;
+  if (ctx == null) return false;
+  final scrollable = Scrollable.maybeOf(ctx, axis: Axis.vertical);
+  if (scrollable == null) return false;
+  final p = scrollable.position;
+  final target = scrollTarget(p.pixels, p.viewportDimension,
+      p.minScrollExtent, p.maxScrollExtent, down);
+  if (target == null) return false;
+  p.animateTo(target,
+      duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+  return true;
+}
+
+/// Where one remote press scrolls to, or null when already at that end.
+@visibleForTesting
+double? scrollTarget(
+    double pixels, double viewport, double min, double max, bool down) {
+  final target =
+      (pixels + (down ? 1 : -1) * viewport * 0.4).clamp(min, max).toDouble();
+  return (target - pixels).abs() < 1 ? null : target;
+}
+
+/// The next (or previous) rail item from [current], top to bottom; stays
+/// put at either end.
+void _stepRail(FocusNode current, bool down) {
+  final items = railOrder(_tvRailNode.traversalDescendants
+      .where((n) => n.canRequestFocus && n.context != null && !n.rect.isEmpty));
+  final next = railStep(items, current, down);
+  if (next == null) return;
+  next.requestFocus();
+  final ctx = next.context;
+  if (ctx != null) {
+    Scrollable.maybeOf(ctx)?.position.ensureVisible(ctx.findRenderObject()!,
+        alignment: 0.5, duration: const Duration(milliseconds: 150));
+  }
+}
+
+/// Focus nodes top to bottom (then left to right).
+@visibleForTesting
+List<FocusNode> railOrder(Iterable<FocusNode> nodes) => nodes.toList()
+  ..sort((a, b) {
+    final dy = a.rect.top.compareTo(b.rect.top);
+    return dy != 0 ? dy : a.rect.left.compareTo(b.rect.left);
+  });
+
+/// The item after (or before) [current] in [items], or null at an end or
+/// when [current] isn't one of them.
+@visibleForTesting
+T? railStep<T>(List<T> items, T current, bool down) {
+  final i = items.indexOf(current);
+  if (i < 0) return null;
+  final j = down ? i + 1 : i - 1;
+  return j >= 0 && j < items.length ? items[j] : null;
+}
+
+/// The focus back on the page: where it was, else its first control.
+void _focusPage() {
+  final last = _tvLastPageFocus;
+  _tvLastPageFocus = null;
+  if (last != null && last.context != null && last.canRequestFocus) {
+    last.requestFocus();
+    return;
+  }
+  _tvContentScope.requestFocus();
+  // The scope itself, or a node of a section no longer shown: the first
+  // control of the page on screen (hidden sections are ExcludeFocus).
+  final f = FocusManager.instance.primaryFocus;
+  if (f == null || f == _tvContentScope || !f.canRequestFocus) {
+    _tvContentScope.nextFocus();
+  }
+}
+
+/// After picking a section: the new page is built next frame.
+void _leaveRail() {
+  _tvLastPageFocus = null;
+  WidgetsBinding.instance.addPostFrameCallback((_) => _focusPage());
+}
+
+/// Opens and closes the side rail — a rail row like the destinations
+/// above it: ">>" when closed, "<< Collapse" when open.
+class _RailToggle extends ConsumerWidget {
+  const _RailToggle({required this.expanded});
+
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(stringsProvider);
+    final row = _RailItem(
+      data: _NavItemData(
+        icon: expanded
+            ? Icons.keyboard_double_arrow_left_rounded
+            : Icons.keyboard_double_arrow_right_rounded,
+        filledIcon: expanded
+            ? Icons.keyboard_double_arrow_left_rounded
+            : Icons.keyboard_double_arrow_right_rounded,
+        label: s.navCollapse,
+      ),
+      expanded: expanded,
+      selected: false,
+      onTap: () => ref.read(navExpandedProvider.notifier).update((v) => !v),
+    );
+    return expanded
+        ? row
+        : Tooltip(
+            message: MaterialLocalizations.of(context).openAppDrawerTooltip,
+            child: row,
+          );
   }
 }

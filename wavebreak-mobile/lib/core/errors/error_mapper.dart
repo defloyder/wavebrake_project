@@ -43,6 +43,15 @@ class ErrorMapper {
       final status = error.response?.statusCode;
       final text = _extractText(error.response?.data);
 
+      // Core answers every error in JSON. A 401/403 page that isn't JSON
+      // came from something in between — Cloudflare's check on `api.`
+      // after the IP changed, a relay — and must never read as "session
+      // rejected": the owner's colleague was signed out on the PC right
+      // after turning the VPN off (13.10).
+      if ((status == 401 || status == 403) && !_isJson(error.response)) {
+        return AppException(AppErrorKind.unavailable, statusCode: status);
+      }
+
       if (status == 401) {
         // login/register/refresh never send an Authorization header — a
         // 401 from one of those can only mean bad credentials, never an
@@ -86,6 +95,22 @@ class ErrorMapper {
         'email_unavailable': AppErrorKind.emailSendFailed,
       };
       for (final entry in emailCodes.entries) {
+        if (text.contains(entry.key)) {
+          return AppException(entry.value, statusCode: status);
+        }
+      }
+      // Promo codes (POST /v1/promo-codes/check): 422 with a PROMO_* code.
+      const promoCodes = {
+        'promo_not_found': AppErrorKind.promoNotFound,
+        'promo_expired': AppErrorKind.promoExpired,
+        'promo_not_started': AppErrorKind.promoNotStarted,
+        'promo_exhausted': AppErrorKind.promoExhausted,
+        'promo_already_used': AppErrorKind.promoAlreadyUsed,
+        'promo_not_for_plan': AppErrorKind.promoNotApplicable,
+        'promo_currency_mismatch': AppErrorKind.promoNotApplicable,
+        'promo_inactive': AppErrorKind.promoInactive,
+      };
+      for (final entry in promoCodes.entries) {
         if (text.contains(entry.key)) {
           return AppException(entry.value, statusCode: status);
         }
@@ -155,6 +180,15 @@ class ErrorMapper {
   /// Both `code` and `error` fields, lowercased and concatenated, so a
   /// single `.contains(...)` check matches whichever field actually
   /// carries the useful text.
+  /// A body Core wrote: decoded JSON, or a JSON content type.
+  bool _isJson(Response<dynamic>? response) {
+    if (response == null) return false;
+    final data = response.data;
+    if (data is Map || data is List) return true;
+    final type = response.headers.value(Headers.contentTypeHeader) ?? '';
+    return type.contains('json');
+  }
+
   String _extractText(dynamic data) {
     if (data is! Map) return '';
     final code = data['code'];

@@ -7,6 +7,9 @@ import '../core/storage/prefs_store.dart';
 import '../features/auth/forgot_password_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
+import '../features/auth/email_code_screen.dart';
+import '../features/tv/tv_login_screen.dart';
+import '../core/env/app_env.dart';
 import '../features/auth/verify_email_screen.dart';
 import '../features/auth/welcome_screen.dart';
 import '../features/home/home_screen.dart';
@@ -14,8 +17,10 @@ import '../features/locations/locations_screen.dart';
 import '../features/settings/about_screen.dart';
 import '../features/settings/account_screen.dart';
 import '../features/settings/connection_settings_screen.dart';
+import '../features/settings/split_tunnel_screen.dart';
 import '../features/settings/devices_screen.dart';
 import '../features/settings/notifications_screen.dart';
+import '../features/settings/help_screen.dart';
 import '../features/settings/personalization_screen.dart';
 import '../features/settings/security_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -23,6 +28,7 @@ import '../features/settings/support_screen.dart';
 import '../features/settings/updates_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/speedtest/speed_test_screen.dart';
+import '../features/metrics/metrics_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/subscription/subscription_screen.dart';
 import '../features/update/maintenance_screen.dart';
@@ -51,7 +57,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuth = loc == '/login' ||
           loc == '/register' ||
           loc == '/forgot' ||
-          loc == '/verify-email';
+          loc == '/verify-email' ||
+          loc == '/email-code' ||
+          loc == '/tv-login';
       final isUpdate = loc == '/update-required';
       final isMaintenance = loc == '/maintenance';
 
@@ -65,6 +73,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         return isUpdate ? null : '/update-required';
       }
       if (session.phase == SessionPhase.unauthenticated) {
+        // TV: sign in by QR from the phone (typing on a remote is a pain);
+        // e-mail and password stay one button away.
+        if (AppEnv.isTv) return isAuth ? null : '/tv-login';
         // A fresh install (or first time back at "no session") lands on
         // the guest-vs-account choice before ever seeing a login form —
         // once that choice is made once, later visits go straight to
@@ -89,6 +100,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             fadeThroughPage(state, const WelcomeScreen()),
       ),
       GoRoute(
+        path: '/tv-login',
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const TvLoginScreen()),
+      ),
+      GoRoute(
         path: '/login',
         pageBuilder: (_, state) => fadeThroughPage(state, const LoginScreen()),
       ),
@@ -96,6 +112,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/register',
         pageBuilder: (_, state) =>
             fadeThroughPage(state, const RegisterScreen()),
+      ),
+      GoRoute(
+        path: '/email-code',
+        pageBuilder: (_, state) =>
+            fadeThroughPage(state, const EmailCodeScreen()),
       ),
       GoRoute(
         path: '/verify-email',
@@ -106,6 +127,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             VerifyEmailScreen(
               email: (extra['email'] ?? '').toString(),
               codeSent: extra['sent'] != false,
+              loginCode: extra['login'] == true,
             ),
           );
         },
@@ -125,10 +147,30 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, state) =>
             fadeThroughPage(state, const MaintenanceScreen()),
       ),
-      StatefulShellRoute.indexedStack(
+      // go_router's indexedStack, plus: the hidden sections are out of the
+      // focus order — a TV remote (or a keyboard) used to land on buttons of
+      // a tab that wasn't on screen (TV check, 12.10).
+      StatefulShellRoute(
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);
         },
+        navigatorContainerBuilder: (context, navigationShell, children) =>
+            IndexedStack(
+          index: navigationShell.currentIndex,
+          children: [
+            for (var i = 0; i < children.length; i++)
+              Offstage(
+                offstage: i != navigationShell.currentIndex,
+                child: TickerMode(
+                  enabled: i == navigationShell.currentIndex,
+                  child: ExcludeFocus(
+                    excluding: i != navigationShell.currentIndex,
+                    child: children[i],
+                  ),
+                ),
+              ),
+          ],
+        ),
         branches: [
           StatefulShellBranch(
             navigatorKey: _shellKey,
@@ -173,6 +215,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'connection',
                     pageBuilder: (_, state) => fadeThroughPage(
                         state, const ConnectionSettingsScreen()),
+                    routes: [
+                      GoRoute(
+                        path: 'split',
+                        pageBuilder: (_, state) =>
+                            fadeThroughPage(state, const SplitTunnelScreen()),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'devices',
@@ -188,6 +237,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'personalization',
                     pageBuilder: (_, state) =>
                         fadeThroughPage(state, const PersonalizationScreen()),
+                  ),
+                  GoRoute(
+                    path: 'help',
+                    pageBuilder: (_, state) =>
+                        fadeThroughPage(state, const HelpScreen()),
                   ),
                   GoRoute(
                     path: 'support',
@@ -219,6 +273,17 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/speed-test',
                 pageBuilder: (_, __) => const NoTransitionPage(
                   child: SpeedTestScreen(),
+                ),
+              ),
+            ],
+          ),
+          // Branch 4: connection metrics (measured throughput, quality).
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/metrics',
+                pageBuilder: (_, __) => const NoTransitionPage(
+                  child: MetricsScreen(),
                 ),
               ),
             ],

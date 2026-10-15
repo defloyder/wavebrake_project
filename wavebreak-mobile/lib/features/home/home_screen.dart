@@ -1,16 +1,17 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/i18n/language_controller.dart';
-import '../../core/theme/flag_colors.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../services/core_api/models.dart';
@@ -21,17 +22,15 @@ import '../../services/update/apk_installer.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../shared/add_custom_server_sheet.dart';
 import '../shared/confirm_dialogs.dart';
-import '../shared/connect_button.dart';
 import '../shared/data_providers.dart';
 import '../shared/traffic_wave_bar.dart';
-import '../shared/location_dropdown.dart';
-import '../shared/menu_button.dart';
+import '../shared/traffic_format.dart';
+import '../../services/vpn/server_catalog.dart';
 import '../shell/app_shell.dart';
 import '../shared/ocean_background.dart';
-import '../shared/share_subscription_sheet.dart';
 import '../shared/subscription_accordion.dart';
 import '../shared/subscription_texts.dart';
-import '../shared/subscription_section.dart';
+import '../shared/toast.dart';
 import '../shared/wave_params.dart';
 import '../shared/wb_card.dart';
 import '../shared/wavebreak_mark.dart';
@@ -41,6 +40,7 @@ import '../immersive/tinted_glass.dart';
 import '../immersive/wave_field.dart';
 import 'home_vitals.dart';
 import 'location_bar.dart';
+import '../locations/servers_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -52,9 +52,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with WidgetsBindingObserver {
   Timer? _ticker;
-  final _locationLink = LayerLink();
   final _scrollController = ScrollController();
-  bool _dropdownOpen = false;
 
   // Closing a long, scrolled-into location list should smoothly bring the
   // gaze back up the page instead of leaving the view stranded on the
@@ -140,7 +138,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // during onboarding, and at most once a week while the app is still not
   // exempt; Settings > Connection offers it at any time.
   Future<void> _maybeOfferBatteryOptimizationExemption() async {
-    if (!Platform.isAndroid) return;
+    if (!Platform.isAndroid || AppEnv.isTv) return;
+    const battery = BatteryOptimizationService();
+    if (await battery.isExempt()) {
+      await _maybeOfferXiaomiBackground(battery);
+      return;
+    }
     // Re-offered weekly while still not exempt (bug 1: the tunnel's
     // watchdog is only reliable in the background with the exemption).
     const reofferAfter = Duration(days: 7);
@@ -150,8 +153,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         reofferAfter.inMilliseconds) {
       return;
     }
-    const battery = BatteryOptimizationService();
-    if (await battery.isExempt()) return;
     if (!mounted) return;
     await PrefsStore.setInt(PrefsStore.batteryOptimizationPromptLastMs,
         DateTime.now().millisecondsSinceEpoch);
@@ -177,7 +178,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
     if (allow == true) {
       await battery.requestExemption();
+      await _maybeOfferXiaomiBackground(battery);
     }
+  }
+
+  // Xiaomi / Redmi / POCO: Android's exemption alone doesn't stop MIUI /
+  // HyperOS from freezing the VPN in the background (owner, 12.10: the
+  // VPN passed nothing until the app was opened). Once; Settings >
+  // Connection has both screens at any time.
+  Future<void> _maybeOfferXiaomiBackground(
+      BatteryOptimizationService battery) async {
+    if (PrefsStore.getBool(PrefsStore.xiaomiBackgroundHintShown)) return;
+    if (!await battery.isXiaomi() || !mounted) return;
+    await PrefsStore.setBool(PrefsStore.xiaomiBackgroundHintShown, true);
+    if (!mounted) return;
+    final s = ref.read(stringsProvider);
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: WbColors.card,
+        title: Text(s.bgSaverRow),
+        content: Text(s.xiaomiBgPromptBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(s.notNow),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(s.openAction),
+          ),
+        ],
+      ),
+    );
+    if (open == true) await battery.openBackgroundSettings();
   }
 
   // Real-device bug this fixes: after the phone sits idle/screen-off for a
@@ -213,67 +247,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  Future<void> _openLocationPicker(List<LocationItem> locations) async {
-    if (_dropdownOpen) return;
-    setState(() => _dropdownOpen = true);
-    final current = ref.read(connectionManagerProvider).location;
-    final custom = ref.read(customServersProvider);
-    final s = ref.read(stringsProvider);
-    final sections = buildSubscriptionSections(
-      wavebreakLocations: locations,
-      customGroups: custom,
-      s: s,
-      sharing: ref.read(sharingProvider).valueOrNull,
-    );
-    if (!mounted) return;
-    final isDesktop = MediaQuery.sizeOf(context).width >= 820;
-    final result = isDesktop
-        ? await showLocationDropdown(
-            // ignore: use_build_context_synchronously
-            context: context,
-            link: _locationLink,
-            sections: sections,
-            current: current,
-            s: s,
-            onRemoveCustom: (id) => _removeCustomGroup(id),
-            onRefreshCustom: (id) =>
-                ref.read(customServersProvider.notifier).refreshGroup(id),
-          )
-        : await showLocationSheet(
-            // ignore: use_build_context_synchronously
-            context: context,
-            sections: sections,
-            current: current,
-            s: s,
-            onRemoveCustom: (id) => _removeCustomGroup(id),
-            onRefreshCustom: (id) =>
-                ref.read(customServersProvider.notifier).refreshGroup(id),
-          );
-    if (mounted) setState(() => _dropdownOpen = false);
-    if (result == null) return;
-    if (result.addCustom) {
-      if (mounted) await showAddCustomServerSheet(context, ref);
-      return;
-    }
-    if (result.shareLink != null) {
-      if (mounted) {
-        await showShareSubscriptionSheet(
-          context,
-          title: result.shareTitle ?? '',
-          link: result.shareLink!,
-          s: s,
-        );
-      }
-      return;
-    }
-    if (result.selected != null) {
-      final canConnect = ref.read(canConnectProvider);
-      ref
-          .read(connectionManagerProvider.notifier)
-          .selectLocation(result.selected!, subscriptionActive: canConnect);
-    }
-  }
-
   Future<void> _removeCustomGroup(String id) async {
     final s = ref.read(stringsProvider);
     if (!await confirmRemoveCustomGroup(context, s)) return;
@@ -296,28 +269,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  Future<void> _refresh() async {
-    ref.invalidate(locationsProvider);
-    ref.invalidate(subscriptionProvider);
+  bool _refreshing = false;
+
+  /// Reloads the servers and the subscription — the refresh button and
+  /// pull-down on Home. Taps while a reload is running are ignored; the
+  /// message comes once it is done (and only for the button: the pull-down
+  /// spinner already says it).
+  Future<void> _refresh({bool toast = true}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+    final messenger = ScaffoldMessenger.of(context);
     final s = ref.read(stringsProvider);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(s.serversUpdated),
-            duration: const Duration(seconds: 2)),
-      );
+    try {
+      ref.invalidate(locationsProvider);
+      ref.invalidate(subscriptionProvider);
+      await Future.wait([
+        ref.read(locationsProvider.future),
+        ref.read(subscriptionProvider.future),
+      ]).timeout(const Duration(seconds: 20));
+    } catch (_) {
+      // Errors show on the screen itself (offline icon, server list).
+    } finally {
+      _refreshing = false;
+    }
+    if (mounted && toast) {
+      showToast(messenger, s.serversUpdated, kind: NoticeKind.success);
     }
   }
 
   Future<void> _restart() async {
     final s = ref.read(stringsProvider);
     final canConnect = ref.read(canConnectProvider);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(s.restarting), duration: const Duration(seconds: 2)),
-      );
-    }
+    if (mounted) showToast(ScaffoldMessenger.of(context), s.restarting);
     await ref
         .read(connectionManagerProvider.notifier)
         .restart(subscriptionActive: canConnect);
@@ -385,16 +368,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           style: const TextStyle(color: WbColors.ice60),
         ),
       ),
-      data: (items) {
-        final sections = buildSubscriptionSections(
-          wavebreakLocations: items,
-          customGroups: ref.watch(customServersProvider),
-          s: s,
-          sharing: ref.watch(sharingProvider).valueOrNull,
-        );
+      // Wide windows only (the phone has the Servers tab): the same list,
+      // from the same catalog.
+      data: (_) {
         return SubscriptionAccordion(
-          sections: sections,
-          currentId: connection.location.id,
+          sections: ref.watch(serverCatalogProvider),
+          current: connection.location,
           s: s,
           shrinkWrap: true,
           onSelect: (item) => ref
@@ -417,12 +396,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               // Centered against the row's true midpoint, not balanced by
               // Spacers — the menu button and toolbar chip have different
               // widths, so equal Spacers would leave the wordmark off-center.
-              const Center(child: WavebreakWordmarkText(size: 14)),
-              // Mobile has no side rail to expand — the menu button belongs
-              // to desktop only.
-              if (isDesktop)
-                const Align(
-                    alignment: Alignment.centerLeft, child: MenuButton()),
+              // On a narrow phone (< 400) the centered wordmark ran under
+              // the toolbar: it moves to the left edge there.
+              Align(
+                alignment: isDesktop || MediaQuery.sizeOf(context).width >= 400
+                    ? Alignment.center
+                    : Alignment.centerLeft,
+                child: const WavebreakWordmarkText(size: 14),
+              ),
               Align(
                 alignment: Alignment.centerRight,
                 child: _ToolbarChip(
@@ -473,23 +454,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           .toggle(subscriptionActive: canConnect);
     }
 
-    final connectButton = ConnectButton(
-      status: connection.status,
-      enabled: connectEnabled,
-      accentColors: connection.location.isAuto
-          ? null
-          : accentPairFor(connection.location.countryCode),
-      onPressed: onConnectPressed,
-    );
-
-    // Phone (V5): the living sphere instead of the glass button.
-    final coreDiameter = livingCoreDiameter(MediaQuery.sizeOf(context).width);
-    final livingCore = LivingCore(
-      status: connection.status,
-      enabled: connectEnabled,
-      diameter: coreDiameter,
-      onPressed: onConnectPressed,
-    );
+    // Phone (V5): the living sphere instead of the glass button. The ping /
+    // download readouts sit beside it when the sphere keeps at least 180
+    // across between them; on narrower phones they go in a row under it
+    // (beside a full-size sphere they covered it and clipped).
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final betweenVitals = screenWidth - 40 - 2 * SideVital.width;
+    final vitalsBeside = betweenVitals >= 180;
+    final coreDiameter = vitalsBeside
+        ? math.min(livingCoreDiameter(screenWidth), betweenVitals)
+        : livingCoreDiameter(screenWidth);
 
     final statusCopy = _StatusCopy(
       connection: connection,
@@ -515,11 +489,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ref.read(connectionManagerProvider.notifier).disconnect();
       },
       onChoosePlan: () => context.push('/subscription'),
-      onTryOtherProtocol: connection.noTraffic &&
-              ref.read(connectionManagerProvider.notifier).otherProtocol != null
-          ? () =>
-              ref.read(connectionManagerProvider.notifier).tryOtherProtocol()
-          : null,
+      // The protocol switch is right above the sphere: the hint points
+      // there instead of a button of its own (one place to switch).
+      hasOtherProtocol: connection.noTraffic &&
+          ref.read(connectionManagerProvider.notifier).otherProtocol != null,
     );
 
     final subscriptionStrip = _SubscriptionStrip(
@@ -534,90 +507,120 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       },
     );
 
-    // Same-country WAVEBREAK locations = the protocol choices (Direct /
-    // Hysteria2) for the switch under the server row.
+    // The current place's protocols (Direct / Hysteria2 …) from the server
+    // catalog — the Servers tab picks from the same entries. The row
+    // itself opens the Servers tab (the one place to change location).
     final current = connection.location;
-    final protocolSiblings = current.isAuto
-        ? const <LocationItem>[]
-        : [
-            for (final l in locations.valueOrNull ?? const <LocationItem>[])
-              if (!l.isAuto &&
-                  l.available &&
-                  l.countryCode == current.countryCode)
-                l,
-          ];
-    final locationHeader = CompositedTransformTarget(
-      link: _locationLink,
-      child: LocationBar(
-        location: current,
-        siblings: protocolSiblings,
-        s: s,
-        onOpenPicker: () => locations.whenData(_openLocationPicker),
-        onSelect: (item) => ref
-            .read(connectionManagerProvider.notifier)
-            .selectLocation(item, subscriptionActive: canConnect),
-      ),
+    final currentPlace = current.isAuto
+        ? null
+        : placeOf(current, ref.watch(serverCatalogProvider));
+    final locationHeader = LocationBar(
+      location: current,
+      variants: currentPlace?.variants ?? const <LocationItem>[],
+      s: s,
+      onOpenServers: () => showServersSheet(context, ref),
+      onSelect: (item) => ref
+          .read(connectionManagerProvider.notifier)
+          .selectLocation(item, subscriptionActive: canConnect),
     );
 
-    // Phone layout, used under the wave field (see below).
+    // Own active subscription: it fits as one line at the bottom of the
+    // session card. Anything that needs action (guest, expired, unpaid,
+    // a shared subscription selected) keeps its own card under it.
+    final sub = subscription.valueOrNull;
+    final sharedSelected = ref.watch(customServersProvider).any((g) =>
+        g.sharedWithMe && g.servers.any((v) => v.id == connection.location.id));
+    final compactSubscription = !isGuest &&
+        !sharedSelected &&
+        sub != null &&
+        sub.isActive &&
+        !sub.isExpired &&
+        !sub.isPastDue;
+
+    // Phone layout, used under the wave field (see below). No scrolling
+    // (owner, 06.10): the sphere takes whatever height the rest leaves,
+    // up to its normal size. Very short screens (< 600 px of body) still
+    // scroll rather than squeeze the sphere to nothing.
     Widget buildMobileBody() => LayoutBuilder(
           builder: (context, constraints) {
-            // A comfortable fixed rhythm for the hero section — no
-            // Spacer games tied to viewport height, so it looks the
-            // same whether the screen is short or tall.
-            final heroTopGap = (constraints.maxHeight * 0.04).clamp(8.0, 28.0);
-            final aboveButtonGap =
-                (constraints.maxHeight * 0.06).clamp(20.0, 56.0);
-            return SingleChildScrollView(
-              controller: _scrollController,
-              // The bottom nav pill now floats over the body
-              // instead of reserving its own Scaffold slot, so
-              // this has to leave room for it manually or the
-              // last row of locations ends up underneath it.
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                0,
-                20,
-                kMobileBottomBarReserve + 12,
-              ),
-              child: Column(
-                children: [
-                  SizedBox(height: heroTopGap),
-                  buildTopBar(false),
-                  SizedBox(height: aboveButtonGap * 0.5),
-                  locationHeader,
-                  // The stage already leaves room for the orbit
-                  // waves above and below the sphere.
-                  SizedBox(height: aboveButtonGap * 0.4),
-                  // Real ping / download beside the core
-                  // (dashes until connected — never invented),
-                  // laid over the sphere's wave stage. The empty
-                  // middle lets taps through to the sphere.
-                  CoreStage(
-                    diameter: coreDiameter,
-                    core: livingCore,
-                    overlay: const CoreWithVitals(core: SizedBox.shrink()),
-                  ),
-                  const SizedBox(height: 4),
-                  statusCopy,
-                  const SizedBox(height: 20),
-                  const SessionPanel(),
-                  const SizedBox(height: 12),
-                  subscriptionStrip,
-                  const SizedBox(height: 28),
-                  const Divider(color: WbColors.ice08, height: 1),
-                  const SizedBox(height: 20),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      s.chooseLocation,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w600),
+            final heroTopGap = (constraints.maxHeight * 0.03).clamp(8.0, 22.0);
+            final height = math.max(constraints.maxHeight, 600.0);
+            // Pull down to reload the servers and the subscription, like
+            // the refresh button (owner, 06.10). Always scrollable, or a
+            // screen whose content fits would never start the pull.
+            return RefreshIndicator(
+              onRefresh: () => _refresh(toast: false),
+              color: Ic.text,
+              backgroundColor: const Color(0xE6101418),
+              // No rubber-band either way (owner, 06.10: the page moved on
+              // every swipe): hard edges, no stretch effect. Pulling down
+              // still reaches the refresh indicator (an overscroll).
+              child: ScrollConfiguration(
+                behavior:
+                    ScrollConfiguration.of(context).copyWith(overscroll: false),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                      parent: ClampingScrollPhysics()),
+                  controller: _scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    height: height,
+                    child: Column(
+                      children: [
+                        SizedBox(height: heroTopGap),
+                        buildTopBar(false),
+                        const SizedBox(height: 10),
+                        locationHeader,
+                        // Real ping / download beside the core (dashes until
+                        // connected — never invented), laid over the
+                        // sphere's wave stage. The empty middle lets taps
+                        // through to the sphere.
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, box) {
+                              final d =
+                                  math.min(coreDiameter, box.maxHeight / 1.27);
+                              return Center(
+                                child: CoreStage(
+                                  diameter: d,
+                                  core: LivingCore(
+                                    status: connection.status,
+                                    enabled: connectEnabled,
+                                    diameter: d,
+                                    onPressed: onConnectPressed,
+                                  ),
+                                  overlay: vitalsBeside
+                                      ? const CoreWithVitals(
+                                          core: SizedBox.shrink())
+                                      : null,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        if (!vitalsBeside) const VitalsRow(),
+                        const SizedBox(height: 4),
+                        statusCopy,
+                        const SizedBox(height: 14),
+                        SessionPanel(
+                          footer: compactSubscription
+                              ? _SubscriptionFooter(
+                                  sub: sub,
+                                  s: s,
+                                  onOpen: () => context.push('/subscription'),
+                                )
+                              : null,
+                        ),
+                        if (!compactSubscription) ...[
+                          const SizedBox(height: 12),
+                          subscriptionStrip,
+                        ],
+                        // The bottom nav pill floats over the body.
+                        const SizedBox(height: kMobileBottomBarReserve + 12),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  locationsSection,
-                ],
+                ),
               ),
             );
           },
@@ -679,24 +682,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                 // different Y positions, which read as
                                 // misaligned even though each was correctly
                                 // centered within its own half.
-                                child: Align(
-                                  alignment: Alignment.topCenter,
-                                  child: Column(
-                                    children: [
-                                      const SizedBox(height: 4),
-                                      locationHeader,
-                                      const SizedBox(height: 40),
-                                      connectButton,
-                                      const SizedBox(height: 28),
-                                      statusCopy,
-                                      const SizedBox(height: 36),
-                                      ConstrainedBox(
-                                        constraints:
-                                            const BoxConstraints(maxWidth: 360),
-                                        child: subscriptionStrip,
+                                // The phone's V5 look in a column: the
+                                // living sphere with ping / download beside
+                                // it, the status, and the one session card
+                                // (protection, readouts, subscription).
+                                child: Column(
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    locationHeader,
+                                    Expanded(
+                                      child: LayoutBuilder(
+                                        builder: (context, box) {
+                                          final d = [
+                                            300.0,
+                                            box.maxHeight / 1.27,
+                                            box.maxWidth -
+                                                2 * SideVital.width -
+                                                24,
+                                          ].reduce(math.min);
+                                          return Center(
+                                            child: CoreStage(
+                                              diameter: d,
+                                              core: LivingCore(
+                                                status: connection.status,
+                                                enabled: connectEnabled,
+                                                diameter: d,
+                                                onPressed: onConnectPressed,
+                                              ),
+                                              overlay: const CoreWithVitals(
+                                                  core: SizedBox.shrink()),
+                                            ),
+                                          );
+                                        },
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    statusCopy,
+                                    const SizedBox(height: 14),
+                                    ConstrainedBox(
+                                      constraints:
+                                          const BoxConstraints(maxWidth: 480),
+                                      child: Column(
+                                        children: [
+                                          SessionPanel(
+                                            footer: compactSubscription
+                                                ? _SubscriptionFooter(
+                                                    sub: sub,
+                                                    s: s,
+                                                    onOpen: () => context
+                                                        .push('/subscription'),
+                                                  )
+                                                : null,
+                                          ),
+                                          if (!compactSubscription) ...[
+                                            const SizedBox(height: 12),
+                                            subscriptionStrip,
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -834,7 +879,7 @@ class _StatusCopy extends StatelessWidget {
     required this.isGuest,
     required this.onAddCustom,
     required this.onCancel,
-    this.onTryOtherProtocol,
+    this.hasOtherProtocol = false,
     this.tint,
   });
 
@@ -842,7 +887,7 @@ class _StatusCopy extends StatelessWidget {
 
   /// Set while the connection passes no traffic and another protocol of
   /// the same country is left to try; null otherwise.
-  final VoidCallback? onTryOtherProtocol;
+  final bool hasOtherProtocol;
   final bool canConnect;
   final bool subscriptionLoading;
   final AppStrings s;
@@ -922,7 +967,7 @@ class _StatusCopy extends StatelessWidget {
     final subtitle = switch (connection.status) {
       ConnectionStatus.idle => s.statusReadyHint,
       ConnectionStatus.connected when noTraffic =>
-        onTryOtherProtocol != null ? s.noTrafficHint : s.noTrafficAllTried,
+        hasOtherProtocol ? s.noTrafficHint : s.noTrafficAllTried,
       ConnectionStatus.connected => _duration(connection.connectedAt, s),
       ConnectionStatus.configPending => s.configPendingHint,
       ConnectionStatus.error => connection.error?.localized(s) ?? s.tryAgain,
@@ -988,11 +1033,6 @@ class _StatusCopy extends StatelessWidget {
             TextButton(
               onPressed: onRetry,
               child: Text(s.tryAgain),
-            ),
-          if (noTraffic && onTryOtherProtocol != null)
-            TextButton(
-              onPressed: onTryOtherProtocol,
-              child: Text(s.tryOtherProtocol),
             ),
           if (connection.status == ConnectionStatus.configPending)
             TextButton(
@@ -1104,17 +1144,11 @@ class _SubscriptionStrip extends ConsumerWidget {
       return WbCard(
         onTap: onSignIn,
         tint: tint,
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                s.signInToUnlock,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: WbColors.ice60),
-          ],
+        child: _StripHeader(
+          icon: Icons.person_outline_rounded,
+          iconColor: WbColors.ice,
+          title: s.signIn,
+          subtitle: s.signInToUnlock,
         ),
       );
     }
@@ -1158,40 +1192,20 @@ class _SubscriptionStrip extends ConsumerWidget {
         ),
         data: (sub) {
           if (sub.isPastDue) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.subscriptionPastDueTitle,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  renewBeforeLine(sub, s),
-                  style: const TextStyle(color: WbColors.warning, fontSize: 13),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  s.renewResetNote,
-                  style: const TextStyle(color: WbColors.ice60, fontSize: 12),
-                ),
-              ],
+            return _StripHeader(
+              icon: Icons.error_outline_rounded,
+              iconColor: WbColors.warning,
+              title: s.subscriptionPastDueTitle,
+              subtitle: '${renewBeforeLine(sub, s)}\n${s.renewResetNote}',
+              subtitleColor: WbColors.warning,
             );
           }
           if (sub.isExpired || !sub.isActive) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.subscriptionExpiredTitle,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  s.chooseAPlanToConnect,
-                  style: const TextStyle(color: WbColors.ice60, fontSize: 13),
-                ),
-              ],
+            return _StripHeader(
+              icon: Icons.workspace_premium_outlined,
+              iconColor: WbColors.warning,
+              title: s.subscriptionExpiredTitle,
+              subtitle: s.chooseAPlanToConnect,
             );
           }
           final days = sub.daysRemaining;
@@ -1202,17 +1216,16 @@ class _SubscriptionStrip extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                s.subscriptionActive,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                days == null ? s.active : '$days ${s.daysRemaining}',
-                style: const TextStyle(color: WbColors.ice60, fontSize: 13),
+              _StripHeader(
+                icon: Icons.workspace_premium_outlined,
+                iconColor: WbColors.oceanTeal,
+                title: s.subscriptionActive,
+                subtitle: days == null
+                    ? sub.planName
+                    : '${sub.planName} · ${s.daysLeft(days)}',
               ),
               if (usage != null) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 TrafficWaveBar(
                   usedBytes: usage.bytesTotal,
                   limitBytes: usage.limitBytes ?? sub.trafficLimitBytes,
@@ -1223,6 +1236,62 @@ class _SubscriptionStrip extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// The subscription section's head on Home: a neutral icon tile (the
+/// state in its color), title, one muted line, a chevron to the plan.
+class _StripHeader extends StatelessWidget {
+  const _StripHeader({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    this.subtitleColor = WbColors.ice60,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final Color subtitleColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: WbColors.ice08,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 20, color: iconColor),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style:
+                    TextStyle(color: subtitleColor, fontSize: 13, height: 1.3),
+              ),
+            ],
+          ),
+        ),
+        const Icon(Icons.chevron_right_rounded, color: WbColors.ice60),
+      ],
     );
   }
 }
@@ -1257,7 +1326,7 @@ class _SharedSubscriptionStrip extends StatelessWidget {
                   ? s.shareOwnerInactive
                   : days == null
                       ? title
-                      : '$days ${s.daysRemaining} · $title',
+                      : '${s.daysLeft(days)} · $title',
           style: TextStyle(
             color: sub != null && !active ? WbColors.warning : WbColors.ice60,
             fontSize: 13,
@@ -1272,6 +1341,89 @@ class _SharedSubscriptionStrip extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// The own active subscription as the last line of Home's session card
+/// (owner, 06.10: one card instead of three, no scrolling): plan, days
+/// left, traffic. A limited plan gets a thin bar; close to the limit
+/// (80 %+) the bar becomes the water-with-waves one, impossible to miss.
+class _SubscriptionFooter extends ConsumerWidget {
+  const _SubscriptionFooter({
+    required this.sub,
+    required this.s,
+    required this.onOpen,
+  });
+
+  final SubscriptionInfo sub;
+  final AppStrings s;
+  final VoidCallback onOpen;
+
+  static const _nearLimit = 0.8;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final usage = ref.watch(trafficUsageProvider).valueOrNull;
+    final days = sub.daysRemaining;
+    final used = usage?.bytesTotal;
+    final limit = usage?.limitBytes ?? sub.trafficLimitBytes;
+    final fraction = used == null || limit == null || limit <= 0
+        ? null
+        : (used / limit).clamp(0.0, 1.0);
+    final nearLimit = fraction != null && fraction >= _nearLimit;
+    const muted = TextStyle(color: WbColors.ice60, fontSize: 12.5);
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.workspace_premium_outlined,
+                    size: 16, color: WbColors.oceanTeal),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    days == null
+                        ? sub.planName
+                        : '${sub.planName} · ${s.daysLeft(days)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: muted,
+                  ),
+                ),
+                if (used != null && !nearLimit) ...[
+                  const SizedBox(width: 8),
+                  Text(formatTraffic(used, limit, s),
+                      style: muted.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()])),
+                ],
+                const Icon(Icons.chevron_right_rounded,
+                    size: 18, color: WbColors.ice60),
+              ],
+            ),
+            if (nearLimit) ...[
+              const SizedBox(height: 8),
+              TrafficWaveBar(usedBytes: used!, limitBytes: limit, s: s),
+            ] else if (fraction != null) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: fraction,
+                  minHeight: 4,
+                  backgroundColor: WbColors.ice08,
+                  color: context.accent,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,8 +1,7 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-
-import '../../core/theme/wb_colors.dart';
 
 /// A handful of soft, glowing light streaks rising through a narrow panel —
 /// stands in for encrypted traffic moving through the tunnel. Used in the
@@ -31,7 +30,8 @@ class SignalFlow extends StatefulWidget {
 
 const _flowPeriod = Duration(seconds: 10);
 
-class _SignalFlowState extends State<SignalFlow> with SingleTickerProviderStateMixin {
+class _SignalFlowState extends State<SignalFlow>
+    with SingleTickerProviderStateMixin {
   // Ticks every frame purely to trigger rebuilds; the real phase comes from
   // the wall clock (below) so every instance of this widget on screen stays
   // in lockstep regardless of when it happened to mount.
@@ -48,7 +48,7 @@ class _SignalFlowState extends State<SignalFlow> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    final tint = widget.tint ?? WbColors.waveCyan;
+    final tint = widget.tint ?? context.accent;
     return IgnorePointer(
       child: AnimatedBuilder(
         animation: _controller,
@@ -151,7 +151,8 @@ class _SignalPainter extends CustomPainter {
     final tailY = headY + streakLen;
     // A little horizontal sway so the streaks don't feel like they're on
     // rails — small enough to still read as "rising", not wandering.
-    final sway = math.sin(rawT * math.pi * 2 + phase * math.pi) * size.width * 0.02;
+    final sway =
+        math.sin(rawT * math.pi * 2 + phase * math.pi) * size.width * 0.02;
     final dx = size.width * x + sway;
 
     final linePaint = Paint()

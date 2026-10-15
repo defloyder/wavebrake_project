@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/custom_servers/custom_server_controller.dart';
 import 'data_providers.dart';
+import '../settings/device_login_approve.dart';
 import 'qr_scan_screen.dart';
 import 'wave_params.dart';
 
@@ -19,9 +21,10 @@ Future<void> showAddCustomServerSheet(
   final controller = TextEditingController();
   final s = ref.read(stringsProvider);
   final tint = ref.read(appWaveParamsProvider).tint;
-  final scanColor = wbBlend(WbColors.waveCyan, tint, 0.4);
+  final scanColor = wbBlend(context.accent, tint, 0.4);
   String? error;
   bool busy = false;
+  final hostContext = context;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -30,7 +33,7 @@ Future<void> showAddCustomServerSheet(
     // since it lives above the branch's nested Navigator, not the root one.
     useRootNavigator: true,
     isScrollControlled: true,
-    backgroundColor: wbBlend(WbColors.card, tint, 0.12),
+    backgroundColor: wbBlend(WbColors.card, tint, WbColors.sheetLean),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -39,6 +42,15 @@ Future<void> showAddCustomServerSheet(
         builder: (context, setState) {
           Future<void> submit() async {
             if (controller.text.trim().isEmpty) return;
+            // A TV's sign-in QR scanned here: sign the TV in instead.
+            final tvCode = deviceLoginCode(controller.text, allowBare: false);
+            if (tvCode != null) {
+              Navigator.pop(context);
+              if (hostContext.mounted) {
+                await approveDeviceLoginCode(hostContext, ref, tvCode);
+              }
+              return;
+            }
             setState(() {
               busy = true;
               error = null;
@@ -62,6 +74,8 @@ Future<void> showAddCustomServerSheet(
                 'share_invalid' => s.shareInvalid,
                 'share_own' => s.shareOwnSubscription,
                 'share_inactive' => s.shareOwnerInactive,
+                'duplicate' => s.linkAlreadyAdded,
+                'unsupported' => s.linkProtocolUnsupported,
                 _ => s.invalidSubscriptionLink,
               };
             });
@@ -194,7 +208,7 @@ Future<void> showAddCustomServerSheet(
                   height: 54,
                   child: FilledButton(
                     style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
+                      backgroundColor: context.accent,
                       foregroundColor: WbColors.midnight,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

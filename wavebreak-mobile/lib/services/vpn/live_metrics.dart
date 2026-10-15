@@ -66,6 +66,14 @@ class LiveMetricsState {
     return sum / (ok.length - 1);
   }
 
+  /// The last two probes through the tunnel got no answer: connected, but
+  /// nothing gets through (owner, 13.10: the route still looked alive).
+  bool get tunnelSilent =>
+      active &&
+      pings.length >= 2 &&
+      pings[pings.length - 1].ms == null &&
+      pings[pings.length - 2].ms == null;
+
   /// Share of failed probes, percent.
   double? get lossPercent {
     if (pings.length < 3) return null;
@@ -123,7 +131,13 @@ class LiveMetrics extends Notifier<LiveMetricsState> {
       },
       fireImmediately: true,
     );
-    return const LiveMetricsState();
+    // Created while already connected (e.g. the VPN was turned on from the
+    // Quick Settings tile before the app was opened): fireImmediately has
+    // just started the timers — returning a blank state here would mark
+    // the running session inactive (dashes on Home, "last session").
+    return _rateTimer != null
+        ? const LiveMetricsState(active: true)
+        : const LiveMetricsState();
   }
 
   void _start() {

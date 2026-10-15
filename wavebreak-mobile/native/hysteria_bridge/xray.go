@@ -107,18 +107,26 @@ func StartXray(configJSON string) error {
 	return nil
 }
 
-func StopXray() {
+// StopXray returns a non-nil error when Close() failed to close one or
+// more of Xray-core's own features cleanly — the Kotlin side logs it
+// rather than discarding it, so a real close failure (a candidate for the
+// fd leak fdwatch.go/WaveEngineVpnService.kt's FD_WARN_THRESHOLD comment
+// describes — "somewhere in tun2socks' or Xray-core's own per-connection
+// handling") leaves a trace instead of vanishing into an empty catch
+// block (owner, 15.10).
+func StopXray() error {
 	xrayMu.Lock()
 	defer xrayMu.Unlock()
-	stopXrayLocked()
+	return stopXrayLocked()
 }
 
-func stopXrayLocked() {
+func stopXrayLocked() error {
 	if xrayInstance == nil {
-		return
+		return nil
 	}
-	_ = xrayInstance.Close()
+	err := xrayInstance.Close()
 	xrayInstance = nil
+	return err
 }
 
 func IsXrayRunning() bool {

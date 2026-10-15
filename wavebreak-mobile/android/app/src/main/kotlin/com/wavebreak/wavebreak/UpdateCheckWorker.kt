@@ -93,6 +93,8 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : Worker(con
          * replaces the schedule.
          */
         fun schedule(context: Context) {
+            // TV has its own package and release channel. Never offer a phone APK.
+            if (BuildConfig.WAVEBREAK_TV) return
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()

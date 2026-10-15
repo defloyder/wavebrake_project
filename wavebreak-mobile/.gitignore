@@ -42,6 +42,7 @@ ios/.symlinks/
 native/hysteria_bridge/*.aar
 native/hysteria_bridge/*.jar
 android/app/libs/*.aar
+android/app/libs/tv/*.aar
 
 # Claude Code session lock (ephemeral, per-machine)
 .claude/scheduled_tasks.lock
@@ -62,3 +63,8 @@ switch_start.txt
 
 # Misc
 *.log
+
+# Screenshot bench output (test_screens/screens_test.dart)
+test_screens/out/
+test_screens/before/
+test_screens/failures/

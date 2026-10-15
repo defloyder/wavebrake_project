@@ -21,6 +21,20 @@ class MockCoreBackend {
   String? refreshToken = 'mock-refresh';
   bool refreshShouldFail = false;
 
+  /// GET/PUT /me/custom-links, like Core: a version, 409 when stale.
+  Map<String, dynamic> customLinksDoc = {'version': 0, 'entries': []};
+
+  Map<String, dynamic> customLinks() => Map.of(customLinksDoc);
+
+  Future<int> putCustomLinks(Map<String, dynamic> doc) async {
+    final current = (customLinksDoc['version'] as num).toInt();
+    if ((doc['version'] as num?)?.toInt() != current) {
+      throw AppException(AppErrorKind.unavailable, statusCode: 409);
+    }
+    customLinksDoc = {'version': current + 1, 'entries': doc['entries']};
+    return current + 1;
+  }
+
   /// Distinct from [refreshShouldFail] (Core genuinely rejecting the
   /// refresh token) — simulates the refresh HTTP call itself failing for
   /// a network reason, to cover SessionController.refreshTokens()'s own
@@ -131,6 +145,28 @@ class MockCoreBackend {
   Future<List<Plan>> getPlans() async {
     _guard();
     return plans;
+  }
+
+  /// Promo codes the mock knows: code → percent off (any plan).
+  Map<String, int> promoCodes = const {'SPRING20': 20};
+
+  Future<PromoCheck> checkPromoCode(String code, {String? planId}) async {
+    _guard();
+    final normalized = code.replaceAll(RegExp(r'\s+'), '').toUpperCase();
+    final percent = promoCodes[normalized];
+    if (percent == null) {
+      throw AppException(AppErrorKind.promoNotFound, statusCode: 422);
+    }
+    return PromoCheck(
+      code: normalized,
+      discountType: 'percent',
+      discountValue: percent,
+      prices: {
+        for (final p in plans)
+          if (planId == null || p.id == planId)
+            p.id: p.priceMinor - (p.priceMinor * percent + 50) ~/ 100,
+      },
+    );
   }
 
   Future<SubscriptionInfo> createSubscription(String planId) async {

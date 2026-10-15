@@ -106,12 +106,14 @@ class _ConnectButtonState extends State<ConnectButton>
     const diameter = 172.0;
 
     return AnimatedBuilder(
-      animation: Listenable.merge([_breathe, _shimmer, _spin, _pop, _press, _globeSpin]),
+      animation: Listenable.merge(
+          [_breathe, _shimmer, _spin, _pop, _press, _globeSpin]),
       builder: (context, _) {
         final breathe = _breathe.value;
         final glow = connected ? 0.22 + breathe * 0.12 : 0.14 + breathe * 0.10;
         final pop = Curves.elasticOut.transform(_pop.value.clamp(0.0, 1.0));
-        final popScale = connected ? 1.0 + (pop < 1 ? (1 - pop) * -0.02 : 0) : 1.0;
+        final popScale =
+            connected ? 1.0 + (pop < 1 ? (1 - pop) * -0.02 : 0) : 1.0;
         final pressScale = 1.0 - (_press.value * 0.045);
         final breatheScale = connected ? 1.0 + breathe * 0.012 : 1.0;
 
@@ -136,7 +138,8 @@ class _ConnectButtonState extends State<ConnectButton>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: accent.first.withValues(alpha: widget.enabled ? glow : 0.05),
+                          color: accent.first
+                              .withValues(alpha: widget.enabled ? glow : 0.05),
                           blurRadius: connected ? 46 : 28,
                           spreadRadius: connected ? 4 : 0,
                         ),
@@ -147,7 +150,9 @@ class _ConnectButtonState extends State<ConnectButton>
                         // colors read immediately, not only after tapping.
                         BoxShadow(
                           color: accent.last.withValues(
-                            alpha: widget.enabled ? (connected ? glow * 0.7 : glow * 0.32) : 0.03,
+                            alpha: widget.enabled
+                                ? (connected ? glow * 0.7 : glow * 0.32)
+                                : 0.03,
                           ),
                           blurRadius: connected ? 60 : 32,
                           spreadRadius: connected ? 2 : 0,
@@ -192,7 +197,8 @@ class _ConnectButtonState extends State<ConnectButton>
                                 center: const Alignment(-0.3, -0.4),
                                 radius: 1.1,
                                 colors: [
-                                  accent.first.withValues(alpha: connected ? 0.20 : 0.09),
+                                  accent.first.withValues(
+                                      alpha: connected ? 0.20 : 0.09),
                                   WbColors.deepOcean.withValues(alpha: 0.30),
                                   WbColors.midnight.withValues(alpha: 0.42),
                                 ],

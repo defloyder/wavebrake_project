@@ -1,0 +1,29 @@
+{
+  "log": {"level": "warn"},
+  "outbounds": [
+    {"type": "selector", "tag": "proxy", "outbounds": ["🇫🇮 Finland REALITY", "Trojan WS"]},
+    {
+      "type": "vless", "tag": "🇫🇮 Finland REALITY",
+      "server": "fi.example.com", "server_port": 443,
+      "uuid": "00000000-0000-4000-8000-000000000011", "flow": "xtls-rprx-vision",
+      "tls": {"enabled": true, "server_name": "www.example.org",
+              "utls": {"enabled": true, "fingerprint": "chrome"},
+              "reality": {"enabled": true, "public_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "short_id": "ab12"}}
+    },
+    {
+      "type": "trojan", "tag": "Trojan WS",
+      "server": "tw.example.com", "server_port": 443, "password": "trojan-secret",
+      "tls": {"enabled": true, "server_name": "tw.example.com"},
+      "transport": {"type": "ws", "path": "/tw", "headers": {"Host": "cdn.example.com"}}
+    },
+    {
+      "type": "hysteria2", "tag": "Hy2",
+      "server": "h2.example.com", "server_port": 443, "password": "hy-secret",
+      "tls": {"enabled": true, "server_name": "h2.example.com", "insecure": true}
+    },
+    {"type": "shadowsocks", "tag": "SS", "server": "203.0.113.20", "server_port": 8388, "method": "aes-256-gcm", "password": "ss-secret"},
+    {"type": "shadowtls", "tag": "ShadowTLS", "server": "st.example.com", "server_port": 443},
+    {"type": "direct", "tag": "direct"},
+    {"type": "block", "tag": "block"}
+  ]
+}

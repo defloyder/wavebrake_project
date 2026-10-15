@@ -37,7 +37,10 @@ Route::post('/users', [AdminController::class, 'createUser']);
 Route::post('/plans', [AdminController::class, 'createPlan']);
 Route::post('/plans/{planId}', [AdminController::class, 'updatePlan']);
 Route::post('/plans/{planId}/delete', [AdminController::class, 'deletePlan']);
+Route::post('/promo-codes', [AdminController::class, 'createPromoCode']);
+Route::post('/promo-codes/{promoId}', [AdminController::class, 'updatePromoCode']);
+Route::post('/promo-codes/{promoId}/delete', [AdminController::class, 'deletePromoCode']);
 Route::post('/nodes/enroll', [AdminController::class, 'enrollNode']);
 
 Route::get('/{section}', [AdminController::class, 'section'])
-    ->whereIn('section', ['dashboard', 'users', 'subscriptions', 'plans', 'nodes', 'grants', 'devices', 'traffic', 'audit', 'enroll']);
+    ->whereIn('section', ['dashboard', 'users', 'subscriptions', 'plans', 'promo-codes', 'nodes', 'grants', 'devices', 'traffic', 'audit', 'enroll']);

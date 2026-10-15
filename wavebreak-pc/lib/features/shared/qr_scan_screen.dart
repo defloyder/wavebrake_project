@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -91,37 +92,37 @@ class _QrScanScreenState extends State<QrScanScreen> {
           height: _frameSize,
         );
         return Stack(
-        fit: StackFit.expand,
-        children: [
-          MobileScanner(
-            key: ValueKey(_controller),
-            controller: _controller,
-            scanWindow: scanWindow,
-            onDetect: _onDetect,
-            errorBuilder: (context, error) {
-              // Deferred out of build(): MobileScanner's own
-              // ValueListenableBuilder is what surfaces this error, so
-              // calling setState from directly inside its builder would
-              // rebuild the same widget while Flutter is still building it.
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => _onError(context, error));
-              return _ScanErrorView(
-                s: widget.s,
-                error: error,
-                onRetry: _retry,
-              );
-            },
-          ),
-          if (_error == null)
-            ScanWindowOverlay(
+          fit: StackFit.expand,
+          children: [
+            MobileScanner(
+              key: ValueKey(_controller),
               controller: _controller,
               scanWindow: scanWindow,
-              borderColor: WbColors.waveCyan,
-              borderRadius: BorderRadius.circular(24),
-              color: Colors.black54,
+              onDetect: _onDetect,
+              errorBuilder: (context, error) {
+                // Deferred out of build(): MobileScanner's own
+                // ValueListenableBuilder is what surfaces this error, so
+                // calling setState from directly inside its builder would
+                // rebuild the same widget while Flutter is still building it.
+                WidgetsBinding.instance
+                    .addPostFrameCallback((_) => _onError(context, error));
+                return _ScanErrorView(
+                  s: widget.s,
+                  error: error,
+                  onRetry: _retry,
+                );
+              },
             ),
-        ],
-      );
+            if (_error == null)
+              ScanWindowOverlay(
+                controller: _controller,
+                scanWindow: scanWindow,
+                borderColor: context.accent,
+                borderRadius: BorderRadius.circular(24),
+                color: Colors.black54,
+              ),
+          ],
+        );
       }),
     );
   }
@@ -130,7 +131,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
 const double _frameSize = 240;
 
 class _ScanErrorView extends StatelessWidget {
-  const _ScanErrorView({required this.s, required this.error, required this.onRetry});
+  const _ScanErrorView(
+      {required this.s, required this.error, required this.onRetry});
 
   final AppStrings s;
   final MobileScannerException error;
@@ -147,7 +149,8 @@ class _ScanErrorView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.videocam_off_rounded, color: WbColors.ice60, size: 40),
+              const Icon(Icons.videocam_off_rounded,
+                  color: WbColors.ice60, size: 40),
               const SizedBox(height: 16),
               Text(
                 error.errorCode.message,

@@ -6,11 +6,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../tv/tv_focus_frame.dart';
+import '../../core/env/app_env.dart';
 import '../../core/i18n/language_controller.dart';
+import '../../core/theme/personalization_controller.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../shared/wave_params.dart';
 import 'effects_quality.dart';
 import 'immersive_clock.dart';
+import 'orbit_frame.dart';
+import 'soft_glow.dart';
 import 'sphere_assets.dart';
 
 /// Sphere size for the screen width (V5 spec: 278 tablet, 240 phone,
@@ -92,6 +97,9 @@ _Phase _phaseOf(ConnectionStatus s) => switch (s) {
 
 class _LivingCoreState extends ConsumerState<LivingCore>
     with TickerProviderStateMixin {
+  /// The remote / keyboard focus is on the sphere (a ring shows it).
+  bool _focused = false;
+
   late final _energy = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 650));
   late final _warn = AnimationController(
@@ -103,21 +111,47 @@ class _LivingCoreState extends ConsumerState<LivingCore>
   final _motion = _Motion();
   ui.FragmentShader? _shader;
   ui.Image? _texture;
+  ui.Image? _mark;
+
+  // The standard WAVEBREAK mark (the one the connect button had before the
+  // sphere, WavebreakMark): decoded once, small.
+  static Future<ui.Image?>? _markFuture;
+  static Future<ui.Image?> _loadMark() async {
+    try {
+      final data =
+          await rootBundle.load('assets/branding/wavebreak_mark_square.png');
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List(),
+          targetWidth: 512);
+      final frame = await codec.getNextFrame();
+      codec.dispose();
+      return frame.image;
+    } catch (_) {
+      return null;
+    }
+  }
+
   TextPainter? _labelPainter;
   String? _labelText;
   double? _labelDiameter;
+  String? _labelFamily;
 
-  TextPainter _labelFor(String text, double d) {
-    if (_labelPainter != null && _labelText == text && _labelDiameter == d) {
+  TextPainter _labelFor(String text, double d, String? family) {
+    if (_labelPainter != null &&
+        _labelText == text &&
+        _labelDiameter == d &&
+        _labelFamily == family) {
       return _labelPainter!;
     }
     _labelPainter?.dispose();
     _labelText = text;
     _labelDiameter = d;
+    _labelFamily = family;
     return _labelPainter = TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
+          // The app font (a painter has no DefaultTextStyle of its own).
+          fontFamily: family,
           color: const Color(0xFFFFE1E7),
           fontSize: d < 200 ? 10 : 12,
           letterSpacing: 1,
@@ -135,6 +169,9 @@ class _LivingCoreState extends ConsumerState<LivingCore>
   void initState() {
     super.initState();
     _apply(initial: true);
+    (_markFuture ??= _loadMark()).then((img) {
+      if (mounted && img != null) setState(() => _mark = img);
+    });
     SphereAssets.load().then((assets) {
       if (!mounted || assets == null) return;
       setState(() {
@@ -211,30 +248,35 @@ class _LivingCoreState extends ConsumerState<LivingCore>
     // location change glides the sphere over to the new color.
     final target = ref.watch(appWaveParamsProvider).tint;
     final economy = ref.watch(effectsEconomyProvider);
+    // Personalization: Earth (full), Glass (no texture), Minimal (a ring).
+    final style = ref.watch(personalizationProvider).sphereStyle;
     final core = TweenAnimationBuilder<Color?>(
       tween: ColorTween(end: target ?? _CorePainter.baseHue),
       duration: const Duration(milliseconds: 700),
       curve: Curves.easeOutCubic,
       builder: (context, tint, _) => CustomPaint(
-      size: Size.infinite,
-      painter: _CorePainter(
-        repaint: Listenable.merge([time, _energy, _warn, _press]),
-        time: time,
-        frozen: frozen,
-        diameter: d,
-        energy: _energy,
-        warn: _warn,
-        press: _press,
-        motion: _motion,
-        // Economy effects (older phones): the plain sphere, no shader.
-        shader: economy ? null : _shader,
-        lite: economy,
-        texture: _texture,
-        label: _labelFor(label, d),
-        enabled: widget.enabled,
-        tint: tint,
+        size: Size.infinite,
+        painter: _CorePainter(
+          repaint: Listenable.merge([time, _energy, _warn, _press]),
+          time: time,
+          frozen: frozen,
+          diameter: d,
+          energy: _energy,
+          warn: _warn,
+          press: _press,
+          motion: _motion,
+          // Economy effects (older phones): the plain sphere, no shader.
+          shader: economy || style != SphereStyle.earth ? null : _shader,
+          lite: economy,
+          minimal: style == SphereStyle.minimal,
+          texture: _texture,
+          mark: _mark,
+          label: _labelFor(
+              label, d, DefaultTextStyle.of(context).style.fontFamily),
+          enabled: widget.enabled,
+          tint: tint,
+        ),
       ),
-    ),
     );
     return Stack(
       alignment: Alignment.center,
@@ -248,19 +290,45 @@ class _LivingCoreState extends ConsumerState<LivingCore>
           button: true,
           enabled: widget.enabled,
           label: label,
-          child: ClipOval(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: widget.enabled ? (_) => _press.forward() : null,
-              onTapUp: widget.enabled ? (_) => _press.reverse() : null,
-              onTapCancel: widget.enabled ? () => _press.reverse() : null,
-              onTap: widget.enabled
-                  ? () {
-                      HapticFeedback.lightImpact();
-                      widget.onPressed();
-                    }
-                  : null,
-              child: SizedBox(width: d, height: d),
+          // A TV remote / keyboard reaches the sphere too: OK / Enter
+          // presses it, a ring shows it has the focus. On a TV it takes
+          // the focus first — connecting is what Home is for.
+          child: FocusFrameExempt(
+            child: FocusableActionDetector(
+              enabled: widget.enabled,
+              autofocus: AppEnv.isTv,
+              onShowFocusHighlight: (v) => setState(() => _focused = v),
+              actions: {
+                ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
+                  widget.onPressed();
+                  return null;
+                }),
+              },
+              child: ClipOval(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: widget.enabled ? (_) => _press.forward() : null,
+                  onTapUp: widget.enabled ? (_) => _press.reverse() : null,
+                  onTapCancel: widget.enabled ? () => _press.reverse() : null,
+                  onTap: widget.enabled
+                      ? () {
+                          HapticFeedback.lightImpact();
+                          widget.onPressed();
+                        }
+                      : null,
+                  child: Container(
+                    width: d,
+                    height: d,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _focused ? Colors.white : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -280,13 +348,9 @@ class _Motion {
   double particleAngle = 0;
   double speed = 0.46;
   double? lastT;
+  final orbits = OrbitFrame(_CorePainter._bands);
 
   double get sincePhase => (clock.elapsed - phaseStart).inMicroseconds / 1e6;
-}
-
-class _Pt {
-  const _Pt(this.x, this.y, this.z);
-  final double x, y, z;
 }
 
 class _CorePainter extends CustomPainter {
@@ -301,10 +365,12 @@ class _CorePainter extends CustomPainter {
     required this.motion,
     required this.shader,
     required this.texture,
+    this.mark,
     required this.label,
     required this.enabled,
     required this.tint,
     this.lite = false,
+    this.minimal = false,
   }) : super(repaint: repaint);
 
   final ValueListenable<double> time;
@@ -316,6 +382,9 @@ class _CorePainter extends CustomPainter {
   final _Motion motion;
   final ui.FragmentShader? shader;
   final ui.Image? texture;
+
+  /// The standard WAVEBREAK mark; the vector W until it is decoded.
+  final ui.Image? mark;
   final TextPainter label;
   final bool enabled;
 
@@ -326,13 +395,17 @@ class _CorePainter extends CustomPainter {
   /// through the glass, no blurred glows.
   final bool lite;
 
+  /// Personalization "Minimal": a light ring around the mark instead of
+  /// the sphere, its glass and orbits (cheap on any phone).
+  final bool minimal;
+
   /// The hue the sphere is designed in; [tint] rotates away from it.
   static const baseHue = Color(0xFFFF4C74);
 
   /// Hue rotation (luminance-preserving matrix) from the designed crimson
   /// to [tint], faded out while the error amber shows. Null when there's
   /// nothing to rotate (no tint, a near-grey tint, or ~the same hue).
-  ColorFilter? _tintFilter(double w) {
+  static List<double>? _tintMatrix(Color? tint, double w) {
     final c = tint;
     if (c == null) return null;
     final hsl = HSLColor.fromColor(c);
@@ -344,7 +417,7 @@ class _CorePainter extends CustomPainter {
     if (deg.abs() < 2) return null;
     final a = deg * math.pi / 180;
     final cs = math.cos(a), sn = math.sin(a);
-    return ColorFilter.matrix(<double>[
+    return <double>[
       0.213 + cs * 0.787 - sn * 0.213, 0.715 - cs * 0.715 - sn * 0.715,
       0.072 - cs * 0.072 + sn * 0.928, 0, 0, //
       0.213 - cs * 0.213 + sn * 0.143, 0.715 + cs * 0.285 + sn * 0.140,
@@ -352,8 +425,27 @@ class _CorePainter extends CustomPainter {
       0.213 - cs * 0.213 - sn * 0.787, 0.715 - cs * 0.715 + sn * 0.715,
       0.072 + cs * 0.928 + sn * 0.072, 0, 0, //
       0, 0, 0, 1, 0,
-    ]);
+    ];
   }
+
+  /// This frame's tint matrix (set at the start of [paint]).
+  List<double>? _m;
+
+  /// [c] through the tint matrix (clamped like a color filter would).
+  Color _tc(Color c) {
+    final m = _m;
+    if (m == null) return c;
+    final r = c.r, g = c.g, b = c.b;
+    return Color.from(
+      alpha: c.a,
+      red: (m[0] * r + m[1] * g + m[2] * b).clamp(0.0, 1.0),
+      green: (m[5] * r + m[6] * g + m[7] * b).clamp(0.0, 1.0),
+      blue: (m[10] * r + m[11] * g + m[12] * b).clamp(0.0, 1.0),
+    );
+  }
+
+  List<Color> _tcs(List<Color> colors) =>
+      _m == null ? colors : [for (final c in colors) _tc(c)];
 
   static const _crimson = Color(0xFFFF4C74);
   static const _amber = Color(0xFFFFA84C);
@@ -400,32 +492,50 @@ class _CorePainter extends CustomPainter {
 
     if (!enabled) {
       canvas.saveLayer(
-          Offset.zero & size, Paint()..color = const Color(0x73FFFFFF));
+          // The effects' reach (aura, glow, fronts go up to 1.8 r): a
+          // box-sized layer cut them off in a hard edge under the sphere.
+          Rect.fromCircle(center: c, radius: r * 2.1),
+          Paint()..color = const Color(0x73FFFFFF));
     }
 
-    // Everything but the W emblem and the label follows the flag accent.
-    final tintFilter = _tintFilter(w);
-    if (tintFilter != null) {
-      canvas.saveLayer(Offset.zero & size, Paint()..colorFilter = tintFilter);
-    }
+    // Everything but the W emblem and the label follows the flag accent:
+    // each color goes through the hue rotation here ([_tc]) — the same
+    // result as one color-filtered layer over them (the matrix is linear),
+    // without an offscreen buffer the size of the effects every frame.
+    _m = _tintMatrix(tint, w);
+
     _aura(canvas, c, r, t, e, w);
     _shell(canvas, c, r, e, w);
 
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.scale(scale);
-    canvas.translate(-c.dx, -c.dy);
-    _outerGlow(canvas, c, r, e, w, pulse);
-    _sphere(canvas, c, r, t, e, w, pulse);
-    // Far halves of the orbits, faint, seen through the glass.
-    if (!lite) _ribbons(canvas, c, r, t, charge, front: false);
-    _glass(canvas, c, r, t, e, w);
-    canvas.restore();
+    if (minimal) {
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.scale(scale);
+      canvas.translate(-c.dx, -c.dy);
+      _ring(canvas, c, r, e, w, pulse);
+      canvas.restore();
+    } else {
+      // Orbit geometry once for both passes.
+      motion.orbits
+        ..setFrame(t: t, center: c, rs: r * 0.97, charge: charge)
+        ..fillBands(lite ? 84 : _vertices)
+        ..fillParticles(_particles, motion.particleAngle);
 
-    _ribbons(canvas, c, r, t, charge, front: true);
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.scale(scale);
+      canvas.translate(-c.dx, -c.dy);
+      _outerGlow(canvas, c, r, e, w, pulse);
+      _sphere(canvas, c, r, t, e, w, pulse);
+      // Far halves of the orbits, faint, seen through the glass.
+      if (!lite) _ribbons(canvas, r, front: false);
+      _glass(canvas, c, r, t, e, w);
+      canvas.restore();
+
+      _ribbons(canvas, r, front: true);
+    }
     if (connecting && !frozen) _inwardFronts(canvas, c, r, t);
     if (success) _outwardFronts(canvas, c, r, t, since);
-    if (tintFilter != null) canvas.restore();
 
     canvas.save();
     canvas.translate(c.dx, c.dy);
@@ -444,7 +554,7 @@ class _CorePainter extends CustomPainter {
     final breathe = 0.5 + 0.5 * math.sin(t * 2 * math.pi / 5);
     final opacity = ui.lerpDouble(0.8 - 0.15 * breathe, 1.0, e)!;
     final radius = r * 1.54 * (1 + 0.03 * breathe * (1 - e));
-    final color = Color.lerp(const Color(0xFFFF2343), _amber, w)!;
+    final color = _tc(Color.lerp(const Color(0xFFFF2343), _amber, w)!);
     canvas.drawCircle(
       c,
       radius,
@@ -461,16 +571,9 @@ class _CorePainter extends CustomPainter {
 
   void _shell(Canvas canvas, Offset c, double r, double e, double w) {
     final shellR = r * 1.14;
-    final tone = Color.lerp(const Color(0xFFE15467), _amber, w)!;
-    canvas.drawCircle(
-      c,
-      shellR,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 10
-        ..color = const Color(0xFFFA1830).withValues(alpha: 0.05 + 0.04 * e)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
+    final tone = _tc(Color.lerp(const Color(0xFFE15467), _amber, w)!);
+    drawSoftRing(canvas, c, shellR,
+        _tc(const Color(0xFFFA1830).withValues(alpha: 0.05 + 0.04 * e)), 10, 8);
     canvas.drawCircle(
       c,
       shellR,
@@ -491,11 +594,11 @@ class _CorePainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           transform: const GradientRotation(20 * math.pi / 180),
-          colors: const [
+          colors: _tcs(const [
             Color(0x44FFC4CC),
             Color(0x00FFC4CC),
             Color(0x44FFC4CC),
-          ],
+          ]),
           stops: const [0, 0.45, 1],
         ).createShader(inner),
     );
@@ -503,29 +606,19 @@ class _CorePainter extends CustomPainter {
 
   void _outerGlow(
       Canvas canvas, Offset c, double r, double e, double w, double pulse) {
-    final glow = Color.lerp(const Color(0xFFFF154B), _amber, w)!;
+    final glow = _tc(Color.lerp(const Color(0xFFFF154B), _amber, w)!);
     // Wide soft glow (0 0 40px idle -> 0 0 34px + 85px connected).
-    canvas.drawCircle(
-      c,
-      r * 1.02,
-      Paint()
-        ..color = glow.withValues(alpha: 0.22 + 0.25 * e + 0.15 * pulse)
-        ..maskFilter = MaskFilter.blur(BlurStyle.outer, 16 + 10 * e),
-    );
+    drawOuterGlow(canvas, c, r * 1.02,
+        glow.withValues(alpha: 0.22 + 0.25 * e + 0.15 * pulse), 16 + 10 * e);
     if (e > 0.01) {
-      canvas.drawCircle(
-        c,
-        r * 1.05,
-        Paint()
-          ..color = const Color(0xFFE82744).withValues(alpha: 0.23 * e)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 40),
-      );
+      drawOuterGlow(canvas, c, r * 1.05,
+          _tc(const Color(0xFFE82744).withValues(alpha: 0.23 * e)), 40);
     }
     // Two thin halo rings just outside the rim (box-shadow spreads).
     final ring2 =
         Color.lerp(const Color(0x45F5385B), const Color(0x7AFF4169), e)!;
     final ring1 =
-        Color.lerp(const Color(0x2D8F1B30), const Color(0x2DB62C47), e)!;
+        _tc(Color.lerp(const Color(0x2D8F1B30), const Color(0x2DB62C47), e)!);
     canvas.drawCircle(
       c,
       r + 3.5 + 0.5 * e,
@@ -533,7 +626,7 @@ class _CorePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 7 + e
         ..color =
-            w > 0 ? Color.lerp(ring2, const Color(0x2BB67734), w)! : ring2,
+            _tc(w > 0 ? Color.lerp(ring2, const Color(0x2BB67734), w)! : ring2),
     );
     canvas.drawCircle(
       c,
@@ -545,30 +638,71 @@ class _CorePainter extends CustomPainter {
     );
   }
 
+  /// "Minimal" style: a dark disc behind the mark and one lit ring that
+  /// brightens with the connection (and pulses while connecting).
+  void _ring(
+      Canvas canvas, Offset c, double r, double e, double w, double pulse) {
+    final color = _tc(Color.lerp(const Color(0xFFFF4C74), _amber, w)!);
+    canvas.drawCircle(
+      c,
+      r * 0.96,
+      Paint()
+        ..shader = RadialGradient(colors: [
+          _tc(const Color(0x33200810)),
+          _tc(const Color(0x10200810)),
+        ]).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    if (!lite) {
+      drawSoftRing(canvas, c, r * 0.96,
+          color.withValues(alpha: 0.18 + 0.2 * e + 0.15 * pulse), 6, 8);
+    }
+    canvas.drawCircle(
+      c,
+      r * 0.96,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6 + e
+        ..color = color.withValues(alpha: 0.55 + 0.35 * e),
+    );
+  }
+
   void _sphere(Canvas canvas, Offset c, double r, double t, double e, double w,
       double pulse) {
     final sh = shader;
     final tex = texture;
-    if (sh == null || tex == null) {
+    if (sh == null || tex == null || SphereAssets.broken) {
       _fallbackSphere(canvas, c, r, e, w);
       return;
     }
     // The shader draws its disc at 0.90 of half the rect and a halo
     // outside it, so the rect is a bit larger than the sphere.
     final side = diameter / 0.90;
-    sh
-      ..setFloat(0, side)
-      ..setFloat(1, side)
-      ..setFloat(2, t)
-      ..setFloat(3, t * 2 * math.pi / _revolution)
-      ..setFloat(4, e)
-      ..setFloat(5, pulse)
-      ..setFloat(6, 0)
-      ..setFloat(7, w)
-      ..setImageSampler(0, tex, filterQuality: FilterQuality.low);
+    try {
+      sh
+        ..setFloat(0, side)
+        ..setFloat(1, side)
+        ..setFloat(2, t)
+        ..setFloat(3, t * 2 * math.pi / _revolution)
+        ..setFloat(4, e)
+        ..setFloat(5, pulse)
+        ..setFloat(6, 0)
+        ..setFloat(7, w)
+        ..setImageSampler(0, tex, filterQuality: FilterQuality.low);
+    } catch (_) {
+      // This GPU/driver can't run it: the plain sphere from now on.
+      SphereAssets.broken = true;
+      _fallbackSphere(canvas, c, r, e, w);
+      return;
+    }
     canvas.save();
     canvas.translate(c.dx - side / 2, c.dy - side / 2);
-    canvas.drawRect(Rect.fromLTWH(0, 0, side, side), Paint()..shader = sh);
+    final m = _m;
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, side, side),
+      Paint()
+        ..shader = sh
+        ..colorFilter = m == null ? null : ColorFilter.matrix(m),
+    );
     canvas.restore();
   }
 
@@ -595,7 +729,8 @@ class _CorePainter extends CustomPainter {
           radius: 1.1,
           colors: [
             for (var i = 0; i < 4; i++)
-              Color.lerp(Color.lerp(base[i], lit[i], e)!, _amber, w * 0.35)!,
+              _tc(Color.lerp(
+                  Color.lerp(base[i], lit[i], e)!, _amber, w * 0.35)!),
           ],
           stops: const [0, 0.33, 0.75, 1],
         ).createShader(rect),
@@ -605,11 +740,11 @@ class _CorePainter extends CustomPainter {
   void _glass(Canvas canvas, Offset c, double r, double t, double e, double w) {
     final rect = Rect.fromCircle(center: c, radius: r);
     canvas.save();
-    canvas.clipPath(Path()..addOval(rect));
+    canvas.clipRRect(RRect.fromRectXY(rect, r, r)); // = the oval, cheaper clip
 
     // Atmosphere: a crimson band just inside the rim, slow pulse.
     final ar = r * 0.97;
-    final atm = Color.lerp(const Color(0xFFFF2651), _amber, w)!;
+    final atm = _tc(Color.lerp(const Color(0xFFFF2651), _amber, w)!);
     canvas.drawCircle(
       c,
       ar * 1.065,
@@ -631,8 +766,8 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.3
-        ..color =
-            Color.lerp(const Color(0xB0FFC1D1), const Color(0xB0FFE0B8), w)!,
+        ..color = _tc(
+            Color.lerp(const Color(0xB0FFC1D1), const Color(0xB0FFE0B8), w)!),
     );
 
     // Inset rings (5 px and 11 px inside the rim).
@@ -642,7 +777,7 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 11
-        ..color = const Color(0x45A31533),
+        ..color = _tc(const Color(0x45A31533)),
     );
     canvas.drawCircle(
       c,
@@ -650,8 +785,8 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 5
-        ..color =
-            Color.lerp(const Color(0x30FC5C73), const Color(0x32FF90A9), e)!,
+        ..color = _tc(
+            Color.lerp(const Color(0x30FC5C73), const Color(0x32FF90A9), e)!),
     );
 
     // Glass reflex: soft top-left highlight and a diagonal sheen.
@@ -659,10 +794,10 @@ class _CorePainter extends CustomPainter {
     canvas.drawOval(
       inner,
       Paint()
-        ..shader = const RadialGradient(
-          center: Alignment(-0.36, -0.52),
+        ..shader = RadialGradient(
+          center: const Alignment(-0.36, -0.52),
           radius: 0.34,
-          colors: [Color(0x34FFF2E8), Color(0x00FFF2E8)],
+          colors: _tcs(const [Color(0x34FFF2E8), Color(0x00FFF2E8)]),
         ).createShader(inner),
     );
     canvas.drawOval(
@@ -672,11 +807,11 @@ class _CorePainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           transform: const GradientRotation(-10 * math.pi / 180),
-          colors: const [
+          colors: _tcs(const [
             Color(0x00FFD7E3),
             Color(0x12FFD7E3),
             Color(0x00FFD7E3),
-          ],
+          ]),
           stops: const [0.20, 0.39, 0.57],
         ).createShader(inner),
     );
@@ -699,11 +834,12 @@ class _CorePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
         ..strokeCap = StrokeCap.round
-        ..shader = const LinearGradient(colors: [
+        ..shader = LinearGradient(
+            colors: _tcs(const [
           Color(0x00FFB9D0),
           Color(0x81FFB9D0),
           Color(0x00FFB9D0),
-        ]).createShader(arc),
+        ])).createShader(arc),
     );
     canvas.restore();
 
@@ -714,128 +850,95 @@ class _CorePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color =
-            Color.lerp(const Color(0xAAFF718B), const Color(0xFFFFD0A1), w)!,
+        ..color = _tc(
+            Color.lerp(const Color(0xAAFF718B), const Color(0xFFFFD0A1), w)!),
     );
   }
 
-  /// One vertex of orbit [band] at angle [a]: a ring around the sphere,
-  /// rippled by two sines, lifted in z by a third, tilted and slowly
-  /// swaying — the same model for lines and particles.
-  _Pt _point(double a, int band, double t, Offset c, double rs, double charge) {
-    final radius = rs * (1.08 + band * 0.026);
-    final rip = 1 +
-        math.sin(a * 4 - t * 0.9 + band * 0.24) * 0.025 +
-        math.sin(a * 7 + t * 0.55 + band * 0.4) * 0.012;
-    var x = math.cos(a) * radius * rip;
-    final y = math.sin(a) * radius * rip;
-    final z = math.sin(a * 3 - t * 0.44 + band * 0.3) * radius * 0.025;
-    const tilt = 0.86;
-    final ny = y * math.cos(tilt) - z * math.sin(tilt);
-    final nz = y * math.sin(tilt) + z * math.cos(tilt);
-    final turn = -0.38 + math.sin(t * 0.16) * 0.13;
-    // While connecting the orbits draw in across their long axis.
-    x *= 1 - 0.12 * charge;
-    return _Pt(
-      c.dx + x * math.cos(turn) - ny * math.sin(turn),
-      c.dy + x * math.sin(turn) + ny * math.cos(turn),
-      nz,
-    );
-  }
-
-  bool _behind(_Pt p, Offset c, double rs) {
-    final nx = (p.x - c.dx) / rs, ny = (p.y - c.dy) / rs;
-    final d2 = nx * nx + ny * ny;
-    return d2 < 1 && p.z < math.sqrt(1 - d2) * rs;
-  }
-
-  void _ribbons(Canvas canvas, Offset c, double r, double t, double charge,
-      {required bool front}) {
+  /// The orbits and particles in front of the sphere, or (front: false)
+  /// their far halves seen through the glass. Geometry from [OrbitFrame],
+  /// computed once per frame for both passes.
+  void _ribbons(Canvas canvas, double r, {required bool front}) {
+    final o = motion.orbits;
     final rs = r * 0.97;
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    final vertices = lite ? 84 : _vertices;
+    final n = o.vertexCount + 1;
+    final xs = o.xs, ys = o.ys, behind = o.behind;
+    final hidden = front ? 1 : 0;
     for (var b = _bands - 1; b >= 0; b--) {
+      // One addPolygon per visible run instead of a moveTo/lineTo call
+      // per vertex: the same path, a fraction of the engine calls (on a
+      // phone those per-point calls were most of the sphere's UI time).
       final path = Path();
-      var drawing = false;
-      for (var i = 0; i <= vertices; i++) {
-        final a = i / vertices * math.pi * 2;
-        final p = _point(a, b, t, c, rs, charge);
-        final visible = front != _behind(p, c, rs);
-        if (!visible) {
-          drawing = false;
+      var run = <Offset>[];
+      final base = b * n;
+      for (var i = 0; i < n; i++) {
+        final k = base + i;
+        if (behind[k] == hidden) {
+          if (run.length > 1) path.addPolygon(run, false);
+          run = <Offset>[];
           continue;
         }
-        if (!drawing) {
-          path.moveTo(p.x, p.y);
-          drawing = true;
-        } else {
-          path.lineTo(p.x, p.y);
-        }
+        run.add(Offset(xs[k], ys[k]));
       }
+      if (run.length > 1) path.addPolygon(run, false);
       final cold = b == _bands - 1;
-      final base = cold ? const Color(0xFF85EBF9) : _crimson;
+      final color = cold ? const Color(0xFF85EBF9) : _crimson;
       final alpha = (front ? 0.34 : 0.08) * (1 - b / (_bands * 1.15));
       if (b == 0 && front && !lite) {
-        canvas.drawPath(
-          path,
-          stroke
-            ..strokeWidth = 4
-            ..color = (cold ? const Color(0xFF45E9FF) : const Color(0xFFFF174C))
-                .withValues(alpha: 0.35)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-        );
-        stroke.maskFilter = null;
+        drawSoftPath(
+            canvas,
+            path,
+            _tc((cold ? const Color(0xFF45E9FF) : const Color(0xFFFF174C))
+                .withValues(alpha: 0.35)),
+            4,
+            6);
       }
       canvas.drawPath(
         path,
         stroke
           ..strokeWidth = b == 0 ? 1.5 : 0.55
-          ..color = base.withValues(alpha: alpha),
+          ..color = _tc(color.withValues(alpha: alpha)),
       );
     }
 
-    final dot = Paint();
+    final dot = Paint()
+      ..color =
+          _tc(const Color(0xFFFFA4BE).withValues(alpha: front ? 0.65 : 0.16));
     final glow = Paint()
-      ..color = const Color(0xFFFF416A).withValues(alpha: 0.5)
+      ..color = _tc(const Color(0xFFFF416A).withValues(alpha: 0.5))
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
     for (var i = 0; i < _particles; i++) {
-      final band = i % 7;
-      final a = (i * 2.399 + motion.particleAngle) % (math.pi * 2);
-      final p = _point(a, band + 1, t, c, rs, charge);
-      if (front == _behind(p, c, rs)) continue;
+      if (o.pBehind[i] == hidden) continue;
       final big = i % 13 == 0;
-      final size = (big ? 1.8 : 0.7) * (1 + p.z / rs * 0.25);
-      final o = Offset(p.x, p.y);
-      if (big && front && !lite) canvas.drawCircle(o, size * 3, glow);
-      canvas.drawCircle(
-        o,
-        size,
-        dot
-          ..color =
-              const Color(0xFFFFA4BE).withValues(alpha: front ? 0.65 : 0.16),
-      );
+      final size = (big ? 1.8 : 0.7) * (1 + o.pz[i] / rs * 0.25);
+      final p = Offset(o.px[i], o.py[i]);
+      if (big && front && !lite) canvas.drawCircle(p, size * 3, glow);
+      canvas.drawCircle(p, size, dot);
     }
   }
 
   void _front(Canvas canvas, Offset c, double rr, double t, int i, Color color,
       double alpha) {
-    final path = Path();
-    for (var j = 0; j <= 160; j++) {
-      final a = j / 160 * math.pi * 2;
-      final rip = 1 + math.sin(a * 5 - t * 2 + i) * 0.023;
-      final x = c.dx + math.cos(a) * rr * rip;
-      final y = c.dy + math.sin(a) * rr * rip * 0.84;
-      j == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
-    }
+    final points = <Offset>[
+      for (var j = 0; j <= 160; j++)
+        () {
+          final a = j / 160 * math.pi * 2;
+          final rip = 1 + math.sin(a * 5 - t * 2 + i) * 0.023;
+          return Offset(c.dx + math.cos(a) * rr * rip,
+              c.dy + math.sin(a) * rr * rip * 0.84);
+        }(),
+    ];
+    final path = Path()..addPolygon(points, false);
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color = color.withValues(alpha: alpha),
+        ..color = _tc(color.withValues(alpha: alpha)),
     );
   }
 
@@ -899,6 +1002,21 @@ class _CorePainter extends CustomPainter {
   /// The metallic arctic W (viewBox 90×60, 34 % of the sphere wide).
   /// It never rotates with the surface.
   void _emblem(Canvas canvas, Offset c) {
+    final m = mark;
+    if (m != null) {
+      // The W fills ~95 % of the square image's width and sits a bit
+      // below its middle: 40 % of the sphere wide, optically centred.
+      final side = diameter * 0.40 / 0.95;
+      final dst = Rect.fromCenter(
+          center: c.translate(0, -0.042 * side), width: side, height: side);
+      canvas.drawImageRect(
+        m,
+        Rect.fromLTWH(0, 0, m.width.toDouble(), m.height.toDouble()),
+        dst,
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+      return;
+    }
     final s = diameter * 0.34 / 90;
     canvas.save();
     canvas.translate(c.dx - 45 * s, c.dy - 30 * s);
@@ -952,9 +1070,11 @@ class _CorePainter extends CustomPainter {
       old.diameter != diameter ||
       old.shader != shader ||
       old.texture != texture ||
+      old.mark != mark ||
       old.label != label ||
       old.enabled != enabled ||
       old.tint != tint ||
       old.lite != lite ||
+      old.minimal != minimal ||
       old.time != time;
 }

@@ -105,14 +105,24 @@ ensure_aar() {  # $1 = checkout root
     echo "$want" > "$aar.src"; echo "ok: мост .aar взят из основной копии (исходники те же)"; return
   fi
   say "Сборка моста .aar (исходники изменились) — около 10 минут"
+  # A rollback worktree has no android/app/libs (the .aar is not in git).
+  mkdir -p "$(dirname "$aar")"
   bash "$root/wavebreak-mobile/native/hysteria_bridge/build_aar.sh" | tail -2
   echo "$want" > "$aar.src"
+}
+
+# pub.dev over a flaky line (12.10: "Connection terminated during handshake"
+# three builds in a row while everything needed was already in the cache):
+# retry once, then resolve offline from the cache.
+pub_get() {
+  flutter pub get >/dev/null 2>&1 || flutter pub get >/dev/null 2>&1 \
+    || flutter pub get --offline >/dev/null || die "flutter pub get не прошёл (сеть и кэш)"
 }
 
 build_android() {  # $1 root $2 name $3 code $4 outprefix
   local root=$1 name=$2 code=$3 prefix=$4
   ( cd "$root/wavebreak-mobile"
-    flutter pub get >/dev/null
+    pub_get
     flutter build apk --release --build-name="$name" --build-number="$code" "${DEFINES[@]}" | grep -E "Built|FAIL|rror" | tail -1
     cp build/app/outputs/flutter-apk/app-release.apk "$OUT/$prefix.apk"
     if [ -z "${5:-}" ]; then
@@ -126,7 +136,12 @@ build_android() {  # $1 root $2 name $3 code $4 outprefix
 build_windows() {  # $1 root $2 name $3 code $4 outfile
   local root=$1 name=$2 code=$3 out=$4
   ( cd "$root/wavebreak-pc"
-    flutter pub get >/dev/null
+    # The beta Xray engine (native/xray/build.sh, optional for the app):
+    # built from the mobile-pinned Xray-core when the tree has the script.
+    if [ -f native/xray/build.sh ] && [ ! -f windows/runtime_deps/xray.exe ]; then
+      bash native/xray/build.sh >/dev/null || die "не собрался xray.exe"
+    fi
+    pub_get
     flutter build windows --release --build-name="$name" --build-number="$code" "${DEFINES[@]}" | grep -E "Built|rror" | tail -1
     [ -f build/windows/x64/runner/Release/data/app.so ] || die "неполная сборка Windows (нет data/app.so)"
     "$ISCC" windows/installer/wavebreak.iss | tail -1
@@ -140,8 +155,12 @@ verify_apk() {  # $1 file $2 name $3 code
   cert=$("$(tool apksigner)" verify --print-certs "$f" | grep -m1 "SHA-256" | awk '{print $NF}')
   [ "$cert" = "$(rel cert)" ] || die "$f подписан не релизным ключом (SHA-256 $cert)"
   local so; so=$(unzip -l "$f" | grep -oE "lib/[^ ]+/libapp.so" | head -1)
-  unzip -p "$f" "$so" | grep -aq "$CORE_URL" || die "$f: нет боевого адреса Core — сборка с заглушками"
-  ! unzip -p "$f" "$so" | grep -aq "127.0.0.1:18080" || die "$f: собран с адресом по умолчанию (заглушки)"
+  # The library goes to a temp file first: piped into grep -q, grep quit at
+  # the first match, unzip got SIGPIPE and pipefail failed the check (1.3.0).
+  local lib; lib=$(mktemp); unzip -p "$f" "$so" > "$lib"
+  grep -aq "$CORE_URL" "$lib" || { rm -f "$lib"; die "$f: нет боевого адреса Core — сборка с заглушками"; }
+  ! grep -aq "127.0.0.1:18080" "$lib" || { rm -f "$lib"; die "$f: собран с адресом по умолчанию (заглушки)"; }
+  rm -f "$lib"
   echo "ok: $(basename "$f") — $2 ($3), релизный ключ, боевой Core"
 }
 
@@ -161,12 +180,12 @@ worktree_at() {  # $1 commit
 worktree_drop() { git -c core.longpaths=true worktree remove --force "$WT" 2>/dev/null || true; git worktree prune; }
 
 cmd_build() {
-  local want=${1:-all}
+  local want=${1:-all} aname=${2:-}
   preflight "$want"
   mkdir -p "$OUT"; rm -f "$OUT"/*.apk "$OUT"/*.exe "$OUT"/*.json
   : > "$STATE"
   local an ac arn arc arcommit wn wc wrn wrc wrcommit
-  if [ "$want" != windows ]; then read -r an ac arn arc arcommit < <(rel next android); fi
+  if [ "$want" != windows ]; then read -r an ac arn arc arcommit < <(rel next android $aname); fi
   if [ "$want" != android ]; then read -r wn wc wrn wrc wrcommit < <(rel next windows); fi
   say "Версии: ${an:+Android $an ($ac), откат $arn ($arc)} ${wn:+Windows $wn ($wc), откат $wrn ($wrc)}"
 
@@ -228,7 +247,9 @@ cmd_stage() {
   [ -s "$STATE" ] || die "нет сборки: сначала build"
   . "$STATE"
   cd "$OUT"
-  local files; files=$(ls *.apk *.exe 2>/dev/null | tr '\n' ' ')
+  # Android-only or Windows-only releases: one of the globs matches nothing,
+  # ls fails and pipefail stopped the script silently — list what exists.
+  local files; files=$(for f in *.apk *.exe; do if [ -f "$f" ]; then printf '%s ' "$f"; fi; done)
   say "Загрузка на зеркало (incoming-$ID)"
   "${SSH[@]}" "$MIRROR_HOST" "mkdir -p $MIRROR_DIR/incoming-$ID"
   for f in $files *.json; do
@@ -301,10 +322,11 @@ cmd_publish() {
 }
 
 case "${1:-}" in
+  build-tv) powershell.exe -NoProfile -File "$(cygpath -w "$ROOT/tools/release/tv.ps1")" "${@:2}" ;;
   check)   preflight "${2:-all}"
            [ "${2:-all}" != windows ] && echo "Следующий Android: $(rel next android)"
            [ "${2:-all}" != android ] && echo "Следующий Windows: $(rel next windows)"; true ;;
-  build)   cmd_build "${2:-all}" ;;
+  build)   cmd_build "${2:-all}" "${3:-}" ;;   # build android 1.3.0 — своё имя версии Android
   stage)   cmd_stage ;;
   publish) cmd_publish ;;
   *) sed -n '2,8p' "$0"; exit 1 ;;

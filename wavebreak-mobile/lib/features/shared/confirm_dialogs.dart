@@ -9,7 +9,8 @@ import '../../core/theme/wb_colors.dart';
 /// refresh/share in the same small popup) used to delete it immediately,
 /// with no way back except re-pasting the link from wherever it first came
 /// from — often nowhere, if it isn't saved elsewhere.
-Future<bool> confirmRemoveCustomGroup(BuildContext context, AppStrings s) async {
+Future<bool> confirmRemoveCustomGroup(
+    BuildContext context, AppStrings s) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(

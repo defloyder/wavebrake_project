@@ -255,7 +255,8 @@ final locationsProvider = FutureProvider<List<LocationItem>>((ref) async {
 /// The full network pass behind [locationsProvider]. [watch] = false when
 /// it runs after the provider already returned (reads only, no
 /// dependencies registered that late).
-Future<List<LocationItem>> _fetchLocations(Ref ref, {required bool watch}) async {
+Future<List<LocationItem>> _fetchLocations(Ref ref,
+    {required bool watch}) async {
   final gateway =
       watch ? ref.watch(coreGatewayProvider) : ref.read(coreGatewayProvider);
   List<LocationItem> coreLocations;
@@ -384,7 +385,8 @@ final sharingProvider = FutureProvider<SharingOverview?>((ref) async {
     ref.onDispose(refresh.cancel);
   }
   try {
-    final overview = await _withTimeout(ref.watch(coreGatewayProvider).sharing());
+    final overview =
+        await _withTimeout(ref.watch(coreGatewayProvider).sharing());
     unawaited(ref.read(customServersProvider.notifier).syncShared(overview));
     return overview;
   } catch (_) {

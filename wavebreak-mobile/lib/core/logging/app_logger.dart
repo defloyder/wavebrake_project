@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -106,7 +107,22 @@ class AppLogger {
         'WAVEBREAK diagnostic log — exported ${DateTime.now().toIso8601String()}\n'
         'App version: $version (${AppEnv.flavor})\n'
         '${'-' * 60}\n';
-    await file.writeAsString(header + _buffer.join('\n'));
+    // The VPN service keeps its own log on disk (network changes, screen
+    // off/on, health checks, reconnects) — it survives the app being
+    // closed, unlike the buffer above.
+    var engine = '';
+    if (Platform.isAndroid) {
+      try {
+        engine = await const MethodChannel('app.wavebreak/vpn_state')
+                .invokeMethod<String>('engineLog') ??
+            '';
+      } catch (_) {}
+    }
+    await file.writeAsString(header +
+        _buffer.join('\n') +
+        (engine.isEmpty
+            ? ''
+            : '\n\n${'-' * 60}\nVPN service log\n${'-' * 60}\n$engine'));
     return file;
   }
 }

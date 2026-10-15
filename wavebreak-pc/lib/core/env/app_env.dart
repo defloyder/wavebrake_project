@@ -54,6 +54,9 @@ class AppEnv {
       ? const bool.fromEnvironment('USE_SIMULATED_VPN')
       : useMockApi;
 
+  /// The Android TV build only (see wavebreak-mobile); always false here.
+  static const isTv = bool.fromEnvironment('WAVEBREAK_TV');
+
   static bool get isProduction => flavor == 'production';
   static bool get isStaging => flavor == 'staging';
   static bool get isDevelopment => flavor == 'development';

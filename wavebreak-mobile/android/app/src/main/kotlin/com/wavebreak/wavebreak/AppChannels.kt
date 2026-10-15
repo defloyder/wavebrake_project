@@ -121,6 +121,13 @@ object AppChannels {
                         result.success(UpdateInstaller.installApk(ui(), path))
                     }
                 }
+                // The user's own tap on "Open the installer" (updates screen):
+                // the classic system installer on the downloaded APK, started
+                // from the on-screen activity — no firmware blocks that.
+                "openApkInSystemInstaller" -> {
+                    val path = call.argument<String>("path")
+                    result.success(path != null && UpdateInstaller.openInSystemInstaller(ui(), path))
+                }
                 "showUpdateAvailableNotification" -> {
                     val versionName = call.argument<String>("versionName") ?: ""
                     val versionCode = call.argument<Number>("versionCode")?.toLong()
@@ -269,6 +276,32 @@ object AppChannels {
             }
         }
 
+        // Split tunneling (SplitTunnel.kt): the apps to choose from, the
+        // user's choice, and the apps that are always direct.
+        MethodChannel(messenger, "app.wavebreak/split").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "installedApps" -> {
+                    val main = Handler(Looper.getMainLooper())
+                    Thread {
+                        val apps = runCatching { SplitTunnel.installedApps(app) }
+                        main.post {
+                            apps.fold(
+                                { result.success(it) },
+                                { result.error("apps", it.message, null) },
+                            )
+                        }
+                    }.start()
+                }
+                "bypass" -> result.success(SplitTunnel.userBypass(app).toList())
+                "setBypass" -> {
+                    SplitTunnel.setUserBypass(app, call.argument<List<String>>("packages") ?: emptyList())
+                    result.success(null)
+                }
+                "alwaysDirect" -> result.success(WaveEngineVpnService.RU_VPN_DETECTING_APPS.toList())
+                else -> result.notImplemented()
+            }
+        }
+
         // The tunnel outlives the UI process; a cold start asks the system
         // whether it's still up (adapter-agnostic).
         MethodChannel(messenger, "app.wavebreak/vpn_state").setMethodCallHandler { call, result ->
@@ -276,6 +309,10 @@ object AppChannels {
                 "isSystemVpnActive" -> result.success(isSystemVpnActive(app))
                 "vpnSessionStartedAtMs" -> result.success(WaveEngineVpnService.sessionStartedAtMs(app))
                 "networkLabel" -> result.success(runCatching { NetworkLabel.describe(app) }.getOrNull())
+                // The VPN service's on-disk log (EngineLog), for the diagnostic export.
+                "engineLog" -> result.success(EngineLog.read(app))
+                // Device registration id kept outside backups (see InstallId).
+                "installId" -> result.success(runCatching { InstallId.get(app) }.getOrNull())
                 "isIgnoringBatteryOptimizations" ->
                     result.success(BatteryOptimization.isIgnoringBatteryOptimizations(app))
                 // Only the user can turn on "Always-on VPN" + "Block
@@ -309,6 +346,20 @@ object AppChannels {
                             result.success(-1)
                         }
                     }
+                }
+                // Xiaomi/Redmi/POCO (MIUI, HyperOS) freeze a background app's
+                // network — the VPN's own engine included — unless its
+                // battery saver is "No restrictions" and Autostart is on
+                // (owner, 12.10: the VPN stopped passing traffic until the
+                // app was opened).
+                "isXiaomi" -> result.success(OemBackground.isXiaomi())
+                "openBackgroundSettings" -> {
+                    OemBackground.openBatterySaver(ui())
+                    result.success(null)
+                }
+                "openAutostartSettings" -> {
+                    OemBackground.openAutostart(ui())
+                    result.success(null)
                 }
                 "requestIgnoreBatteryOptimizations" -> {
                     startSettingsScreen(

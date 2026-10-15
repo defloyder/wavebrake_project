@@ -12,6 +12,7 @@ import '../../services/update/apk_installer.dart';
 import '../../services/update/update_service.dart';
 import '../shared/detail_scaffold.dart';
 import '../shared/nav_utils.dart';
+import '../shared/toast.dart';
 import '../shared/wb_card.dart';
 
 /// The single, consolidated home for everything update-related — replaces
@@ -25,19 +26,28 @@ import '../shared/wb_card.dart';
 class UpdatesScreen extends ConsumerWidget {
   const UpdatesScreen({super.key});
 
+  /// Taps while a check is running are ignored; the answer replaces any
+  /// message already on screen (no queue of toasts).
+  static bool _checking = false;
+
   Future<void> _checkForUpdates(BuildContext context, WidgetRef ref) async {
-    final s = ref.read(stringsProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    ref.invalidate(availableUpdateProvider);
-    ref.invalidate(installedRollbackProvider);
-    final update = await ref.read(availableUpdateProvider.future);
-    if (!context.mounted) return;
-    if (update == null) {
-      final rolledBack = await ref.read(installedRollbackProvider.future);
+    if (_checking) return;
+    _checking = true;
+    try {
+      final s = ref.read(stringsProvider);
+      final messenger = ScaffoldMessenger.of(context);
+      ref.invalidate(availableUpdateProvider);
+      ref.invalidate(installedRollbackProvider);
+      final update = await ref.read(availableUpdateProvider.future);
       if (!context.mounted) return;
-      messenger.showSnackBar(SnackBar(
-          content:
-              Text(rolledBack != null ? s.rollbackInstalled : s.upToDate)));
+      if (update == null) {
+        final rolledBack = await ref.read(installedRollbackProvider.future);
+        if (!context.mounted) return;
+        showToast(
+            messenger, rolledBack != null ? s.rollbackInstalled : s.upToDate);
+      }
+    } finally {
+      _checking = false;
     }
   }
 
@@ -58,7 +68,7 @@ class UpdatesScreen extends ConsumerWidget {
 
     return DetailScaffold(
       title: s.updates,
-      onBack: () => safePop(context, fallback: '/settings'),
+      onBack: () => safePop(context, fallback: '/settings/help'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -125,6 +135,18 @@ class UpdatesScreen extends ConsumerWidget {
             ),
           ] else if (installing) ...[
             _InstallingIndicator(s: s, versionName: install.versionName),
+            // Some firmwares (MIUI, Android 10) never show the session's
+            // prompt: the classic installer, from the user's own tap.
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => ref
+                    .read(apkInstallControllerProvider.notifier)
+                    .openInSystemInstaller(),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                label: Text(s.updateOpenInstaller, textAlign: TextAlign.center),
+              ),
+            ),
           ] else if (downloading) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(999),

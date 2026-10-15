@@ -35,4 +35,33 @@ void main() {
     final route = singBoxConfigFor(link)['route'] as Map<String, dynamic>;
     expect(route.containsKey('rules'), isFalse);
   });
+
+  test('split tunneling: chosen programs go direct, alongside the cloak IP', () {
+    final cfg = singBoxConfigFor(link,
+        directIps: ['45.15.41.3'],
+        directProcesses: ['chrome.exe', 'telegram.exe']);
+    expect((cfg['route'] as Map)['rules'], [
+      {
+        'ip_cidr': ['45.15.41.3/32'],
+        'outbound': 'direct',
+      },
+      {
+        'process_name': ['chrome.exe', 'telegram.exe'],
+        'outbound': 'direct',
+      },
+    ]);
+    expect((cfg['route'] as Map)['final'], 'proxy');
+    final dump = Platform.environment['WB_SINGBOX_SPLIT_DUMP'];
+    if (dump != null) File(dump).writeAsStringSync(jsonEncode(cfg));
+  });
+
+  test('split tunneling alone: only the process rule', () {
+    final cfg = singBoxConfigFor(link, directProcesses: ['steam.exe']);
+    expect((cfg['route'] as Map)['rules'], [
+      {
+        'process_name': ['steam.exe'],
+        'outbound': 'direct',
+      },
+    ]);
+  });
 }

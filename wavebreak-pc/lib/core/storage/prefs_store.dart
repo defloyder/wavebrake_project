@@ -20,12 +20,24 @@ class PrefsStore {
   // The selected location's name (country|city), to find it again when
   // its link — and with it its id — changed on the server.
   static const lastLocationKey = 'last_location_key';
+
+  /// This installation's id for Core's device registration — kept across
+  /// sign-outs on purpose (see DeviceService.installId).
+  static const installId = 'install_id';
   static const autoConnect = 'auto_connect';
   static const autoConnectOnLaunch = 'auto_connect_on_launch';
   static const autoConnectUntrustedWifi = 'auto_connect_untrusted_wifi';
   // WAVEBREAK locations: Russian sites directly, DNS through the tunnel
   // (see kClientSmartRoutingPolicy). On by default.
   static const smartRouting = 'smart_routing';
+  /// Windows: run supported links on Xray-core instead of sing-box (beta).
+  static const pcXrayEngine = 'pc_xray_engine';
+  /// Windows: programs sent past the tunnel (split tunneling, 15.10).
+  static const splitBypassProcesses = 'split_bypass_processes';
+  /// Own links synced across the account's devices (off by default) and
+  /// the list as last synced (custom_link_sync.dart).
+  static const syncCustomLinks = 'sync_custom_links';
+  static const customLinksSynced = 'custom_links_synced';
   static const notifyConnection = 'notify_connection';
   static const notifySubscription = 'notify_subscription';
   static const biometricPromptShown = 'biometric_prompt_shown';
@@ -34,11 +46,16 @@ class PrefsStore {
   // for good). Re-offered at most weekly while still not exempt.
   static const batteryOptimizationPromptLastMs =
       'battery_optimization_prompt_last_ms';
+  /// The one-time Xiaomi "No restrictions / Autostart" hint was shown.
+  static const xiaomiBackgroundHintShown = 'xiaomi_background_hint_shown';
   static const language = 'language';
   static const customServers = 'custom_servers';
   static const accentOverride = 'accent_override';
   static const textScale = 'text_scale';
   static const reduceMotion = 'reduce_motion';
+  static const sphereStyle = 'sphere_style';
+  static const backgroundIntensity = 'background_intensity';
+  static const uiDensity = 'ui_density';
 
   // Last-known-good snapshots of Core data, used to render something
   // real instead of a blank/error screen when a refresh fails offline —
@@ -78,6 +95,12 @@ class PrefsStore {
 
   static Future<void> setBool(String key, bool value) =>
       _prefs.setBool(key, value);
+
+  static List<String> getStringList(String key) =>
+      _prefs.getStringList(key) ?? const [];
+
+  static Future<void> setStringList(String key, List<String> value) =>
+      _prefs.setStringList(key, value);
 
   static String? getString(String key) => _prefs.getString(key);
 

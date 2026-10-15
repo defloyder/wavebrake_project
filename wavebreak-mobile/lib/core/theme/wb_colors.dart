@@ -39,6 +39,20 @@ class WbColors {
   static const ice60 = Color(0xA6F5F2F0);
   static const ice08 = Color(0x18F5F2F0);
 
+  // How far surfaces lean towards the accent (the flag color). The accent
+  // itself is for main actions and active states; cards, sections and
+  // sheets stay neutral with a light tone of it (owner, V5 polish: whole
+  // blocks in the flag color were too saturated).
+
+  /// Glass cards/sections: top of the gradient (fades to ~0 at the bottom).
+  static const surfaceLean = 0.07;
+
+  /// Hairline border of a glass card.
+  static const surfaceBorderLean = 0.14;
+
+  /// Bottom sheets and popups.
+  static const sheetLean = 0.06;
+
   static const warning = Color(0xFFFFB23F);
   static const error = Color(0xFFFF5C6C);
 

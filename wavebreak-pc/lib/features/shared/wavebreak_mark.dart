@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -30,7 +31,7 @@ class WavebreakMark extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: WbColors.waveCyan.withValues(alpha: 0.28),
+            color: context.accent.withValues(alpha: 0.28),
             blurRadius: 24,
           ),
         ],

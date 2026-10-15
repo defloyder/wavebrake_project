@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,7 +12,8 @@ import '../../services/pin/pin_service.dart';
 /// shared between the lock screen and the PIN setup flow so both read as
 /// the same control.
 class PinDots extends StatelessWidget {
-  const PinDots({super.key, required this.length, this.error = false, this.total = 6});
+  const PinDots(
+      {super.key, required this.length, this.error = false, this.total = 6});
 
   final int length;
   final bool error;
@@ -21,7 +23,7 @@ class PinDots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = error ? WbColors.error : WbColors.waveCyan;
+    final color = error ? WbColors.error : context.accent;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(total, (i) {
@@ -34,7 +36,8 @@ class PinDots extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: filled ? color : Colors.transparent,
-            border: Border.all(color: color.withValues(alpha: filled ? 1 : 0.4)),
+            border:
+                Border.all(color: color.withValues(alpha: filled ? 1 : 0.4)),
           ),
         );
       }),
@@ -45,7 +48,8 @@ class PinDots extends StatelessWidget {
 /// A 0-9 + backspace numeric keypad, large-target and thumb-friendly, used
 /// by both the lock screen and PIN setup/change flows.
 class PinKeypad extends StatelessWidget {
-  const PinKeypad({super.key, required this.onDigit, required this.onBackspace});
+  const PinKeypad(
+      {super.key, required this.onDigit, required this.onBackspace});
 
   final ValueChanged<String> onDigit;
   final VoidCallback onBackspace;
@@ -114,7 +118,8 @@ class _KeypadButton extends StatelessWidget {
           height: 72,
           child: Center(
             child: isBackspace
-                ? const Icon(Icons.backspace_outlined, color: WbColors.ice, size: 22)
+                ? const Icon(Icons.backspace_outlined,
+                    color: WbColors.ice, size: 22)
                 : Text(
                     keyValue,
                     style: const TextStyle(
@@ -245,9 +250,10 @@ class _PinEntryState extends State<PinEntry> {
                   ? () => _check(reportMismatch: true)
                   : null,
               style: FilledButton.styleFrom(
-                backgroundColor: WbColors.waveCyan,
+                backgroundColor: context.accent,
                 foregroundColor: WbColors.midnight,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
               ),
               child: Text(widget.s.continueLabel),
             ),

@@ -195,12 +195,18 @@ class ApiClient {
 
   /// POST that bypasses [AuthInterceptor] entirely — only for
   /// `/auth/refresh`, which the interceptor itself awaits.
+  /// [replay]: false for a request that must reach Core at most once —
+  /// a token refresh. A relay's 502 can come after Core already rotated
+  /// the token; sending the old one again then reads as a stolen token
+  /// and Core signs the account out everywhere (owner, 12.10).
   Future<T> postWithoutAuth<T>(
     String path, {
     Object? body,
     T Function(dynamic data)? parse,
+    bool replay = true,
   }) {
-    return _run(() => _authDio.post<dynamic>(path, data: body), parse);
+    return _run(() => _authDio.post<dynamic>(path, data: body), parse,
+        replay: replay);
   }
 
   Future<T> patch<T>(
@@ -209,6 +215,14 @@ class ApiClient {
     T Function(dynamic data)? parse,
   }) {
     return _run(() => _dio.patch<dynamic>(path, data: body), parse);
+  }
+
+  Future<T> put<T>(
+    String path, {
+    Object? body,
+    T Function(dynamic data)? parse,
+  }) {
+    return _run(() => _dio.put<dynamic>(path, data: body), parse);
   }
 
   Future<T> delete<T>(
@@ -264,6 +278,7 @@ class ApiClient {
     Future<Response<dynamic>> Function() request,
     T Function(dynamic data)? parse, {
     int retries = 0,
+    bool replay = true,
   }) async {
     var attempt = 0;
     var resent = false;
@@ -284,7 +299,7 @@ class ApiClient {
         if (gateway != null || _isRetryableConnectionError(error)) {
           _switchBase(base);
         }
-        if ((gateway == 502 || gateway == 503) && !resent) {
+        if ((gateway == 502 || gateway == 503) && replay && !resent) {
           resent = true;
           continue;
         }

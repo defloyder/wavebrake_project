@@ -70,7 +70,7 @@ func TestShareURLBase(t *testing.T) {
 	for base, want := range map[string]string{
 		"https://core.example.test/v1/sub/": "https://core.example.test/v1/share/",
 		"https://core.example.test/v1/sub":  "https://core.example.test/v1/share/",
-		"":                                  "https://core.wavebreak.com.tr/v1/share/",
+		"":                                  "https://api.wavebreak.com.tr/v1/share/",
 	} {
 		s := &Server{app: &app.App{Config: config.Config{Accounts: config.AccountsConfig{SubscriptionURLBase: base}}}}
 		if got := s.shareURLBase(); got != want {
@@ -104,7 +104,7 @@ func TestShareSubscriptionE2E(t *testing.T) {
 	st := store.New(pool, openPIIPoolForTest(t))
 	a := &app.App{Config: config.Config{
 		JWTSecret: "e2e-secret", AccessTokenTTL: time.Hour, RefreshTokenTTL: time.Hour,
-		Accounts: config.AccountsConfig{SubscriptionURLBase: "https://api.e2e.test/v1/sub/", AccessProtocol: "vless", SubscriptionGrace: accounts.DefaultGracePeriod},
+		Accounts: config.AccountsConfig{SubscriptionURLBase: "https://api.e2e.test/v1/sub/", AccessProtocol: "vless", SubscriptionGrace: accounts.DefaultGracePeriod, SelfServeSubscriptions: true},
 		VLESS: config.VLESSConfig{
 			PublicHost: "45.15.41.3", PublicPort: 443, RealityPublicKey: "pbk-e2e", RealityShortID: "ab12", RealityServerName: "r.e2e.test",
 			Fingerprint: "chrome", PublishDirect: true,

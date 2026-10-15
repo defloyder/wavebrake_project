@@ -73,8 +73,8 @@ class DetailScaffold extends ConsumerWidget {
                             Expanded(
                               child: Text(
                                 title,
-                                style:
-                                    const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                    fontSize: 22, fontWeight: FontWeight.w600),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -121,7 +121,8 @@ class _BackButton extends StatelessWidget {
             color: WbColors.card.withValues(alpha: 0.55),
             border: Border.all(color: WbColors.ice08),
           ),
-          child: const Icon(Icons.arrow_back_ios_new_rounded, size: 17, color: WbColors.ice),
+          child: const Icon(Icons.arrow_back_ios_new_rounded,
+              size: 17, color: WbColors.ice),
         ),
       ),
     );

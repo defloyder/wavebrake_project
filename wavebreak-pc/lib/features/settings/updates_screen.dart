@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../shared/notice.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/update/update_service.dart';
@@ -22,15 +23,14 @@ class UpdatesScreen extends ConsumerWidget {
 
   Future<void> _check(BuildContext context, WidgetRef ref) async {
     final s = ref.read(stringsProvider);
-    final messenger = ScaffoldMessenger.of(context);
     ref.invalidate(availableUpdateProvider);
     ref.invalidate(rollbackOfferProvider);
     ref.invalidate(installedRollbackProvider);
     final update = await ref.read(availableUpdateProvider.future);
     if (update == null) {
       final rolledBack = await ref.read(installedRollbackProvider.future);
-      messenger.showSnackBar(SnackBar(
-          content: Text(rolledBack != null ? s.rollbackInstalled : s.upToDate)));
+      showNotice(rolledBack != null ? s.rollbackInstalled : s.upToDate,
+          kind: NoticeKind.success);
     }
   }
 

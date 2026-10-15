@@ -1,3 +1,6 @@
+import '../shared/notice.dart';
+import '../../core/env/app_env.dart';
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart' show CancelToken;
@@ -51,8 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final message = reason == AppErrorKind.accessDenied
         ? s.errAccessDenied
         : s.sessionExpiredNotice;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    showNotice(message, kind: NoticeKind.warning);
   }
 
   Future<void> _submit() async {
@@ -195,6 +197,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
       body: OceanBackground(
+        stars: true,
         illuminate: true,
         tint: waves.tint,
         waveSpeed: waves.speed,
@@ -215,16 +218,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             curve: Curves.easeOutCubic,
                             child: keyboardOpen
                                 ? const SizedBox(height: 16)
-                                : Column(
-                                    children: [
-                                      const SizedBox(height: 48),
-                                      const WavebreakMark(size: 72, glow: true),
-                                      const SizedBox(height: 20),
-                                      const WavebreakWordmark(),
-                                    ],
-                                  ),
+                                // A short screen (a TV is 540 px tall): the
+                                // mark alone — the wordmark ran into the
+                                // e-mail field.
+                                : constraints.maxHeight < 640
+                                    ? const Column(
+                                        children: [
+                                          SizedBox(height: 16),
+                                          WavebreakMark(size: 56, glow: true),
+                                          SizedBox(height: 16),
+                                        ],
+                                      )
+                                    : const Column(
+                                        children: [
+                                          SizedBox(height: 48),
+                                          WavebreakMark(size: 72, glow: true),
+                                          SizedBox(height: 20),
+                                          WavebreakWordmark(),
+                                        ],
+                                      ),
                           ),
-                          const Spacer(),
+                          // TV: the fields high, clear of the remote's
+                          // keyboard (owner, 15.10).
+                          if (AppEnv.isTv)
+                            const SizedBox(height: 12)
+                          else
+                            const Spacer(),
                           TextField(
                             controller: _email,
                             keyboardType: TextInputType.emailAddress,
@@ -266,8 +285,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               },
                               child: Text(
                                 s.continueWithOwnLink,
-                                style: const TextStyle(
-                                  color: WbColors.waveCyan,
+                                style: TextStyle(
+                                  color: context.accent,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
                                 ),
@@ -281,7 +300,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             child: FilledButton(
                               onPressed: _busy ? null : _submit,
                               style: FilledButton.styleFrom(
-                                backgroundColor: WbColors.waveCyan,
+                                backgroundColor: context.accent,
                                 foregroundColor: WbColors.midnight,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
@@ -305,6 +324,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             onPressed: () => context.push('/forgot'),
                             child: Text(s.forgotPassword),
                           ),
+                          TextButton(
+                            onPressed: () => context.push('/email-code'),
+                            child: Text(s.loginWithCode),
+                          ),
                           const Spacer(),
                           TextButton(
                             onPressed: () => context.push('/register'),
@@ -315,8 +338,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 children: [
                                   TextSpan(
                                     text: s.createAccount,
-                                    style: const TextStyle(
-                                        color: WbColors.waveCyan),
+                                    style: TextStyle(color: context.accent),
                                   ),
                                 ],
                               ),

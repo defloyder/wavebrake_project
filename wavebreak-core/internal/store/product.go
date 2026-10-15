@@ -349,38 +349,81 @@ func (s *Store) ListDevices(ctx context.Context, userID string) ([]Device, error
 // instead of taking another slot. The user row lock stops two concurrent
 // registrations from both creating the same device.
 func (s *Store) CreateDevice(ctx context.Context, userID, name, platform string) (Device, error) {
+	d, _, err := s.RegisterDevice(ctx, userID, name, platform, "")
+	return d, err
+}
+
+// RegisterDevice creates a device for the user, or — when installID (the
+// app's own id of this installation, kept across sign-outs) matches an
+// active device of the user — returns that device with reused=true and
+// takes no new slot. Apps used to forget their device id on every
+// sign-out and register again, so one phone filled several slots of the
+// subscription (owner, 06.10). The id lives in devices.fingerprint, a
+// column that was never used before. The user row is locked so two
+// concurrent registrations of one installation can't both insert.
+func (s *Store) RegisterDevice(ctx context.Context, userID, name, platform, installID string) (Device, bool, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
-		return Device{}, err
+		return Device{}, false, err
 	}
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx, `select 1 from users where id = $1 for update`, userID); err != nil {
-		return Device{}, err
+		return Device{}, false, err
 	}
+	if installID != "" {
+		var d Device
+		err := tx.QueryRow(ctx, `
+			update devices set name = $3, platform = coalesce(nullif($4, ''), platform),
+			       last_seen_at = now(), updated_at = now(),
+			       subscription_id = coalesce(
+			           (select id from subscriptions
+			            where user_id = $1 and status in ('pending', 'trialing', 'active', 'past_due', 'suspended')
+			            order by created_at desc limit 1),
+			           subscription_id)
+			where id = (select id from devices
+			            where user_id = $1 and fingerprint = $2 and revoked_at is null
+			            order by created_at desc limit 1)
+			returning id::text, user_id::text, coalesce(device_public_id, ''), name, platform, created_at, updated_at, last_seen_at, revoked_at`,
+			userID, installID, name, platform,
+		).Scan(&d.ID, &d.UserID, &d.DevicePublicID, &d.Name, &d.Platform, &d.CreatedAt, &d.UpdatedAt, &d.LastSeenAt, &d.RevokedAt)
+		if err == nil {
+			return d, true, tx.Commit(ctx)
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return Device{}, false, err
+		}
+	}
+	// No installation id match: an active device with the same name and
+	// platform registered without one (an older app, or this app before it
+	// had install ids) is the same device signing in again (the server's
+	// de-duplication since 06.10). Devices that carry an install id of
+	// their own are never merged by name: two phones of one model stay two.
 	var existing Device
 	err = tx.QueryRow(ctx, `
-		select id::text, user_id::text, coalesce(device_public_id, ''), name, platform, created_at, updated_at, last_seen_at, revoked_at
-		from devices
-		where user_id = $1 and name = $2 and platform is not distinct from nullif($3, '') and revoked_at is null
-		order by created_at
-		limit 1`,
-		userID, name, platform,
+		update devices set last_seen_at = now(), updated_at = now(),
+		       fingerprint = coalesce(fingerprint, nullif($4, ''))
+		where id = (select id from devices
+		            where user_id = $1 and name = $2 and platform is not distinct from nullif($3, '')
+		              and fingerprint is null and revoked_at is null
+		            order by created_at limit 1)
+		returning id::text, user_id::text, coalesce(device_public_id, ''), name, platform, created_at, updated_at, last_seen_at, revoked_at`,
+		userID, name, platform, installID,
 	).Scan(&existing.ID, &existing.UserID, &existing.DevicePublicID, &existing.Name, &existing.Platform, &existing.CreatedAt, &existing.UpdatedAt, &existing.LastSeenAt, &existing.RevokedAt)
 	if err == nil {
-		if err := tx.QueryRow(ctx, `
-			update devices set last_seen_at = now(), updated_at = now()
-			where id = $1
-			returning last_seen_at`, existing.ID,
-		).Scan(&existing.LastSeenAt); err != nil {
-			return Device{}, err
-		}
-		return existing, tx.Commit(ctx)
+		return existing, true, tx.Commit(ctx)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return Device{}, err
+		return Device{}, false, err
 	}
+	d, err := createDeviceTx(ctx, tx, userID, name, platform, installID)
+	if err != nil {
+		return Device{}, false, err
+	}
+	return d, false, tx.Commit(ctx)
+}
 
+func createDeviceTx(ctx context.Context, tx pgx.Tx, userID, name, platform, installID string) (Device, error) {
 	limit, err := effectiveDeviceLimit(ctx, tx, userID)
 	if err != nil {
 		return Device{}, err
@@ -395,14 +438,14 @@ func (s *Store) CreateDevice(ctx context.Context, userID, name, platform string)
 
 	var d Device
 	err = tx.QueryRow(ctx, `
-		insert into devices (user_id, name, platform, subscription_id, last_seen_at)
+		insert into devices (user_id, name, platform, subscription_id, last_seen_at, fingerprint)
 		values ($1, $2, nullif($3, ''),
 		        (select id from subscriptions
 		         where user_id = $1 and status in ('pending', 'trialing', 'active', 'past_due', 'suspended')
 		         order by created_at desc limit 1),
-		        now())
+		        now(), nullif($4, ''))
 		returning id::text, user_id::text, coalesce(device_public_id, ''), name, platform, created_at, updated_at, last_seen_at, revoked_at`,
-		userID, name, platform,
+		userID, name, platform, installID,
 	).Scan(&d.ID, &d.UserID, &d.DevicePublicID, &d.Name, &d.Platform, &d.CreatedAt, &d.UpdatedAt, &d.LastSeenAt, &d.RevokedAt)
 	if err != nil {
 		return Device{}, err
@@ -411,7 +454,7 @@ func (s *Store) CreateDevice(ctx context.Context, userID, name, platform string)
 		return Device{}, err
 	}
 	d.DevicePublicID = d.ID
-	return d, tx.Commit(ctx)
+	return d, nil
 }
 
 // ClaimSharedDevice takes one device slot of the owner's subscription for
@@ -1186,7 +1229,7 @@ func (s *Store) AdminTrafficHistory(ctx context.Context, days int) ([]TrafficDay
 func (s *Store) ListAllPlans(ctx context.Context) ([]Plan, error) {
 	rows, err := s.db.Query(ctx, `
 		select id::text, code, name, description, price_cents, price_minor, currency, interval, duration_days,
-		       device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order
+		       device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order, original_price_minor, badge
 		from plans
 		where deleted_at is null
 		order by sort_order asc, price_minor asc`)
@@ -1197,7 +1240,7 @@ func (s *Store) ListAllPlans(ctx context.Context) ([]Plan, error) {
 	var plans []Plan
 	for rows.Next() {
 		var p Plan
-		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder); err != nil {
+		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder, &p.OriginalPriceMinor, &p.Badge); err != nil {
 			return nil, err
 		}
 		plans = append(plans, p)
@@ -1222,14 +1265,14 @@ func (s *Store) CreatePlan(ctx context.Context, p Plan) (Plan, error) {
 	err := s.db.QueryRow(ctx, `
 		insert into plans (
 			code, name, description, price_cents, price_minor, currency, interval, duration_days,
-			device_limit, traffic_limit_bytes, concurrent_connection_limit, active, is_active, is_public, sort_order
+			device_limit, traffic_limit_bytes, concurrent_connection_limit, active, is_active, is_public, sort_order, original_price_minor, badge
 		)
-		values ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13)
+		values ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14, $15)
 		returning id::text, code, name, description, price_cents, price_minor, currency, interval, duration_days,
-		          device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order`,
+		          device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order, original_price_minor, badge`,
 		p.Code, p.Name, p.Description, p.PriceMinor, p.Currency, p.Interval, p.DurationDays,
-		p.DeviceLimit, p.TrafficLimitBytes, p.ConcurrentConnectionLimit, p.IsActive, p.IsPublic, p.SortOrder,
-	).Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder)
+		p.DeviceLimit, p.TrafficLimitBytes, p.ConcurrentConnectionLimit, p.IsActive, p.IsPublic, p.SortOrder, p.OriginalPriceMinor, p.Badge,
+	).Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder, &p.OriginalPriceMinor, &p.Badge)
 	return p, err
 }
 
@@ -1256,13 +1299,15 @@ func (s *Store) UpdatePlan(ctx context.Context, p Plan) (Plan, error) {
 		    is_active = $12,
 		    is_public = $13,
 		    sort_order = $14,
+		    original_price_minor = $15,
+		    badge = $16,
 		    updated_at = now()
 		where id = $1 and deleted_at is null
 		returning id::text, code, name, description, price_cents, price_minor, currency, interval, duration_days,
-		          device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order`,
+		          device_limit, traffic_limit_bytes, concurrent_connection_limit, is_active, is_public, sort_order, original_price_minor, badge`,
 		p.ID, p.Code, p.Name, p.Description, p.PriceMinor, p.Currency, p.Interval, p.DurationDays,
-		p.DeviceLimit, p.TrafficLimitBytes, p.ConcurrentConnectionLimit, p.IsActive, p.IsPublic, p.SortOrder,
-	).Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder)
+		p.DeviceLimit, p.TrafficLimitBytes, p.ConcurrentConnectionLimit, p.IsActive, p.IsPublic, p.SortOrder, p.OriginalPriceMinor, p.Badge,
+	).Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceCents, &p.PriceMinor, &p.Currency, &p.Interval, &p.DurationDays, &p.DeviceLimit, &p.TrafficLimitBytes, &p.ConcurrentConnectionLimit, &p.IsActive, &p.IsPublic, &p.SortOrder, &p.OriginalPriceMinor, &p.Badge)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Plan{}, ErrNotFound
 	}

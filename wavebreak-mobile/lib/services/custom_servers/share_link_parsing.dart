@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:wavebreak_links/wavebreak_links.dart';
 
 import '../core_api/models.dart';
+import 'node_label.dart';
 
 /// Turning a raw share link (or a whole subscription body full of them)
 /// into [LocationItem]s — shared between [CustomServerController] (a
@@ -24,17 +25,56 @@ List<LocationItem> parseSubscriptionBody(String body) {
   return servers;
 }
 
+/// Every node of a third-party subscription (any format, see
+/// [parseSubscription]). Nodes this phone's engine can't run (TUIC on
+/// Xray, types the profile lists that have no share link) stay in the list
+/// greyed out (available: false) instead of disappearing.
+List<LocationItem> serversFromSubscription(ParsedSubscription parsed,
+    {TunnelEngine engine = TunnelEngine.xray}) {
+  return [
+    for (final link in parsed.links)
+      () {
+        final uri = Uri.tryParse(link);
+        if (uri == null || isInfoPlaceholder(uri)) return null;
+        final item = locationFromUri(uri, link);
+        final runs = ShareLink.tryParse(link)?.supportedBy(engine) ?? false;
+        return runs ? item : _unavailable(item);
+      }(),
+    for (final node in parsed.unsupported)
+      () {
+        final parsedLabel = parseNodeLabel(node.name);
+        return LocationItem(
+          id: stableLocationId('unsupported:${node.type}:${node.name}'),
+          countryCode: parsedLabel.countryCode ?? '',
+          country: parsedLabel.country,
+          city: parsedLabel.place,
+          available: false,
+          isCustom: true,
+        );
+      }(),
+  ].whereType<LocationItem>().toList();
+}
+
+LocationItem _unavailable(LocationItem l) => LocationItem(
+      id: l.id,
+      countryCode: l.countryCode,
+      country: l.country,
+      city: l.city,
+      available: false,
+      isCustom: true,
+      rawLink: l.rawLink,
+    );
+
 LocationItem locationFromUri(Uri uri, String rawLink) {
   final label = uri.fragment.isNotEmpty
-      ? Uri.decodeComponent(uri.fragment)
+      ? decodeNodeName(uri.fragment)
       : (uri.host.isNotEmpty ? uri.host : rawLink);
-  final countryCode = flagCodeFromLabel(label);
-  final parsed = splitCountryCity(label, countryCode != null);
+  final parsed = parseNodeLabel(label);
   return LocationItem(
     id: stableLocationId(rawLink),
-    countryCode: countryCode ?? '',
-    country: parsed.$1,
-    city: parsed.$2 ?? uri.scheme.toUpperCase(),
+    countryCode: parsed.countryCode ?? '',
+    country: parsed.country,
+    city: parsed.place,
     available: true,
     isCustom: true,
     rawLink: rawLink,
@@ -58,73 +98,8 @@ String stableLocationId(String rawLink) {
   return sha256.convert(utf8.encode(rawLink)).toString().substring(0, 32);
 }
 
-/// A share link's label commonly leads with an actual flag emoji (e.g.
-/// WAVEBREAK's own `"🇳🇱 Netherlands, Amsterdam (CDN)"`) — decoding the two
-/// regional-indicator codepoints back into an ISO code is exact and needs
-/// no country-name matching, unlike guessing from free text. Without it,
-/// [LocationItem.countryCode] stayed empty for every custom server, which
-/// is why the flag/icon UI fell back to a neutral globe for all of them
-/// regardless of what the link actually pointed at.
-String? flagCodeFromLabel(String label) {
-  final units = label.codeUnits;
-  for (var i = 0; i + 3 < units.length; i++) {
-    final high1 = units[i], low1 = units[i + 1];
-    final high2 = units[i + 2], low2 = units[i + 3];
-    final cp1 = _surrogatePair(high1, low1);
-    final cp2 = _surrogatePair(high2, low2);
-    if (cp1 == null || cp2 == null) continue;
-    if (cp1 < 0x1F1E6 || cp1 > 0x1F1FF) continue;
-    if (cp2 < 0x1F1E6 || cp2 > 0x1F1FF) continue;
-    final a = String.fromCharCode(cp1 - 0x1F1E6 + 65);
-    final b = String.fromCharCode(cp2 - 0x1F1E6 + 65);
-    return '$a$b';
-  }
-  return null;
-}
-
-int? _surrogatePair(int high, int low) {
-  if (high < 0xD800 || high > 0xDBFF || low < 0xDC00 || low > 0xDFFF) return null;
-  return 0x10000 + (high - 0xD800) * 0x400 + (low - 0xDC00);
-}
-
-/// Best-effort split of `"🇳🇱 Netherlands, Amsterdam (CDN)"` into
-/// (`"Netherlands"`, `"Amsterdam"`) — strips the flag and any trailing
-/// `(protocol)` note, then splits on the first comma. Falls back to the
-/// whole label as-is if it doesn't look like that shape, since a custom
-/// link's fragment can be genuinely arbitrary text.
-(String, String?) splitCountryCity(String label, bool hadFlag) {
-  var text = label;
-  if (hadFlag) {
-    // Drop the flag (2 regional-indicator codepoints = 4 UTF-16 units)
-    // and any space right after it.
-    final units = text.codeUnits;
-    var start = 0;
-    for (var i = 0; i + 3 < units.length; i++) {
-      final cp1 = _surrogatePair(units[i], units[i + 1]);
-      final cp2 = _surrogatePair(units[i + 2], units[i + 3]);
-      if (cp1 != null && cp2 != null && cp1 >= 0x1F1E6 && cp1 <= 0x1F1FF) {
-        start = i + 4;
-        break;
-      }
-    }
-    text = String.fromCharCodes(units.sublist(start)).trimLeft();
-  }
-  // Kept, not discarded: a subscription that hands back the same
-  // "Country, City" under several transports (a direct link plus a
-  // CDN/Trojan fallback) only differs by this "(CDN)"/"(Trojan)" note.
-  // Dropping it made every variant read as one indistinguishable
-  // "Netherlands · Amsterdam" row.
-  final parenIndex = text.indexOf(' (');
-  final note = parenIndex > 0 ? text.substring(parenIndex).trim() : '';
-  if (parenIndex > 0) text = text.substring(0, parenIndex);
-  final commaIndex = text.indexOf(',');
-  if (commaIndex > 0 && commaIndex < text.length - 1) {
-    final country = text.substring(0, commaIndex).trim();
-    final city = text.substring(commaIndex + 1).trim();
-    return (country, note.isEmpty ? city : '$city $note');
-  }
-  return (label, null);
-}
+/// The country code of the first flag emoji in [label] (see node_label.dart).
+String? flagCodeFromLabel(String label) => flagCodeIn(label);
 
 final _shareCodePath = RegExp(r'^/v1/share/([A-Za-z0-9_-]{48})$');
 
@@ -134,6 +109,105 @@ final _shareCodePath = RegExp(r'^/v1/share/([A-Za-z0-9_-]{48})$');
 /// names.
 String? wavebreakShareToken(String link) {
   final uri = Uri.tryParse(link.trim());
-  if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) return null;
+  if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
+    return null;
+  }
   return _shareCodePath.firstMatch(uri.path)?.group(1);
+}
+
+/// Providers (net4.su, 13.10) open their list with "servers" that only
+/// carry a note in their name — "📆 Осталось: 6 дней", the support bot,
+/// "🟢 Остаток трафика LTE: 80/80GB" — pointed at localhost. They are not
+/// servers: Happ shows them as the subscription's notes.
+bool isInfoPlaceholder(Uri uri) {
+  final host = uri.host.toLowerCase();
+  return host.isEmpty ||
+      host == 'localhost' ||
+      host == '0.0.0.0' ||
+      host == '::1' ||
+      host.startsWith('127.');
+}
+
+/// The notes of a subscription's placeholder entries ([isInfoPlaceholder])
+/// that say something about it (days left, traffic left); links to the
+/// provider's bot or channel are left out.
+List<String> subscriptionNotes(ParsedSubscription parsed) {
+  final notes = <String>[];
+  for (final link in parsed.links) {
+    final uri = Uri.tryParse(link);
+    if (uri == null || !isInfoPlaceholder(uri) || uri.fragment.isEmpty) {
+      continue;
+    }
+    final note = decodeNodeName(uri.fragment).trim();
+    if (note.isNotEmpty && !_linkLike.hasMatch(note)) notes.add(note);
+  }
+  return notes;
+}
+
+final _linkLike = RegExp(r't\.me/|https?://|@\w{4,}', caseSensitive: false);
+
+/// A node name from a link's #fragment: percent-decoded, "+" as a space
+/// when the provider form-encoded it ("Россия+МСК"), never throwing on a
+/// stray "%".
+String decodeNodeName(String fragment) {
+  var text = fragment;
+  if (text.contains('+') && text.contains('%')) {
+    text = text.replaceAll('+', ' ');
+  }
+  try {
+    return Uri.decodeComponent(text);
+  } catch (_) {
+    return text;
+  }
+}
+
+/// The provider's support contact: a `t.me/…` or https link in one of its
+/// note entries (net4.su: "➡️t.me/Strelka_vpn_bot"), as an https URL.
+String? subscriptionSupportUrl(ParsedSubscription parsed) {
+  for (final link in parsed.links) {
+    final uri = Uri.tryParse(link);
+    if (uri == null || !isInfoPlaceholder(uri) || uri.fragment.isEmpty) {
+      continue;
+    }
+    final url = supportUrlIn(decodeNodeName(uri.fragment));
+    if (url != null) return url;
+  }
+  return null;
+}
+
+/// An https link in [text] ("t.me/x" counts), or null.
+String? supportUrlIn(String text) {
+  final m =
+      RegExp(r'(https?://\S+|t\.me/[A-Za-z0-9_+/]+)', caseSensitive: false)
+          .firstMatch(text);
+  if (m == null) return null;
+  final raw = m.group(1)!;
+  return raw.toLowerCase().startsWith('http') ? raw : 'https://$raw';
+}
+
+/// A note for a header line: without its leading emoji and colon spacing
+/// ("📆 Осталось: 6 дней" → "Осталось 6 дней").
+String shortNote(String note) => note
+    .replaceAll(RegExp(r'[^\p{L}\p{N}\s/.,:+\-%()]', unicode: true), '')
+    .replaceAll(':', '')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
+/// A provider's name from its Telegram bot when it sends no
+/// `profile-title` ("https://t.me/Strelka_vpn_bot" → "Strelka VPN").
+String? providerNameFromSupport(String? supportUrl) {
+  if (supportUrl == null) return null;
+  final m = RegExp(r't\.me/([A-Za-z0-9_]+)', caseSensitive: false)
+      .firstMatch(supportUrl);
+  if (m == null) return null;
+  var handle =
+      m.group(1)!.replaceAll(RegExp(r'_?bot$', caseSensitive: false), '');
+  final words = [
+    for (final w in handle.split('_'))
+      if (w.isNotEmpty)
+        w.toLowerCase() == 'vpn'
+            ? 'VPN'
+            : w[0].toUpperCase() + w.substring(1).toLowerCase(),
+  ];
+  return words.isEmpty ? null : words.join(' ');
 }

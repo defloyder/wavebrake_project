@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:wavebreak_links/wavebreak_links.dart' show ShareLink, TunnelEngine;
+import 'package:wavebreak_links/wavebreak_links.dart'
+    show ShareLink, TunnelEngine;
 
 import '../../core/logging/app_logger.dart';
 import '../../core/storage/secure_store.dart';
@@ -37,7 +38,8 @@ class PersonalLocations {
     try {
       access = await gateway.personalAccess().timeout(_timeout);
     } catch (error) {
-      AppLogger.warn('Personal access unavailable, using the saved one: $error');
+      AppLogger.warn(
+          'Personal access unavailable, using the saved one: $error');
       access = await _saved();
       if (access == null) rethrow;
       return _parse(access);
@@ -46,7 +48,8 @@ class PersonalLocations {
       await forget();
       return const [];
     }
-    await SecureStore.write(SecureStore.personalAccess, jsonEncode(access.toJson()));
+    await SecureStore.write(
+        SecureStore.personalAccess, jsonEncode(access.toJson()));
     return _parse(access);
   }
 
@@ -58,7 +61,8 @@ class PersonalLocations {
   }
 
   /// Drops the saved access (no active subscription any more).
-  static Future<void> forget() => SecureStore.delete(SecureStore.personalAccess);
+  static Future<void> forget() =>
+      SecureStore.delete(SecureStore.personalAccess);
 
   static Future<PersonalAccess?> _saved() async {
     final raw = await SecureStore.read(SecureStore.personalAccess);
@@ -78,5 +82,7 @@ class PersonalLocations {
   static List<LocationItem> _parse(PersonalAccess access) =>
       parseSubscriptionBody(access.links
           .where((l) => ShareLink.tryParse(l)?.supportedBy(engine) ?? false)
+          // The TV runs the full bridge too since 15.10, cloak links and
+          // all (owner: Hysteria on the TV).
           .join('\n'));
 }

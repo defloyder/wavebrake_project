@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -146,18 +147,24 @@ class _EmailVerifySheetState extends ConsumerState<_EmailVerifySheet> {
             autofocus: true,
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
+            textAlignVertical: TextAlignVertical.center,
             maxLength: 6,
             autofillHints: const [AutofillHints.oneTimeCode],
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 26,
               letterSpacing: 10,
               fontWeight: FontWeight.w600,
-              color: WbColors.waveCyan,
+              color: context.accent,
             ),
             decoration: InputDecoration(
               hintText: s.verifyEmailCodeHint,
-              hintStyle: const TextStyle(fontSize: 15, letterSpacing: 0),
+              // Grey and plain, not the code's bold accent digits (owner, 14.10).
+              hintStyle: const TextStyle(
+                  fontSize: 15,
+                  letterSpacing: 0.2,
+                  fontWeight: FontWeight.w400,
+                  color: WbColors.muted),
               counterText: '',
             ),
             onChanged: (v) {
@@ -174,7 +181,7 @@ class _EmailVerifySheetState extends ConsumerState<_EmailVerifySheet> {
             child: FilledButton(
               onPressed: (_busy || !_sent) ? null : _confirm,
               style: FilledButton.styleFrom(
-                backgroundColor: WbColors.waveCyan,
+                backgroundColor: context.accent,
                 foregroundColor: WbColors.midnight,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
@@ -195,7 +202,7 @@ class _EmailVerifySheetState extends ConsumerState<_EmailVerifySheet> {
                   ? s.verifyEmailResendIn.replaceAll('{s}', '$_resendIn')
                   : s.verifyEmailResend,
               style: TextStyle(
-                color: _resendIn > 0 ? WbColors.muted : WbColors.waveCyan,
+                color: _resendIn > 0 ? WbColors.muted : context.accent,
                 fontWeight: FontWeight.w600,
               ),
             ),

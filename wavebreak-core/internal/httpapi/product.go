@@ -131,6 +131,10 @@ func (s *Server) createDevice(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name     string `json:"name"`
 		Platform string `json:"platform"`
+		// The app's own id of this installation, kept across sign-outs:
+		// registering again returns the same device instead of taking
+		// another slot. Optional (older apps don't send it).
+		InstallID string `json:"install_id"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
@@ -140,7 +144,12 @@ func (s *Server) createDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "device name is required")
 		return
 	}
-	device, err := s.app.Store.CreateDevice(r.Context(), currentUser(r.Context()).ID, req.Name, strings.TrimSpace(req.Platform))
+	req.InstallID = strings.TrimSpace(req.InstallID)
+	if len(req.InstallID) > 128 {
+		writeError(w, http.StatusBadRequest, "install_id is too long")
+		return
+	}
+	device, reused, err := s.app.Store.RegisterDevice(r.Context(), currentUser(r.Context()).ID, req.Name, strings.TrimSpace(req.Platform), req.InstallID)
 	if errors.Is(err, store.ErrLimitReached) {
 		writeError(w, http.StatusForbidden, "DEVICE_LIMIT_REACHED")
 		return
@@ -149,7 +158,11 @@ func (s *Server) createDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "could not create device")
 		return
 	}
-	writeJSON(w, http.StatusCreated, device)
+	status := http.StatusCreated
+	if reused {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, device)
 }
 
 func (s *Server) updateDevice(w http.ResponseWriter, r *http.Request) {
@@ -343,6 +356,15 @@ func (s *Server) subscriptionByGrant(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load subscription")
+		return
+	}
+	// Every app on every device takes a device slot (sub_devices.go).
+	switch s.subscriptionDeviceGate(r, cfg.Grant.UserID) {
+	case subOverLimit:
+		writeSubscriptionNotice(w, subNoticeLimitTitle, subNoticeLimitHint)
+		return
+	case subNoDeviceID:
+		writeSubscriptionNotice(w, subNoticeAppTitle, subNoticeAppHint)
 		return
 	}
 	s.applyVLESSRuntimeConfig(&cfg)
@@ -1825,6 +1847,8 @@ func decodePlanRequest(w http.ResponseWriter, r *http.Request) (store.Plan, bool
 		IsActive                  *bool  `json:"is_active"`
 		IsPublic                  *bool  `json:"is_public"`
 		SortOrder                 int    `json:"sort_order"`
+		OriginalPriceMinor        *int64 `json:"original_price_minor"`
+		Badge                     string `json:"badge"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return store.Plan{}, false
@@ -1855,6 +1879,15 @@ func decodePlanRequest(w http.ResponseWriter, r *http.Request) (store.Plan, bool
 	if req.IsPublic != nil {
 		isPublic = *req.IsPublic
 	}
+	// The old price only reads as a discount when it is above the price.
+	if req.OriginalPriceMinor != nil && *req.OriginalPriceMinor <= req.PriceMinor {
+		req.OriginalPriceMinor = nil
+	}
+	badge := strings.TrimSpace(req.Badge)
+	if len([]rune(badge)) > 24 {
+		writeError(w, http.StatusBadRequest, "badge is at most 24 characters")
+		return store.Plan{}, false
+	}
 	return store.Plan{
 		Code:                      req.Code,
 		Name:                      req.Name,
@@ -1869,6 +1902,8 @@ func decodePlanRequest(w http.ResponseWriter, r *http.Request) (store.Plan, bool
 		IsActive:                  isActive,
 		IsPublic:                  isPublic,
 		SortOrder:                 req.SortOrder,
+		OriginalPriceMinor:        req.OriginalPriceMinor,
+		Badge:                     badge,
 	}, true
 }
 

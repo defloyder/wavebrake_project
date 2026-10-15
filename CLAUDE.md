@@ -44,6 +44,7 @@ tools/release/release.sh publish   # только после «публикуй�
 
 | Что | Где |
 |---|---|
+| **Текущее состояние, что ждёт решения, что устарело** | `docs/PROJECT-STATE.md` — читать первым |
 | Что вошло в каждую версию | `CHANGELOG.md` |
 | Опубликованные версии, коммиты, занятые номера | `tools/release/releases.json` |
 | Порядок выпуска подробно, откат опубликованного | `docs/RELEASE-PROCESS.md` |
@@ -51,5 +52,13 @@ tools/release/release.sh publish   # только после «публикуй�
 | Отчёт об изменениях на серверах | `docs/2026-10-01-changes-report.md` |
 | Белые списки (задание) | `docs/whitelist-handoff-for-colleague.md` |
 | Cloak (маскировка Hysteria) | `docs/CLOAK-TECHNICAL-OVERVIEW.md` |
+| Android TV (то же приложение, пакет `.tv`, вход по QR) | `docs/TV-SUPPORT.md` |
+| Windows 32 бит — WAVEBREAK Lite | `wavebreak-lite/README.md` |
+| Общий интерфейс Android/Windows: что править где | `docs/PROJECT-STATE.md` → «Общий код» |
+| Лаунчер для Windows | `wavebreak-launcher/README.md` |
+| План перехода на микросервисы (черновик) | `docs/MICROSERVICES-PLAN.md` |
+| CI/CD: проверки, выкладки, что нужно от владельца | `docs/CI-CD.md` |
+| iPhone, iPad, Mac — план и что нужно от владельца | `docs/IOS-PLAN.md` |
+| ПК на Xray (бета) | `docs/HANDOFF-pc-xray-migration.md` |
 
 Общаться с владельцем — по-русски.

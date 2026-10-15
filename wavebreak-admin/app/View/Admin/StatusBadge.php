@@ -86,6 +86,16 @@ final readonly class StatusBadge
         return $active ? new self('Активен', 'ok') : new self('Скрыт', 'muted');
     }
 
+    public static function promo(bool $active, bool $expired, bool $exhausted): self
+    {
+        return match (true) {
+            ! $active => new self('Выключен', 'muted'),
+            $expired => new self('Истёк', 'muted'),
+            $exhausted => new self('Исчерпан', 'warn'),
+            default => new self('Активен', 'ok'),
+        };
+    }
+
     public static function subscriptionLabel(string $status): string
     {
         return self::SUBSCRIPTION[$status][0] ?? $status;

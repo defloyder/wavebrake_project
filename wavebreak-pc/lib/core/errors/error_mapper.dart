@@ -43,6 +43,15 @@ class ErrorMapper {
       final status = error.response?.statusCode;
       final text = _extractText(error.response?.data);
 
+      // Core answers every error in JSON. A 401/403 page that isn't JSON
+      // came from something in between — Cloudflare's check on `api.`
+      // after the IP changed, a relay — and must never read as "session
+      // rejected": the owner's colleague was signed out on the PC right
+      // after turning the VPN off (13.10).
+      if ((status == 401 || status == 403) && !_isJson(error.response)) {
+        return AppException(AppErrorKind.unavailable, statusCode: status);
+      }
+
       if (status == 401) {
         // login/register/refresh never send an Authorization header — a
         // 401 from one of those can only mean bad credentials, never an
@@ -51,10 +60,11 @@ class ErrorMapper {
         // expiry. Getting this wrong is exactly how a plain wrong-password
         // login attempt ends up telling the user their session expired.
         final headers = error.requestOptions.headers;
-        final hadAuthHeader =
-            headers.containsKey('Authorization') || headers.containsKey('authorization');
+        final hadAuthHeader = headers.containsKey('Authorization') ||
+            headers.containsKey('authorization');
         if (!hadAuthHeader) {
-          return AppException(AppErrorKind.invalidCredentials, statusCode: status);
+          return AppException(AppErrorKind.invalidCredentials,
+              statusCode: status);
         }
         return AppException(AppErrorKind.sessionExpired, statusCode: status);
       }
@@ -63,10 +73,13 @@ class ErrorMapper {
       // paths: "already exists" or a password-length complaint from some
       // unrelated endpoint must never get relabeled as a signup error.
       if (_isRegisterPath(error.requestOptions.path)) {
-        if (status == 409 || text.contains('already exists') || text.contains('already registered')) {
+        if (status == 409 ||
+            text.contains('already exists') ||
+            text.contains('already registered')) {
           return AppException(AppErrorKind.emailTaken, statusCode: status);
         }
-        if (status == 400 && (text.contains('password') || text.contains('characters'))) {
+        if (status == 400 &&
+            (text.contains('password') || text.contains('characters'))) {
           return AppException(AppErrorKind.weakPassword, statusCode: status);
         }
       }
@@ -86,17 +99,36 @@ class ErrorMapper {
           return AppException(entry.value, statusCode: status);
         }
       }
+      // Promo codes (POST /v1/promo-codes/check): 422 with a PROMO_* code.
+      const promoCodes = {
+        'promo_not_found': AppErrorKind.promoNotFound,
+        'promo_expired': AppErrorKind.promoExpired,
+        'promo_not_started': AppErrorKind.promoNotStarted,
+        'promo_exhausted': AppErrorKind.promoExhausted,
+        'promo_already_used': AppErrorKind.promoAlreadyUsed,
+        'promo_not_for_plan': AppErrorKind.promoNotApplicable,
+        'promo_currency_mismatch': AppErrorKind.promoNotApplicable,
+        'promo_inactive': AppErrorKind.promoInactive,
+      };
+      for (final entry in promoCodes.entries) {
+        if (text.contains(entry.key)) {
+          return AppException(entry.value, statusCode: status);
+        }
+      }
       if (text.contains('share_invalid') || text.contains('share_expired')) {
         return AppException(AppErrorKind.shareInvalid, statusCode: status);
       }
       if (text.contains('share_own_subscription')) {
-        return AppException(AppErrorKind.shareOwnSubscription, statusCode: status);
+        return AppException(AppErrorKind.shareOwnSubscription,
+            statusCode: status);
       }
       if (text.contains('device_limit_reached')) {
-        return AppException(AppErrorKind.deviceLimitReached, statusCode: status);
+        return AppException(AppErrorKind.deviceLimitReached,
+            statusCode: status);
       }
       if (text.contains('traffic_limit_reached')) {
-        return AppException(AppErrorKind.trafficLimitReached, statusCode: status);
+        return AppException(AppErrorKind.trafficLimitReached,
+            statusCode: status);
       }
       if (status == 403 || text.contains('device_revoked')) {
         return AppException(AppErrorKind.accessDenied, statusCode: status);
@@ -111,17 +143,22 @@ class ErrorMapper {
         );
       }
       if (status == 402) {
-        return AppException(AppErrorKind.subscriptionExpired, statusCode: status);
+        return AppException(AppErrorKind.subscriptionExpired,
+            statusCode: status);
       }
       if (text.contains('location_unavailable')) {
-        return AppException(AppErrorKind.locationUnavailable, statusCode: status);
+        return AppException(AppErrorKind.locationUnavailable,
+            statusCode: status);
       }
       // Scoped to the auth paths on purpose — a generic 400 elsewhere in
       // the app (subscriptions, devices, grants, ...) whose message
       // happens to mention "credentials" for an unrelated reason must
       // never get relabeled as a wrong-password login error.
-      if (status == 400 && text.contains('credentials') && _isAuthPath(error.requestOptions.path)) {
-        return AppException(AppErrorKind.invalidCredentials, statusCode: status);
+      if (status == 400 &&
+          text.contains('credentials') &&
+          _isAuthPath(error.requestOptions.path)) {
+        return AppException(AppErrorKind.invalidCredentials,
+            statusCode: status);
       }
       if (status != null && status >= 500) {
         return AppException(AppErrorKind.unavailable, statusCode: status);
@@ -143,6 +180,15 @@ class ErrorMapper {
   /// Both `code` and `error` fields, lowercased and concatenated, so a
   /// single `.contains(...)` check matches whichever field actually
   /// carries the useful text.
+  /// A body Core wrote: decoded JSON, or a JSON content type.
+  bool _isJson(Response<dynamic>? response) {
+    if (response == null) return false;
+    final data = response.data;
+    if (data is Map || data is List) return true;
+    final type = response.headers.value(Headers.contentTypeHeader) ?? '';
+    return type.contains('json');
+  }
+
   String _extractText(dynamic data) {
     if (data is! Map) return '';
     final code = data['code'];

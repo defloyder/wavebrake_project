@@ -48,6 +48,26 @@ class CoreClient
         return $this->auth($token)->delete("/v1/admin/plans/{$planId}")->throw()->json();
     }
 
+    public function adminPromoCodes(string $token): array
+    {
+        return $this->auth($token, true)->get('/v1/admin/promo-codes')->throw()->json('promo_codes') ?? [];
+    }
+
+    public function createPromoCode(string $token, array $data): array
+    {
+        return $this->auth($token)->post('/v1/admin/promo-codes', $data)->throw()->json();
+    }
+
+    public function updatePromoCode(string $token, string $promoId, array $data): array
+    {
+        return $this->auth($token)->put("/v1/admin/promo-codes/{$promoId}", $data)->throw()->json();
+    }
+
+    public function deletePromoCode(string $token, string $promoId): array
+    {
+        return $this->auth($token)->delete("/v1/admin/promo-codes/{$promoId}")->throw()->json();
+    }
+
     public function nodes(string $token): array
     {
         return $this->auth($token, true)->get('/v1/nodes')->throw()->json('nodes') ?? [];

@@ -3,6 +3,8 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/env/app_env.dart';
+import '../../core/theme/wb_colors.dart';
 import '../shared/wave_params.dart';
 import 'effects_quality.dart';
 import 'immersive_colors.dart';
@@ -26,6 +28,7 @@ class TintedGlass extends ConsumerWidget {
     this.tint,
     this.blur = true,
     this.strength = 1.0,
+    this.autofocus = false,
   });
 
   final Widget child;
@@ -39,6 +42,9 @@ class TintedGlass extends ConsumerWidget {
 
   /// 0..1 — how strongly the accent colors the glass.
   final double strength;
+
+  /// Takes the focus first (TV remote, keyboard).
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,12 +64,13 @@ class TintedGlass extends ConsumerWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            lean(Ic.glassTop, 0.20),
-            lean(Ic.glassMid, 0.07),
-            lean(Ic.glassBottom, 0.03),
+            lean(Ic.glassTop, WbColors.surfaceLean),
+            lean(Ic.glassMid, WbColors.surfaceLean * 0.35),
+            lean(Ic.glassBottom, WbColors.surfaceLean * 0.15),
           ],
         ),
-        border: Border.all(color: lean(Ic.glassBorder, 0.40)),
+        border:
+            Border.all(color: lean(Ic.glassBorder, WbColors.surfaceBorderLean)),
       ),
       child: child,
     );
@@ -82,7 +89,7 @@ class TintedGlass extends ConsumerWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [
                   Colors.transparent,
-                  lean(const Color(0x30D4F7F0), 0.3),
+                  lean(const Color(0x30D4F7F0), 0.1),
                   Colors.transparent,
                 ]),
               ),
@@ -106,13 +113,11 @@ class TintedGlass extends ConsumerWidget {
       );
     }
     if (onTap == null) return surface;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: shape,
-        onTap: onTap,
-        child: surface,
-      ),
+    return _FocusableGlass(
+      shape: shape,
+      onTap: onTap!,
+      autofocus: autofocus,
+      child: surface,
     );
   }
 }
@@ -137,4 +142,56 @@ class _GlassGroupState extends State<GlassGroup> {
   @override
   Widget build(BuildContext context) =>
       BackdropGroup(backdropKey: _key, child: widget.child);
+}
+
+/// The tap target of a [TintedGlass]: an InkWell (OK / Select on a TV
+/// remote, Enter / Space on a keyboard press it) with a clear ring while it
+/// has the focus — only in keyboard/remote navigation, never from touches.
+class _FocusableGlass extends StatefulWidget {
+  const _FocusableGlass({
+    required this.shape,
+    required this.onTap,
+    required this.autofocus,
+    required this.child,
+  });
+
+  final BorderRadius shape;
+  final VoidCallback onTap;
+  final bool autofocus;
+  final Widget child;
+
+  @override
+  State<_FocusableGlass> createState() => _FocusableGlassState();
+}
+
+class _FocusableGlassState extends State<_FocusableGlass> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // On TV the app-wide frame (tv_focus_frame.dart) marks the focus.
+    final ring = !AppEnv.isTv &&
+        _focused &&
+        FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: widget.shape,
+        autofocus: widget.autofocus,
+        onTap: widget.onTap,
+        onFocusChange: (f) => setState(() => _focused = f),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          foregroundDecoration: BoxDecoration(
+            borderRadius: widget.shape,
+            border: Border.all(
+              color: ring ? Ic.text : Colors.transparent,
+              width: 2.5,
+            ),
+          ),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
 }

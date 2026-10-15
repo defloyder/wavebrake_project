@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../services/core_api/models.dart';
 import '../../services/custom_servers/custom_subscription.dart';
+import '../../services/custom_servers/node_label.dart' show isServiceNodeName;
+import '../../services/custom_servers/share_link_parsing.dart' show shortNote;
 import 'traffic_format.dart';
 
 class SubscriptionSectionData {
@@ -19,6 +21,9 @@ class SubscriptionSectionData {
     this.limitsTraffic,
     this.limitsDevices,
     this.limitsNote,
+    this.supportUrl,
+    this.autoTags = const [],
+    this.autoExclude,
   });
 
   final String id;
@@ -41,6 +46,20 @@ class SubscriptionSectionData {
   final String? limitsTraffic;
   final String? limitsDevices;
   final String? limitsNote;
+
+  /// A third-party provider's support contact (button in the section).
+  final String? supportUrl;
+
+  /// "Auto select" rows for a third-party subscription: null picks among
+  /// all its servers, a tag ("LTE") among those whose name has it (owner,
+  /// 14.10: Happ shows the provider's "Авто выбор" and "Авто выбор LTE").
+  final List<String?> autoTags;
+
+  /// Left out of every [autoTags] row's own candidate pool (not just a
+  /// separate tagged row): RU-LTE-01 is its own standalone chain, not one
+  /// of the interchangeable real locations the WAVEBREAK section's plain
+  /// "Auto select" should balance across (owner, 14.10).
+  final String? autoExclude;
 }
 
 /// Stands in for the account's own share code: the share sheet asks Core
@@ -53,7 +72,10 @@ List<SubscriptionSectionData> buildSubscriptionSections({
   required AppStrings s,
   SharingOverview? sharing,
 }) {
-  // Bug 6: no "Auto · Fastest" row — only real locations.
+  // Bug 6 removed the old hardcoded "Auto · Fastest" row; this one (owner,
+  // 14.10) is the real thing, reusing the Auto select machinery built for
+  // third-party subscriptions — across the real WAVEBREAK locations only,
+  // not RU-LTE-01 (its own standalone chain, excluded via autoExclude).
   final wavebreakServers = [...wavebreakLocations];
   final own = sharing?.own;
   return [
@@ -65,11 +87,22 @@ List<SubscriptionSectionData> buildSubscriptionSections({
       servers: wavebreakServers,
       // Resolved to a fresh share code from Core when the sheet opens.
       shareLink: kPersonalShareLink,
+      // No per-location share here: a location's link is the account's
+      // own key, usable on any number of devices and apps past the plan's
+      // device limit (owner, 06.10). The share code above takes a slot.
+      shareable: false,
       limitsTraffic: own == null ? null : _trafficLine(own, s),
       limitsDevices: own == null ? null : _deviceLine(own),
+      // Every current Russia-based WAVEBREAK location (LTE, Moscow) chains
+      // its egress through Istanbul rather than reaching the internet
+      // directly — a restricted-network bypass mechanism, not an
+      // interchangeable "pick whichever's fastest" location (owner,
+      // 15.10: Moscow specifically flagged after LTE was excluded here
+      // but Moscow wasn't).
+      autoTags: autoTagsFor(wavebreakServers, exclude: 'Russia'),
+      autoExclude: 'Russia',
     ),
-    for (final g in customGroups)
-      _sectionFor(g, s, sharing),
+    for (final g in customGroups) _sectionFor(g, s, sharing),
   ];
 }
 
@@ -88,10 +121,53 @@ SubscriptionSectionData _sectionFor(
     canRefresh: g.isSubscriptionUrl,
     shareable: !g.sharedWithMe,
     limitsNote: inactive ? s.shareOwnerInactive : null,
-    limitsTraffic: received != null && !inactive ? _trafficLine(received, s) : null,
+    limitsTraffic: received != null && !inactive
+        ? _trafficLine(received, s)
+        : _providerLine(g, s),
     limitsDevices: received != null && !inactive ? _deviceLine(received) : null,
+    supportUrl: g.supportUrl,
+    autoTags: autoTagsFor(g.servers),
   );
 }
+
+bool _nameHas(LocationItem s, String tag) =>
+    '${s.country} ${s.city}'.toUpperCase().contains(tag.toUpperCase());
+
+/// Nodes a provider runs for one service (see [isServiceNodeName]): often
+/// the lowest ping, so auto select picked them over the real locations
+/// (owner, 15.10). They stay in the list, but never in an auto select pool.
+bool isServiceNode(LocationItem s) =>
+    isServiceNodeName('${s.country} ${s.city}');
+
+bool _autoEligible(LocationItem s, String? exclude) =>
+    s.available &&
+    s.rawLink != null &&
+    !isServiceNode(s) &&
+    (exclude == null || !_nameHas(s, exclude));
+
+/// See [SubscriptionSectionData.autoTags]: all eligible servers when two or
+/// more run here (minus [exclude], e.g. "LTE" — a standalone location that
+/// doesn't belong in the "all" row's own candidate pool either), and a tag
+/// when two or more of those are marked for it.
+List<String?> autoTagsFor(List<LocationItem> servers, {String? exclude}) {
+  final ok = servers.where((s) => _autoEligible(s, exclude)).toList();
+  if (ok.length < 2) return const [];
+  return [
+    null,
+    if (ok.where((s) => _nameHas(s, 'LTE')).length >= 2) 'LTE',
+  ];
+}
+
+/// The servers an "auto select" row picks from: [tag] narrows to a subset
+/// ("LTE"), [exclude] drops one out of every row's pool regardless of tag
+/// (RU-LTE-01 out of the WAVEBREAK section's plain "Auto select" — it's its
+/// own standalone chain, not interchangeable with the others).
+List<LocationItem> autoCandidates(List<LocationItem> servers, String? tag,
+        {String? exclude}) =>
+    [
+      for (final s in servers)
+        if (_autoEligible(s, exclude) && (tag == null || _nameHas(s, tag))) s,
+    ];
 
 /// Our own section's title: the plan ("WAVEBREAK Fleet"), not a fixed name.
 String wavebreakSectionTitle(String? planName) {
@@ -103,6 +179,31 @@ String wavebreakSectionTitle(String? planName) {
 /// "2.3 ГБ / 300 ГБ" (or ".../ Без ограничений").
 String _trafficLine(SharedSubscription sub, AppStrings s) =>
     formatTraffic(sub.trafficUsedBytes, sub.trafficLimitBytes, s);
+
+/// A third-party subscription's own traffic and end date, from its
+/// provider's `subscription-userinfo` header: "2.3 ГБ / 100 ГБ · до
+/// 31.10.2026". Null when the provider sends neither.
+String? _providerLine(CustomSubscriptionGroup g, AppStrings s,
+    [DateTime? now]) {
+  final parts = <String>[
+    if (g.usedBytes != null)
+      formatTraffic(
+          g.usedBytes!, (g.totalBytes ?? 0) > 0 ? g.totalBytes : null, s),
+    if (g.expiresAt != null)
+      (g.expiresAt!.isBefore(now ?? DateTime.now())
+              ? s.subscriptionExpiredLine
+              : s.subscriptionUntilLine)
+          .replaceAll('{date}', _date(g.expiresAt!.toLocal())),
+    // No header: what the provider wrote in its note entries instead
+    // ("📆 Осталось: 6 дней · 🟢 Остаток трафика LTE: 80/80GB").
+    if (g.usedBytes == null && g.expiresAt == null)
+      for (final n in g.notes) shortNote(n),
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
+}
+
+String _date(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
 /// Compact "1 / 2" for the device count, shown next to a device icon —
 /// short enough to sit on the same line as the traffic. Null for an

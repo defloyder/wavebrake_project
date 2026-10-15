@@ -13,7 +13,9 @@ type SubscriptionURLBuilder struct {
 	base string
 }
 
-const DefaultSubscriptionURLBase = "https://core.wavebreak.com.tr/v1/sub/"
+// api.wavebreak.com.tr (owner, 12.10): the address users paste into Happ
+// and other apps; same route and content as core.
+const DefaultSubscriptionURLBase = "https://api.wavebreak.com.tr/v1/sub/"
 
 func NewSubscriptionURLBuilder(base string) SubscriptionURLBuilder {
 	base = strings.TrimSpace(base)

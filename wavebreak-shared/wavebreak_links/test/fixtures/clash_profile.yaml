@@ -1,0 +1,68 @@
+# A Mihomo profile as panels hand it out. Every key and password here is
+# made up (example hosts, all-zero / sequential ids).
+mixed-port: 7890
+allow-lan: false
+mode: rule
+proxies:
+  - name: "🇩🇪 Germany, Frankfurt"
+    type: vless
+    server: de.example.com
+    port: 443
+    uuid: 00000000-0000-4000-8000-000000000001
+    network: tcp
+    tls: true
+    udp: true
+    flow: xtls-rprx-vision
+    servername: www.example.org
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+      short-id: 0123abcd
+  - {name: 🇳🇱 Netherlands WS, type: vmess, server: nl.example.com, port: 8443, uuid: 00000000-0000-4000-8000-000000000002, alterId: 0, cipher: auto, tls: true, servername: nl.example.com, network: ws, ws-opts: {path: /ray, headers: {Host: cdn.example.com}}}
+  - name: Trojan gRPC
+    type: trojan
+    server: tr.example.com
+    port: 443
+    password: "pa:ss#word"
+    sni: tr.example.com
+    network: grpc
+    grpc-opts:
+      grpc-service-name: tunnel
+  - name: SS 2022
+    type: ss
+    server: 203.0.113.10
+    port: 8388
+    cipher: 2022-blake3-aes-128-gcm
+    password: AAAAAAAAAAAAAAAAAAAAAA==
+  - name: 'Hy2 hopping'
+    type: hysteria2
+    server: hy.example.com
+    port: 443
+    ports: 20000-30000
+    password: hy2-secret
+    sni: hy.example.com
+    obfs: salamander
+    obfs-password: obfs-secret
+    skip-cert-verify: true
+  - name: TUIC v5
+    type: tuic
+    server: tuic.example.com
+    port: 8443
+    uuid: 00000000-0000-4000-8000-000000000003
+    password: tuic-secret
+    alpn: [h3]
+    congestion-controller: bbr
+  - name: Old SSR
+    type: ssr
+    server: ssr.example.com
+    port: 443
+    cipher: aes-256-cfb
+    password: x
+    protocol: origin
+    obfs: plain
+proxy-groups:
+  - name: Auto
+    type: url-test
+    proxies: ["🇩🇪 Germany, Frankfurt", "🇳🇱 Netherlands WS"]
+rules:
+  - MATCH,Auto

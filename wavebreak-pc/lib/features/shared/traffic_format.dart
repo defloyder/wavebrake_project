@@ -23,7 +23,8 @@ String formatTraffic(int usedBytes, int? limitBytes, AppStrings s) {
 String formatBytes(int bytes, AppStrings s) {
   final mb = bytes / bytesPerMb;
   if (mb.round() < 1024) {
-    final value = mb < 10 ? _trim(mb.toStringAsFixed(1)) : mb.round().toString();
+    final value =
+        mb < 10 ? _trim(mb.toStringAsFixed(1)) : mb.round().toString();
     return '$value ${s.unitMb}';
   }
   return '${formatGb(bytes)} ${s.unitGb}';

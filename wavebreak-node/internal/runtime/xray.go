@@ -147,16 +147,16 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"privateKey":  a.cfg.RealityPrivateKey,
 					"shortIds":    []string{a.cfg.RealityShortID},
 				},
-					// acceptProxyProtocol: nginx's shared-443 stream proxy
-					// (wavebreak-infrastructure/nginx/pilot-public-http.conf)
-					// prepends a PROXY protocol v1 header to every connection
-					// reaching this inbound, to recover the real client IP for
-					// the autoban/diagnostics that need it. Must always be set
-					// alongside that nginx config, never one without the other
-					// (see OPERATIONAL-CHANGES.md #1/#2 -- losing this on a
-					// config regen while nginx still sends the header breaks
-					// every connection with "tls: first record does not look
-					// like a TLS handshake").
+				// acceptProxyProtocol: nginx's shared-443 stream proxy
+				// (wavebreak-infrastructure/nginx/pilot-public-http.conf)
+				// prepends a PROXY protocol v1 header to every connection
+				// reaching this inbound, to recover the real client IP for
+				// the autoban/diagnostics that need it. Must always be set
+				// alongside that nginx config, never one without the other
+				// (see OPERATIONAL-CHANGES.md #1/#2 -- losing this on a
+				// config regen while nginx still sends the header breaks
+				// every connection with "tls: first record does not look
+				// like a TLS handshake").
 				"sockopt": map[string]any{
 					"tcpMaxSeg":           1200,
 					"acceptProxyProtocol": true,
@@ -200,16 +200,16 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"path": xhttpPath,
 					"mode": "auto",
 				},
-					// acceptProxyProtocol: nginx's shared-443 stream proxy
-					// (wavebreak-infrastructure/nginx/pilot-public-http.conf)
-					// prepends a PROXY protocol v1 header to every connection
-					// reaching this inbound, to recover the real client IP for
-					// the autoban/diagnostics that need it. Must always be set
-					// alongside that nginx config, never one without the other
-					// (see OPERATIONAL-CHANGES.md #1/#2 -- losing this on a
-					// config regen while nginx still sends the header breaks
-					// every connection with "tls: first record does not look
-					// like a TLS handshake").
+				// acceptProxyProtocol: nginx's shared-443 stream proxy
+				// (wavebreak-infrastructure/nginx/pilot-public-http.conf)
+				// prepends a PROXY protocol v1 header to every connection
+				// reaching this inbound, to recover the real client IP for
+				// the autoban/diagnostics that need it. Must always be set
+				// alongside that nginx config, never one without the other
+				// (see OPERATIONAL-CHANGES.md #1/#2 -- losing this on a
+				// config regen while nginx still sends the header breaks
+				// every connection with "tls: first record does not look
+				// like a TLS handshake").
 				"sockopt": map[string]any{
 					"acceptProxyProtocol": true,
 				},
@@ -393,16 +393,16 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 					"path":            directPath,
 					"heartbeatPeriod": 10,
 				},
-					// acceptProxyProtocol: nginx's shared-443 stream proxy
-					// (wavebreak-infrastructure/nginx/pilot-public-http.conf)
-					// prepends a PROXY protocol v1 header to every connection
-					// reaching this inbound, to recover the real client IP for
-					// the autoban/diagnostics that need it. Must always be set
-					// alongside that nginx config, never one without the other
-					// (see OPERATIONAL-CHANGES.md #1/#2 -- losing this on a
-					// config regen while nginx still sends the header breaks
-					// every connection with "tls: first record does not look
-					// like a TLS handshake").
+				// acceptProxyProtocol: nginx's shared-443 stream proxy
+				// (wavebreak-infrastructure/nginx/pilot-public-http.conf)
+				// prepends a PROXY protocol v1 header to every connection
+				// reaching this inbound, to recover the real client IP for
+				// the autoban/diagnostics that need it. Must always be set
+				// alongside that nginx config, never one without the other
+				// (see OPERATIONAL-CHANGES.md #1/#2 -- losing this on a
+				// config regen while nginx still sends the header breaks
+				// every connection with "tls: first record does not look
+				// like a TLS handshake").
 				"sockopt": map[string]any{
 					"tcpFastOpen":         true,
 					"acceptProxyProtocol": true,
@@ -483,18 +483,39 @@ func (a XrayAdapter) Render(_ context.Context, state json.RawMessage) ([]byte, e
 			"outboundTag": "blocked",
 		},
 	}
+	// UDP out through Cloudflare WARP when the node has its keys (warp.go).
+	warp := a.warp()
+	if warp != nil {
+		inbounds = append(inbounds, warpSocksInbound())
+		routingRules = append(routingRules, warpRules()...)
+	}
 	outbounds := []map[string]any{
 		{
 			"tag":      "direct",
 			"protocol": "freedom",
 			"settings": map[string]any{},
-			"sockopt": map[string]any{
-				"domainStrategy": "UseIPv4",
-				"tcpMaxSeg":      1200,
-				"tcpFastOpen":    true,
+			// Under streamSettings — a top-level "sockopt" on an outbound is
+			// ignored by Xray, so none of this ever applied (found 13.10).
+			// tcpUserTimeout: a connection to a site whose data goes
+			// unacknowledged for 20 s is dropped, so a client's request
+			// doesn't hang on a dead upstream until connIdle (300 s) —
+			// Telegram "connecting" for minutes. Keepalive finds idle dead
+			// ones. tcpMaxSeg 1200 was dropped: it never applied, and a
+			// smaller segment toward ordinary sites only costs speed.
+			"streamSettings": map[string]any{
+				"sockopt": map[string]any{
+					"domainStrategy":       "UseIPv4",
+					"tcpFastOpen":          true,
+					"tcpUserTimeout":       20000,
+					"tcpKeepAliveIdle":     60,
+					"tcpKeepAliveInterval": 15,
+				},
 			},
 		},
 		{"protocol": "blackhole", "tag": "blocked"},
+	}
+	if warp != nil {
+		outbounds = append(outbounds, warp.outbound())
 	}
 	var api map[string]any
 	var stats map[string]any
@@ -679,6 +700,11 @@ func (a XrayAdapter) renderHysteriaYAML(inst hysteriaInstance) string {
 	// Salamander: every datagram obfuscated, so nothing on the path can
 	// recognise the flow as QUIC (some carriers cut QUIC to foreign servers
 	// right after the handshake).
+	// UDP through WARP (warp.go), when the node has its keys.
+	var hyWarp string
+	if a.warp() != nil {
+		hyWarp = hysteriaWarpYAML()
+	}
 	var obfs string
 	if inst.obfsPassword != "" {
 		obfs = fmt.Sprintf("obfs:\n  type: salamander\n  salamander:\n    password: %q\n", inst.obfsPassword)
@@ -716,7 +742,7 @@ auth:
   proxy:
     url: %q
     rewriteHost: true
-%s`, inst.listenPort, a.cfg.HysteriaTLSCertPath, a.cfg.HysteriaTLSKeyPath, obfs, userpass.String(), masqueradeURL, trafficStats)
+%s%s`, inst.listenPort, a.cfg.HysteriaTLSCertPath, a.cfg.HysteriaTLSKeyPath, obfs, userpass.String(), masqueradeURL, trafficStats, hyWarp)
 }
 
 func (a XrayAdapter) applyHysteriaInstance(ctx context.Context, inst hysteriaInstance) error {

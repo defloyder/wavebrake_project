@@ -6,10 +6,14 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:wavebreak_links/wavebreak_links.dart';
 
 import '../../core/logging/app_logger.dart';
+import '../../core/logging/file_log.dart';
 import '../core_api/models.dart';
 import 'conflicting_vpn_closer.dart';
+import 'stuck_flows.dart';
 import 'network_change_policy.dart';
 import 'vpn_adapter.dart';
+import 'windows_tunnel.dart';
+import '../split_tunnel/split_tunnel.dart';
 
 /// Loopback-only port for sing-box's Clash-API-compatible control server
 /// (`experimental.clash_api` below) — enables a live `PUT /configs` reload
@@ -64,7 +68,7 @@ Future<int?> clashTunnelLatency() async {
 /// TUN adapter and change routes, which needs admin rights —
 /// runner.exe.manifest requests elevation for the whole app for exactly
 /// this reason.
-class WindowsVpnAdapter implements VpnAdapter {
+class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
   final _controller = StreamController<VpnNativeState>.broadcast();
   Process? _process;
   StreamSubscription<String>? _stdoutSub;
@@ -119,6 +123,10 @@ class WindowsVpnAdapter implements VpnAdapter {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   Timer? _networkDebounceTimer;
   Timer? _healthCheckTimer;
+  // Connections apps wait on in vain, closed so they redial (owner, 14.10:
+  // "on the PC the VPN stops loading after a while; a restart helps").
+  final _stuck = StuckFlows();
+  Timer? _stuckTimer;
   int _consecutiveHealthFailures = 0;
 
   // Bumped on every new recovery trigger and on disconnect() — lets a
@@ -275,7 +283,7 @@ class WindowsVpnAdapter implements VpnAdapter {
     try {
       final process = await Process.start(
         exePath,
-        ['run', '-c', configPath],
+        ['run', '-c', configPath, '--disable-color'],
         workingDirectory: File(exePath).parent.path,
         runInShell: false,
       );
@@ -292,7 +300,15 @@ class WindowsVpnAdapter implements VpnAdapter {
       _expectedExit = false;
 
       void onLine(String line, void Function(String) log) {
-        log('[sing-box] $line');
+        // sing-box's INFO lines (every DNS answer, every connection) go to
+        // the log file only: in the diagnostic export's 1000-line buffer
+        // they pushed out everything but the last few minutes (field log
+        // 06.10, Beeline: 966 of 1000 lines were sing-box INFO).
+        if (line.contains(' INFO ') && !line.contains('sing-box started')) {
+          FileLog.write('[sing-box] $line');
+        } else {
+          log('[sing-box] $line');
+        }
         if (generation != _generation) return;
         // sing-box logs this once the tun interface + routes are up —
         // there is no separate "ready" event to wait for otherwise.
@@ -466,9 +482,12 @@ class WindowsVpnAdapter implements VpnAdapter {
     final readyFile = File(
         '${Directory.systemTemp.path}\\wavebreak_cloak_proxy_${DateTime.now().microsecondsSinceEpoch}.txt');
     final args = [
-      '-listen', '127.0.0.1:0',
-      '-remote', '$bypassIp:${link.port}',
-      '-ready-file', readyFile.path,
+      '-listen',
+      '127.0.0.1:0',
+      '-remote',
+      '$bypassIp:${link.port}',
+      '-ready-file',
+      readyFile.path,
       if (link.cloakMinSize != null) ...['-min-size', '${link.cloakMinSize}'],
       if (link.cloakMaxSize != null) ...['-max-size', '${link.cloakMaxSize}'],
       if (link.cloakChaffMinMs != null) ...[
@@ -535,6 +554,11 @@ class WindowsVpnAdapter implements VpnAdapter {
       _healthCheckInterval,
       (_) => unawaited(_runHealthCheck()),
     );
+    _stuck.reset();
+    _stuckTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_closeStuckFlows()),
+    );
     // Bug 3: detect Windows sleep/hibernate without native hooks — a
     // short timer whose wall-clock gap suddenly jumps means the machine
     // was suspended. Check the tunnel right away instead of waiting up to
@@ -560,6 +584,8 @@ class WindowsVpnAdapter implements VpnAdapter {
     _networkDebounceTimer = null;
     _healthCheckTimer?.cancel();
     _healthCheckTimer = null;
+    _stuckTimer?.cancel();
+    _stuckTimer = null;
     _wakeWatchTimer?.cancel();
     _wakeWatchTimer = null;
   }
@@ -629,6 +655,7 @@ class WindowsVpnAdapter implements VpnAdapter {
   /// `url` parameter and always fetches https://www.gstatic.com/generate_204
   /// through the outbound (so this includes a TLS handshake), honors
   /// `timeout`, and answers 504 when the fetch fails.
+  @override
   Future<int?> measureTunnelLatency() async {
     if (_process == null) return null;
     return clashTunnelLatency();
@@ -636,7 +663,20 @@ class WindowsVpnAdapter implements VpnAdapter {
 
   Future<void> _runHealthCheck() async {
     if (_process == null) return;
+    final flowing = await _proxiedTrafficFlowing();
     if (await _probeTunnel()) {
+      _consecutiveHealthFailures = 0;
+      return;
+    }
+    // The probe dials a fresh connection. On some lines (Beeline over
+    // Ethernet, 06–12.10) new TCP connections to the server sometimes
+    // fail while the open ones keep carrying traffic — reloading then cut
+    // a working tunnel: "Direct keeps disconnecting and reconnecting"
+    // (owner, 12.10). Data still arriving through the proxy says the
+    // tunnel works.
+    if (flowing) {
+      AppLogger.info(
+          'Tunnel health probe failed, but proxied traffic is flowing — tunnel kept');
       _consecutiveHealthFailures = 0;
       return;
     }
@@ -782,7 +822,8 @@ class WindowsVpnAdapter implements VpnAdapter {
           .timeout(const Duration(seconds: 3));
       request.headers.contentType = ContentType.json;
       request.write('{}');
-      final response = await request.close().timeout(const Duration(seconds: 5));
+      final response =
+          await request.close().timeout(const Duration(seconds: 5));
       await response.drain<void>();
       final ok = response.statusCode == 204 || response.statusCode == 200;
       AppLogger.debug(
@@ -857,7 +898,7 @@ class WindowsVpnAdapter implements VpnAdapter {
   // Win32 level) — this is a heuristic on adapter NAME instead, checked
   // periodically while connected. Real vendors' adapters reliably show
   // up under recognizable names (see _rivalVpnNamePattern), and our own
-  // tunnel is always named exactly "wavebreak" (interface_name in
+  // tunnel is always named "wavebreak-N" (interface_name in
   // _buildConfig above), so excluding that one name is precise, not
   // itself a heuristic.
   static const _rivalVpnCheckInterval = Duration(seconds: 8);
@@ -918,8 +959,109 @@ class WindowsVpnAdapter implements VpnAdapter {
     }
   }
 
+  // Through the tunnel, like Android's: what Home and Metrics show (it
+  // used to be null here — dashes on Windows).
   @override
-  Future<int?> pingMs() async => null;
+  Future<int?> pingMs() => measureTunnelLatency();
+
+  /// Bytes through sing-box since it started (Clash API `/connections`
+  /// totals) — Windows' source for the live speed and session traffic
+  /// (Android reads its VPN service's counters). Null when it's not up.
+  @override
+  Future<({int up, int down})?> trafficTotals() async {
+    if (_process == null) return null;
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 2)
+      ..findProxy = (_) => 'DIRECT';
+    try {
+      final request = await client
+          .getUrl(Uri.parse('http://127.0.0.1:$_kClashApiPort/connections'));
+      final response =
+          await request.close().timeout(const Duration(seconds: 3));
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) return null;
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      return (
+        up: (json['uploadTotal'] as num? ?? 0).toInt(),
+        down: (json['downloadTotal'] as num? ?? 0).toInt(),
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// See [StuckFlows]: reads sing-box's connections, closes the stuck ones.
+  Future<void> _closeStuckFlows() async {
+    if (_process == null) return;
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 2)
+      ..findProxy = (_) => 'DIRECT';
+    try {
+      final request = await client
+          .getUrl(Uri.parse('http://127.0.0.1:$_kClashApiPort/connections'));
+      final response =
+          await request.close().timeout(const Duration(seconds: 3));
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) return;
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      final stuck = _stuck.observe(
+          json['connections'] as List? ?? const [], DateTime.now());
+      if (stuck.isEmpty) return;
+      for (final id in stuck.keys) {
+        final del = await client.deleteUrl(
+            Uri.parse('http://127.0.0.1:$_kClashApiPort/connections/$id'));
+        await (await del.close().timeout(const Duration(seconds: 3)))
+            .drain<void>();
+      }
+      AppLogger.info(
+          'Closed stuck connections, the apps redial: ${stuck.values.join(', ')}');
+    } catch (_) {
+      // Next round.
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  // Bytes received so far by each open connection through the `proxy`
+  // outbound, from the last health check.
+  Map<String, int> _proxyDownloads = const {};
+
+  /// True when a connection through the tunnel's `proxy` outbound received
+  /// data since the previous health check (sing-box Clash API
+  /// /connections; direct-routed connections don't count).
+  Future<bool> _proxiedTrafficFlowing() async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 2)
+      ..findProxy = (_) => 'DIRECT';
+    try {
+      final request = await client
+          .getUrl(Uri.parse('http://127.0.0.1:$_kClashApiPort/connections'));
+      final response =
+          await request.close().timeout(const Duration(seconds: 3));
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) return false;
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      final now = <String, int>{};
+      var flowing = false;
+      for (final c in (json['connections'] as List? ?? const [])) {
+        if (c is! Map) continue;
+        final chains = c['chains'];
+        if (chains is! List || !chains.contains('proxy')) continue;
+        final id = '${c['id']}';
+        final down = (c['download'] as num? ?? 0).toInt();
+        now[id] = down;
+        if (down > (_proxyDownloads[id] ?? 0)) flowing = true;
+      }
+      _proxyDownloads = now;
+      return flowing;
+    } catch (_) {
+      return false;
+    } finally {
+      client.close(force: true);
+    }
+  }
 
   void _emit(VpnNativeState state) {
     if (!_controller.isClosed) _controller.add(state);
@@ -932,12 +1074,24 @@ class WindowsVpnAdapter implements VpnAdapter {
     return null;
   }
 
+  /// A new TUN adapter name for every sing-box launch. Dart stops sing-box
+  /// on Windows with TerminateProcess, so it never gets to remove its
+  /// wintun adapter; the driver drops it a moment later. A relaunch right
+  /// after (automatic recovery) asked for the same name meanwhile and
+  /// died with "create adapter: Cannot create a file when that file
+  /// already exists" — the connection dropped instead of recovering
+  /// (field log 06.10, Beeline: Direct "kept switching off and on").
+  int _launchCount = 0;
+
   Future<String> _writeConfig(ShareLink link) async {
     final dir = Directory.systemTemp;
     final file = File('${dir.path}\\wavebreak_singbox.json');
     final bypass = _cloakBypassIp;
+    _launchCount++;
     await file.writeAsString(jsonEncode(singBoxConfigFor(link,
-        directIps: [if (bypass != null) bypass])));
+        directIps: [if (bypass != null) bypass],
+        directProcesses: SplitTunnelStore.savedProcesses(),
+        interfaceName: 'wavebreak-$_launchCount')));
     return file.path;
   }
 
@@ -972,6 +1126,10 @@ class WindowsVpnAdapter implements VpnAdapter {
 /// [directIps]: addresses routed past the tunnel — the real server of a
 /// cloak link, which cloak-client-proxy (a separate process the TUN would
 /// otherwise capture) talks to directly.
+///
+/// [directProcesses]: programs ("chrome.exe") the user sends past the
+/// tunnel in Split tunneling (owner, 15.10) — sing-box matches the process
+/// that owns each connection on Windows.
 final _rivalVpnNamePattern = RegExp(
   r'\b(vpn|tap-windows|tap0|wintun|openvpn|wireguard|nordlynx|'
   r'pptp|l2tp|ipsec|tunnelbear|protonvpn|expressvpn|surfshark|'
@@ -989,7 +1147,9 @@ Set<String> rivalVpnAdapters(Iterable<String> names) => {
     };
 
 Map<String, dynamic> singBoxConfigFor(ShareLink link,
-    {List<String> directIps = const []}) {
+    {List<String> directIps = const [],
+    List<String> directProcesses = const [],
+    String interfaceName = 'wavebreak'}) {
   final proxy = SingBoxProxy.fromLink(link);
   return {
     'log': {'level': 'info', 'timestamp': true},
@@ -1015,7 +1175,7 @@ Map<String, dynamic> singBoxConfigFor(ShareLink link,
     'inbounds': [
       {
         'type': 'tun',
-        'interface_name': 'wavebreak',
+        'interface_name': interfaceName,
         'address': ['172.19.0.1/30'],
         'mtu': 1400,
         'auto_route': true,
@@ -1034,12 +1194,15 @@ Map<String, dynamic> singBoxConfigFor(ShareLink link,
     // `final: proxy` below, which also avoids leaking them outside it.
     'route': {
       'auto_detect_interface': true,
-      if (directIps.isNotEmpty)
+      if (directIps.isNotEmpty || directProcesses.isNotEmpty)
         'rules': [
-          {
-            'ip_cidr': [for (final ip in directIps) '$ip/32'],
-            'outbound': 'direct',
-          },
+          if (directIps.isNotEmpty)
+            {
+              'ip_cidr': [for (final ip in directIps) '$ip/32'],
+              'outbound': 'direct',
+            },
+          if (directProcesses.isNotEmpty)
+            {'process_name': directProcesses, 'outbound': 'direct'},
         ],
       'final': 'proxy',
     },
@@ -1056,4 +1219,3 @@ Map<String, dynamic> singBoxConfigFor(ShareLink link,
     },
   };
 }
-

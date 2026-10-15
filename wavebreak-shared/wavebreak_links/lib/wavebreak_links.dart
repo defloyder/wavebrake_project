@@ -5,4 +5,5 @@ library;
 export 'src/share_link.dart';
 export 'src/singbox.dart';
 export 'src/subscription.dart';
+export 'src/subscription_formats.dart';
 export 'src/xray_config.dart';

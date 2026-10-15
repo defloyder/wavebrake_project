@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,12 +29,12 @@ class SplashScreen extends ConsumerWidget {
               const SizedBox(height: 28),
               const WavebreakWordmark(size: 16),
               const SizedBox(height: 40),
-              const SizedBox(
+              SizedBox(
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.4,
-                  color: WbColors.waveCyan,
+                  color: context.accent,
                 ),
               ),
               const SizedBox(height: 16),

@@ -176,7 +176,28 @@ class _EarthPainter extends CustomPainter {
     final tex = texture;
     canvas.save();
     canvas.clipPath(disc);
-    if (sh == null || tex == null) {
+    var ready = sh != null && tex != null && !SphereAssets.broken;
+    if (ready) {
+      try {
+        // In natural mode the shader draws its disc at 0.98 of half the rect.
+        final side = 2 * r / 0.98;
+        sh
+          ..setFloat(0, side)
+          ..setFloat(1, side)
+          ..setFloat(2, t)
+          ..setFloat(3, t * 2 * math.pi / _revolution)
+          ..setFloat(4, 0)
+          ..setFloat(5, 0)
+          ..setFloat(6, 1)
+          ..setFloat(7, 0)
+          ..setImageSampler(0, tex, filterQuality: FilterQuality.low);
+      } catch (_) {
+        // This GPU/driver can't run it: the stand-in from now on.
+        SphereAssets.broken = true;
+        ready = false;
+      }
+    }
+    if (!ready) {
       // Gradient stand-in until (or if) the shader is available.
       canvas.drawCircle(
         c,
@@ -194,18 +215,7 @@ class _EarthPainter extends CustomPainter {
           ).createShader(Rect.fromCircle(center: c, radius: r)),
       );
     } else {
-      // In natural mode the shader draws its disc at 0.98 of half the rect.
       final side = 2 * r / 0.98;
-      sh
-        ..setFloat(0, side)
-        ..setFloat(1, side)
-        ..setFloat(2, t)
-        ..setFloat(3, t * 2 * math.pi / _revolution)
-        ..setFloat(4, 0)
-        ..setFloat(5, 0)
-        ..setFloat(6, 1)
-        ..setFloat(7, 0)
-        ..setImageSampler(0, tex, filterQuality: FilterQuality.low);
       canvas.translate(c.dx - side / 2, c.dy - side / 2);
       canvas.drawRect(Rect.fromLTWH(0, 0, side, side), Paint()..shader = sh);
     }

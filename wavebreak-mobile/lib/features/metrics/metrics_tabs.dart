@@ -1,11 +1,15 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
+import 'dart:io' show Platform;
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
-import '../../core/logging/app_logger.dart';
+import '../../core/env/app_env.dart';
+import '../../core/i18n/app_strings.dart';
 import '../../services/vpn/connection_manager.dart';
 import '../../services/vpn/live_metrics.dart';
 import '../home/home_vitals.dart';
@@ -27,22 +31,40 @@ Future<String?> _networkLabel() {
   final now = DateTime.now();
   if (_networkCache == null || now.difference(_networkAt).inSeconds > 10) {
     _networkAt = now;
-    _networkCache = _vpnState
-        .invokeMethod<String>('networkLabel')
-        .catchError((Object _) => null);
+    _networkCache = Platform.isAndroid
+        ? _vpnState
+            .invokeMethod<String>('networkLabel')
+            .catchError((Object _) => null)
+        : _desktopNetworkLabel();
   }
   return _networkCache!;
 }
 
-String _statusText(ConnectionStatus s) => switch (s) {
-      ConnectionStatus.connected => 'Подключено',
+/// Windows: the kind of connection (no carrier name there).
+Future<String?> _desktopNetworkLabel() async {
+  try {
+    final kinds = await Connectivity().checkConnectivity();
+    if (kinds.contains(ConnectivityResult.ethernet)) return 'Ethernet';
+    if (kinds.contains(ConnectivityResult.wifi)) return 'Wi-Fi';
+    if (kinds.contains(ConnectivityResult.mobile)) return 'LTE';
+  } catch (_) {}
+  return null;
+}
+
+/// "Phone network" only on a phone; a TV or a PC has just "Network"
+/// (owner, 14.10).
+String _networkTitle(AppStrings s) =>
+    Platform.isAndroid && !AppEnv.isTv ? s.mPhoneNetwork : s.mDeviceNetwork;
+
+String _statusText(ConnectionStatus status, AppStrings s) => switch (status) {
+      ConnectionStatus.connected => s.connected,
       ConnectionStatus.connecting ||
       ConnectionStatus.requestingProfile ||
       ConnectionStatus.configPending =>
-        'Подключение…',
-      ConnectionStatus.disconnecting => 'Отключение…',
-      ConnectionStatus.error => 'Ошибка подключения',
-      ConnectionStatus.idle => 'Не подключено',
+        s.connecting,
+      ConnectionStatus.disconnecting => s.disconnecting,
+      ConnectionStatus.error => s.couldNotConnect,
+      ConnectionStatus.idle => s.notConnected,
     };
 
 String _hm(DateTime t) =>
@@ -50,10 +72,15 @@ String _hm(DateTime t) =>
 
 /// Connection facts — only what the app actually knows.
 class InfoTab extends StatelessWidget {
-  const InfoTab({super.key, required this.connection, required this.metrics});
+  const InfoTab(
+      {super.key,
+      required this.connection,
+      required this.metrics,
+      required this.s});
 
   final WbConnectionState connection;
   final LiveMetricsState metrics;
+  final AppStrings s;
 
   @override
   Widget build(BuildContext context) {
@@ -62,26 +89,28 @@ class InfoTab extends StatelessWidget {
     final since = connection.connectedAt;
     final connected = connection.status == ConnectionStatus.connected;
     final rows = <(String, String)>[
-      ('Локация', [if (place.isNotEmpty) place, loc.country].join(' · ')),
-      ('Протокол', protocolLabel(loc) ?? '—'),
-      ('Статус', _statusText(connection.status)),
-      ('Начало сессии', connected && since != null ? _hm(since) : '—'),
+      (s.mLocation, [if (place.isNotEmpty) place, loc.country].join(' · ')),
+      (s.mProtocol, protocolLabel(loc) ?? '—'),
+      (s.mStatus, _statusText(connection.status, s)),
+      (s.mSessionStart, connected && since != null ? _hm(since) : '—'),
       (
-        'Трафик сессии',
+        s.mSessionTraffic,
         metrics.sessionBytes > 0 ? formatBytes(metrics.sessionBytes) : '—'
       ),
       (
-        'Задержка',
-        metrics.active && metrics.pingMs != null ? '${metrics.pingMs} мс' : '—'
-      ),
-      (
-        'Джиттер',
-        metrics.jitterMs != null
-            ? '${metrics.jitterMs!.toStringAsFixed(1)} мс'
+        s.speedTestLatency,
+        metrics.active && metrics.pingMs != null
+            ? '${metrics.pingMs} ${s.unitMs}'
             : '—'
       ),
       (
-        'Потери',
+        s.mJitter,
+        metrics.jitterMs != null
+            ? '${metrics.jitterMs!.toStringAsFixed(1)} ${s.unitMs}'
+            : '—'
+      ),
+      (
+        s.mLoss,
         metrics.lossPercent != null
             ? '${metrics.lossPercent!.toStringAsFixed(1)} %'
             : '—'
@@ -93,7 +122,7 @@ class InfoTab extends StatelessWidget {
           FutureBuilder<String?>(
             future: _networkLabel(),
             builder: (_, snap) =>
-                _Row(label: 'Сеть телефона', value: snap.data ?? '—'),
+                _Row(label: _networkTitle(s), value: snap.data ?? '—'),
           ),
           for (final (l, v) in rows) _Row(label: l, value: v),
         ],
@@ -141,16 +170,25 @@ class _Row extends StatelessWidget {
 /// Device → WAVEBREAK server → Internet, with the tunnel's real latency.
 /// A scheme, not a traceroute.
 class RouteTab extends StatelessWidget {
-  const RouteTab({super.key, required this.connection, required this.metrics});
+  const RouteTab(
+      {super.key,
+      required this.connection,
+      required this.metrics,
+      required this.s});
 
   final WbConnectionState connection;
   final LiveMetricsState metrics;
+  final AppStrings s;
 
   @override
   Widget build(BuildContext context) {
     final loc = connection.location;
     final (place, _) = splitPlaceAndProtocol(loc.city);
     final connected = connection.status == ConnectionStatus.connected;
+    // Connected, but probes through the tunnel get no answer: the route is
+    // shown broken, not flowing.
+    final silent = connected && metrics.tunnelSilent;
+    final flowing = connected && !silent;
     return TintedGlass(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
       child: Column(
@@ -159,17 +197,20 @@ class RouteTab extends StatelessWidget {
             future: _networkLabel(),
             builder: (_, snap) => _Node(
               icon: const Icon(Icons.smartphone_rounded, color: Ic.text),
-              title: 'Это устройство',
-              subtitle: snap.data ?? 'сеть телефона',
+              title: s.mThisDevice,
+              subtitle: snap.data ?? _networkTitle(s),
             ),
           ),
           _Link(
-            active: connected,
+            active: flowing,
+            broken: silent,
             color: Ic.arctic,
-            label: connected
-                ? 'зашифрованный туннель'
-                    '${metrics.pingMs != null ? ' · ${metrics.pingMs} мс' : ''}'
-                : 'туннель не установлен',
+            label: silent
+                ? s.mTunnelNoAnswer
+                : connected
+                    ? '${s.mTunnel}'
+                        '${metrics.pingMs != null ? ' · ${metrics.pingMs} ${s.unitMs}' : ''}'
+                    : s.mNoTunnel,
           ),
           _Node(
             icon: loc.countryCode.isNotEmpty
@@ -179,16 +220,20 @@ class RouteTab extends StatelessWidget {
             subtitle: protocolLabel(loc) ?? '',
           ),
           _Link(
-            active: connected,
+            active: flowing,
+            broken: silent,
             color: context.brand,
-            label: connected ? 'выход в интернет' : '',
+            label: flowing ? s.mExit : '',
           ),
           _Node(
             icon: const Icon(Icons.public_rounded, color: Ic.text),
-            title: 'Интернет',
-            subtitle: connected
-                ? 'сайты видят адрес сервера (${loc.country})'
-                : 'напрямую, без защиты',
+            title: s.mInternet,
+            subtitle: silent
+                ? s.mNoConnection
+                : connected
+                    ? s.mSitesSeeServer.replaceAll('{country}', loc.country)
+                    : s.mDirect,
+            warn: silent,
           ),
         ],
       ),
@@ -198,11 +243,17 @@ class RouteTab extends StatelessWidget {
 
 class _Node extends StatelessWidget {
   const _Node(
-      {required this.icon, required this.title, required this.subtitle});
+      {required this.icon,
+      required this.title,
+      required this.subtitle,
+      this.warn = false});
 
   final Widget icon;
   final String title;
   final String subtitle;
+
+  /// The subtitle in amber: this hop is not reached.
+  final bool warn;
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +286,8 @@ class _Node extends StatelessWidget {
                 Text(subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Ic.textMuted, fontSize: 13)),
+                    style: TextStyle(
+                        color: warn ? Ic.amber : Ic.textMuted, fontSize: 13)),
             ],
           ),
         ),
@@ -246,9 +298,16 @@ class _Node extends StatelessWidget {
 
 /// Vertical connector; dots flow along it while the tunnel is up.
 class _Link extends StatelessWidget {
-  const _Link({required this.active, required this.color, required this.label});
+  const _Link(
+      {required this.active,
+      required this.color,
+      required this.label,
+      this.broken = false});
 
   final bool active;
+
+  /// Connected but silent: an amber dashed line with a gap, no flow.
+  final bool broken;
   final Color color;
   final String label;
 
@@ -265,6 +324,7 @@ class _Link extends StatelessWidget {
               painter: _FlowPainter(
                 time: ImmersiveClock.of(context),
                 active: active,
+                broken: broken,
                 color: color,
               ),
             ),
@@ -273,7 +333,8 @@ class _Link extends StatelessWidget {
           Expanded(
             child: Text(label,
                 style: TextStyle(
-                    color: active ? color : Ic.textMuted, fontSize: 12)),
+                    color: broken ? Ic.amber : (active ? color : Ic.textMuted),
+                    fontSize: 12)),
           ),
         ],
       ),
@@ -282,16 +343,36 @@ class _Link extends StatelessWidget {
 }
 
 class _FlowPainter extends CustomPainter {
-  _FlowPainter({required this.time, required this.active, required this.color})
+  _FlowPainter(
+      {required this.time,
+      required this.active,
+      required this.color,
+      this.broken = false})
       : super(repaint: active ? time : null);
 
   final ValueListenable<double> time;
   final bool active;
+  final bool broken;
   final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final x = size.width / 2;
+    if (broken) {
+      // Dashes to a gap in the middle, where the link breaks.
+      final dash = Paint()
+        ..strokeWidth = 1.5
+        ..color = Ic.amber.withValues(alpha: 0.7);
+      final mid = size.height / 2;
+      for (var y = 2.0; y < size.height - 2; y += 7) {
+        if ((y - mid).abs() < 7) continue;
+        canvas.drawLine(
+            Offset(x, y), Offset(x, math.min(y + 4, size.height - 2)), dash);
+      }
+      canvas.drawLine(Offset(x - 4, mid - 4), Offset(x + 4, mid + 4), dash);
+      canvas.drawLine(Offset(x + 4, mid - 4), Offset(x - 4, mid + 4), dash);
+      return;
+    }
     final line = Paint()
       ..strokeWidth = 1.5
       ..color = (active ? color : Ic.glassBorder).withValues(alpha: 0.6);
@@ -308,65 +389,5 @@ class _FlowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FlowPainter old) =>
-      old.active != active || old.color != color;
-}
-
-/// The app's own recent log lines (emails, links, ids masked).
-class LogsTab extends StatefulWidget {
-  const LogsTab({super.key});
-
-  @override
-  State<LogsTab> createState() => _LogsTabState();
-}
-
-class _LogsTabState extends State<LogsTab> {
-  late final Timer _refresh =
-      Timer.periodic(const Duration(seconds: 2), (_) => setState(() {}));
-
-  @override
-  void initState() {
-    super.initState();
-    _refresh;
-  }
-
-  @override
-  void dispose() {
-    _refresh.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final lines = AppLogger.recent(80).reversed.toList();
-    return TintedGlass(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: lines.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text('Журнал пуст',
-                    style: TextStyle(color: Ic.textMuted, fontSize: 14)),
-              ),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final l in lines)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Text(
-                      // Drop the date part of the ISO timestamp.
-                      l.length > 11 ? l.substring(11) : l,
-                      style: const TextStyle(
-                        color: Ic.textSecondary,
-                        fontSize: 11,
-                        height: 1.3,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-    );
-  }
+      old.active != active || old.broken != broken || old.color != color;
 }

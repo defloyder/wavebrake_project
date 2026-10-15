@@ -131,6 +131,7 @@ class CoreApi {
     return _client.postWithoutAuth(
       '/auth/refresh',
       body: {'refresh_token': refreshToken},
+      replay: false,
       parse: _tokens,
     );
   }
@@ -176,6 +177,15 @@ class CoreApi {
     );
   }
 
+  /// Whether the signed-in user can use [code]; 422 PROMO_* otherwise.
+  Future<PromoCheck> checkPromoCode(String code, {String? planId}) {
+    return _client.post(
+      '/promo-codes/check',
+      body: {'code': code, if (planId != null) 'plan_id': planId},
+      parse: (data) => PromoCheck.fromJson(_asMap(data)),
+    );
+  }
+
   Future<SubscriptionInfo> createSubscription(String planId) {
     return _client.post(
       '/subscriptions',
@@ -197,6 +207,50 @@ class CoreApi {
     );
   }
 
+  // ---- QR sign-in of another device (TV) -------------------------------
+
+  /// The TV side: a code to show as a QR and a secret token to poll with.
+  Future<DeviceLoginStart> startDeviceLogin(
+      {required String deviceName, required String platform}) {
+    return _client.post(
+      '/auth/device-login/start',
+      body: {'device_name': deviceName, 'platform': platform},
+      parse: (data) => DeviceLoginStart.fromJson(_asMap(data)),
+      retryOnConnectionError: true,
+    );
+  }
+
+  /// The TV side: null while the code waits for approval, the session
+  /// once a phone approved it. 410 (AppException) when it expired.
+  Future<TokenPair?> pollDeviceLogin(String pollToken) {
+    return _client.post(
+      '/auth/device-login/poll',
+      body: {'poll_token': pollToken},
+      parse: (data) {
+        final map = _asMap(data);
+        return map['status'] == 'approved' ? _tokens(map) : null;
+      },
+    );
+  }
+
+  /// The phone side: which device asks to be signed in (its name).
+  Future<String> inspectDeviceLogin(String code) {
+    return _client.get(
+      '/me/device-login/$code',
+      parse: (data) => (_asMap(data)['device_name'] ?? '').toString(),
+    );
+  }
+
+  /// The phone side: signs the device in to this account. The device gets
+  /// a session of its own; this one stays signed in.
+  Future<void> approveDeviceLogin(String code) {
+    return _client.post(
+      '/me/device-login/$code/approve',
+      body: const <String, dynamic>{},
+      parse: (_) {},
+    );
+  }
+
   /// A fresh share code for the account's own subscription. 404/422
   /// without an active subscription, like [myAccess].
   Future<ShareInfo> myShare() {
@@ -204,6 +258,22 @@ class CoreApi {
       '/me/share',
       body: const <String, dynamic>{},
       parse: (data) => ShareInfo.fromJson(_asMap(data)),
+    );
+  }
+
+  /// The account's own links, synced between its devices (GET/PUT
+  /// /me/custom-links): `{"version": n, "entries": [...]}`.
+  Future<Map<String, dynamic>> customLinks() {
+    return _client.get('/me/custom-links', parse: (data) => _asMap(data));
+  }
+
+  /// Stores [doc]; returns the new version. 409 when another device wrote
+  /// since [doc]'s version.
+  Future<int> putCustomLinks(Map<String, dynamic> doc) {
+    return _client.put(
+      '/me/custom-links',
+      body: doc,
+      parse: (data) => (_asMap(data)['version'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -252,15 +322,28 @@ class CoreApi {
     );
   }
 
+  /// With [installId] Core returns this installation's existing device
+  /// instead of taking another slot. A Core without that field rejects the
+  /// body as a whole (400, unknown fields are refused) — then the plain
+  /// registration is sent.
   Future<DeviceItem> registerDevice({
     required String platform,
     required String name,
-  }) {
-    return _client.post(
-      '/me/devices',
-      body: {'name': name, 'platform': platform},
-      parse: (data) => DeviceItem.fromJson(_asMap(data)),
-    );
+    String? installId,
+  }) async {
+    Future<DeviceItem> post(Map<String, dynamic> body) => _client.post(
+          '/me/devices',
+          body: body,
+          parse: (data) => DeviceItem.fromJson(_asMap(data)),
+        );
+    final body = {'name': name, 'platform': platform};
+    if (installId == null || installId.isEmpty) return post(body);
+    try {
+      return await post({...body, 'install_id': installId});
+    } on AppException catch (e) {
+      if (e.statusCode != 400) rethrow;
+      return post(body);
+    }
   }
 
   Future<DeviceItem> updateDevice({

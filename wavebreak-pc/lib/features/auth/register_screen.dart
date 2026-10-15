@@ -1,3 +1,4 @@
+import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
 import 'package:dio/dio.dart' show CancelToken;
@@ -95,6 +96,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final waves = ref.watch(appWaveParamsProvider);
     return Scaffold(
       body: OceanBackground(
+        stars: true,
         illuminate: true,
         tint: waves.tint,
         waveSpeed: waves.speed,
@@ -119,8 +121,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const SizedBox(height: 16),
                 Text(
                   s.createAccount,
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w600),
+                  style: const TextStyle(fontFamily: 'serif', fontSize: 26),
                 ),
                 const SizedBox(height: 28),
                 TextField(
@@ -151,8 +152,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     },
                     child: Text(
                       s.continueWithOwnLink,
-                      style: const TextStyle(
-                        color: WbColors.waveCyan,
+                      style: TextStyle(
+                        color: context.accent,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -166,7 +167,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   child: FilledButton(
                     onPressed: _busy ? null : _submit,
                     style: FilledButton.styleFrom(
-                      backgroundColor: WbColors.waveCyan,
+                      backgroundColor: context.accent,
                       foregroundColor: WbColors.midnight,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

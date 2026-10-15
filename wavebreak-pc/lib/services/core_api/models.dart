@@ -96,11 +96,22 @@ class Plan {
     this.isActive = true,
     this.isPublic = true,
     this.sortOrder = 0,
+    this.description = '',
+    this.durationDays,
+    this.originalPriceMinor,
+    this.badge = '',
   });
 
   final String id;
   final String code;
   final String name;
+  final String description;
+  final int? durationDays;
+
+  /// An offer (from Core): the price before the discount, shown struck
+  /// through, and a short label ("-17%"). Null / empty without one.
+  final int? originalPriceMinor;
+  final String badge;
   final int priceMinor;
   final String currency;
   final String interval;
@@ -127,6 +138,10 @@ class Plan {
       isActive: json['is_active'] != false,
       isPublic: json['is_public'] != false,
       sortOrder: _asInt(json['sort_order']) ?? 0,
+      description: (json['description'] ?? '').toString(),
+      durationDays: _asInt(json['duration_days']),
+      originalPriceMinor: _asInt(json['original_price_minor']),
+      badge: (json['badge'] ?? '').toString(),
     );
   }
 
@@ -146,7 +161,63 @@ class Plan {
         'is_active': isActive,
         'is_public': isPublic,
         'sort_order': sortOrder,
+        'description': description,
+        'duration_days': durationDays,
+        'original_price_minor': originalPriceMinor,
+        'badge': badge,
       };
+}
+
+/// A promo code Core accepted for this user (POST /v1/promo-codes/check):
+/// the discount and the public plans' prices with it.
+class PromoCheck {
+  const PromoCheck({
+    required this.code,
+    required this.discountType,
+    required this.discountValue,
+    this.description = '',
+    this.currency,
+    this.planId,
+    this.validUntil,
+    this.prices = const {},
+  });
+
+  final String code;
+  final String description;
+
+  /// `percent` (1..100) or `fixed` (minor units of [currency]).
+  final String discountType;
+  final int discountValue;
+  final String? currency;
+  final String? planId;
+  final DateTime? validUntil;
+
+  /// Plan id → price with the code, in minor units.
+  final Map<String, int> prices;
+
+  bool get isPercent => discountType == 'percent';
+
+  factory PromoCheck.fromJson(Map<String, dynamic> json) {
+    final prices = <String, int>{};
+    final list = json['plans'];
+    if (list is List) {
+      for (final e in list.whereType<Map>()) {
+        final id = e['plan_id']?.toString();
+        final price = _asInt(e['discounted_price_minor']);
+        if (id != null && price != null) prices[id] = price;
+      }
+    }
+    return PromoCheck(
+      code: (json['code'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      discountType: (json['discount_type'] ?? 'percent').toString(),
+      discountValue: _asInt(json['discount_value']) ?? 0,
+      currency: json['currency']?.toString(),
+      planId: json['plan_id']?.toString(),
+      validUntil: DateTime.tryParse((json['valid_until'] ?? '').toString()),
+      prices: prices,
+    );
+  }
 }
 
 class SubscriptionInfo {
@@ -959,6 +1030,35 @@ class PersonalAccess {
 
 /// A share code for the account's own subscription (POST /me/share): the
 /// URL shown as a QR plus the limits everyone who scans it shares.
+/// A QR sign-in waiting on the TV (POST /v1/auth/device-login/start).
+class DeviceLoginStart {
+  const DeviceLoginStart({
+    required this.code,
+    required this.pollToken,
+    required this.url,
+    required this.expiresIn,
+    required this.interval,
+  });
+
+  /// 8 characters; also shown as text ("ABCD-EFGH") for typing on a PC.
+  final String code;
+  final String pollToken;
+
+  /// What the QR holds: Core's /v1/device-login/CODE address.
+  final String url;
+  final int expiresIn;
+  final int interval;
+
+  factory DeviceLoginStart.fromJson(Map<String, dynamic> json) =>
+      DeviceLoginStart(
+        code: (json['code'] ?? '').toString(),
+        pollToken: (json['poll_token'] ?? '').toString(),
+        url: (json['url'] ?? '').toString(),
+        expiresIn: _asInt(json['expires_in']) ?? 600,
+        interval: _asInt(json['interval']) ?? 3,
+      );
+}
+
 class ShareInfo {
   const ShareInfo({
     required this.shareUrl,

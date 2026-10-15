@@ -1,4 +1,3 @@
-
 package httpapi
 
 import (
@@ -15,8 +14,8 @@ import (
 
 	"wavebreak-core/internal/accounts"
 	"wavebreak-core/internal/app"
-	"wavebreak-core/internal/observability"
 	"wavebreak-core/internal/mailer"
+	"wavebreak-core/internal/observability"
 	"wavebreak-core/internal/relays"
 	"wavebreak-core/internal/security"
 	"wavebreak-core/internal/store"
@@ -35,6 +34,8 @@ type Server struct {
 	// check fails open) when Redis isn't configured, same as how the rest
 	// of this codebase treats Redis as a best-effort accelerator.
 	limiter rateLimiter
+	// deviceLogins: pending QR sign-ins of TVs (device_login.go).
+	deviceLogins *deviceLoginStore
 }
 
 func New(app *app.App) http.Handler {
@@ -51,7 +52,7 @@ func newServer(app *app.App) *Server {
 	if app.Redis != nil {
 		limiter = app.Redis
 	}
-	return &Server{app: app, accounts: newAccountServices(app, resetMailer{mail: mail, store: app.Store}), relays: registry, mail: mail, limiter: limiter}
+	return &Server{app: app, accounts: newAccountServices(app, resetMailer{mail: mail, store: app.Store}), relays: registry, mail: mail, limiter: limiter, deviceLogins: newDeviceLoginStore()}
 }
 
 func (s *Server) router() http.Handler {
@@ -89,6 +90,10 @@ func (s *Server) router() http.Handler {
 		r.Post("/node/enroll", s.nodeEnrollWithToken)
 		r.Get("/sub/{grantID}", s.subscriptionByGrant)
 		r.Get("/share/{token}", s.shareLanding)
+		r.Get("/device-login/{code}", s.deviceLoginLanding)
+		r.With(ipRateLimitMiddleware(s.limiter, "device-login", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
+			Post("/auth/device-login/start", s.startDeviceLogin)
+		r.Post("/auth/device-login/poll", s.pollDeviceLogin)
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.nodeAuthRequired)
@@ -113,7 +118,12 @@ func (s *Server) router() http.Handler {
 			r.Post("/me/access", s.meAccess)
 			r.Post("/me/share", s.meShare)
 			r.Get("/me/sharing", s.meSharing)
+			r.Get("/me/custom-links", s.getCustomLinks)
+			r.Put("/me/custom-links", s.putCustomLinks)
 			r.Post("/share/redeem", s.redeemShare)
+			r.Get("/me/device-login/{code}", s.inspectDeviceLogin)
+			r.With(ipRateLimitMiddleware(s.limiter, "device-login-approve", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
+				Post("/me/device-login/{code}/approve", s.approveDeviceLogin)
 			r.Get("/me/usage/history", s.meUsageHistory)
 			r.Get("/me/devices", s.listDevices)
 			r.Post("/me/devices", s.createDevice)
@@ -121,6 +131,8 @@ func (s *Server) router() http.Handler {
 			r.Delete("/me/devices/{deviceID}", s.revokeDevice)
 			r.Post("/subscriptions", s.createSubscription)
 			r.Get("/subscriptions/current", s.currentSubscription)
+			r.With(ipRateLimitMiddleware(s.limiter, "promo", s.app.Config.RateLimit.LoginIPLimit, s.app.Config.RateLimit.LoginIPWindow)).
+				Post("/promo-codes/check", s.checkPromoCode)
 			r.Get("/locations", s.listLocations)
 			r.Get("/access/grants", s.listAccessGrants)
 			r.Post("/access/grants", s.createAccessGrant)
@@ -156,6 +168,10 @@ func (s *Server) router() http.Handler {
 			r.Post("/admin/plans", s.adminCreatePlan)
 			r.Put("/admin/plans/{planID}", s.adminUpdatePlan)
 			r.Delete("/admin/plans/{planID}", s.adminDeletePlan)
+			r.Get("/admin/promo-codes", s.adminPromoCodes)
+			r.Post("/admin/promo-codes", s.adminCreatePromoCode)
+			r.Put("/admin/promo-codes/{promoID}", s.adminUpdatePromoCode)
+			r.Delete("/admin/promo-codes/{promoID}", s.adminDeletePromoCode)
 			r.Get("/admin/subscriptions", s.adminSubscriptions)
 			r.Post("/admin/subscriptions", s.adminCreateSubscription)
 			r.Post("/admin/subscriptions/manual", s.adminCreateManualSubscription)
@@ -214,6 +230,12 @@ func (s *Server) listPlans(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createSubscription(w http.ResponseWriter, r *http.Request) {
+	// Choosing a plan doesn't grant it: until a payment step exists,
+	// access is issued by the administration (admin API).
+	if !s.app.Config.Accounts.SelfServeSubscriptions {
+		writeError(w, http.StatusPaymentRequired, "PAYMENT_REQUIRED")
+		return
+	}
 	var req struct {
 		PlanID string `json:"plan_id"`
 	}
@@ -486,4 +508,3 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{"error": message, "code": message})
 }
-

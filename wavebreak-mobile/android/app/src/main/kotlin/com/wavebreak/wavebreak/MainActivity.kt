@@ -29,6 +29,13 @@ class MainActivity : FlutterFragmentActivity() {
     private var pausedAtMs: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // The engine must be in the cache BEFORE super.onCreate: after
+        // Android killed the process in the background, super.onCreate
+        // restores the old FlutterFragment, which looks the cached engine
+        // up right away — a fresh process had none yet and the app
+        // crashed ("closed by itself", then a system error on the first
+        // reopen, fine on the second).
+        AppEngine.get(this)
         super.onCreate(savedInstanceState)
         currentRef = java.lang.ref.WeakReference(this)
         // Bug 2: background update check (6h) + one check per app start.

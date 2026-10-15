@@ -25,6 +25,38 @@ jobs:
           working-directory: wavebreak-core
       - run: go build ./cmd/wavebreak-api ./cmd/wavebreak-worker ./cmd/wavebreak-cli ./cmd/wavebreak-migrate
 
+  # Core's database tests (*_integration_test.go, custom links): skipped in
+  # the job above without WAVEBREAK_TEST_DATABASE_URL, so they never ran in
+  # CI before 15.10. A throwaway Postgres like production's (17).
+  core-db:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: wb
+          POSTGRES_PASSWORD: wb
+          POSTGRES_DB: wb_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U wb -d wb_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      WAVEBREAK_TEST_DATABASE_URL: postgres://wb:wb@localhost:5432/wb_test?sslmode=disable
+      # The personal-data database (store/pii.go) is a separate one.
+      WAVEBREAK_TEST_PII_DATABASE_URL: postgres://wb:wb@localhost:5432/wb_pii?sslmode=disable
+      PGPASSWORD: wb
+    defaults:
+      run:
+        working-directory: wavebreak-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+      - run: psql -h localhost -U wb -d wb_test -c "create database wb_pii"
+      - run: go test -p 1 ./...
+
   node:
     runs-on: ubuntu-latest
     defaults:
@@ -70,3 +102,73 @@ jobs:
       - run: docker build -t wavebreak-core ./wavebreak-core
       - run: docker build -t wavebreak-node ./wavebreak-node
       - run: docker compose -f wavebreak-infrastructure/docker-compose.yml config --quiet
+
+  # Apps (owner, 14.10: "work to the CI/CD standard"): every push runs the
+  # same analyze + tests the release script relies on, for both clients.
+  flutter:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [wavebreak-mobile, wavebreak-pc]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+
+  links:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wavebreak-shared/wavebreak_links
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: true
+      - run: dart pub get
+      - run: dart test
+
+  launcher:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wavebreak-launcher
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: wavebreak-launcher/go.mod
+      - run: go vet ./...
+      - run: go test ./...
+      # The exe itself (32-bit Windows, pure Go): it must build on every push.
+      - run: GOOS=windows GOARCH=386 CGO_ENABLED=0 go vet ./...
+      - run: GOOS=windows GOARCH=386 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -H windowsgui" -o WAVEBREAK-Launcher.exe .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WAVEBREAK-Launcher
+          path: wavebreak-launcher/WAVEBREAK-Launcher.exe
+
+  bridge:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wavebreak-mobile/native/hysteria_bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: wavebreak-mobile/native/hysteria_bridge/go.mod
+      - run: go vet .
+      - run: go test -run 'TestCloseStuckFlows' -count=1 .

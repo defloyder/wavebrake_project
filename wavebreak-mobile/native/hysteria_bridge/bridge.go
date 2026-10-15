@@ -1,3 +1,5 @@
+//go:build !xrayonly
+
 // Package bridge is the gomobile bind surface WAVEBREAK's Android side
 // calls into for Hysteria2. Xray-core (used for every other protocol via
 // flutter_v2ray) never implemented Hysteria2 at all — it's not a missing
@@ -21,6 +23,7 @@ package bridge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -132,25 +135,29 @@ func Start(link string) (int, error) {
 
 // Stop tears down the local SOCKS5 listener and the underlying Hysteria
 // connection. Safe to call even if Start was never called or already
-// failed.
-func Stop() {
+// failed. Returns a non-nil error when either Close() call failed — the
+// Kotlin side logs it rather than discarding it, so a real close failure
+// (a candidate for the fd leak fdwatch.go/WaveEngineVpnService.kt's
+// FD_WARN_THRESHOLD comment describes) leaves a trace instead of vanishing
+// into an empty catch block (owner, 15.10).
+func Stop() error {
 	mu.Lock()
 	defer mu.Unlock()
-	stopLocked()
+	return stopLocked()
 }
 
 // stopLocked is Stop()'s body, factored out so Start() can self-heal a
 // stale "already running" state without recursively taking mu (which
 // Stop() itself does).
-func stopLocked() {
+func stopLocked() error {
 	if !running {
-		return
+		return nil
 	}
-	_ = listener.Close()
-	_ = hyClient.Close()
+	err := errors.Join(listener.Close(), hyClient.Close())
 	listener = nil
 	hyClient = nil
 	running = false
+	return err
 }
 
 // IsRunning reports whether a Hysteria connection + local SOCKS5 listener

@@ -139,3 +139,51 @@
     modal.open('adm-plan-modal');
   });
 })();
+
+// ---- Promo code editor -------------------------------------------------
+// Same pattern as the plan editor: rows carry data-open-promo with the
+// editable fields as JSON; an empty value opens the "new code" form.
+(() => {
+  const modal = window.admModal;
+  document.addEventListener('click', async (event) => {
+    const del = event.target.closest('[data-promo-delete]');
+    if (del) {
+      const form = document.getElementById('adm-promo-form');
+      if (!confirm('Удалить промокод вместе с историей активаций?')) return;
+      del.disabled = true;
+      try {
+        await window.admRequest(`${form.dataset.promoUrl}/delete`, { headers: { Accept: 'application/json' } });
+        window.location.reload();
+      } catch (error) {
+        const box = form.querySelector('[data-form-error]');
+        box.textContent = error.message; box.hidden = false; del.disabled = false;
+      }
+      return;
+    }
+
+    const row = event.target.closest('[data-open-promo]');
+    if (!row) return;
+    const form = document.getElementById('adm-promo-form');
+    if (!form) return;
+    const promo = row.dataset.openPromo ? JSON.parse(row.dataset.openPromo) : null;
+    form.reset();
+    form.querySelector('[data-form-error]').hidden = true;
+    const deleteButton = form.querySelector('[data-promo-delete]');
+    if (promo) {
+      form.action = `/promo-codes/${promo.id}`;
+      form.dataset.promoUrl = `/promo-codes/${promo.id}`;
+      form.querySelectorAll('[data-promo-field]').forEach((input) => {
+        const value = promo[input.dataset.promoField];
+        if (input.type === 'checkbox') input.checked = Boolean(value);
+        else input.value = value ?? '';
+      });
+      deleteButton.hidden = false;
+    } else {
+      form.action = '/promo-codes';
+      delete form.dataset.promoUrl;
+      deleteButton.hidden = true;
+    }
+    document.getElementById('adm-promo-modal-title').textContent = promo ? `Промокод ${promo.code}` : 'Новый промокод';
+    modal.open('adm-promo-modal');
+  });
+})();

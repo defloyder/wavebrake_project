@@ -49,6 +49,8 @@ class ThroughputChartPainter extends CustomPainter {
     required this.renderNowMs,
     required this.maxMbps,
     required this.minutesLabel,
+    this.unitMin = 'min',
+    this.nowLabel = 'now',
     this.touchX,
     this.upColor = Ic.crimson,
   });
@@ -58,6 +60,10 @@ class ThroughputChartPainter extends CustomPainter {
   final double renderNowMs;
   final double maxMbps;
   final int minutesLabel;
+
+  /// Localized "min" and "now" for the time axis.
+  final String unitMin;
+  final String nowLabel;
   final double? touchX;
 
   /// Upload series: the flag accent (the brand color), like the rest.
@@ -94,9 +100,9 @@ class ThroughputChartPainter extends CustomPainter {
       _label(
           canvas, _fmtAxis(maxMbps * f), Offset(0, y - 7), 30, TextAlign.right);
     }
-    _label(canvas, '−$minutesLabel мин', Offset(plot.left, plot.bottom + 5), 60,
-        TextAlign.left);
-    _label(canvas, 'сейчас', Offset(plot.right - 60, plot.bottom + 5), 60,
+    _label(canvas, '−$minutesLabel $unitMin',
+        Offset(plot.left, plot.bottom + 5), 60, TextAlign.left);
+    _label(canvas, nowLabel, Offset(plot.right - 60, plot.bottom + 5), 60,
         TextAlign.right);
 
     // Samples up to the render time (one before the window so the line
@@ -139,8 +145,7 @@ class ThroughputChartPainter extends CustomPainter {
     canvas.clipRect(Rect.fromLTRB(plot.left, 0, plot.right, size.height));
     _series(
         canvas, plot, [for (final p in pts) at(p.$1, p.$2)], Ic.arctic, 1.0);
-    _series(
-        canvas, plot, [for (final p in pts) at(p.$1, p.$3)], upColor, 0.85);
+    _series(canvas, plot, [for (final p in pts) at(p.$1, p.$3)], upColor, 0.85);
     canvas.restore();
 
     if (touchX != null) {
@@ -280,6 +285,8 @@ class ThroughputChartPainter extends CustomPainter {
       old.renderNowMs != renderNowMs ||
       old.maxMbps != maxMbps ||
       old.minutesLabel != minutesLabel ||
+      old.unitMin != unitMin ||
+      old.nowLabel != nowLabel ||
       old.touchX != touchX ||
       old.upColor != upColor;
 }

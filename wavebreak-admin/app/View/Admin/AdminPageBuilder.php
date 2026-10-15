@@ -3,11 +3,13 @@
 namespace App\View\Admin;
 
 use App\Services\CoreClient;
+use Illuminate\Http\Client\RequestException;
 use App\View\Admin\Rows\AuditRow;
 use App\View\Admin\Rows\DeviceRow;
 use App\View\Admin\Rows\GrantRow;
 use App\View\Admin\Rows\NodeRow;
 use App\View\Admin\Rows\PlanRow;
+use App\View\Admin\Rows\PromoCodeRow;
 use App\View\Admin\Rows\SubscriptionRow;
 use App\View\Admin\Rows\TrafficRow;
 use App\View\Admin\Rows\UserRow;
@@ -26,6 +28,7 @@ final class AdminPageBuilder
         'users' => ['title' => 'Пользователи', 'subtitle' => 'Нажмите на пользователя, чтобы открыть карточку со всеми действиями.', 'data' => ['users']],
         'subscriptions' => ['title' => 'Подписки', 'subtitle' => 'У пользователя одна подписка. Управление — в карточке пользователя.', 'data' => ['subscriptions', 'users', 'plans', 'grants', 'traffic']],
         'plans' => ['title' => 'Тарифы', 'subtitle' => 'Нажмите на тариф, чтобы изменить его.', 'data' => ['plans']],
+        'promo-codes' => ['title' => 'Промокоды', 'subtitle' => 'Скидки по коду. Активация засчитывается при оплате — проверка кода в приложении её не тратит.', 'data' => ['promoCodes', 'plans']],
         'nodes' => ['title' => 'Ноды', 'subtitle' => 'Heartbeat и применённая ревизия конфигурации.', 'data' => []],
         'grants' => ['title' => 'Ключи доступа', 'subtitle' => 'Выданные учётные данные VPN. Управление — в карточке пользователя.', 'data' => ['grants', 'users']],
         'devices' => ['title' => 'Устройства', 'subtitle' => 'Зарегистрированные устройства пользователей.', 'data' => ['devices', 'users']],
@@ -64,6 +67,10 @@ final class AdminPageBuilder
             'trafficHistory' => $data['trafficHistory'] ?? [],
             'userRows' => array_map(UserRow::fromCore(...), $data['users'] ?? []),
             'planRows' => array_map(PlanRow::fromCore(...), $data['plans'] ?? []),
+            'promoRows' => array_map(fn ($p) => PromoCodeRow::fromCore($p, $directory), $data['promoCodes'] ?? []),
+            // Core without promo codes yet (not deployed): the page says so.
+            'promoUnavailable' => array_key_exists('promoCodes', $data) && $data['promoCodes'] === null,
+            'planOptions' => array_map(fn ($p) => ['id' => (string) $p['id'], 'name' => (string) ($p['name'] ?? $p['code'] ?? '')], $data['plans'] ?? []),
             'nodeRows' => array_map(NodeRow::fromCore(...), $nodes),
             'subscriptionRows' => $section === 'subscriptions' ? $this->subscriptionRows($data, $directory) : [],
             'grantRows' => array_map(fn ($g) => GrantRow::fromCore($g, $directory), $data['grants'] ?? []),
@@ -106,6 +113,16 @@ final class AdminPageBuilder
             'dashboard' => fn () => $this->core->dashboard($token),
             'users' => fn () => $this->core->users($token),
             'plans' => fn () => $this->core->adminPlans($token),
+            'promoCodes' => function () use ($token) {
+                try {
+                    return $this->core->adminPromoCodes($token);
+                } catch (RequestException $e) {
+                    if ($e->response->status() === 404) {
+                        return null;
+                    }
+                    throw $e;
+                }
+            },
             'subscriptions' => fn () => $this->core->subscriptions($token),
             'grants' => fn () => $this->core->grants($token),
             'devices' => fn () => $this->core->devices($token),

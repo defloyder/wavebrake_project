@@ -1,57 +1,129 @@
 @extends('layout')
-@section('title', 'Тарифы WAVEBREAK | Условия подключения')
-@section('description', 'Тарифы WAVEBREAK: стоимость, срок действия, количество устройств и доступный трафик. Подписка и управление подключениями в приложении.')
+@php
+    use App\Support\Locales;
+    $fmt = fn (float $v) => number_format($v, $v == floor($v) ? 0 : 2, __('site.pricing.decimal'), __('site.pricing.thousands'));
+    $monthlyOffers = collect($tiers)->pluck('month')->filter();
+    // Was always filtering to 'RUB' and suffixing the title with '₽' even
+    // on /en and /tr, which either hid the price (no RUB tier) or showed
+    // the wrong currency symbol. Prefer the locale's own currency, falling
+    // back to whatever monthly price exists if none is priced in it.
+    $preferredCurrency = ['ru' => 'RUB', 'en' => 'USD', 'tr' => 'TRY'][Locales::current()] ?? 'USD';
+    $monthly = $monthlyOffers->where('currency', $preferredCurrency);
+    $monthly = $monthly->isEmpty() ? $monthlyOffers : $monthly;
+    $cheapestMonthly = $monthly->sortBy('price')->first();
+    $minMonthly = $cheapestMonthly['price'] ?? null;
+    $seoOffers = collect($tiers)->flatMap(fn (array $tier) => collect(['month' => __('site.pricing.offer_month'), 'year' => __('site.pricing.offer_year')])
+        ->filter(fn ($label, $kind) => $tier[$kind] !== null)
+        ->map(fn ($label, $kind) => [
+            '@type' => 'Offer',
+            'name' => $tier['name'].' — '.$label,
+            'price' => number_format($tier[$kind]['price'], 2, '.', ''),
+            'priceCurrency' => $tier[$kind]['currency'],
+            'url' => Locales::url('pricing'),
+            'availability' => 'https://schema.org/InStock',
+        ])->values())->values()->all();
+@endphp
+@section('title', $minMonthly ? __('site.pricing.title_from', ['price' => $fmt($minMonthly).' '.$cheapestMonthly['currency_label']]) : __('site.pricing.title'))
+@section('description', __('site.pricing.description'))
+@section('breadcrumb', __('site.nav.pricing'))
 @section('body_class', 'wb-public page-pricing')
+@if ($seoOffers !== [])
+@push('schema')
+<script type="application/ld+json">{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'Service',
+    'name' => 'WAVEBREAK',
+    'serviceType' => __('site.meta.service_type'),
+    'provider' => ['@id' => 'https://wavebreak.com.tr/#organization'],
+    // Was hardcoded 'RU' regardless of which locale page this renders on —
+    // wrong on /en and /tr specifically, since the site is genuinely
+    // trilingual RU/EN/TR and the service has no actual country
+    // restriction. Listing both markets the site is built for (rather
+    // than one or an unbounded "Worldwide" claim) is accurate for every
+    // locale this schema renders on.
+    'areaServed' => [
+        ['@type' => 'Country', 'name' => 'RU'],
+        ['@type' => 'Country', 'name' => 'TR'],
+    ],
+    'url' => Locales::url('pricing'),
+    'offers' => $seoOffers,
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}</script>
+@endpush
+@endif
 @section('content')
 <main id="main">
     <section class="download-hero site-hero site-hero--compact" aria-labelledby="pricing-title">
         @include('partials.tide')
         <div class="wb-container site-hero-inner">
             <div class="hero-copy" data-reveal>
-                <p class="download-kicker"><span></span> Подписка на сервис</p>
-                <h1 id="pricing-title">Тарифы<br><em>WAVEBREAK.</em></h1>
-                <p class="hero-description">Выберите подходящие условия. Оформление и управление подпиской доступны в приложении.</p>
-                <a class="download-discover" href="#plans"><span>Посмотреть тарифы</span><span aria-hidden="true">↓</span></a>
+                <p class="download-kicker"><span></span> {{ __('site.pricing.kicker') }}</p>
+                <h1 id="pricing-title">{!! __('site.pricing.h1') !!}</h1>
+                <p class="hero-description">{{ __('site.pricing.lede') }}</p>
+                <a class="download-discover" href="#plans"><span>{{ __('site.pricing.discover') }}</span><span aria-hidden="true">↓</span></a>
             </div>
-            <div class="hero-bottom"><span>Стоимость / Устройства / Трафик</span><span>Без веб-кабинета</span></div>
+            <div class="hero-bottom"><span>{{ __('site.pricing.bottom')[0] }}</span><span>{{ __('site.pricing.bottom')[1] }}</span></div>
         </div>
     </section>
-    <section class="site-section" id="plans" aria-label="Доступные тарифы">
+    <section class="site-section" id="plans" aria-label="{{ __('site.pricing.plans_label') }}">
         <div class="wb-container">
             @if ($plans === [])
-                <div class="plans-unavailable" role="status"><span class="section-number">ТАРИФЫ</span><h2>Сейчас не удалось<br><em>загрузить цены.</em></h2><p>Попробуйте обновить страницу немного позже. Ваши действующие подписки от этого не меняются.</p><a href="/pricing" class="text-link">Обновить страницу <span aria-hidden="true">↻</span></a></div>
+                <div class="plans-unavailable" role="status"><span class="section-number">{{ __('site.pricing.unavailable_num') }}</span><h2>{!! __('site.pricing.unavailable_title') !!}</h2><p>{{ __('site.pricing.unavailable_text') }}</p><a href="{{ Locales::path('pricing') }}" class="text-link">{{ __('site.pricing.reload') }} <span aria-hidden="true">↻</span></a></div>
             @else
-                <div class="plan-grid">
-                    @foreach ($plans as $plan)
-                        @php
-                            $price = ($plan['price_minor'] ?? $plan['price_cents'] ?? 0) / 100;
-                            $currency = strtoupper($plan['currency'] ?? 'USD');
-                            $currencyLabel = ['RUB' => '₽', 'USD' => '$', 'EUR' => '€', 'TRY' => '₺'][$currency] ?? $currency;
-                            $period = isset($plan['duration_days']) ? $plan['duration_days'].' дней' : (['month' => 'месяц', 'year' => 'год', 'week' => 'неделю'][$plan['interval'] ?? ''] ?? ($plan['interval'] ?? 'период'));
-                            $traffic = $plan['traffic_limit_bytes'] ?? null;
-                        @endphp
-                        <article class="plan" data-reveal>
-                            <span class="section-number">{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }} / ПОДПИСКА</span>
-                            <h2>{{ $plan['name'] }}</h2>
-                            <p class="plan-price">{{ number_format($price, $price == floor($price) ? 0 : 2, ',', ' ') }} <span>{{ $currencyLabel }}</span></p>
-                            <p class="plan-period">за {{ $period }}</p>
-                            <dl>
-                                <div><dt>Устройства</dt><dd>{{ $plan['device_limit'] ?? 'По условиям тарифа' }}</dd></div>
-                                <div><dt>Трафик</dt><dd>{{ $traffic === null || $traffic === 0 ? 'Без лимита' : number_format($traffic / 1073741824, 1, ',', ' ').' ГБ' }}</dd></div>
-                                @if (isset($plan['concurrent_connection_limit']))
-                                    <div><dt>Одновременно</dt><dd>{{ $plan['concurrent_connection_limit'] }}</dd></div>
-                                @endif
-                            </dl>
-                            <a href="/download" class="wb-btn wb-btn--outline">К приложению <span aria-hidden="true">↗</span><span class="sr-only">: {{ $plan['name'] }}</span></a>
-                        </article>
-                    @endforeach
+                @php
+                    $money = $fmt;
+                    $switchable = $hasYearly && $hasMonthly;
+                @endphp
+                <div class="plan-catalog{{ $switchable ? ' plan-catalog--switch' : '' }}">
+                    @if ($switchable)
+                        <input class="period-radio" type="radio" name="billing-period" id="period-month" value="month" checked>
+                        <input class="period-radio" type="radio" name="billing-period" id="period-year" value="year">
+                        <div class="period-switch" aria-label="{{ __('site.pricing.period_label') }}">
+                            <label for="period-month">{{ __('site.pricing.month') }}</label>
+                            <label for="period-year">{{ __('site.pricing.year') }} @if ($maxDiscount)<span class="period-badge">−{{ $maxDiscount }}%</span>@endif</label>
+                        </div>
+                    @endif
+                    <div class="plan-grid">
+                        @foreach ($tiers as $tier)
+                            <article class="plan" data-reveal>
+                                <span class="section-number">{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }} / {{ __('site.pricing.subscription') }}</span>
+                                <h2>{{ $tier['name'] }}</h2>
+                                @foreach (['month', 'year'] as $kind)
+                                    @php $offer = $tier[$kind]; @endphp
+                                    @continue(! $switchable && $offer === null)
+                                    <div class="plan-offer{{ $switchable ? ' plan-offer--'.$kind : '' }}">
+                                        @if ($offer === null)
+                                            <p class="plan-price plan-price--none">—</p>
+                                            <p class="plan-period">{{ $kind === 'year' ? __('site.pricing.only_monthly') : __('site.pricing.only_yearly') }}</p>
+                                        @else
+                                            <p class="plan-price">{{ $money($offer['price']) }} <span>{{ $offer['currency_label'] }}</span></p>
+                                            <p class="plan-period">{{ __('site.pricing.per', ['period' => $offer['period']]) }}</p>
+                                            @if ($offer['per_month'] !== null)
+                                                <p class="plan-equiv">{{ __('site.pricing.per_month', ['amount' => $money(round($offer['per_month'])).' '.$offer['currency_label']]) }}@if ($offer['saving']) · <b>{{ __('site.pricing.saving', ['amount' => $money($offer['saving']).' '.$offer['currency_label']]) }}</b>@endif</p>
+                                            @endif
+                                            <dl>
+                                                <div><dt>{{ __('site.pricing.devices') }}</dt><dd>{{ $offer['devices'] ?? __('site.pricing.devices_default') }}</dd></div>
+                                                <div><dt>{{ __('site.pricing.traffic') }}</dt><dd>{{ $offer['traffic'] === null || $offer['traffic'] === 0 ? __('site.pricing.unlimited') : number_format($offer['traffic'] / 1073741824, 1, __('site.pricing.decimal'), __('site.pricing.thousands')).' '.__('site.pricing.gb') }}</dd></div>
+                                                @if ($offer['concurrent'] !== null)
+                                                    <div><dt>{{ __('site.pricing.concurrent') }}</dt><dd>{{ $offer['concurrent'] }}</dd></div>
+                                                @endif
+                                            </dl>
+                                        @endif
+                                        <a href="{{ Locales::path('download') }}" class="wb-btn wb-btn--outline">{{ __('site.pricing.to_app') }} <span aria-hidden="true">↗</span><span class="sr-only">: {{ $tier['name'] }}</span></a>
+                                    </div>
+                                @endforeach
+                            </article>
+                        @endforeach
+                    </div>
                 </div>
-                <p class="price-note">Перед оформлением проверьте срок и условия подписки в приложении.</p>
+                <p class="price-note">{{ __('site.pricing.note') }}</p>
             @endif
         </div>
     </section>
     <section class="site-section product-band">
-        <div class="wb-container faq-layout"><h2>Уже есть<br><em>своя ссылка?</em></h2><div><p class="section-copy">Для профилей других провайдеров подписка WAVEBREAK не требуется. Достаточно совместимой ссылки подключения.</p><a class="text-link" href="/access#profiles">Подробнее о профилях <span aria-hidden="true">↗</span></a></div></div>
+        <div class="wb-container faq-layout"><h2>{!! __('site.pricing.own_title') !!}</h2><div><p class="section-copy">{{ __('site.pricing.own_text') }}</p><a class="text-link" href="{{ Locales::path('access') }}#profiles">{{ __('site.pricing.own_link') }} <span aria-hidden="true">↗</span></a></div></div>
+    </section>
+    <section class="site-section" aria-label="{{ __('site.pricing.plans_label') }}">
+        <div class="wb-container faq-layout"><h2>{!! __('site.pricing.faq_title') !!}</h2>@include('partials.faq', ['faq' => __('site.pricing.faq')])</div>
     </section>
 </main>
 @endsection

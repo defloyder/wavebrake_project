@@ -70,6 +70,8 @@ services:
     environment:
       WAVEBREAK_ENV: development
       WAVEBREAK_HTTP_ADDR: :8080
+      # Subscription and share links on api. (owner, 12.10) — same route as core.
+      WAVEBREAK_SUBSCRIPTION_URL_BASE: https://api.wavebreak.com.tr/v1/sub/
       WAVEBREAK_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       WAVEBREAK_REDIS_ADDR: redis:6379
       WAVEBREAK_RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/

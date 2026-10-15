@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/notice.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
+import '../../core/theme/wb_theme.dart';
 import '../shared/data_providers.dart';
-import '../shared/detail_scaffold.dart';
-import '../shared/nav_utils.dart';
-import '../shared/wb_card.dart';
+import '../../core/env/app_env.dart';
+import '../shared/anchored_page.dart';
+import '../shared/page_hero.dart';
+import 'device_login_approve.dart';
 import 'email_verify_sheet.dart';
+import 'settings_ui.dart';
 
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
@@ -23,187 +27,121 @@ class AccountScreen extends ConsumerWidget {
     final isGuest = session.phase == SessionPhase.guest;
 
     if (isGuest) {
-      return DetailScaffold(
+      return SettingsPage(
         title: s.account,
-        onBack: () => safePop(context, fallback: '/settings'),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            WbCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.signInToUnlock,
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: FilledButton(
-                onPressed: () async {
-                  await ref
-                      .read(sessionControllerProvider.notifier)
-                      .exitGuestMode();
-                  if (context.mounted) context.go('/login');
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: WbColors.waveCyan,
-                  foregroundColor: WbColors.midnight,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                ),
-                child: Text(s.signIn),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return DetailScaffold(
-      title: s.account,
-      onBack: () => safePop(context, fallback: '/settings'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        hero: PageEmblem(
+            icon: Icons.person_outline_rounded, caption: s.accountRowHint),
         children: [
-          Builder(builder: (context) {
-            final me = profile.asData?.value;
-            final email = me?.email ?? session.user?.email ?? '—';
-            // Confirming is offered only when Core reports the
-            // address unconfirmed and can send the code now.
-            final canVerify = me != null &&
-                me.emailVerified == false &&
-                me.emailVerificationAvailable;
-            return WbCard(
-              onTap: canVerify
-                  ? () async {
-                      final ok =
-                          await showEmailVerifySheet(context, email: me.email);
-                      if (ok && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(s.emailVerifiedRow)));
-                      }
-                    }
-                  : null,
-              child: Row(
-                children: [
-                  const Icon(Icons.email_outlined, color: WbColors.waveCyan),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // One line: a long address elides instead of
-                        // pushing the row out of shape.
-                        Text(
-                          email,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        if (me?.emailVerified != null) ...[
-                          const SizedBox(height: 3),
-                          // Status and "Confirm" share the line under the
-                          // address and wrap when a language's words are
-                          // long, instead of squeezing the address.
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 2,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Text(
-                                me!.emailVerified!
-                                    ? s.emailVerifiedRow
-                                    : s.emailNotVerifiedRow,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: me.emailVerified!
-                                      ? WbColors.oceanTeal
-                                      : WbColors.warning,
-                                ),
-                              ),
-                              if (canVerify)
-                                Text(
-                                  s.verifyEmailConfirm,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: WbColors.waveCyan,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 12),
-          WbCard(
-            onTap: () => context.push('/subscription'),
-            child: Row(
-              children: [
-                const Icon(Icons.workspace_premium_outlined,
-                    color: WbColors.waveCyan),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: subscription.when(
-                    loading: () => Text(s.subscription),
-                    error: (_, __) => Text(s.subscription),
-                    data: (sub) => Text(
-                      sub.isActive
-                          ? '${s.subscription} · ${s.active}'
-                          : s.subscription,
-                    ),
-                  ),
-                ),
-                const Icon(Icons.chevron_right, color: WbColors.ice60),
-              ],
+          SettingsGroup(children: [
+            SettingsRow(
+              icon: Icons.person_outline_rounded,
+              title: s.signInToUnlock,
             ),
-          ),
-          const SizedBox(height: 12),
-          WbCard(
-            onTap: () => context.push('/settings/devices'),
-            child: Row(
-              children: [
-                const Icon(Icons.devices_outlined, color: WbColors.waveCyan),
-                const SizedBox(width: 12),
-                Expanded(child: Text(s.devices)),
-                const Icon(Icons.chevron_right, color: WbColors.ice60),
-              ],
-            ),
-          ),
-          const Spacer(),
+          ]),
           SizedBox(
             width: double.infinity,
             height: 52,
-            child: OutlinedButton(
+            child: FilledButton(
               onPressed: () async {
-                await ref.read(sessionControllerProvider.notifier).logout();
+                await ref
+                    .read(sessionControllerProvider.notifier)
+                    .exitGuestMode();
                 if (context.mounted) context.go('/login');
               },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: WbColors.error,
-                side: const BorderSide(color: WbColors.error),
+              style: FilledButton.styleFrom(
+                backgroundColor: context.accent,
+                foregroundColor: WbColors.midnight,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                    borderRadius: BorderRadius.circular(16)),
               ),
-              child: Text(s.logOut),
+              child: Text(s.signIn),
             ),
           ),
-          const SizedBox(height: 20),
         ],
-      ),
+      );
+    }
+
+    final me = profile.asData?.value;
+    final email = me?.email ?? session.user?.email ?? '—';
+    // Confirming is offered only when Core reports the address
+    // unconfirmed and can send the code now.
+    final canVerify = me != null &&
+        me.emailVerified == false &&
+        me.emailVerificationAvailable;
+    // The session's saved profile first, so the line doesn't pop in once
+    // /me answers (owner, 14.10: it appeared with a jolt).
+    final verified = me?.emailVerified ?? session.user?.emailVerified;
+
+    return SettingsPage(
+      title: s.account,
+      hero: const AccountHero(link: false),
+      children: [
+        SettingsGroup(children: [
+          SettingsRow(
+            icon: Icons.email_outlined,
+            title: email,
+            // While unknown, an empty line keeps the row's height.
+            subtitle: verified == null
+                ? ' '
+                : verified
+                    ? s.emailVerifiedRow
+                    : canVerify
+                        ? '${s.emailNotVerifiedRow} · ${s.verifyEmailConfirm}'
+                        : s.emailNotVerifiedRow,
+            trailing: verified == null
+                ? const SizedBox(width: 20, height: 20)
+                : Icon(
+                    verified
+                        ? Icons.verified_outlined
+                        : Icons.error_outline_rounded,
+                    size: 20,
+                    color: verified ? WbColors.oceanTeal : WbColors.warning,
+                  ),
+            chevron: canVerify,
+            onTap: canVerify
+                ? () async {
+                    final ok =
+                        await showEmailVerifySheet(context, email: me.email);
+                    if (ok && context.mounted) {
+                      showNotice(s.emailVerifiedRow, kind: NoticeKind.success);
+                    }
+                  }
+                : null,
+          ),
+          SettingsRow(
+            icon: Icons.workspace_premium_outlined,
+            title: s.subscription,
+            value:
+                subscription.asData?.value.isActive == true ? s.active : null,
+            onTap: () => context.push('/subscription'),
+          ),
+          SettingsRow(
+            icon: Icons.devices_outlined,
+            title: s.devices,
+            onTap: () => context.push('/settings/devices'),
+          ),
+          // Sign a TV in by its QR code (no typing on a remote).
+          if (!AppEnv.isTv)
+            SettingsRow(
+              icon: Icons.qr_code_scanner_rounded,
+              title: s.signInOtherDevice,
+              subtitle: s.signInOtherDeviceHint,
+              onTap: () => startDeviceLoginApproval(context, ref),
+            ),
+        ]),
+        SettingsGroup(children: [
+          SettingsRow(
+            icon: Icons.logout_rounded,
+            title: s.logOut,
+            destructive: true,
+            chevron: false,
+            onTap: () async {
+              await ref.read(sessionControllerProvider.notifier).logout();
+              if (context.mounted) context.go('/login');
+            },
+          ),
+        ]),
+      ],
     );
   }
 }
