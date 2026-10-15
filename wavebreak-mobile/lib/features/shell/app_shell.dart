@@ -733,19 +733,92 @@ class _TvDirectionalFocusAction extends Action<DirectionalFocusIntent> {
     if (node == null) return;
     final inRail = _tvRailNode.hasFocus;
     if (inRail) {
-      if (intent.direction == TraversalDirection.right) {
-        _focusPage();
-      } else {
-        node.focusInDirection(intent.direction);
+      switch (intent.direction) {
+        case TraversalDirection.right:
+          _focusPage();
+        case TraversalDirection.up:
+        case TraversalDirection.down:
+          // Item to item, in order, never out of the rail: a geometric
+          // search from a rail item found the page's controls next to it
+          // (owner, 15.10: ↑ on Metrics jumped into the page).
+          _stepRail(node, intent.direction == TraversalDirection.down);
+        case TraversalDirection.left:
+          break;
       }
       return;
     }
     if (node.focusInDirection(intent.direction)) return;
+    // Nothing focusable that way (Metrics: a chart and rows, no
+    // controls): the remote scrolls the page instead (owner, 15.10).
+    if (intent.direction == TraversalDirection.up ||
+        intent.direction == TraversalDirection.down) {
+      if (_scrollPage(node, intent.direction == TraversalDirection.down)) {
+        return;
+      }
+    }
     if (intent.direction == TraversalDirection.left) {
       _tvLastPageFocus = node;
       _tvRailSelected.requestFocus();
     }
   }
+}
+
+/// Scrolls the vertical list around [node] by 40 % of its height; false
+/// when there is none or it's already at that end.
+bool _scrollPage(FocusNode node, bool down) {
+  final ctx = node.context;
+  if (ctx == null) return false;
+  final scrollable = Scrollable.maybeOf(ctx, axis: Axis.vertical);
+  if (scrollable == null) return false;
+  final p = scrollable.position;
+  final target = scrollTarget(p.pixels, p.viewportDimension,
+      p.minScrollExtent, p.maxScrollExtent, down);
+  if (target == null) return false;
+  p.animateTo(target,
+      duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+  return true;
+}
+
+/// Where one remote press scrolls to, or null when already at that end.
+@visibleForTesting
+double? scrollTarget(
+    double pixels, double viewport, double min, double max, bool down) {
+  final target =
+      (pixels + (down ? 1 : -1) * viewport * 0.4).clamp(min, max).toDouble();
+  return (target - pixels).abs() < 1 ? null : target;
+}
+
+/// The next (or previous) rail item from [current], top to bottom; stays
+/// put at either end.
+void _stepRail(FocusNode current, bool down) {
+  final items = railOrder(_tvRailNode.traversalDescendants
+      .where((n) => n.canRequestFocus && n.context != null && !n.rect.isEmpty));
+  final next = railStep(items, current, down);
+  if (next == null) return;
+  next.requestFocus();
+  final ctx = next.context;
+  if (ctx != null) {
+    Scrollable.maybeOf(ctx)?.position.ensureVisible(ctx.findRenderObject()!,
+        alignment: 0.5, duration: const Duration(milliseconds: 150));
+  }
+}
+
+/// Focus nodes top to bottom (then left to right).
+@visibleForTesting
+List<FocusNode> railOrder(Iterable<FocusNode> nodes) => nodes.toList()
+  ..sort((a, b) {
+    final dy = a.rect.top.compareTo(b.rect.top);
+    return dy != 0 ? dy : a.rect.left.compareTo(b.rect.left);
+  });
+
+/// The item after (or before) [current] in [items], or null at an end or
+/// when [current] isn't one of them.
+@visibleForTesting
+T? railStep<T>(List<T> items, T current, bool down) {
+  final i = items.indexOf(current);
+  if (i < 0) return null;
+  final j = down ? i + 1 : i - 1;
+  return j >= 0 && j < items.length ? items[j] : null;
 }
 
 /// The focus back on the page: where it was, else its first control.

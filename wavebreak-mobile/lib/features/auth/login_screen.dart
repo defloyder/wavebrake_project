@@ -1,4 +1,5 @@
 import '../shared/notice.dart';
+import '../../core/env/app_env.dart';
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
@@ -237,7 +238,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         ],
                                       ),
                           ),
-                          const Spacer(),
+                          // TV: the fields high, clear of the remote's
+                          // keyboard (owner, 15.10).
+                          if (AppEnv.isTv)
+                            const SizedBox(height: 12)
+                          else
+                            const Spacer(),
                           TextField(
                             controller: _email,
                             keyboardType: TextInputType.emailAddress,

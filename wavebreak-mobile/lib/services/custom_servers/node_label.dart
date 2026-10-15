@@ -441,3 +441,15 @@ const _countryByName = {
   'вьетнам': 'VN',
   'south africa': 'ZA',
 };
+
+/// A node a provider runs for one service ("YouTube без рекламы",
+/// "Netflix", "ChatGPT") rather than as a VPN location — kept out of auto
+/// select (owner, 15.10).
+final _serviceNode = RegExp(
+  r'youtube|ютуб|реклам|\bno[ -]?ads?\b|ad[ -]?free|adblock|'
+  r'netflix|spotify|chatgpt|openai|tiktok|torrent|торрент',
+  caseSensitive: false,
+  unicode: true,
+);
+
+bool isServiceNodeName(String name) => _serviceNode.hasMatch(name);

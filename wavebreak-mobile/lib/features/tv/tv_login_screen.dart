@@ -137,7 +137,8 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
         TextStyle(color: Ic.textSecondary, fontSize: 20, height: 1.4);
 
     final left = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          _unavailable ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         const WavebreakMark(size: 64, glow: true),
@@ -147,7 +148,8 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
                 color: Ic.text, fontSize: 40, fontFamily: Ic.fontSerif)),
         const SizedBox(height: 24),
         if (_unavailable)
-          Text(s.tvLoginUnavailable, style: stepStyle)
+          Text(s.tvLoginUnavailable,
+              textAlign: TextAlign.center, style: stepStyle)
         else ...[
           _Step(n: 1, text: s.tvLoginStep1, style: stepStyle),
           _Step(n: 2, text: s.tvLoginStep2, style: stepStyle),
@@ -155,6 +157,7 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
         ],
         const SizedBox(height: 32),
         Wrap(
+          alignment: _unavailable ? WrapAlignment.center : WrapAlignment.start,
           spacing: 16,
           runSpacing: 12,
           children: [
@@ -248,23 +251,32 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
           child: Padding(
             // TV overscan: keep everything inside the safe 5 % margin.
             padding: const EdgeInsets.symmetric(horizontal: 56, vertical: 32),
-            child: Row(
-              children: [
-                // Scaled down to fit: TVs report anything from 960x540
-                // to 1920x1080 logical pixels.
-                Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(width: 520, child: left),
+            // No QR to show (an older Core): the one column centred, not
+            // pinned to the left of an empty screen (owner, 15.10).
+            child: _unavailable
+                ? Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: SizedBox(width: 560, child: left),
+                    ),
+                  )
+                : Row(
+                    children: [
+                      // Scaled down to fit: TVs report anything from 960x540
+                      // to 1920x1080 logical pixels.
+                      Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(width: 520, child: left),
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                      Expanded(
+                        child: FittedBox(fit: BoxFit.scaleDown, child: right),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 48),
-                Expanded(
-                  child: FittedBox(fit: BoxFit.scaleDown, child: right),
-                ),
-              ],
-            ),
           ),
         ),
       ),

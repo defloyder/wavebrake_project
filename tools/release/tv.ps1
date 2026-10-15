@@ -22,9 +22,9 @@ try {
     if ($BuildNumber -lt 1) { throw 'BuildNumber must be positive' }
     if (!(Test-Path -LiteralPath $Flutter)) { throw "Flutter not found: $Flutter" }
     foreach ($required in @('android\key.properties', 'android\app\wavebreak-release.jks',
-                            'android\app\libs\tv\hysteria_bridge.aar')) {
+                            'android\app\libs\hysteria_bridge.aar')) {
         if (!(Test-Path -LiteralPath (Join-Path $mobileRoot $required))) {
-            throw "Missing $required; see docs/BUILD-MACHINE-SETUP.md (TV bridge: native/hysteria_bridge/build_aar.sh xray)"
+            throw "Missing $required; see docs/BUILD-MACHINE-SETUP.md (bridge: native/hysteria_bridge/build_aar.sh)"
         }
     }
     $sdkLine = Get-Content (Join-Path $mobileRoot 'android\local.properties') |
@@ -37,7 +37,7 @@ try {
     $apksigner = Join-Path $buildTools.FullName 'apksigner.bat'
     $aapt = Join-Path $buildTools.FullName 'aapt.exe'
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $bridgeZip = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $mobileRoot 'android\app\libs\tv\hysteria_bridge.aar'))
+    $bridgeZip = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $mobileRoot 'android\app\libs\hysteria_bridge.aar'))
     try {
         foreach ($abi in @('arm64-v8a', 'armeabi-v7a', 'x86_64')) {
             if (!($bridgeZip.Entries | Where-Object { $_.FullName -eq "jni/$abi/libhysteriabridge.so" })) {
@@ -105,7 +105,7 @@ try {
         $sourceStatus = & git -C $projectRoot status --porcelain --untracked-files=normal
         [ordered]@{ package = 'com.wavebreak.wavebreak.tv'; preview = $true; version = $versionName;
             buildNumber = $BuildNumber; baseCommit = $localHead; sourceStatus = @($sourceStatus);
-            engine = 'xray-only (libs/tv/hysteria_bridge.aar, build_aar.sh xray)';
+            engine = 'full bridge: Xray + Hysteria2 + cloak (libs/hysteria_bridge.aar)';
             files = @(
                 [ordered]@{ file = (Split-Path $artifact -Leaf); abis = @('armeabi-v7a', 'arm64-v8a', 'x86_64');
                     sha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash },

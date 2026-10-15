@@ -21,6 +21,7 @@ import '../features/immersive/immersive_clock.dart';
 import '../features/shared/data_providers.dart';
 import '../features/shared/notice.dart';
 import '../features/tv/tv_focus_frame.dart';
+import '../features/tv/tv_scale.dart';
 import '../services/notification/status_notification_service.dart';
 import '../services/vpn/connection_manager.dart';
 import 'router.dart';
@@ -185,7 +186,8 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
           child: AppLockGate(
             child: NoticeHost(
               child: AppEnv.isTv
-                  ? TvFocusFrame(child: _OfflineBanner(child: child))
+                  ? TvFocusFrame(
+                      child: TvScale(child: _OfflineBanner(child: child)))
                   : _OfflineBanner(child: child),
             ),
           ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../services/core_api/models.dart';
 import '../../services/custom_servers/custom_subscription.dart';
+import '../../services/custom_servers/node_label.dart' show isServiceNodeName;
 import '../../services/custom_servers/share_link_parsing.dart' show shortNote;
 import 'traffic_format.dart';
 
@@ -132,19 +133,11 @@ SubscriptionSectionData _sectionFor(
 bool _nameHas(LocationItem s, String tag) =>
     '${s.country} ${s.city}'.toUpperCase().contains(tag.toUpperCase());
 
-/// Nodes a provider runs for one service ("YouTube без рекламы",
-/// "Netflix", "ChatGPT") rather than as a VPN location: often the lowest
-/// ping, so auto select picked them over the real locations (owner,
-/// 15.10). They stay in the list, but never in an auto select pool.
-final _serviceNode = RegExp(
-  r'youtube|ютуб|реклам|\bno[ -]?ads?\b|ad[ -]?free|adblock|'
-  r'netflix|spotify|chatgpt|openai|tiktok|torrent|торрент',
-  caseSensitive: false,
-  unicode: true,
-);
-
+/// Nodes a provider runs for one service (see [isServiceNodeName]): often
+/// the lowest ping, so auto select picked them over the real locations
+/// (owner, 15.10). They stay in the list, but never in an auto select pool.
 bool isServiceNode(LocationItem s) =>
-    _serviceNode.hasMatch('${s.country} ${s.city}');
+    isServiceNodeName('${s.country} ${s.city}');
 
 bool _autoEligible(LocationItem s, String? exclude) =>
     s.available &&

@@ -79,6 +79,12 @@ class _TvFocusFrameState extends State<TvFocusFrame> {
     if (ctx.findAncestorWidgetOfExactType<FocusFrameExempt>() != null) {
       return null;
     }
+    // A text field draws its own focus border: framing the text inside it
+    // doubled the outline and washed the field pink (owner, 15.10).
+    if (ctx.widget is EditableText ||
+        ctx.findAncestorWidgetOfExactType<EditableText>() != null) {
+      return null;
+    }
     final box = _key.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return null;
     final global = node.rect;

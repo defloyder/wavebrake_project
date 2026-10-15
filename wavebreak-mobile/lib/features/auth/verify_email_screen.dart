@@ -1,3 +1,4 @@
+import '../../core/env/app_env.dart';
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
 
@@ -147,125 +148,138 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
         waveSpeed: waves.speed,
         waveAmplitude: waves.amplitude,
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    onPressed: () => safePop(context,
-                        fallback: widget.loginCode ? '/email-code' : '/login'),
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          // TV: at the top, clear of the remote's keyboard (owner, 15.10).
+          child: Align(
+            alignment: AppEnv.isTv ? Alignment.topCenter : Alignment.center,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed: () => safePop(context,
+                          fallback:
+                              widget.loginCode ? '/email-code' : '/login'),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                    ),
                   ),
-                ),
-                const WavebreakMark(size: 64),
-                const SizedBox(height: 16),
-                Text(
-                  widget.loginCode ? s.emailCodeTitle : s.verifyEmailTitle,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontFamily: 'serif', fontSize: 26),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  notSent
-                      ? s.errEmailSendFailed
-                      : (widget.loginCode ? s.emailCodeBody : s.verifyEmailBody)
-                          .replaceAll('{email}', widget.email),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: notSent ? WbColors.warning : WbColors.muted,
-                    height: 1.4,
+                  // TV: no mark, so the field sits high — the remote's
+                  // keyboard covers the lower half (owner, 15.10).
+                  if (!AppEnv.isTv) ...[
+                    const WavebreakMark(size: 64),
+                    const SizedBox(height: 16),
+                  ],
+                  Text(
+                    widget.loginCode ? s.emailCodeTitle : s.verifyEmailTitle,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontFamily: 'serif', fontSize: 26),
                   ),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _code,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  textAlignVertical: TextAlignVertical.center,
-                  maxLength: 6,
-                  autofillHints: const [AutofillHints.oneTimeCode],
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: TextStyle(
-                    fontSize: 28,
-                    letterSpacing: 10,
-                    fontWeight: FontWeight.w600,
-                    color: context.accent,
+                  const SizedBox(height: 10),
+                  Text(
+                    notSent
+                        ? s.errEmailSendFailed
+                        : (widget.loginCode
+                                ? s.emailCodeBody
+                                : s.verifyEmailBody)
+                            .replaceAll('{email}', widget.email),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: notSent ? WbColors.warning : WbColors.muted,
+                      height: 1.4,
+                    ),
                   ),
-                  decoration: InputDecoration(
-                    hintText: s.verifyEmailCodeHint,
-                    // Grey and plain, not the code's bold accent digits (owner, 14.10).
-                    hintStyle: const TextStyle(
-                        fontSize: 16,
-                        letterSpacing: 0.2,
-                        fontWeight: FontWeight.w400,
-                        color: WbColors.muted),
-                    counterText: '',
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: _code,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    textAlignVertical: TextAlignVertical.center,
+                    maxLength: 6,
+                    autofillHints: const [AutofillHints.oneTimeCode],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    style: TextStyle(
+                      fontSize: 28,
+                      letterSpacing: 10,
+                      fontWeight: FontWeight.w600,
+                      color: context.accent,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: s.verifyEmailCodeHint,
+                      // Grey and plain, not the code's bold accent digits (owner, 14.10).
+                      hintStyle: const TextStyle(
+                          fontSize: 16,
+                          letterSpacing: 0.2,
+                          fontWeight: FontWeight.w400,
+                          color: WbColors.muted),
+                      counterText: '',
+                    ),
+                    onChanged: (v) {
+                      if (v.length == 6) _submit();
+                    },
+                    onSubmitted: (_) => _submit(),
                   ),
-                  onChanged: (v) {
-                    if (v.length == 6) _submit();
-                  },
-                  onSubmitted: (_) => _submit(),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: WbColors.error)),
-                ],
-                if (_info != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_info!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: context.accent)),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: context.accent,
-                      foregroundColor: WbColors.midnight,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: WbColors.error)),
+                  ],
+                  if (_info != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_info!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: context.accent)),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton(
+                      onPressed: _busy ? null : _submit,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: context.accent,
+                        foregroundColor: WbColors.midnight,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: _busy
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2.4),
+                            )
+                          : Text(widget.loginCode
+                              ? s.emailCodeSignIn
+                              : s.verifyEmailConfirm),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: (_busy || _resendIn > 0) ? null : _resend,
+                    child: Text(
+                      _resendIn > 0
+                          ? s.verifyEmailResendIn
+                              .replaceAll('{s}', '$_resendIn')
+                          : s.verifyEmailResend,
+                      style: TextStyle(
+                        color: _resendIn > 0 ? WbColors.muted : context.accent,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    child: _busy
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.4),
-                          )
-                        : Text(widget.loginCode
-                            ? s.emailCodeSignIn
-                            : s.verifyEmailConfirm),
                   ),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: (_busy || _resendIn > 0) ? null : _resend,
-                  child: Text(
-                    _resendIn > 0
-                        ? s.verifyEmailResendIn.replaceAll('{s}', '$_resendIn')
-                        : s.verifyEmailResend,
-                    style: TextStyle(
-                      color: _resendIn > 0 ? WbColors.muted : context.accent,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    s.verifyEmailCheckSpam,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: WbColors.muted, fontSize: 12),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  s.verifyEmailCheckSpam,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: WbColors.muted, fontSize: 12),
-                ),
-                const SizedBox(height: 24),
-              ],
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/i18n/language_controller.dart';
 import '../../core/theme/wb_colors.dart';
@@ -89,74 +90,83 @@ class _EmailCodeScreenState extends ConsumerState<EmailCodeScreen> {
         waveSpeed: waves.speed,
         waveAmplitude: waves.amplitude,
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    onPressed: () => safePop(context, fallback: '/login'),
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                  ),
-                ),
-                const WavebreakMark(size: 64),
-                const SizedBox(height: 16),
-                Text(
-                  s.emailCodeTitle,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontFamily: 'serif', fontSize: 26),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  s.emailCodeHint,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: WbColors.muted, height: 1.4),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _email,
-                  autofocus: true,
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
-                  decoration: InputDecoration(hintText: s.email),
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: (_) => _send(),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: WbColors.error)),
-                ],
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    // Enabled once the text looks like an address.
-                    onPressed:
-                        _busy || !_emailShape.hasMatch(_email.text.trim())
-                            ? null
-                            : _send,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: context.accent,
-                      foregroundColor: WbColors.midnight,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+          // TV: at the top, clear of the remote's keyboard (owner, 15.10).
+          child: Align(
+            alignment: AppEnv.isTv ? Alignment.topCenter : Alignment.center,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed: () => safePop(context, fallback: '/login'),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
                     ),
-                    child: _busy
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.4),
-                          )
-                        : Text(s.emailCodeSend),
                   ),
-                ),
-                const SizedBox(height: 24),
-              ],
+                  // TV: no mark, so the field sits high — the remote's
+                  // keyboard covers the lower half (owner, 15.10).
+                  if (!AppEnv.isTv) ...[
+                    const WavebreakMark(size: 64),
+                    const SizedBox(height: 16),
+                  ],
+                  Text(
+                    s.emailCodeTitle,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontFamily: 'serif', fontSize: 26),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    s.emailCodeHint,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: WbColors.muted, height: 1.4),
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: _email,
+                    autofocus: true,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: InputDecoration(hintText: s.email),
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _send(),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: WbColors.error)),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton(
+                      // Enabled once the text looks like an address.
+                      onPressed:
+                          _busy || !_emailShape.hasMatch(_email.text.trim())
+                              ? null
+                              : _send,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: context.accent,
+                        foregroundColor: WbColors.midnight,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: _busy
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2.4),
+                            )
+                          : Text(s.emailCodeSend),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
         ),

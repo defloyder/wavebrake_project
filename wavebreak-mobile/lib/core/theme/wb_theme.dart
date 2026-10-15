@@ -91,7 +91,8 @@ class WbTheme {
           disabledBackgroundColor: WbColors.ice08,
           minimumSize: const Size(44, 48),
           // The app font (a bare TextStyle here fell back to the system one).
-          textStyle: text.labelLarge?.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle: text.labelLarge
+              ?.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
         ),
@@ -147,7 +148,7 @@ class WbTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: accent, width: 1.2),
+          borderSide: BorderSide(color: accent, width: AppEnv.isTv ? 2.5 : 1.2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
