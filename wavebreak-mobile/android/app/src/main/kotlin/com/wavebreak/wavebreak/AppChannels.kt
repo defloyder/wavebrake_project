@@ -276,6 +276,32 @@ object AppChannels {
             }
         }
 
+        // Split tunneling (SplitTunnel.kt): the apps to choose from, the
+        // user's choice, and the apps that are always direct.
+        MethodChannel(messenger, "app.wavebreak/split").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "installedApps" -> {
+                    val main = Handler(Looper.getMainLooper())
+                    Thread {
+                        val apps = runCatching { SplitTunnel.installedApps(app) }
+                        main.post {
+                            apps.fold(
+                                { result.success(it) },
+                                { result.error("apps", it.message, null) },
+                            )
+                        }
+                    }.start()
+                }
+                "bypass" -> result.success(SplitTunnel.userBypass(app).toList())
+                "setBypass" -> {
+                    SplitTunnel.setUserBypass(app, call.argument<List<String>>("packages") ?: emptyList())
+                    result.success(null)
+                }
+                "alwaysDirect" -> result.success(WaveEngineVpnService.RU_VPN_DETECTING_APPS.toList())
+                else -> result.notImplemented()
+            }
+        }
+
         // The tunnel outlives the UI process; a cold start asks the system
         // whether it's still up (adapter-agnostic).
         MethodChannel(messenger, "app.wavebreak/vpn_state").setMethodCallHandler { call, result ->

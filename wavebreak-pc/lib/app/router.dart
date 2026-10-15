@@ -17,6 +17,7 @@ import '../features/locations/locations_screen.dart';
 import '../features/settings/about_screen.dart';
 import '../features/settings/account_screen.dart';
 import '../features/settings/connection_settings_screen.dart';
+import '../features/settings/split_tunnel_screen.dart';
 import '../features/settings/devices_screen.dart';
 import '../features/settings/notifications_screen.dart';
 import '../features/settings/help_screen.dart';
@@ -214,6 +215,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'connection',
                     pageBuilder: (_, state) => fadeThroughPage(
                         state, const ConnectionSettingsScreen()),
+                    routes: [
+                      GoRoute(
+                        path: 'split',
+                        pageBuilder: (_, state) =>
+                            fadeThroughPage(state, const SplitTunnelScreen()),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'devices',

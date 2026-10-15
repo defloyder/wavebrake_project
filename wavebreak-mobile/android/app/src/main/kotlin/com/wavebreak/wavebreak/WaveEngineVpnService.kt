@@ -1589,20 +1589,23 @@ class WaveEngineVpnService : VpnService() {
         // that confirms direct carrier interference (matching
         // api_client.dart's own retry logic elsewhere) rather than this
         // exclusion being the cause — re-evaluate then, not before.
-        try {
-            builder.addDisallowedApplication(packageName)
-        } catch (t: PackageManager.NameNotFoundException) {
-            // Can't happen for this app's own package, but matches the
-            // same defensive shape as the loop below rather than assuming.
-        }
-        for (packageName in RU_VPN_DETECTING_APPS) {
+        // This app, then the built-in RU_VPN_DETECTING_APPS (always direct),
+        // then the apps the user chose in Split tunneling (SplitTunnel.kt;
+        // owner, 15.10).
+        val userBypass = SplitTunnel.userBypass(this)
+        var excluded = 0
+        for (pkg in excludedPackages(packageName, RU_VPN_DETECTING_APPS, userBypass)) {
             try {
-                builder.addDisallowedApplication(packageName)
+                builder.addDisallowedApplication(pkg)
+                excluded++
             } catch (t: PackageManager.NameNotFoundException) {
-                // Not installed on this device — nothing to exclude, and
-                // addDisallowedApplication would otherwise abort the whole
-                // establish() call over one absent app.
+                // Not installed on this device (or since removed) — nothing
+                // to exclude, and addDisallowedApplication would otherwise
+                // abort the whole establish() call over one absent app.
             }
+        }
+        if (userBypass.isNotEmpty()) {
+            elog("split tunnel: ${userBypass.size} chosen, $excluded apps outside the tunnel")
         }
         val iface = builder.establish() ?: throw IllegalStateException("VpnService.Builder.establish() returned null")
         tunInterface = iface
@@ -2157,13 +2160,13 @@ class WaveEngineVpnService : VpnService() {
         // their own traffic around the tunnel entirely (rather than trying
         // to out-fingerprint their detection, which is the fragile,
         // whack-a-mole path) makes WAVEBREAK invisible to them by
-        // construction. A curated set rather than scattered literals so
-        // it's a one-line add per future app — no per-app-toggle UI yet,
-        // that's future work. Package names verified against their
+        // construction. Always excluded, whatever the user picks in Split
+        // tunneling (SplitTunnel.kt, 15.10), which adds their own apps on
+        // top. Package names verified against their
         // current Google Play Store listings (not guessed):
         // - Wildberries: com.wildberries.ru
         // - Ozon: ru.ozon.app.android
-        private val RU_VPN_DETECTING_APPS = setOf(
+        val RU_VPN_DETECTING_APPS = setOf(
             "com.wildberries.ru",
             "ru.ozon.app.android",
         )

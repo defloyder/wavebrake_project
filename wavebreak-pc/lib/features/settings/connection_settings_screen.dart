@@ -10,6 +10,8 @@ import '../../core/theme/wb_colors.dart';
 import '../../services/system/battery_optimization.dart';
 import '../../services/system/quick_tile.dart';
 import '../../services/system/vpn_lockdown.dart';
+import '../../services/split_tunnel/split_tunnel.dart';
+import 'package:go_router/go_router.dart';
 import '../shared/anchored_page.dart';
 import 'settings_ui.dart';
 
@@ -31,10 +33,14 @@ class _ConnectionSettingsScreenState
       PrefsStore.getBool(PrefsStore.smartRouting, fallback: true);
   bool _xiaomi = false;
   late bool _xrayEngine = PrefsStore.getBool(PrefsStore.pcXrayEngine);
+  int _splitCount = 0;
 
   @override
   void initState() {
     super.initState();
+    ref.read(splitTunnelStoreProvider).load().then((ids) {
+      if (mounted) setState(() => _splitCount = ids.length);
+    }).catchError((Object _) {});
     const BatteryOptimizationService().isXiaomi().then((v) {
       if (mounted && v) setState(() => _xiaomi = true);
     });
@@ -138,6 +144,21 @@ class _ConnectionSettingsScreenState
                 onChanged: (value) async {
                   await PrefsStore.setBool(PrefsStore.pcXrayEngine, value);
                   setState(() => _xrayEngine = value);
+                },
+              ),
+            // Split tunneling (owner, 15.10): apps that go directly.
+            if (Platform.isAndroid || Platform.isWindows)
+              SettingsRow(
+                icon: Icons.call_split_rounded,
+                title: s.splitTitle,
+                subtitle: s.splitRowHint,
+                value: _splitCount > 0
+                    ? s.splitChosen.replaceAll('{n}', '$_splitCount')
+                    : null,
+                onTap: () async {
+                  await context.push('/settings/connection/split');
+                  final ids = await ref.read(splitTunnelStoreProvider).load();
+                  if (mounted) setState(() => _splitCount = ids.length);
                 },
               ),
             // WAVEBREAK locations only; applies on the next connect.

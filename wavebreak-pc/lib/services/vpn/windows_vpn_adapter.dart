@@ -13,6 +13,7 @@ import 'stuck_flows.dart';
 import 'network_change_policy.dart';
 import 'vpn_adapter.dart';
 import 'windows_tunnel.dart';
+import '../split_tunnel/split_tunnel.dart';
 
 /// Loopback-only port for sing-box's Clash-API-compatible control server
 /// (`experimental.clash_api` below) — enables a live `PUT /configs` reload
@@ -1089,6 +1090,7 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
     _launchCount++;
     await file.writeAsString(jsonEncode(singBoxConfigFor(link,
         directIps: [if (bypass != null) bypass],
+        directProcesses: SplitTunnelStore.savedProcesses(),
         interfaceName: 'wavebreak-$_launchCount')));
     return file.path;
   }
@@ -1124,6 +1126,10 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
 /// [directIps]: addresses routed past the tunnel — the real server of a
 /// cloak link, which cloak-client-proxy (a separate process the TUN would
 /// otherwise capture) talks to directly.
+///
+/// [directProcesses]: programs ("chrome.exe") the user sends past the
+/// tunnel in Split tunneling (owner, 15.10) — sing-box matches the process
+/// that owns each connection on Windows.
 final _rivalVpnNamePattern = RegExp(
   r'\b(vpn|tap-windows|tap0|wintun|openvpn|wireguard|nordlynx|'
   r'pptp|l2tp|ipsec|tunnelbear|protonvpn|expressvpn|surfshark|'
@@ -1141,7 +1147,9 @@ Set<String> rivalVpnAdapters(Iterable<String> names) => {
     };
 
 Map<String, dynamic> singBoxConfigFor(ShareLink link,
-    {List<String> directIps = const [], String interfaceName = 'wavebreak'}) {
+    {List<String> directIps = const [],
+    List<String> directProcesses = const [],
+    String interfaceName = 'wavebreak'}) {
   final proxy = SingBoxProxy.fromLink(link);
   return {
     'log': {'level': 'info', 'timestamp': true},
@@ -1186,12 +1194,15 @@ Map<String, dynamic> singBoxConfigFor(ShareLink link,
     // `final: proxy` below, which also avoids leaking them outside it.
     'route': {
       'auto_detect_interface': true,
-      if (directIps.isNotEmpty)
+      if (directIps.isNotEmpty || directProcesses.isNotEmpty)
         'rules': [
-          {
-            'ip_cidr': [for (final ip in directIps) '$ip/32'],
-            'outbound': 'direct',
-          },
+          if (directIps.isNotEmpty)
+            {
+              'ip_cidr': [for (final ip in directIps) '$ip/32'],
+              'outbound': 'direct',
+            },
+          if (directProcesses.isNotEmpty)
+            {'process_name': directProcesses, 'outbound': 'direct'},
         ],
       'final': 'proxy',
     },

@@ -32,6 +32,8 @@ class PrefsStore {
   static const smartRouting = 'smart_routing';
   /// Windows: run supported links on Xray-core instead of sing-box (beta).
   static const pcXrayEngine = 'pc_xray_engine';
+  /// Windows: programs sent past the tunnel (split tunneling, 15.10).
+  static const splitBypassProcesses = 'split_bypass_processes';
   static const notifyConnection = 'notify_connection';
   static const notifySubscription = 'notify_subscription';
   static const biometricPromptShown = 'biometric_prompt_shown';
@@ -89,6 +91,12 @@ class PrefsStore {
 
   static Future<void> setBool(String key, bool value) =>
       _prefs.setBool(key, value);
+
+  static List<String> getStringList(String key) =>
+      _prefs.getStringList(key) ?? const [];
+
+  static Future<void> setStringList(String key, List<String> value) =>
+      _prefs.setStringList(key, value);
 
   static String? getString(String key) => _prefs.getString(key);
 
