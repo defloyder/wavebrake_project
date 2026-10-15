@@ -87,6 +87,67 @@ def fetch_remote_metrics(host, port, timeout=3):
         return None
 
 
+# ---------- resource watchdog: memory/disk across every server (owner, 15.10) ----------
+# A server quietly running low on memory or disk is exactly the kind of thing
+# that used to need someone to notice the servers screen looked off (see
+# RU-MSK-01's wavebreak-node memory leak, found live this way) — this turns
+# the same numbers already shown there into a push instead of something
+# someone has to go looking for.
+RESOURCE_CHECK_INTERVAL_SEC = 300
+MEM_AVAIL_WARN_RATIO = 0.10
+DISK_FREE_WARN_RATIO = 0.10
+
+
+def resource_ratios(snapshot):
+    """(mem_available_ratio, disk_free_ratio), each 1.0 (fine) when the
+    snapshot is missing/malformed rather than a false 0.0 (critical) --
+    an unreachable server already has its own "недоступен" row on the
+    servers screen; this loop shouldn't also cry wolf over it."""
+    mem_total = snapshot.get("mem_total") or 0
+    disk_total = snapshot.get("disk_total") or 0
+    mem_ratio = (snapshot.get("mem_avail", 0) / mem_total) if mem_total else 1.0
+    disk_ratio = (1 - snapshot.get("disk_used", 0) / disk_total) if disk_total else 1.0
+    return mem_ratio, disk_ratio
+
+
+def check_resources(label, snapshot, alert, last_low):
+    """One server's turn: compares its ratios against the warn thresholds
+    and fires a transition-edge alert (not a repeat one every cycle it
+    stays low — that's what the "ok" recovery alert and last_low's state
+    are for). Module-level and given last_low explicitly (not a closure
+    over it) so a test can drive it directly without the infinite loop.
+    A missing/unreachable snapshot is silently skipped: the servers screen
+    already has a "недоступен" row for that, a second alert here would
+    just be the same fact twice."""
+    if not snapshot:
+        return
+    mem_ratio, disk_ratio = resource_ratios(snapshot)
+    for kind, ratio, warn_ratio, unit in (
+        ("mem", mem_ratio, MEM_AVAIL_WARN_RATIO, "свободной памяти"),
+        ("disk", disk_ratio, DISK_FREE_WARN_RATIO, "места на диске"),
+    ):
+        key = f"{kind}_low_{label}"
+        low = ratio < warn_ratio
+        if low and not last_low.get(key):
+            alert("warn", f"{label}: мало {unit} ({ratio * 100:.0f}% свободно)",
+                  key=key, cooldown=3600)
+        elif not low and last_low.get(key):
+            alert("ok", f"{label}: {unit} снова в норме", key=f"{key}_ok", cooldown=60)
+        last_low[key] = low
+
+
+def resource_watch_loop(alert, remote_servers=REMOTE_SERVERS, local_label="TR-PILOT-01 (Istanbul)"):
+    last_low = {}
+    while True:
+        try:
+            check_resources(local_label, mon.load_snapshot(), alert, last_low)
+            for srv in remote_servers:
+                check_resources(srv["label"], fetch_remote_metrics(srv["host"], srv["port"]), alert, last_low)
+        except Exception as e:
+            mon.log_event(f"ERROR resource_watch_loop: {e}")
+        time.sleep(RESOURCE_CHECK_INTERVAL_SEC)
+
+
 # ---------- server payments (read-only view of the admin panel's table) ----------
 PAYMENTS_DB = os.environ.get("WAVEBREAK_ADMIN_DB", "/home/wavebreakdeploy/wavebreak-pilot/shared/admin-data/database.sqlite")
 

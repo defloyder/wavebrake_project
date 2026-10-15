@@ -165,8 +165,34 @@ class Guard:
         self._last_prune = now
 
 
-def run_loop():
-    guard = Guard()
+def ban_and_alert(ip, alert=None):
+    """Module-level (not a run_loop closure) so it's unit-testable with a
+    fake alert collector. alert: bot.Bot.alert-shaped callback (owner,
+    15.10) — wires real bans into Telegram instead of only the local
+    events.log a human has to go looking for. Short bans (routine, can be
+    frequent under a real probing run) alert at "warn"."""
+    ban(ip)
+    if alert:
+        alert("warn", f"DPI-probe похож на атаку: IP {ip} забанен на {BAN_TIMEOUT_SEC // 60} мин",
+              key=f"dpi_ban_{ip}", cooldown=BAN_TIMEOUT_SEC)
+
+
+def escalate_and_alert(ip, alert=None):
+    """See ban_and_alert — an escalation (a sustained, repeat offender,
+    7-day ban) is the signal actually worth waking up for."""
+    escalate(ip)
+    if alert:
+        alert("crit",
+              f"IP {ip} — повторный DPI-пробер (3+ коротких бана за сутки), "
+              f"забанен на {REPEAT_BAN_TIMEOUT_SEC // 86400} дней",
+              key=f"dpi_escalate_{ip}", cooldown=REPEAT_BAN_TIMEOUT_SEC)
+
+
+def run_loop(alert=None):
+    guard = Guard(
+        ban_fn=lambda ip: ban_and_alert(ip, alert),
+        escalate_fn=lambda ip: escalate_and_alert(ip, alert),
+    )
     while True:
         try:
             proc = subprocess.Popen(
