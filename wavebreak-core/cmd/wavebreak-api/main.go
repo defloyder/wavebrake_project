@@ -36,6 +36,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+	piiDB, err := database.Open(ctx, cfg.PIIDatabaseURL)
+	if err != nil {
+		log.Error("open PII database", "error", err)
+		os.Exit(1)
+	}
+	defer piiDB.Close()
 
 	redis := redisstore.New(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 	publisher, err := messaging.Connect(cfg.RabbitMQURL)
@@ -46,7 +52,7 @@ func main() {
 	a := &app.App{
 		Config:    cfg,
 		Log:       log,
-		Store:     store.New(db),
+		Store:     store.New(db, piiDB),
 		Redis:     redis,
 		Publisher: publisher,
 	}

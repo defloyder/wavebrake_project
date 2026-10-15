@@ -39,7 +39,7 @@ func TestPlanDeviceLimitRaisesLiveSubscriptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	st := store.New(pool)
+	st := store.New(pool, openPIIPoolForTest(t))
 
 	suffix := strings.ReplaceAll(time.Now().Format("150405.000000"), ".", "")
 	var plan store.Plan

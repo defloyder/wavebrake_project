@@ -43,6 +43,9 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       WAVEBREAK_TEST_DATABASE_URL: postgres://wb:wb@localhost:5432/wb_test?sslmode=disable
+      # The personal-data database (store/pii.go) is a separate one.
+      WAVEBREAK_TEST_PII_DATABASE_URL: postgres://wb:wb@localhost:5432/wb_pii?sslmode=disable
+      PGPASSWORD: wb
     defaults:
       run:
         working-directory: wavebreak-core
@@ -51,6 +54,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25.x"
+      - run: psql -h localhost -U wb -d wb_test -c "create database wb_pii"
       - run: go test -p 1 ./...
 
   node:

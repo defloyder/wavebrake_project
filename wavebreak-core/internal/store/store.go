@@ -21,7 +21,8 @@ var ErrLimitReached = errors.New("limit reached")
 var ErrConflict = errors.New("conflict")
 
 type Store struct {
-	db *pgxpool.Pool
+	db  *pgxpool.Pool
+	pii *pgxpool.Pool
 }
 
 type User struct {
@@ -117,8 +118,8 @@ type DesiredState struct {
 	State    json.RawMessage `json:"state"`
 }
 
-func New(db *pgxpool.Pool) *Store {
-	return &Store{db: db}
+func New(db, pii *pgxpool.Pool) *Store {
+	return &Store{db: db, pii: pii}
 }
 
 func (s *Store) Ping(ctx context.Context) error {
@@ -129,41 +130,61 @@ func (s *Store) CreateUser(ctx context.Context, email, passwordHash string) (Use
 	return s.CreateUserWithRole(ctx, email, passwordHash, "user")
 }
 
+// CreateUserWithRole writes the account row to the main DB and the
+// email/password (PII) to the RU-hosted PII DB. The two live on separate
+// servers so this can't be one transaction; if the PII write fails, the
+// main row is deleted rather than left as an account with no credentials.
 func (s *Store) CreateUserWithRole(ctx context.Context, email, passwordHash, role string) (User, error) {
 	var u User
 	email = NormalizeEmail(email)
 	err := s.db.QueryRow(ctx, `
-		insert into users (email, password_hash, password_algo, role)
-		values ($1, $2, 'argon2id', $3)
-		returning id::text, coalesce(email, ''), coalesce(username, ''), coalesce(password_hash, ''), password_algo, status, role, last_login_at, disabled_at, created_at`,
-		email, passwordHash, role,
-	).Scan(&u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.PasswordAlgo, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
-	return u, normalizeDatabaseError(err)
+		insert into users (role)
+		values ($1)
+		returning id::text, status, role, last_login_at, disabled_at, created_at`,
+		role,
+	).Scan(&u.ID, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	if err != nil {
+		return User{}, normalizeDatabaseError(err)
+	}
+	if err := s.upsertPII(ctx, u.ID, piiWrite{Email: email, PasswordHash: passwordHash}); err != nil {
+		_, _ = s.db.Exec(ctx, `delete from users where id = $1`, u.ID)
+		return User{}, err
+	}
+	u.Email, u.PasswordHash, u.PasswordAlgo = email, passwordHash, "argon2id"
+	return u, nil
 }
 
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (User, error) {
-	var u User
 	email = NormalizeEmail(email)
-	err := s.db.QueryRow(ctx, `
-		select id::text, coalesce(email, ''), coalesce(username, ''), coalesce(password_hash, ''), password_algo, status, role, last_login_at, disabled_at, created_at
-		from users where email = $1`, email,
-	).Scan(&u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.PasswordAlgo, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	var userID string
+	err := s.pii.QueryRow(ctx, `select user_id::text from pii_users where email = $1`, email).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return User{}, err
+	}
+	return s.GetUserByID(ctx, userID)
 }
 
 func (s *Store) GetUserByID(ctx context.Context, id string) (User, error) {
 	var u User
 	err := s.db.QueryRow(ctx, `
-		select id::text, coalesce(email, ''), coalesce(username, ''), coalesce(password_hash, ''), password_algo, status, role, last_login_at, disabled_at, created_at
+		select id::text, status, role, last_login_at, disabled_at, created_at
 		from users where id = $1`, id,
-	).Scan(&u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.PasswordAlgo, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	).Scan(&u.ID, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return User{}, err
+	}
+	p, err := s.loadPII(ctx, u.ID)
+	if err != nil {
+		return User{}, err
+	}
+	u.Email, u.Username, u.PasswordHash, u.PasswordAlgo = p.Email, p.Username, p.PasswordHash, p.PasswordAlgo
+	return u, nil
 }
 
 func (s *Store) CreateSession(ctx context.Context, userID, refreshToken string, expiresAt time.Time) error {
@@ -189,18 +210,23 @@ func (s *Store) RotateRefreshToken(ctx context.Context, refreshToken, newRefresh
 		select s.id::text, s.revoked_at,
 		       coalesce(s.revoked_reason = 'rotated' and s.revoked_at > now() - interval '2 minutes', false),
 		       s.replaced_by_session_id::text,
-		       u.id::text, coalesce(u.email, ''), coalesce(u.username, ''), coalesce(u.password_hash, ''), u.password_algo, u.status, u.role, u.last_login_at, u.disabled_at, u.created_at
+		       u.id::text, u.status, u.role, u.last_login_at, u.disabled_at, u.created_at
 		from sessions s
 		join users u on u.id = s.user_id
 		where s.refresh_token_hash = $1
 		  and s.expires_at > now()`,
 		security.TokenHash(refreshToken),
-	).Scan(&sessionID, &revokedAt, &retryOfRotation, &replacedBy, &u.ID, &u.Email, &u.Username, &u.PasswordHash, &u.PasswordAlgo, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
+	).Scan(&sessionID, &revokedAt, &retryOfRotation, &replacedBy, &u.ID, &u.Status, &u.Role, &u.LastLoginAt, &u.DisabledAt, &u.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
 	if err != nil {
 		return User{}, err
+	}
+	if p, err := s.loadPII(ctx, u.ID); err != nil {
+		return User{}, err
+	} else {
+		u.Email, u.Username, u.PasswordHash, u.PasswordAlgo = p.Email, p.Username, p.PasswordHash, p.PasswordAlgo
 	}
 	if revokedAt != nil {
 		// The same token again within two minutes of its rotation, and the
@@ -702,10 +728,28 @@ func (s *Store) WriteAuditEvent(ctx context.Context, actorUserID *string, action
 }
 
 func (s *Store) SetUserPassword(ctx context.Context, email, passwordHash string) error {
-	tag, err := s.db.Exec(ctx, `
-		update users
+	normalized := NormalizeEmail(email)
+	var userID string
+	if err := s.pii.QueryRow(ctx, `select user_id::text from pii_users where email = $1`, normalized).Scan(&userID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	var deleted bool
+	if err := s.db.QueryRow(ctx, `select deleted_at is not null from users where id = $1`, userID).Scan(&deleted); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if deleted {
+		return ErrNotFound
+	}
+	tag, err := s.pii.Exec(ctx, `
+		update pii_users
 		set password_hash = $2, password_algo = 'argon2id', updated_at = now()
-		where email = $1 and deleted_at is null`, NormalizeEmail(email), passwordHash)
+		where user_id = $1`, userID, passwordHash)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}

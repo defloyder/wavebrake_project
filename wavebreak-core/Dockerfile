@@ -17,6 +17,7 @@ COPY --from=build /out/wavebreak-worker /usr/local/bin/wavebreak-worker
 COPY --from=build /out/wavebreak-cli /usr/local/bin/wavebreak-cli
 COPY --from=build /out/wavebreak-migrate /usr/local/bin/wavebreak-migrate
 COPY migrations ./migrations
+COPY migrations_pii ./migrations_pii
 COPY api ./api
 USER wavebreak
 EXPOSE 8080

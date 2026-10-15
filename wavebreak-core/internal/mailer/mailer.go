@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"mime"
 	"mime/quotedprintable"
 	"net"
@@ -73,6 +74,27 @@ func (s *SMTP) Enabled() bool {
 }
 
 func (s *SMTP) Send(ctx context.Context, msg Message) error {
+	start := time.Now()
+	err := s.send(ctx, msg)
+	attrs := []any{"subject", msg.Subject, "recipient_domain", recipientDomain(msg.To), "duration_ms", time.Since(start).Milliseconds()}
+	if err != nil {
+		slog.ErrorContext(ctx, "email send failed", append(attrs, "error", err.Error())...)
+		return err
+	}
+	slog.InfoContext(ctx, "email sent", attrs...)
+	return nil
+}
+
+// recipientDomain keeps the log useful for delivery problems without
+// writing the mailbox name (personal data) into the logs.
+func recipientDomain(addr string) string {
+	if i := strings.LastIndex(addr, "@"); i >= 0 && i < len(addr)-1 {
+		return strings.ToLower(strings.TrimSuffix(addr[i+1:], ">"))
+	}
+	return ""
+}
+
+func (s *SMTP) send(ctx context.Context, msg Message) error {
 	if !s.Enabled() {
 		return ErrNotConfigured
 	}

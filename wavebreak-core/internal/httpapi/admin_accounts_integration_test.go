@@ -59,7 +59,7 @@ func TestAdminAccountManagementE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	st := store.New(pool)
+	st := store.New(pool, openPIIPoolForTest(t))
 	a := &app.App{Config: config.Config{
 		JWTSecret: "e2e-secret", AccessTokenTTL: time.Hour, RefreshTokenTTL: time.Hour,
 		Accounts: config.AccountsConfig{SubscriptionURLBase: "https://api.e2e.test/v1/sub/", PasswordResetURLBase: "https://site.e2e.test/reset", PasswordResetTTL: time.Hour, AccessProtocol: "vless", SelfServeSubscriptions: true},

@@ -736,8 +736,15 @@ func smartRoutingPolicy() map[string]any {
 // buildVLESSLink renders the primary VLESS+REALITY connection URI. This is
 // the highest-throughput transport (XTLS Vision splice) and should be tried
 // first by any client that lets the user pick or auto-select.
+func linkName(override, fallback string) string {
+	if override != "" {
+		return override
+	}
+	return fallback
+}
+
 func buildVLESSLink(vless config.VLESSConfig, grantID, location string) string {
-	label := fmt.Sprintf("%s (VLESS)", location)
+	label := linkName(vless.LinkName, fmt.Sprintf("%s (VLESS)", location))
 	endpoint := net.JoinHostPort(vless.PublicHost, strconv.Itoa(vless.PublicPort))
 	query := url.Values{}
 	query.Set("type", "tcp")
@@ -913,7 +920,7 @@ func buildVLESSDirectTLSLink(vless config.VLESSConfig, grantID, location string)
 	if vless.DirectTLSLabel != "" {
 		suffix = vless.DirectTLSLabel
 	}
-	label := fmt.Sprintf("%s (%s)", location, suffix)
+	label := linkName(vless.LinkName, fmt.Sprintf("%s (%s)", location, suffix))
 	address := vless.DirectTLSHost
 	if vless.DirectTLSAddress != "" {
 		address = vless.DirectTLSAddress
@@ -945,7 +952,7 @@ func buildVLESSDirectTLSLink(vless config.VLESSConfig, grantID, location string)
 // salamander (obfs/obfs-password) and, when configured, the UDP port range
 // the client hops across (mport; the node redirects it to the listener).
 func buildHysteriaObfsLink(vless config.VLESSConfig, grantID, location string) string {
-	label := fmt.Sprintf("%s (Hysteria2 Obfs)", location)
+	label := linkName(vless.HysteriaLinkName, fmt.Sprintf("%s (Hysteria2 Obfs)", location))
 	endpoint := net.JoinHostPort(vless.HysteriaHost, strconv.Itoa(vless.HysteriaObfsPort))
 	auth := fmt.Sprintf("%s:%s", grantID, grantID)
 	sni := vless.HysteriaSNI
@@ -964,7 +971,7 @@ func buildHysteriaObfsLink(vless config.VLESSConfig, grantID, location string) s
 }
 
 func buildHysteriaLink(vless config.VLESSConfig, grantID, location string) string {
-	label := fmt.Sprintf("%s (Hysteria2)", location)
+	label := linkName(vless.HysteriaLinkName, fmt.Sprintf("%s (Hysteria2)", location))
 	endpoint := net.JoinHostPort(vless.HysteriaHost, strconv.Itoa(vless.HysteriaPort))
 	auth := fmt.Sprintf("%s:%s", grantID, grantID)
 	query := url.Values{}

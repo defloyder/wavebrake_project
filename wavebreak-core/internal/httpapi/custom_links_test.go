@@ -86,7 +86,7 @@ func TestCustomLinksSyncE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	st := store.New(pool)
+	st := store.New(pool, openPIIPoolForTest(t))
 	srv := newServer(&app.App{Config: config.Config{
 		JWTSecret: "e2e-secret", AccessTokenTTL: time.Hour, RefreshTokenTTL: time.Hour,
 	}, Store: st})

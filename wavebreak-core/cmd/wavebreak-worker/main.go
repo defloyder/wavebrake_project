@@ -33,7 +33,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
-	st := store.New(db)
+	piiDB, err := database.Open(ctx, cfg.PIIDatabaseURL)
+	if err != nil {
+		log.Error("open PII database", "error", err)
+		os.Exit(1)
+	}
+	defer piiDB.Close()
+	st := store.New(db, piiDB)
 
 	// Subscription lifecycle (grace period, expiry reset) runs regardless
 	// of RabbitMQ: it only needs the database.
