@@ -26,6 +26,7 @@ import '../services/notification/status_notification_service.dart';
 import '../services/notification/tray_status.dart';
 import '../services/vpn/conflicting_vpn_closer.dart';
 import '../services/vpn/connection_manager.dart';
+import '../services/server_list_refresher.dart';
 import 'router.dart';
 
 /// On Android, the real VLESS tunnel ([V2RayVpnAdapter]) already brings its
@@ -231,6 +232,8 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
     TrayStatus.onMenuRequested(_showTrayMenu);
     // Auto effects: economy on a machine that can't keep up.
     ref.read(frameBudgetWatcherProvider).start();
+    // Server lists read again every 30 minutes (owner, 15.10).
+    ref.read(serverListRefresherProvider).start();
     _closedVpnsSub = ConflictingVpnCloser.closed.listen((apps) {
       if (apps.isEmpty) return;
       final s = ref.read(stringsProvider);

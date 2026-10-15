@@ -24,6 +24,7 @@ import '../features/tv/tv_focus_frame.dart';
 import '../features/tv/tv_scale.dart';
 import '../services/notification/status_notification_service.dart';
 import '../services/vpn/connection_manager.dart';
+import '../services/server_list_refresher.dart';
 import 'router.dart';
 
 /// On Android, the real VLESS tunnel ([V2RayVpnAdapter]) already brings its
@@ -62,6 +63,8 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
     ref.read(quickActionsProvider).start();
     // Auto effects: switch to economy on a phone that can't keep up.
     ref.read(frameBudgetWatcherProvider).start();
+    // Server lists read again every 30 minutes (owner, 15.10).
+    ref.read(serverListRefresherProvider).start();
   }
 
   void _updateNotification(ConnectionStatus status) {

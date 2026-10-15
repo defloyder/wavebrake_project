@@ -298,6 +298,22 @@ class CustomServerController extends Notifier<List<CustomSubscriptionGroup>> {
     }
   }
 
+  /// Re-reads every subscription URL and shared section, whatever its
+  /// update interval (the 30-minute refresh, ServerListRefresher).
+  Future<void> refreshAll() async {
+    var sharedDone = false;
+    for (final g in [...state]) {
+      if (g.sharedWithMe) {
+        // One Core call refreshes every shared section.
+        if (sharedDone) continue;
+        sharedDone = true;
+      } else if (!g.isSubscriptionUrl) {
+        continue;
+      }
+      await refreshGroup(g.id);
+    }
+  }
+
   /// Redeems someone's share code with this app's own Core. Core checks
   /// the owner's device limit and only then returns the owner's links;
   /// they land here as one more section. Scanning the same code again
