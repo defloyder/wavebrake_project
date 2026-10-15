@@ -12,7 +12,7 @@ on:
         description: What to deploy
         required: true
         type: choice
-        options: [node, web]
+        options: [node, web, core]
 
 concurrency:
   group: deploy-${{ inputs.component }}
@@ -29,6 +29,15 @@ jobs:
           go-version-file: wavebreak-node/go.mod
       - if: inputs.component == 'node'
         working-directory: wavebreak-node
+        run: |
+          go vet ./...
+          go test ./...
+      - if: inputs.component == 'core'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: wavebreak-core/go.mod
+      - if: inputs.component == 'core'
+        working-directory: wavebreak-core
         run: |
           go vet ./...
           go test ./...

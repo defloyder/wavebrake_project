@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # Runs ON the pilot server (as root), called by .github/workflows/deploy.yml:
 #
-#   remote.sh node|web <component.tgz> <git sha>
+#   remote.sh node|web|core <component.tgz> <git sha>
 #
 # The tarball is `git archive` of the component's directory at that sha.
 # Same steps as the manual deploys of October 2026, now one script:
 #   1. back up the component's files and tag the running image for rollback;
 #   2. unpack the new files over the server tree (the compose build context);
 #   3. build the image;
-#   4. web only: start it in a throwaway container and check the pages;
+#   4. web: start it in a throwaway container and check the pages;
+#      core: run the database migrations (goose, idempotent);
 #   5. recreate the service and check it came up;
 #   6. any failure after step 1: put the old files and image back.
 set -euo pipefail
 
-comp=${1:?node|web}
+comp=${1:?node|web|core}
 tgz=${2:?tarball}
 sha=${3:?git sha}
 ts=$(date +%Y%m%d-%H%M%S)
@@ -26,6 +27,7 @@ mkdir -p "$BK"
 case "$comp" in
   node) dir=wavebreak-node; svc=wavebreak-node; img=wavebreak_pilot-wavebreak-node ;;
   web)  dir=wavebreak-web;  svc=wavebreak-web;  img=wavebreak_pilot-wavebreak-web ;;
+  core) dir=wavebreak-core; svc=wavebreak-api;  img=wavebreak_pilot-wavebreak-api ;;
   *) echo "unknown component $comp" >&2; exit 2 ;;
 esac
 
@@ -75,6 +77,12 @@ if [ "$comp" = web ]; then
   docker stop wb-deploytest >/dev/null
 fi
 
+if [ "$comp" = core ]; then
+  say "4. Database migrations (goose, idempotent)"
+  "${COMPOSE[@]}" build wavebreak-migrate 2>&1 | tail -1
+  "${COMPOSE[@]}" run --rm wavebreak-migrate 2>&1 | tail -3
+fi
+
 say "5. Switch"
 "${COMPOSE[@]}" up -d --no-deps "$svc" 2>&1 | tail -2
 
@@ -94,6 +102,17 @@ if [ "$comp" = node ]; then
   docker logs --since "$started" wavebreak-pilot-xray 2>&1 | grep -q 'Xray .* started' \
     || docker logs --tail 50 wavebreak-pilot-xray 2>&1 | grep -q 'started'
   echo "  agent applied, Xray and Hysteria running"
+elif [ "$comp" = core ]; then
+  for i in $(seq 1 30); do
+    code=$(curl -s -o /dev/null -w "%{http_code}" https://core.wavebreak.com.tr/readyz) && [ "$code" = 200 ] && break
+    sleep 2
+  done
+  code=$(curl -s -o /dev/null -w "%{http_code}" https://core.wavebreak.com.tr/readyz)
+  echo "  $code https://core.wavebreak.com.tr/readyz"
+  [ "$code" = 200 ] || false
+  code=$(curl -s -o /dev/null -w "%{http_code}" -X POST https://core.wavebreak.com.tr/v1/auth/login -H "content-type: application/json" -d "{}")
+  echo "  $code POST /v1/auth/login (expects 4xx, not 5xx)"
+  case "$code" in 4*) ;; *) false ;; esac
 else
   for i in $(seq 1 40); do
     s=$(docker inspect -f '{{.State.Health.Status}}' wavebreak_pilot-wavebreak-web-1)
