@@ -138,7 +138,7 @@
     ]
   },
   "windows": {
-    "maxCode": 46,
+    "maxCode": 48,
     "releases": [
       {
         "name": "1.0.19",
