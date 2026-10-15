@@ -4,6 +4,7 @@ import os
 import tempfile
 import time
 import unittest
+import unittest.mock
 from datetime import datetime, timezone
 
 import bot as botmod
@@ -345,6 +346,89 @@ class BotTest(unittest.TestCase):
 
     def test_plain_fallback_text(self):
         self.assertEqual(html_to_text("<h3>Hi</h3><table><tr><td>a</td><td>b &amp; c</td></tr></table>"), "Hi\na | b & c |")
+
+
+class CleanupFlowTest(unittest.TestCase):
+    """Owner, 15.10: pick a server, then see that server's own cleanup
+    action -- not one combined button for every server at once."""
+
+    def setUp(self):
+        stub_monitor()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.access = AccessList(os.path.join(self.tmp.name, "admins.json"), OWNER)
+        self.bot = botmod.Bot(FakeTG(), FakeCore(), self.access, log=lambda m: None)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_server_picker_lists_every_target_with_no_scan(self):
+        with unittest.mock.patch("bot.cleanup.scan") as scan:
+            html, kb = self.bot.cleanup_screen()
+        scan.assert_not_called()  # picking a server must be instant, no eager scanning
+        labels = [b["text"] for b in all_buttons(kb)]
+        self.assertIn("🖥 TR-PILOT-01 (Istanbul)", labels)
+        self.assertTrue(any("RU-MSK-01" in t for t in labels))
+
+    def test_picking_local_server_scans_and_offers_cleanup_button(self):
+        items = [{"id": "docker", "label": "Docker", "bytes": 5 * 1024**3},
+                 {"id": "journal", "label": "Журналы", "bytes": 0}]
+        with unittest.mock.patch("bot.cleanup.scan", return_value=items):
+            html, kb = self.bot.cleanup_server_screen(0)
+        self.assertIn("TR-PILOT-01", html)
+        clean_btn = next(b for b in all_buttons(kb) if "Очистить всё" in b["text"])
+        self.assertIn("c:", clean_btn["callback_data"])
+
+    def test_picking_remote_server_uses_fetch_remote_scan(self):
+        items = [{"id": "release_mirror", "label": "Архив релизов", "bytes": 2 * 1024**3}]
+        with unittest.mock.patch("bot.fetch_remote_scan", return_value=items) as fetch:
+            html, kb = self.bot.cleanup_server_screen(1)  # RU-MSK-01, first remote entry
+        fetch.assert_called_once_with(botmod.REMOTE_SERVERS[0]["host"], botmod.REMOTE_SERVERS[0]["port"])
+        self.assertIn("RU-MSK-01", html)
+
+    def test_unreachable_remote_server_shows_red_no_crash(self):
+        with unittest.mock.patch("bot.fetch_remote_scan", return_value=None):
+            html, kb = self.bot.cleanup_server_screen(1)
+        self.assertIn("недоступен", html)
+
+    def test_nothing_to_clean_shows_no_button(self):
+        with unittest.mock.patch("bot.cleanup.scan", return_value=[{"id": "docker", "label": "Docker", "bytes": 0}]):
+            html, kb = self.bot.cleanup_server_screen(0)
+        self.assertEqual(all_buttons(kb)[0]["callback_data"], "cu")  # only the back button, no cleanup action
+
+    def test_confirm_then_execute_runs_local_cleanup_and_shows_freed_bytes(self):
+        items = [{"id": "docker", "label": "Docker", "bytes": 5 * 1024**3}]
+        with unittest.mock.patch("bot.cleanup.scan", return_value=items):
+            _, kb = self.bot.cleanup_server_screen(0)
+        tok = next(b for b in all_buttons(kb) if "Очистить всё" in b["text"])["callback_data"].split(":", 1)[1]
+        confirm_html, confirm_kb = self.bot.confirm_screen(tok)
+        self.assertIn("Очистить диск", confirm_html)
+        yes = next(b for b in all_buttons(confirm_kb) if b["callback_data"].startswith("y:"))
+        with unittest.mock.patch("bot.cleanup.run", return_value={"freed_bytes": 3 * 1024**3, "ran": ["docker"], "errors": []}) as run:
+            (html, kb), toast = self.bot.execute(yes["callback_data"].split(":", 1)[1], OWNER)
+        run.assert_called_once_with(["docker"])
+        self.assertIn("освобождено", html)
+        self.assertIn("3.0 ГБ", html)
+
+    def test_execute_remote_cleanup_posts_to_that_server(self):
+        items = [{"id": "release_mirror", "label": "Архив релизов", "bytes": 2 * 1024**3}]
+        with unittest.mock.patch("bot.fetch_remote_scan", return_value=items):
+            _, kb = self.bot.cleanup_server_screen(1)
+        tok = next(b for b in all_buttons(kb) if "Очистить всё" in b["text"])["callback_data"].split(":", 1)[1]
+        with unittest.mock.patch("bot.post_remote_cleanup",
+                                  return_value={"freed_bytes": 2 * 1024**3, "ran": ["release_mirror"], "errors": []}) as post:
+            (html, kb), toast = self.bot.execute(tok, OWNER)
+        post.assert_called_once_with(botmod.REMOTE_SERVERS[0]["host"], botmod.REMOTE_SERVERS[0]["port"], ["release_mirror"])
+        self.assertIn("освобождено", html)
+
+    def test_cleanup_errors_are_shown_not_swallowed(self):
+        items = [{"id": "docker", "label": "Docker", "bytes": 1024**3}]
+        with unittest.mock.patch("bot.cleanup.scan", return_value=items):
+            _, kb = self.bot.cleanup_server_screen(0)
+        tok = next(b for b in all_buttons(kb) if "Очистить всё" in b["text"])["callback_data"].split(":", 1)[1]
+        with unittest.mock.patch("bot.cleanup.run", side_effect=RuntimeError("docker daemon unreachable")):
+            (html, kb), toast = self.bot.execute(tok, OWNER)
+        self.assertIn("Не получилось", html)
+        self.assertEqual(toast, "Ошибка")
 
 
 if __name__ == "__main__":

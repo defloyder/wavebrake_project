@@ -20,6 +20,7 @@ HY_CONTAINER = "wavebreak-pilot-hysteria"
 # either: no health alerts, no log tailing, not on the status screens.
 # MONITOR_HYSTERIA=1 in telegram.env brings all of it back.
 HY_ENABLED = os.environ.get("MONITOR_HYSTERIA", "0") == "1"
+STATS_API = "127.0.0.1:19999"
 
 RECONNECT_THRESHOLD = 6
 RECONNECT_WINDOW_SEC = 600
@@ -148,6 +149,43 @@ def health_check_loop(alert):
         time.sleep(HEALTH_CHECK_INTERVAL_SEC)
 
 
+def query_stats():
+    out = run(["docker", "exec", XRAY_CONTAINER, "xray", "api", "statsquery", f"--server={STATS_API}", "-pattern", ""], timeout=10)
+    try:
+        data = json.loads(out)
+    except Exception:
+        return {}
+    result = collections.defaultdict(lambda: {"up": 0, "down": 0})
+    for stat in data.get("stat", []):
+        m = re.match(r"user>>>(.+)>>>traffic>>>(uplink|downlink)", stat["name"])
+        if m:
+            result[m.group(1)]["up" if m.group(2) == "uplink" else "down"] = stat["value"]
+    return result
+
+
+def traffic_sample_loop():
+    time.sleep(20)  # let the stats API warm up after service start
+    while True:
+        try:
+            samples = query_stats()
+            conn = db()
+            now = int(time.time())
+            for client, vals in samples.items():
+                row = conn.execute("SELECT up, down FROM last_cumulative WHERE client=?", (client,)).fetchone()
+                if row is None:
+                    up_d, down_d = 0, 0
+                else:
+                    up_d = vals["up"] - row[0] if vals["up"] >= row[0] else vals["up"]
+                    down_d = vals["down"] - row[1] if vals["down"] >= row[1] else vals["down"]
+                conn.execute("INSERT INTO traffic_deltas VALUES (?,?,?,?)", (now, client, up_d, down_d))
+                conn.execute("INSERT OR REPLACE INTO last_cumulative VALUES (?,?,?)", (client, vals["up"], vals["down"]))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            log_event(f"ERROR traffic_sample_loop: {e}")
+        time.sleep(TRAFFIC_SAMPLE_INTERVAL_SEC)
+
+
 # ---------- snapshots for the bot ----------
 
 def _inspect(name, fmt):
@@ -220,6 +258,24 @@ def xray_clients():
             if c.get("email"):
                 emails.add(c["email"])
     return sorted(emails)
+
+
+def traffic_snapshot():
+    conn = db()
+    now = int(time.time())
+    rows = []
+    for client in xray_clients():
+        row = {"client": client}
+        for wname, wsec in (("day", 86400), ("week", 7 * 86400), ("month", 30 * 86400)):
+            up, down = conn.execute(
+                "SELECT COALESCE(SUM(up_delta),0), COALESCE(SUM(down_delta),0) FROM traffic_deltas WHERE client=? AND ts>=?",
+                (client, now - wsec)).fetchone()
+            row[wname] = (up, down)
+        rows.append(row)
+    first_ts = conn.execute("SELECT MIN(ts) FROM traffic_deltas").fetchone()[0]
+    conn.close()
+    rows.sort(key=lambda r: -(r["day"][0] + r["day"][1]))
+    return {"rows": rows, "history_hours": (now - first_ts) / 3600 if first_ts else 0}
 
 
 def _read_events():

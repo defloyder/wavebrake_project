@@ -16,6 +16,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import bot as botmod  # noqa: E402
 import dpi_guard  # noqa: E402
 import monitor as mon  # noqa: E402
 import node_probe  # noqa: E402
@@ -76,7 +77,9 @@ def main():
     loops = [
         (mon.tail_container, (mon.XRAY_CONTAINER, "xray", bot.alert)),
         (mon.health_check_loop, (bot.alert,)),
-        (dpi_guard.run_loop, ()),
+        (mon.traffic_sample_loop, ()),
+        (dpi_guard.run_loop, (bot.alert,)),
+        (botmod.resource_watch_loop, (bot.alert,)),
         (node_probe.loop, (bot.alert,)),
         (poll_loop, (bot,)),
     ]

@@ -6,11 +6,17 @@ Access: private chats only, Telegram user id must be on the whitelist
 confirm step and is executed as the bot's own Core account, so it shows up
 in Core's audit log.
 """
+import calendar
 import html as _html
+import json
+import os
 import secrets
+import sqlite3
 import time
-from datetime import datetime, timezone
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
 
+import cleanup
 import monitor as mon
 import node_probe
 from core import CoreError
@@ -40,6 +46,154 @@ SUB_STATUS = {
 }
 NODE_STATUS = {"online": "🟢", "offline": "🔴", "pending": "🟡", "draining": "🟠"}
 
+
+# ---------- other servers' disk/memory, over the private tunnels only ----------
+# The monitor runs on Istanbul and deliberately has no SSH key to the other
+# VPN servers — one compromised monitor host must not become a key to every
+# server. Each remote instead runs remote_metrics.py bound to its ops/chain
+# tunnel address (see that file's docstring), so this is just an HTTP GET
+# that is only reachable at all because the tunnel is already up.
+REMOTE_SERVERS = [
+    {"label": "RU-MSK-01 (Selectel)", "host": os.environ.get("WAVEBREAK_METRICS_RU_MSK", "10.66.0.4"), "port": 8787},
+    {"label": "DE-NR-01 (Hetzner)", "host": os.environ.get("WAVEBREAK_METRICS_DE_NR", "10.77.0.2"), "port": 8787},
+    {"label": "RU-LTE-01 (Yandex Cloud)", "host": os.environ.get("WAVEBREAK_METRICS_RU_LTE", "10.66.0.5"), "port": 8787},
+]
+
+
+def fetch_remote_metrics(host, port, timeout=3):
+    try:
+        with urllib.request.urlopen(f"http://{host}:{port}/metrics", timeout=timeout) as r:
+            return json.loads(r.read())
+    except Exception:
+        return None
+
+
+# ---------- disk cleanup, local + remote (owner, 15.10) ----------
+# Same scan()/run() split as cleanup.py itself: scan is always safe to call
+# (read-only, just `du`/`docker system df`/etc.), run only ever fires from
+# the bot's own explicit-confirmation flow (a human taps "✅ Да, выполнить").
+
+def fetch_remote_scan(host, port, timeout=5):
+    try:
+        with urllib.request.urlopen(f"http://{host}:{port}/cleanup/scan", timeout=timeout) as r:
+            return json.loads(r.read())["items"]
+    except Exception:
+        return None
+
+
+def post_remote_cleanup(host, port, ids, timeout=60):
+    body = json.dumps({"ids": ids}).encode()
+    req = urllib.request.Request(f"http://{host}:{port}/cleanup/run", data=body,
+                                  headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read())
+
+
+# ---------- resource watchdog: memory/disk across every server (owner, 15.10) ----------
+# A server quietly running low on memory or disk is exactly the kind of thing
+# that used to need someone to notice the servers screen looked off (see
+# RU-MSK-01's wavebreak-node memory leak, found live this way) — this turns
+# the same numbers already shown there into a push instead of something
+# someone has to go looking for.
+RESOURCE_CHECK_INTERVAL_SEC = 300
+MEM_AVAIL_WARN_RATIO = 0.10
+DISK_FREE_WARN_RATIO = 0.15  # owner, 15.10: alert at >85% disk used specifically
+
+
+def resource_ratios(snapshot):
+    """(mem_available_ratio, disk_free_ratio), each 1.0 (fine) when the
+    snapshot is missing/malformed rather than a false 0.0 (critical) --
+    an unreachable server already has its own "недоступен" row on the
+    servers screen; this loop shouldn't also cry wolf over it."""
+    mem_total = snapshot.get("mem_total") or 0
+    disk_total = snapshot.get("disk_total") or 0
+    mem_ratio = (snapshot.get("mem_avail", 0) / mem_total) if mem_total else 1.0
+    disk_ratio = (1 - snapshot.get("disk_used", 0) / disk_total) if disk_total else 1.0
+    return mem_ratio, disk_ratio
+
+
+def check_resources(label, snapshot, alert, last_low):
+    """One server's turn: compares its ratios against the warn thresholds
+    and fires a transition-edge alert (not a repeat one every cycle it
+    stays low — that's what the "ok" recovery alert and last_low's state
+    are for). Module-level and given last_low explicitly (not a closure
+    over it) so a test can drive it directly without the infinite loop.
+    A missing/unreachable snapshot is silently skipped: the servers screen
+    already has a "недоступен" row for that, a second alert here would
+    just be the same fact twice."""
+    if not snapshot:
+        return
+    mem_ratio, disk_ratio = resource_ratios(snapshot)
+    for kind, ratio, warn_ratio, unit in (
+        ("mem", mem_ratio, MEM_AVAIL_WARN_RATIO, "свободной памяти"),
+        ("disk", disk_ratio, DISK_FREE_WARN_RATIO, "места на диске"),
+    ):
+        key = f"{kind}_low_{label}"
+        low = ratio < warn_ratio
+        if low and not last_low.get(key):
+            alert("warn", f"{label}: мало {unit} ({ratio * 100:.0f}% свободно)",
+                  key=key, cooldown=3600)
+        elif not low and last_low.get(key):
+            alert("ok", f"{label}: {unit} снова в норме", key=f"{key}_ok", cooldown=60)
+        last_low[key] = low
+
+
+def resource_watch_loop(alert, remote_servers=REMOTE_SERVERS, local_label="TR-PILOT-01 (Istanbul)"):
+    last_low = {}
+    while True:
+        try:
+            check_resources(local_label, mon.load_snapshot(), alert, last_low)
+            for srv in remote_servers:
+                check_resources(srv["label"], fetch_remote_metrics(srv["host"], srv["port"]), alert, last_low)
+        except Exception as e:
+            mon.log_event(f"ERROR resource_watch_loop: {e}")
+        time.sleep(RESOURCE_CHECK_INTERVAL_SEC)
+
+
+# ---------- server payments (read-only view of the admin panel's table) ----------
+PAYMENTS_DB = os.environ.get("WAVEBREAK_ADMIN_DB", "/home/wavebreakdeploy/wavebreak-pilot/shared/admin-data/database.sqlite")
+
+
+def _billing_on_or_after(day, billing_day):
+    last = calendar.monthrange(day.year, day.month)[1]
+    due = date(day.year, day.month, min(billing_day, last))
+    if due < day:
+        nxt = (date(day.year, day.month, 28) + timedelta(days=4)).replace(day=1)
+        last = calendar.monthrange(nxt.year, nxt.month)[1]
+        due = date(nxt.year, nxt.month, min(billing_day, last))
+    return due
+
+
+def next_payment_due(billing_day, paid_until, today):
+    """Same rule as the admin panel: a cycle marked paid moves to the following one."""
+    due = _billing_on_or_after(today, billing_day)
+    if paid_until and due <= paid_until:
+        due = _billing_on_or_after(paid_until + timedelta(days=1), billing_day)
+    return due
+
+
+def payment_rows(db_path=PAYMENTS_DB, today=None):
+    today = today or date.today()
+    try:
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return None
+    try:
+        rows = con.execute("select label, provider, region, billing_day, amount, currency, paid_until "
+                           "from infra_payments order by billing_day").fetchall()
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
+    out = []
+    for label, provider, region, billing_day, amount, currency, paid_until in rows:
+        paid = date.fromisoformat(paid_until) if paid_until else None
+        due = next_payment_due(billing_day, paid, today)
+        out.append({"label": label, "provider": provider, "region": region, "due": due,
+                    "days": (due - today).days, "amount": amount, "currency": currency})
+    return out
+
+
 COMMANDS = [
     ("start", "🌊 Центр управления"),
     ("status", "📊 Состояние системы"),
@@ -48,6 +202,10 @@ COMMANDS = [
     ("subs", "💳 Подписки"),
     ("keys", "🔑 Ключи доступа"),
     ("nodes", "🖥 Ноды"),
+    ("payments", "💰 Оплаты серверов"),
+    ("servers", "🖴 Диск и память серверов"),
+    ("cleanup", "🧹 Очистка диска"),
+    ("traffic", "📈 Трафик клиентов"),
     ("clients", "📡 Клиенты онлайн"),
     ("errors", "⚠️ Ошибки за час"),
     ("logs", "📜 Логи xray · /logs 50"),
@@ -262,6 +420,14 @@ class Bot:
             return self.keys_screen(0)
         if cmd == "/nodes":
             return self.nodes_screen()
+        if cmd == "/payments":
+            return self.payments_screen()
+        if cmd == "/servers":
+            return self.servers_screen()
+        if cmd == "/cleanup":
+            return self.cleanup_screen()
+        if cmd == "/traffic":
+            return self.traffic_screen()
         if cmd == "/clients":
             return self.clients_screen()
         if cmd == "/errors":
@@ -314,13 +480,16 @@ class Bot:
     def callback_screen(self, data, uid):
         head, _, arg = data.partition(":")
         simple = {
-            "m": lambda: self.home(uid), "mon": self.status_screen,
+            "m": lambda: self.home(uid), "mon": self.status_screen, "tr": self.traffic_screen,
             "cl": self.clients_screen, "er": self.errors_screen, "lg": lambda: self.logs_screen(30),
             "rc": lambda: self.reconnects_screen(None), "n": self.nodes_screen, "a": self.audit_screen,
-            "h": lambda: self.help_screen(uid),
+            "h": lambda: self.help_screen(uid), "pay": self.payments_screen,
+            "srv": self.servers_screen, "cu": self.cleanup_screen,
         }
         if head in simple:
             return simple[head](), None
+        if head == "cus":
+            return self.cleanup_server_screen(int(arg or 0)), None
         if head == "ul":
             return self.users_screen(int(arg or 0)), None
         if head == "sl":
@@ -400,6 +569,7 @@ class Bot:
             [B("📊 Мониторинг", "mon", "primary"), B("👥 Пользователи", "ul:0", "primary")],
             [B("💳 Подписки", "sl:0"), B("🔑 Ключи", "kl:0")],
             [B("🖥 Ноды", "n"), B("🗂 Аудит", "a")],
+            [B("💰 Оплаты", "pay"), B("🖴 Серверы", "srv")],
         ]
         last = [B("🔄 Обновить", "m")]
         if self.access.is_owner(uid):
@@ -450,11 +620,23 @@ class Bot:
                      "<blockquote>20+ новых соединений на 443 за 60 сек с одного IP — бан на 5 мин, повторные — на 7 дней.</blockquote></details>")
         html = f"<h3>📊 Мониторинг</h3>{cores}{ports}{dpi_block}<details><summary>🐳 Контейнеры ({len(services)})</summary>{svc}</details>{footer()}"
         kb = [
-            [B("📡 Клиенты", "cl")],
+            [B("📈 Трафик", "tr"), B("📡 Клиенты", "cl")],
             [B("⚠️ Ошибки", "er"), B("📜 Логи", "lg"), B("🔁 Реконнекты", "rc")],
             [B("⬅ Меню", "m"), B("🔄 Обновить", "mon")],
         ]
         return html, kb
+
+    def traffic_screen(self):
+        snap = mon.traffic_snapshot()
+        rows = [[f"<code>{esc(r['client'])}</code>",
+                 f"↑{gb(r['day'][0])} ↓{gb(r['day'][1])}",
+                 f"↑{gb(r['week'][0])} ↓{gb(r['week'][1])}",
+                 f"↑{gb(r['month'][0])} ↓{gb(r['month'][1])}"] for r in snap["rows"][:40]]
+        note = f"История за ~{snap['history_hours']:.0f} ч — более длинные окна неполные." if snap["history_hours"] < 24 * 30 else ""
+        html = (f"<h3>📈 Трафик по клиентам</h3>"
+                f"{table(['Клиент', 'Сутки', '7 дней', '30 дней'], rows) if rows else '<p>Данных пока нет.</p>'}"
+                f"{f'<blockquote>{esc(note)}</blockquote>' if note else ''}{footer()}")
+        return html, [[B("⬅ Мониторинг", "mon"), B("🔄 Обновить", "tr")]]
 
     def clients_screen(self):
         rows = mon.clients_snapshot()
@@ -704,7 +886,90 @@ class Bot:
                 f"<h3>📡 Доступность и задержка</h3>"
                 f"{table(['Точка', 'Адрес', 'Статус', 'Сейчас', 'Медиана 1 ч'], probe_rows)}"
                 f"{footer()}")
-        return html, [[B("⬅ Меню", "m"), B("🔄 Обновить", "n")]]
+        return html, [[B("⬅ Меню", "m"), B("🔄 Обновить", "n")], [B("💰 Оплаты", "pay")]]
+
+    def payments_screen(self):
+        items = payment_rows()
+        if items is None:
+            return "<h3>💰 Оплаты серверов</h3><p>База админки недоступна.</p>", [[B("⬅ Меню", "m")]]
+        if not items:
+            return "<h3>💰 Оплаты серверов</h3><p>Оплат пока нет. Добавляются в админке, в разделе «Ноды».</p>", [[B("⬅ Меню", "m")]]
+        rows = []
+        for it in items:
+            left = "🔴 " if it["days"] <= 3 else ""
+            amount = f"{it['amount']} {it['currency']}" if it["amount"] is not None else "—"
+            rows.append([f"<b>{esc(it['label'])}</b>", esc(it["provider"]), esc(it["region"] or "—"),
+                         it["due"].strftime("%d.%m.%Y"), f"{left}{it['days']} дн.", esc(amount)])
+        html = (f"<h3>💰 Оплаты серверов</h3>"
+                f"{table(['Сервер', 'Провайдер', 'Регион', 'Следующая', 'Осталось', 'Сумма'], rows)}"
+                f"{footer()}")
+        return html, [[B("⬅ Меню", "m"), B("🔄 Обновить", "pay")]]
+
+    def servers_screen(self):
+        rows = []
+        ld = mon.load_snapshot()
+        mem_used = ld["mem_total"] - ld["mem_avail"]
+        mem_pct = mem_used / ld["mem_total"] * 100 if ld["mem_total"] else None
+        disk_pct = ld["disk_used"] / ld["disk_total"] * 100 if ld["disk_total"] else None
+        rows.append(["<b>TR-PILOT-01</b> (Istanbul)",
+                     f"{bar(mem_pct)} {gb(mem_used)}/{gb(ld['mem_total'])}",
+                     f"{bar(disk_pct)} {gb(ld['disk_used'])}/{gb(ld['disk_total'])}"])
+        for srv in REMOTE_SERVERS:
+            m = fetch_remote_metrics(srv["host"], srv["port"])
+            if m is None:
+                rows.append([f"<b>{esc(srv['label'])}</b>", "🔴 недоступен", "—"])
+                continue
+            mu = m["mem_total"] - m["mem_avail"]
+            mp = mu / m["mem_total"] * 100 if m["mem_total"] else None
+            dp = m["disk_used"] / m["disk_total"] * 100 if m["disk_total"] else None
+            rows.append([f"<b>{esc(srv['label'])}</b>",
+                         f"{bar(mp)} {gb(mu)}/{gb(m['mem_total'])}",
+                         f"{bar(dp)} {gb(m['disk_used'])}/{gb(m['disk_total'])}"])
+        html = f"<h3>🖴 Диск и память</h3>{table(['Сервер', 'Память', 'Диск'], rows)}{footer()}"
+        return html, [[B("🧹 Очистка диска", "cu")], [B("⬅ Меню", "m"), B("🔄 Обновить", "srv")]]
+
+    # host=None means the local Istanbul instance (cleanup.py called directly,
+    # no HTTP hop) -- same convention servers_screen already uses.
+    def _cleanup_targets(self):
+        return [{"label": "TR-PILOT-01 (Istanbul)", "host": None, "port": None}] + REMOTE_SERVERS
+
+    def cleanup_screen(self):
+        """Server picker first (owner, 15.10: pick a server, then see that
+        server's own actions) -- no scanning here, so opening this screen is
+        instant even if a remote tunnel is slow/down; the scan only runs for
+        the one server actually picked, in cleanup_server_screen."""
+        targets = self._cleanup_targets()
+        kb = [[B(f"🖥 {t['label']}", f"cus:{i}")] for i, t in enumerate(targets)]
+        kb.append([B("⬅ Меню", "m")])
+        html = "<h3>🧹 Очистка диска</h3><p>Выберите сервер.</p>"
+        return html, kb
+
+    def cleanup_server_screen(self, idx):
+        targets = self._cleanup_targets()
+        if idx < 0 or idx >= len(targets):
+            return self.cleanup_screen()
+        t = targets[idx]
+        back = [B("⬅ Серверы", "cu"), B("🔄 Обновить", f"cus:{idx}")]
+        items = cleanup.scan() if t["host"] is None else fetch_remote_scan(t["host"], t["port"])
+        if items is None:
+            return f"<h3>🧹 {esc(t['label'])}</h3><p>🔴 Сервер недоступен.</p>", [back]
+        rows = [[esc(i["label"]), gb(i["bytes"])] for i in items]
+        total = sum(i["bytes"] for i in items)
+        ids = [i["id"] for i in items if i["bytes"] > 0]
+        html = (f"<h3>🧹 {esc(t['label'])}</h3>{table(['Что', 'Можно освободить'], rows)}"
+                "<blockquote>Оценка приблизительная — реальное высвобождённое место покажется после очистки.</blockquote>"
+                f"{footer()}")
+        kb = []
+        if ids:
+            detail = "; ".join(f"{i['label']} ({gb(i['bytes'])})" for i in items if i["bytes"] > 0)
+            kb.append([B(f"🧹 Очистить всё · ~{gb(total)}",
+                         "c:" + self.token({"kind": "cleanup", "server": t["label"], "host": t["host"],
+                                             "port": t["port"], "idx": idx, "ids": ids, "detail": detail,
+                                             "total": total}), "danger")])
+        else:
+            html += "<p>🟢 Сейчас мусора не найдено.</p>"
+        kb.append(back)
+        return html, kb
 
     def audit_screen(self):
         self._need_core()
@@ -770,6 +1035,9 @@ class Bot:
             return f"Разблокировать {e}?", "Вход и ключи снова заработают."
         if k == "revoke_device":
             return f"Отозвать устройство «{esc(spec['device_name'])}» у {e}?", "Устройству придётся войти заново."
+        if k == "cleanup":
+            return (f"Очистить диск на {esc(spec['server'])} (~{gb(spec['total'])})?",
+                    f"Будет выполнено: {esc(spec['detail'])}.")
         if k == "admin_remove":
             name = next((a.get("name") for a in self.access.admins() if a["id"] == spec["target"]), "")
             return f"Убрать <code>{spec['target']}</code> {esc(name)} из администраторов бота?", "Бот сразу перестанет ему отвечать."
@@ -780,8 +1048,9 @@ class Bot:
         if not spec:
             return "<p>⌛ Кнопка устарела — откройте экран заново.</p>", [[B("⬅ Меню", "m")]]
         question, detail = self.describe(spec)
-        back = "ad" if spec["kind"] == "admin_remove" else f"u:{spec['user']}"
-        danger = spec["kind"] in ("disable", "reissue", "revoke_device", "admin_remove") or \
+        back = "ad" if spec["kind"] == "admin_remove" else \
+            (f"cus:{spec['idx']}" if spec["kind"] == "cleanup" else f"u:{spec['user']}")
+        danger = spec["kind"] in ("disable", "reissue", "revoke_device", "admin_remove", "cleanup") or \
             (spec["kind"] == "sub_status" and spec["status"] == "suspended")
         return (f"<h3>❓ Подтверждение</h3><p>{question}</p>" + (f"<blockquote>{detail}</blockquote>" if detail else ""),
                 [[B("✅ Да, выполнить", f"y:{tok}", "danger" if danger else "success"), B("❌ Отмена", back)]])
@@ -806,6 +1075,23 @@ class Bot:
             except Exception as e:
                 self.log(f"WARN deleteMyCommands {spec['target']}: {e}")
             return self.admins_screen("✅ Администратор удалён."), "Удалено"
+        if k == "cleanup":
+            try:
+                if spec["host"] is None:
+                    result = cleanup.run(spec["ids"])
+                else:
+                    result = post_remote_cleanup(spec["host"], spec["port"], spec["ids"])
+            except Exception as e:
+                self.log(f"ERROR cleanup on {spec['server']}: {e}")
+                html, kb = self.cleanup_server_screen(spec["idx"])
+                return (f"<p>❌ Не получилось очистить {esc(spec['server'])}: {esc(e)}</p>{html}", kb), "Ошибка"
+            freed = gb(result.get("freed_bytes") or 0)
+            errors = result.get("errors") or []
+            banner = f"🧹 {esc(spec['server'])}: освобождено {freed}."
+            if errors:
+                banner += f" ⚠️ Ошибки: {esc('; '.join(str(x) for x in errors))}"
+            html, kb = self.cleanup_server_screen(spec["idx"])
+            return (f"<p>{banner}</p>{html}", kb), "Готово"
         try:
             if k == "issue_access":
                 self.core.issue_access(spec["user"]); done = "🔑 Ключ доступа выдан."
