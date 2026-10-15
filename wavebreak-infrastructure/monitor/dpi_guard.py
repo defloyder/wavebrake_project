@@ -70,7 +70,11 @@ LINE_RE = re.compile(r"DPI-SESSION (\d+\.\d+\.\d+\.\d+) (\d+\.\d+)")
 # 212.45.0.44 added same day: not a relay, the owner's own ops-tunnel
 # endpoint (wg0 peer 10.66.0.2) — same unban, different reason (an admin
 # box retrying a diagnostic connection looks exactly like a prober too).
-ALLOWLIST = {"158.160.44.116", "45.15.41.3", "46.225.46.218", "135.106.227.90", "212.45.0.44"}
+# 85.93.148.30 added same day: the colleague's office — 3 short bans in
+# one day already (one ban short of the 7-day escalation) from ordinary
+# dev/office traffic patterns tripping the same false positive.
+ALLOWLIST = {"158.160.44.116", "45.15.41.3", "46.225.46.218", "135.106.227.90",
+             "212.45.0.44", "85.93.148.30"}
 
 # An IP that held a real session this long recently is a person, not a probe:
 # a prober never keeps a session open. Its short-burst pattern (app retries
