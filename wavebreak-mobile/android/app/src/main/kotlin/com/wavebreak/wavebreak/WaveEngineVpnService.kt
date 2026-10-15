@@ -134,6 +134,7 @@ class WaveEngineVpnService : VpnService() {
     private val reconnectHandler = Handler(Looper.getMainLooper())
     private var pendingReconnect: Runnable? = null
     private var pendingFdCheck: Runnable? = null
+    private var lastFdNoteAt = 0L
     private var pendingHealthCheck: Runnable? = null
     private var pendingConnectWatchdog: Runnable? = null
     private var consecutiveHealthCheckFailures = 0
@@ -837,9 +838,21 @@ class WaveEngineVpnService : VpnService() {
                 try {
                     val count = Bridge.openFdCount()
                     if (count > FD_WARN_THRESHOLD) {
-                        Log.w(TAG, "open fd count high ($count), reconnecting")
+                        // Into the exported engine log, not only logcat
+                        // (15.10): what the fds are and how many flows
+                        // tun2socks holds says where the leak is.
+                        elog("open fd count high: ${Bridge.fdBreakdown()} — reconnecting")
                         scheduleReconnect("fd count high")
                     } else {
+                        // Climbing but not there yet: the same breakdown,
+                        // at most every 5 minutes, shows the growth.
+                        val now = SystemClock.elapsedRealtime()
+                        if (count > FD_NOTE_THRESHOLD &&
+                            now - lastFdNoteAt > FD_NOTE_EVERY_MS
+                        ) {
+                            lastFdNoteAt = now
+                            elog("fd count rising: ${Bridge.fdBreakdown()}")
+                        }
                         // Also covers count == -1 (openFdCount() couldn't
                         // read /proc/self/fd) — retry rather than treat an
                         // unreadable count as either a pass or a failure.
@@ -2170,6 +2183,8 @@ class WaveEngineVpnService : VpnService() {
         // work with instead of 3.
         private const val FD_WARN_THRESHOLD = 4000
         private const val FD_CHECK_INTERVAL_MS = 8_000L
+        private const val FD_NOTE_THRESHOLD = 1500
+        private const val FD_NOTE_EVERY_MS = 5 * 60_000L
 
         // See scheduleHealthCheck()'s doc comment for the bug this exists
         // for. Target is Google's captive-portal check: tiny, always 204,
