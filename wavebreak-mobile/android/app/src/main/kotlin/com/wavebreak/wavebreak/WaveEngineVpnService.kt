@@ -818,6 +818,10 @@ class WaveEngineVpnService : VpnService() {
                 null -> {}
             }
         } catch (t: Throwable) {
+            // StopXray/Stop now surface a real Close() failure (15.10) —
+            // a candidate explanation for the fd leak scheduleFdCheck()'s
+            // doc comment describes, previously invisible here.
+            Log.w(TAG, "releaseEngineOnly: engine close failed", t)
         }
     }
 
@@ -1196,6 +1200,7 @@ class WaveEngineVpnService : VpnService() {
                 Engine.HYSTERIA -> Bridge.stop()
             }
         } catch (t: Throwable) {
+            Log.w(TAG, "stopOtherEngine: $previous close failed", t)
         }
         trace("$previous stopped")
     }
@@ -1543,6 +1548,7 @@ class WaveEngineVpnService : VpnService() {
                 null -> {}
             }
         } catch (t: Throwable) {
+            Log.w(TAG, "releaseEngineResources: engine close failed", t)
         }
     }
 
@@ -1653,6 +1659,7 @@ class WaveEngineVpnService : VpnService() {
                 null -> {}
             }
         } catch (t: Throwable) {
+            Log.w(TAG, "stopAll: engine close failed", t)
         }
         activeEngine = null
         // Only relevant if establishTun() itself threw before reaching
