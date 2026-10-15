@@ -22,7 +22,7 @@ Future<void> main() async {
       '${Platform.numberOfProcessors} CPUs, locale ${Platform.localeName}');
   var showedError = false;
   void fail(String where, Object error, StackTrace? stack) {
-    FileLog.write('FATAL ($where): $error\n$stack');
+    FileLog.writeNow('FATAL ($where): $error\n$stack');
     if (showedError) return;
     showedError = true;
     runApp(StartupErrorApp(error: '$where: $error'));
@@ -32,11 +32,12 @@ Future<void> main() async {
     WidgetsFlutterBinding.ensureInitialized();
     FileLog.write('binding ready');
     FlutterError.onError = (details) {
-      FileLog.write('UI error: ${details.exceptionAsString()}\n${details.stack}');
+      FileLog.writeNow(
+          'UI error: ${details.exceptionAsString()}\n${details.stack}');
       FlutterError.presentError(details);
     };
     PlatformDispatcher.instance.onError = (error, stack) {
-      FileLog.write('Uncaught: $error\n$stack');
+      FileLog.writeNow('Uncaught: $error\n$stack');
       return true;
     };
     // A widget that fails to build shows the reason and the log path, not
@@ -52,7 +53,8 @@ Future<void> main() async {
     }
     FileLog.write('bootstrap done');
     try {
-      await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+      await SystemChrome.setPreferredOrientations(
+          [DeviceOrientation.portraitUp]);
       SystemChrome.setSystemUIOverlayStyle(
         const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
@@ -69,6 +71,7 @@ Future<void> main() async {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       firstFrame = true;
       FileLog.write('first frame');
+      FileLog.startBuffering();
     });
     runApp(const ProviderScope(child: WavebreakApp()));
     FileLog.write('runApp');

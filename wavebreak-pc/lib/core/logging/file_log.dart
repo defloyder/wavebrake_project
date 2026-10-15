@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 /// The app's log on disk: %LOCALAPPDATA%\WAVEBREAK\logs\wavebreak-YYYYMMDD.log
@@ -33,12 +34,49 @@ class FileLog {
     }
   }
 
+  static final _pending = StringBuffer();
+  static Timer? _flushTimer;
+  static bool _buffered = false;
+
+  /// From the first frame on: lines are collected and written twice a
+  /// second, not one synchronous, flushed write each on the UI thread —
+  /// with the VPN on that was hundreds a minute and made every button and
+  /// page switch sluggish (owner, 15.10). Start-up lines before it stay
+  /// immediate, so a start that hangs still leaves its trace.
+  static void startBuffering() => _buffered = true;
+
   static void write(String line) {
+    if (_file == null) return;
+    final text = '${DateTime.now().toIso8601String()} $line\n';
+    if (!_buffered) {
+      _append(text, flush: true);
+      return;
+    }
+    _pending.write(text);
+    _flushTimer ??= Timer(const Duration(milliseconds: 500), flush);
+  }
+
+  /// At once, with whatever is still pending (errors and crashes).
+  static void writeNow(String line) {
+    if (_file == null) return;
+    _pending.write('${DateTime.now().toIso8601String()} $line\n');
+    flush(sync: true);
+  }
+
+  static void flush({bool sync = false}) {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    if (_pending.isEmpty) return;
+    final text = _pending.toString();
+    _pending.clear();
+    _append(text, flush: sync);
+  }
+
+  static void _append(String text, {required bool flush}) {
     final f = _file;
     if (f == null) return;
     try {
-      f.writeAsStringSync('${DateTime.now().toIso8601String()} $line\n',
-          mode: FileMode.append, flush: true);
+      f.writeAsStringSync(text, mode: FileMode.append, flush: flush);
     } catch (_) {
       // A log that can't be written must never break the app.
     }

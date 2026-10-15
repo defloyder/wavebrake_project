@@ -6,7 +6,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:wavebreak_links/wavebreak_links.dart';
 
 import '../../core/logging/app_logger.dart';
-import '../../core/logging/file_log.dart';
 import '../core_api/models.dart';
 import 'conflicting_vpn_closer.dart';
 import 'stuck_flows.dart';
@@ -300,13 +299,13 @@ class WindowsVpnAdapter implements VpnAdapter, WindowsTunnel {
       _expectedExit = false;
 
       void onLine(String line, void Function(String) log) {
-        // sing-box's INFO lines (every DNS answer, every connection) go to
-        // the log file only: in the diagnostic export's 1000-line buffer
-        // they pushed out everything but the last few minutes (field log
-        // 06.10, Beeline: 966 of 1000 lines were sing-box INFO).
-        if (line.contains(' INFO ') && !line.contains('sing-box started')) {
-          FileLog.write('[sing-box] $line');
-        } else {
+        // sing-box's INFO lines (every DNS answer, every connection) are
+        // dropped: in the diagnostic export's 1000-line buffer they pushed
+        // out everything but the last few minutes (field log 06.10), and
+        // written to the file (until 15.10) they were up to ~800 a minute,
+        // each a write on the UI thread — buttons and pages felt sluggish
+        // with the VPN on. Warnings and errors still go to the log.
+        if (!line.contains(' INFO ') || line.contains('sing-box started')) {
           log('[sing-box] $line');
         }
         if (generation != _generation) return;
