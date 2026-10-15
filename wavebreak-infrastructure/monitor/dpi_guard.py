@@ -67,7 +67,10 @@ LINE_RE = re.compile(r"DPI-SESSION (\d+\.\d+\.\d+\.\d+) (\d+\.\d+)")
 # 135.106.227.90 (RU-MSK-01) added 2026-10-15 after it self-triggered a
 # 7-day ban on its own IP — found live while diagnosing a Direct-TLS outage
 # report, same false-positive shape as the others here.
-ALLOWLIST = {"158.160.44.116", "45.15.41.3", "46.225.46.218", "135.106.227.90"}
+# 212.45.0.44 added same day: not a relay, the owner's own ops-tunnel
+# endpoint (wg0 peer 10.66.0.2) — same unban, different reason (an admin
+# box retrying a diagnostic connection looks exactly like a prober too).
+ALLOWLIST = {"158.160.44.116", "45.15.41.3", "46.225.46.218", "135.106.227.90", "212.45.0.44"}
 
 # An IP that held a real session this long recently is a person, not a probe:
 # a prober never keeps a session open. Its short-burst pattern (app retries
