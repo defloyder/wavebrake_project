@@ -70,7 +70,11 @@ LINE_RE = re.compile(r"DPI-SESSION (\d+\.\d+\.\d+\.\d+) (\d+\.\d+)")
 # 212.45.0.44 added same day: not a relay, the owner's own ops-tunnel
 # endpoint (wg0 peer 10.66.0.2) — same unban, different reason (an admin
 # box retrying a diagnostic connection looks exactly like a prober too).
-ALLOWLIST = {"158.160.44.116", "45.15.41.3", "46.225.46.218", "135.106.227.90", "212.45.0.44"}
+# 85.93.148.30 added same day: the colleague's office — 3 short bans in
+# one day already (one ban short of the 7-day escalation) from ordinary
+# dev/office traffic patterns tripping the same false positive.
+ALLOWLIST = {"158.160.44.116", "45.15.41.3", "46.225.46.218", "135.106.227.90",
+             "212.45.0.44", "85.93.148.30"}
 
 # An IP that held a real session this long recently is a person, not a probe:
 # a prober never keeps a session open. Its short-burst pattern (app retries
@@ -165,8 +169,34 @@ class Guard:
         self._last_prune = now
 
 
-def run_loop():
-    guard = Guard()
+def ban_and_alert(ip, alert=None):
+    """Module-level (not a run_loop closure) so it's unit-testable with a
+    fake alert collector. alert: bot.Bot.alert-shaped callback (owner,
+    15.10) — wires real bans into Telegram instead of only the local
+    events.log a human has to go looking for. Short bans (routine, can be
+    frequent under a real probing run) alert at "warn"."""
+    ban(ip)
+    if alert:
+        alert("warn", f"DPI-probe похож на атаку: IP {ip} забанен на {BAN_TIMEOUT_SEC // 60} мин",
+              key=f"dpi_ban_{ip}", cooldown=BAN_TIMEOUT_SEC)
+
+
+def escalate_and_alert(ip, alert=None):
+    """See ban_and_alert — an escalation (a sustained, repeat offender,
+    7-day ban) is the signal actually worth waking up for."""
+    escalate(ip)
+    if alert:
+        alert("crit",
+              f"IP {ip} — повторный DPI-пробер (3+ коротких бана за сутки), "
+              f"забанен на {REPEAT_BAN_TIMEOUT_SEC // 86400} дней",
+              key=f"dpi_escalate_{ip}", cooldown=REPEAT_BAN_TIMEOUT_SEC)
+
+
+def run_loop(alert=None):
+    guard = Guard(
+        ban_fn=lambda ip: ban_and_alert(ip, alert),
+        escalate_fn=lambda ip: escalate_and_alert(ip, alert),
+    )
     while True:
         try:
             proc = subprocess.Popen(
