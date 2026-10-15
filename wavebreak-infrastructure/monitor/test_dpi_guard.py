@@ -140,6 +140,19 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(self.banned, [])
         self.assertEqual(self.escalated, [])
 
+    def test_moscow_node_is_never_banned(self):
+        """RU-MSK-01 (Core relay, mirror, node) banned itself for 7 days on
+        2026-10-15: three short-session floods of its proxied clients."""
+        ip = "135.106.227.90"
+        self.assertIn(ip, dpi_guard.ALLOWLIST)
+        for _ in range(dpi_guard.REPEAT_BAN_THRESHOLD):
+            for _ in range(dpi_guard.MIN_CONNECTIONS * 2):
+                self.guard.observe(ip, duration=0.1)
+                self.clock.advance(1)
+            self.clock.advance(300)
+        self.assertEqual(self.banned, [])
+        self.assertEqual(self.escalated, [])
+
 
     def test_person_with_recent_long_session_is_not_banned(self):
         """A real phone held one long session, then its app retried in a burst:
