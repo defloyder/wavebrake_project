@@ -73,6 +73,13 @@ tar xzf "$tgz" -C "$C"
 chown -R "$owner" "$C/$dir" --from=root:root 2>/dev/null || true
 
 say "3. Build"
+# Base images through dockerd first: it falls back to IPv4, while the
+# build's own registry lookup tried only IPv6, which this host doesn't
+# have (15.10: "alpine:3.22 … network is unreachable" when the image had
+# been pruned).
+for base in $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$C/$dir/Dockerfile" | sort -u); do
+  docker pull -q "$base" >/dev/null 2>&1 || echo "  (could not pull $base; the build tries itself)"
+done
 cd "$INF"
 "${COMPOSE[@]}" build "$svc" 2>&1 | tail -3
 
