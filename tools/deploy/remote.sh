@@ -33,6 +33,24 @@ esac
 
 say() { echo "== $*"; }
 
+# The server's Core has run code that isn't in git since 06.10 (a
+# separate personal-data database and more — docs/PROJECT-STATE.md item 0).
+# Deploying git's Core over it would wipe that: refuse while the server
+# tree has Go or SQL files this commit doesn't, before anything changes.
+if [ "$comp" = core ]; then
+  extra=$(comm -23 \
+    <(cd "$C/$dir" && find . -type f \( -name '*.go' -o -name '*.sql' \) | sort) \
+    <(tar tzf "$tgz" | sed -n "s#^$dir/#./#p" | sort))
+  if [ -n "$extra" ]; then
+    echo "REFUSED: the server's Core has files this commit doesn't:"
+    echo "$extra" | head -30
+    echo "Bring them into git (app-main-sync) first — docs/PROJECT-STATE.md item 0."
+    echo "$ts $comp $sha REFUSED-DRIFT" >> /root/deploy-log.txt
+    rm -f "$tgz"
+    exit 3
+  fi
+fi
+
 say "1. Backup ($dir, image $img)"
 tar czf "$BK/$dir-$ts.tgz" -C "$C" \
   --exclude="$dir/public/downloads" --exclude="$dir/vendor" \
