@@ -199,7 +199,11 @@ class ConnectionManager extends Notifier<WbConnectionState> {
     bool subscriptionActive = false,
     bool keepTried = false,
   }) async {
-    if (!keepTried) _noTrafficTried.clear();
+    if (!keepTried && location.id != state.location.id) {
+      _noTrafficTried.clear();
+      // Another location the user picks themselves ends auto select's run.
+      _autoQueue = const [];
+    }
     final previous = state.location;
     state = state.copyWith(location: location);
     unawaited(PrefsStore.setString(PrefsStore.lastLocationId, location.id));
@@ -406,7 +410,11 @@ class ConnectionManager extends Notifier<WbConnectionState> {
         // A WAVEBREAK location: check that traffic really passes; if it
         // doesn't, the home screen says so and offers another protocol.
         final used = candidates[i];
-        if (!location.isAuto && _isWavebreakLocation(used)) {
+        if (_autoQueue.isNotEmpty) {
+          // Auto select checks every candidate, ours or not: it moves on
+          // by itself when this one passes no traffic.
+          unawaited(_checkTraffic(used, generation));
+        } else if (!location.isAuto && _isWavebreakLocation(used)) {
           unawaited(_checkTraffic(used, generation));
         } else if (!location.isAuto) {
           AppLogger.info(
@@ -568,17 +576,104 @@ class ConnectionManager extends Notifier<WbConnectionState> {
       notReady = 0;
       AppLogger.info('Traffic check via ${_transportKey(used)}: '
           '${ms == null ? 'no answer' : '$ms ms'}');
-      if (ms != null) {
+      // Under auto select a crawl counts as a miss too (owner, 16.10:
+      // "no traffic, or a ping of 5000 ms").
+      final passed =
+          ms != null && (_autoQueue.isEmpty || ms <= _autoSlowMs);
+      if (passed) {
         if (state.noTraffic) state = state.copyWith(noTraffic: false);
         return;
       }
       misses++;
+      if (misses >= 2 && _autoQueue.isNotEmpty) {
+        if (await _autoAdvance(used)) return;
+      }
       if (misses >= 2 && !state.noTraffic) {
         state = state.copyWith(noTraffic: true);
         _analytics.event('no_traffic');
       }
       delay = misses >= 2 ? _trafficRecheckInterval : _trafficCheckRetryDelay;
     }
+  }
+
+  /// Auto select's candidates, best ping first, while its run lasts
+  /// ([connectAuto]); empty otherwise. A candidate that passes no traffic
+  /// (or answers slower than [_autoSlowMs]) is left for the next one.
+  List<LocationItem> _autoQueue = const [];
+
+  static const _autoSlowMs = 2500;
+
+  /// Auto select (owner, 16.10: "if one protocol doesn't work, take
+  /// another"): connects to the first of [ranked] and, when it passes no
+  /// traffic, moves on by itself — the same place's other protocols
+  /// first, then the next place. Each candidate is tried once; when all
+  /// fail, the last stays with the usual "no traffic" notice.
+  Future<void> connectAuto(List<LocationItem> ranked,
+      {required bool subscriptionActive}) async {
+    if (ranked.isEmpty) return;
+    _noTrafficTried.clear();
+    _autoQueue = ranked;
+    _autoSubscriptionActive = subscriptionActive;
+    AppLogger.info('Auto select: ${ranked.length} candidates, '
+        'first ${_transportKey(ranked.first)}');
+    var target = ranked.first;
+    while (true) {
+      await _autoConnectTo(target);
+      if (_autoQueue.isEmpty || state.status != ConnectionStatus.error) {
+        return;
+      }
+      // The handshake itself failed: the next candidate right away.
+      final next = _autoNext(target, 'connect failed');
+      if (next == null) return;
+      target = next;
+    }
+  }
+
+  bool _autoSubscriptionActive = false;
+
+  /// Switches to [target] keeping auto select's run, connecting when the
+  /// tunnel isn't up (a running one is switched by selectLocation).
+  Future<void> _autoConnectTo(LocationItem target) async {
+    final idle = const {ConnectionStatus.idle, ConnectionStatus.error}
+        .contains(state.status);
+    final already = state.status == ConnectionStatus.connected &&
+        state.location.id == target.id;
+    await selectLocation(target,
+        subscriptionActive: _autoSubscriptionActive, keepTried: true);
+    if (idle) await connect(subscriptionActive: _autoSubscriptionActive);
+    // Already on it: nothing reconnects, so check its traffic from here.
+    if (already) unawaited(_checkTraffic(target, _connectGeneration));
+  }
+
+  /// The candidate after [failed], marking it tried; null (and the run
+  /// over) when none is left.
+  LocationItem? _autoNext(LocationItem failed, String why) {
+    _noTrafficTried.add(failed.id);
+    final next = nextAutoCandidate(_autoQueue, failed, _noTrafficTried);
+    if (next == null) {
+      AppLogger.warn('Auto select: every candidate tried, '
+          'last ${_transportKey(failed)} ($why)');
+      _autoQueue = const [];
+      return null;
+    }
+    AppLogger.warn('Auto select: ${_transportKey(failed)} $why, '
+        'switching to ${_transportKey(next)}');
+    _analytics.event('auto_switch');
+    return next;
+  }
+
+  /// Moves auto select on from [failed] after its traffic check failed;
+  /// false when no candidate is left.
+  Future<bool> _autoAdvance(LocationItem failed) async {
+    var target = _autoNext(failed, 'passed no traffic');
+    while (target != null) {
+      await _autoConnectTo(target);
+      if (_autoQueue.isEmpty || state.status != ConnectionStatus.error) {
+        return true;
+      }
+      target = _autoNext(target, 'connect failed');
+    }
+    return false;
   }
 
   static const _trafficCheckFirstDelay = Duration(seconds: 2);

@@ -1,3 +1,4 @@
+import '../../features/home/location_bar.dart' show splitPlaceAndProtocol;
 import '../core_api/models.dart';
 
 /// The next of the same country's WAVEBREAK locations to try after
@@ -24,6 +25,29 @@ LocationItem? nextProtocolLocation(
       continue;
     }
     return l;
+  }
+  return null;
+}
+
+/// Auto select's next candidate after [failed] passed no traffic (owner,
+/// 16.10): the same place's other protocols first — a blocked transport
+/// is the usual cause — then the rest of [ranked] (best ping first).
+/// Skips [tried] and unavailable ones; null when nothing is left.
+LocationItem? nextAutoCandidate(
+  List<LocationItem> ranked,
+  LocationItem failed,
+  Set<String> tried,
+) {
+  bool open(LocationItem l) =>
+      l.id != failed.id && l.available && !l.isAuto && !tried.contains(l.id);
+  String place(LocationItem l) =>
+      '${l.countryCode}|${splitPlaceAndProtocol(l.city).$1}';
+  final here = place(failed);
+  for (final l in ranked) {
+    if (open(l) && place(l) == here) return l;
+  }
+  for (final l in ranked) {
+    if (open(l)) return l;
   }
   return null;
 }

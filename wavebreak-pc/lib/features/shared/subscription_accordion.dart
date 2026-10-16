@@ -840,27 +840,25 @@ class _AutoRowState extends ConsumerState<_AutoRow> {
     try {
       final pings = await Future.wait(widget.candidates.map((c) async =>
           widget.livePings[c.id] ?? await _pingService.testLocation(c)));
-      LocationItem? best;
-      int? bestMs;
-      for (var i = 0; i < pings.length; i++) {
-        final ms = pings[i];
-        if (ms != null && (bestMs == null || ms < bestMs)) {
-          best = widget.candidates[i];
-          bestMs = ms;
-        }
-      }
-      if (best == null) return;
+      // Every answering candidate, best ping first: when one passes no
+      // traffic the manager moves on to the next by itself (owner, 16.10).
+      final ranked = [
+        for (var i = 0; i < pings.length; i++)
+          if (pings[i] != null) (widget.candidates[i], pings[i]!),
+      ]..sort((a, b) => a.$2.compareTo(b.$2));
+      if (ranked.isEmpty) return;
       // Read before onSelect: picking from the servers sheet closes it
       // (and this row with it).
       final manager = ref.read(connectionManagerProvider.notifier);
-      final idle = const {ConnectionStatus.idle, ConnectionStatus.error}
-          .contains(ref.read(connectionManagerProvider).status);
       final canConnect = ref.read(canConnectProvider);
-      widget.onSelect(best);
-      // Auto select connects (owner, 15.10): with the VPN off it used to
-      // only switch the location. A running tunnel is switched by
-      // onSelect itself.
-      if (idle) await manager.connect(subscriptionActive: canConnect);
+      // Auto select connects (owner, 15.10), whether the VPN was on or
+      // off. connectAuto selects the first candidate before its first
+      // await, so onSelect below (which closes the sheet) re-selects the
+      // same one and changes nothing.
+      final run = manager.connectAuto([for (final r in ranked) r.$1],
+          subscriptionActive: canConnect);
+      widget.onSelect(ranked.first.$1);
+      await run;
     } finally {
       if (mounted) setState(() => _busy = false);
     }
