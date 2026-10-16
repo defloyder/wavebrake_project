@@ -16,6 +16,7 @@ import '../shared/ocean_background.dart';
 import '../shared/wave_params.dart';
 import '../shell/app_shell.dart';
 import 'tide_wave.dart';
+import '../shared/page_width.dart';
 
 String _formatMbps(double? value) {
   if (value == null) return '–';
@@ -145,7 +146,7 @@ class SpeedTestScreen extends ConsumerWidget {
             tint: waves.tint,
             waveSpeed: waves.speed,
             waveAmplitude: waves.amplitude,
-            maxContentWidth: fold != null ? outer.maxWidth : 1040,
+            maxContentWidth: fold != null ? outer.maxWidth : kDesktopPageWidth,
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),

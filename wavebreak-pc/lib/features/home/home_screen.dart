@@ -41,6 +41,7 @@ import '../immersive/wave_field.dart';
 import 'home_vitals.dart';
 import 'location_bar.dart';
 import '../locations/servers_sheet.dart';
+import '../shared/page_width.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -658,7 +659,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           // centering on top of a narrower, off-to-one-side block,
           // leaving the connect button visibly closer to the divider
           // than to the true center of its half of the screen.
-          maxContentWidth: isDesktop ? double.infinity : 560,
+          maxContentWidth: isDesktop ? kDesktopPageWidth : 560,
           child: SafeArea(
             child: isDesktop
                 ? Padding(

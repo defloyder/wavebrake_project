@@ -15,6 +15,7 @@ import '../shared/wave_params.dart';
 import '../shell/app_shell.dart';
 import '../shared/page_hero.dart';
 import 'settings_ui.dart';
+import '../shared/page_width.dart';
 
 /// Settings, top level (P6): six groups, everything else one level down.
 ///
@@ -40,7 +41,7 @@ class SettingsScreen extends ConsumerWidget {
           tint: waves.tint,
           waveSpeed: waves.speed,
           waveAmplitude: waves.amplitude,
-          maxContentWidth: isDesktop ? 640 : 560,
+          maxContentWidth: isDesktop ? kDesktopPageWidth : 560,
           child: SizedBox.expand(
             child: SafeArea(
               // Title at the top, the groups at the bottom by the thumb and

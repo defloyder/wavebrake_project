@@ -9,6 +9,7 @@ import '../shared/page_hero.dart';
 import '../shell/app_shell.dart';
 import '../shared/wave_params.dart';
 import 'servers_sheet.dart';
+import '../shared/page_width.dart';
 
 class LocationsScreen extends ConsumerWidget {
   const LocationsScreen({super.key});
@@ -29,7 +30,7 @@ class LocationsScreen extends ConsumerWidget {
           tint: waves.tint,
           waveSpeed: waves.speed,
           waveAmplitude: waves.amplitude,
-          maxContentWidth: isDesktop ? 720 : 560,
+          maxContentWidth: isDesktop ? kDesktopPageWidth : 560,
           // Full height: the background centers its child, and a
           // shrink-wrapped page would float mid-screen.
           child: SizedBox.expand(

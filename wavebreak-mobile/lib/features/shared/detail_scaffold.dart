@@ -5,6 +5,7 @@ import '../../core/theme/wb_colors.dart';
 import '../shell/app_shell.dart';
 import 'ocean_background.dart';
 import 'wave_params.dart';
+import 'page_width.dart';
 
 /// Shared shell for every "back button + title, then a column of cards"
 /// settings/detail screen (Account, Security, Connection, Devices,
@@ -42,6 +43,8 @@ class DetailScaffold extends ConsumerWidget {
         tint: waves.tint,
         waveSpeed: waves.speed,
         waveAmplitude: waves.amplitude,
+        // The column width is set below (one for every page on PC and TV).
+        maxContentWidth: double.infinity,
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -54,7 +57,9 @@ class DetailScaffold extends ConsumerWidget {
               final isDesktop = constraints.maxWidth >= 820;
               return Center(
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  // PC and TV: the same column as every other page.
+                  constraints: BoxConstraints(
+                      maxWidth: isDesktop ? kDesktopPageWidth : maxWidth),
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(
                       20,

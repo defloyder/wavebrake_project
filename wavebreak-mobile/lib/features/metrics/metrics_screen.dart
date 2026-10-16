@@ -17,6 +17,7 @@ import '../shared/flag_icon.dart';
 import '../shell/app_shell.dart';
 import 'metrics_chart.dart';
 import 'metrics_tabs.dart';
+import '../shared/page_width.dart';
 
 /// Connection metrics: measured throughput over the last 1 / 5 minutes and
 /// quality cards (latency, jitter, loss, session traffic). Only real
@@ -119,7 +120,8 @@ class _MetricsScreenState extends ConsumerState<MetricsScreen>
             // edge to edge (owner, 14.10: full screen looked bulky).
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 960),
+                constraints:
+                    const BoxConstraints(maxWidth: kDesktopPageWidth),
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(
                       20, 16, 20, kMobileBottomBarReserve + 16),

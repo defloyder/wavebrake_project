@@ -1,11 +1,13 @@
 import '../../core/theme/wb_theme.dart';
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/env/app_env.dart';
 import '../../core/i18n/app_strings.dart';
 import '../../core/theme/wb_colors.dart';
 import '../../services/core_api/models.dart';
@@ -357,7 +359,9 @@ class _SectionCardState extends State<_SectionCard> {
             ),
           ),
           AnimatedSize(
-            duration: const Duration(milliseconds: 220),
+            // Quicker on PC and TV (owner, 16.10: blocks opened "with a drag").
+            duration: Duration(
+                milliseconds: AppEnv.isTv || Platform.isWindows ? 150 : 220),
             curve: Curves.easeOutCubic,
             child: widget.expanded
                 ? Column(

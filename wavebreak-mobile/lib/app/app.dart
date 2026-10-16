@@ -26,6 +26,7 @@ import '../services/notification/status_notification_service.dart';
 import '../services/vpn/connection_manager.dart';
 import '../services/server_list_refresher.dart';
 import 'router.dart';
+import 'scroll_behavior.dart';
 
 /// On Android, the real VLESS tunnel ([V2RayVpnAdapter]) already brings its
 /// own mandatory foreground-service notification — Android requires any
@@ -156,6 +157,7 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
 
     return MaterialApp.router(
       title: 'WAVEBREAK',
+      scrollBehavior: const WbScrollBehavior(),
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: _scaffoldMessengerKey,
       theme: WbTheme.dark(tint: ref.watch(appWaveParamsProvider).tint).copyWith(
