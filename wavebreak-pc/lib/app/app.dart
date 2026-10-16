@@ -27,6 +27,7 @@ import '../services/notification/tray_status.dart';
 import '../services/vpn/conflicting_vpn_closer.dart';
 import '../services/vpn/connection_manager.dart';
 import '../services/server_list_refresher.dart';
+import 'desktop_history.dart';
 import 'router.dart';
 import 'scroll_behavior.dart';
 
@@ -298,9 +299,12 @@ class _WavebreakAppState extends ConsumerState<WavebreakApp> {
       builder: (context, child) => MediaQuery.withClampedTextScaling(
         minScaleFactor: textScale,
         maxScaleFactor: textScale,
-        child: ImmersiveClock(
-          child: AppLockGate(
-            child: NoticeHost(child: _OfflineBanner(child: child)),
+        child: DesktopHistory(
+          router: router,
+          child: ImmersiveClock(
+            child: AppLockGate(
+              child: NoticeHost(child: _OfflineBanner(child: child)),
+            ),
           ),
         ),
       ),

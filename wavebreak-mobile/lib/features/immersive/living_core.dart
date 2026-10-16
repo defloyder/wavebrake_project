@@ -992,13 +992,17 @@ class _CorePainter extends CustomPainter {
     );
   }
 
-  /// Repeating fronts from the outer field in to the shell.
+  /// Repeating fronts from the outer field in to the shell. Evenly spaced,
+  /// each fading in at the edge and out at the shell (owner, 16.10: the
+  /// pulse jerked as each front popped in at full strength, unevenly).
   void _inwardFronts(Canvas canvas, Offset c, double r, double t) {
-    final f = (t * 0.65) % 1;
+    final f = (t * 0.55) % 1;
     for (var i = 0; i < 3; i++) {
-      final p = (f + i * 0.28) % 1;
-      _front(canvas, c, r * (1.8 - p * 0.72), t, i, const Color(0xFFFF7597),
-          (1 - p) * 0.55);
+      final p = (f + i / 3) % 1;
+      // Slows as it nears the shell; light rises and sets with sin.
+      final eased = 1 - (1 - p) * (1 - p);
+      _front(canvas, c, r * (1.8 - eased * 0.72), t, i,
+          const Color(0xFFFF7597), math.sin(math.pi * p) * 0.5);
     }
   }
 

@@ -1,4 +1,10 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/i18n/language_controller.dart';
 
 import '../../core/theme/wb_colors.dart';
 import '../../core/theme/wb_theme.dart';
@@ -35,16 +41,136 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final page = AnchoredPage(
+      padding: const EdgeInsets.only(bottom: 4),
+      rowsUnderHero: true,
+      hero: hero,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
     return DetailScaffold(
       title: title,
       onBack: () => safePop(context, fallback: fallback),
-      child: AnchoredPage(
-        padding: const EdgeInsets.only(bottom: 4),
-        rowsUnderHero: true,
-        hero: hero,
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
+      child: LayoutBuilder(
+        builder: (context, box) => Platform.isWindows && box.maxWidth >= 640
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SettingsSectionTabs(),
+                  const SizedBox(height: 8),
+                  Expanded(child: page),
+                ],
+              )
+            : page,
+      ),
+    );
+  }
+}
+
+/// Windows: every settings section one click away from any other (owner,
+/// 16.10: moving around settings on the PC was awkward — back to the list
+/// and in again each time). The current section is lit; a tab replaces
+/// the page instead of stacking another one.
+class SettingsSectionTabs extends ConsumerWidget {
+  const SettingsSectionTabs({super.key});
+
+  /// Pages one level further down belong to their section.
+  static String sectionOf(String path) {
+    final parts = path.split('/').where((p) => p.isNotEmpty).toList();
+    final id = parts.length > 1 ? parts[1] : '';
+    return switch (id) {
+      'devices' => 'account',
+      'support' || 'about' || 'updates' => 'help',
+      _ => id,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // A page shown on its own (tests) has no router: no tabs.
+    if (GoRouter.maybeOf(context) == null) return const SizedBox.shrink();
+    final s = ref.watch(stringsProvider);
+    final current = sectionOf(GoRouterState.of(context).uri.path);
+    final sections = [
+      ('account', Icons.person_outline_rounded, s.account),
+      ('connection', Icons.wifi_tethering_rounded, s.connection),
+      ('security', Icons.fingerprint_rounded, s.security),
+      ('personalization', Icons.palette_outlined, s.appearance),
+      ('notifications', Icons.notifications_none_rounded, s.notifications),
+      ('help', Icons.help_outline_rounded, s.help),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final (id, icon, label) in sections)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: _SectionTab(
+                icon: icon,
+                label: label,
+                selected: id == current,
+                onTap: id == current
+                    ? null
+                    : () => context.go('/settings/$id'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTab extends StatelessWidget {
+  const _SectionTab(
+      {required this.icon,
+      required this.label,
+      required this.selected,
+      this.onTap});
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: selected ? context.brand.withValues(alpha: 0.16) : null,
+            border: Border.all(
+              color: selected
+                  ? context.brand.withValues(alpha: 0.45)
+                  : WbColors.ice.withValues(alpha: WbColors.surfaceBorderLean),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 16, color: selected ? WbColors.ice : WbColors.ice60),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: selected ? WbColors.ice : WbColors.ice60,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
