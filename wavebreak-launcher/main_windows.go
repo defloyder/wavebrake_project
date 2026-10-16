@@ -33,6 +33,13 @@ func main() {
 	}
 	dataDir := filepath.Join(os.Getenv("LOCALAPPDATA"), "WAVEBREAK Launcher")
 	_ = os.MkdirAll(dataDir, 0o755)
+	openStartLog(dataDir)
+	defer func() {
+		if r := recover(); r != nil {
+			crashed(r)
+		}
+	}()
+	logf("--- start %s, %s", launcherVersion, exe)
 
 	w := webview.NewWithOptions(webview.WebViewOptions{
 		DataPath:  dataDir,
@@ -44,6 +51,7 @@ func main() {
 			Center: true,
 		},
 	})
+	logf("webview: %v", w != nil)
 	if w == nil {
 		// No WebView2 runtime (rare on Windows 10/11): say so and offer it.
 		msg, _ := windows.UTF16PtrFromString(
@@ -139,6 +147,7 @@ func main() {
 	}))
 
 	w.SetHtml(withAssets(page))
+	logf("window ready")
 	w.Run()
 }
 
