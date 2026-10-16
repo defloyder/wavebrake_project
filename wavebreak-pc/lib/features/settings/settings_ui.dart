@@ -91,8 +91,11 @@ class SettingsSectionTabs extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // A page shown on its own (tests) has no router: no tabs.
     if (GoRouter.maybeOf(context) == null) return const SizedBox.shrink();
+    final path = GoRouterState.of(context).uri.path;
+    // Pages built from SettingsPage outside settings (Subscription): none.
+    if (!path.startsWith('/settings/')) return const SizedBox.shrink();
     final s = ref.watch(stringsProvider);
-    final current = sectionOf(GoRouterState.of(context).uri.path);
+    final current = sectionOf(path);
     final sections = [
       ('account', Icons.person_outline_rounded, s.account),
       ('connection', Icons.wifi_tethering_rounded, s.connection),

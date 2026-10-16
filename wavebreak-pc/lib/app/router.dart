@@ -181,6 +181,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                   child: HomeScreen(),
                 ),
               ),
+              // Inside the shell, so the side menu stays (owner, 17.10: it
+              // disappeared on the subscription screen).
+              GoRoute(
+                path: '/subscription',
+                pageBuilder: (_, state) =>
+                    fadeThroughPage(state, const SubscriptionScreen()),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -289,11 +296,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
         ],
-      ),
-      GoRoute(
-        path: '/subscription',
-        pageBuilder: (_, state) =>
-            fadeThroughPage(state, const SubscriptionScreen()),
       ),
     ],
   );

@@ -93,6 +93,8 @@ const sizes = <String, Size>{
   '1200x800': Size(1200, 800),
   '800x1280': Size(800, 1280),
   '1280x800': Size(1280, 800),
+  // Full screen on a 2K monitor at 125 % (owner, 17.10).
+  '2048x1152': Size(2048, 1152),
 };
 
 List<String>? _env(String k) {
