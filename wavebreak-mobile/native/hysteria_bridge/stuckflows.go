@@ -139,3 +139,26 @@ func CloseStuckFlows(openSec, silentSec int64) string {
 	sort.Strings(closed)
 	return fmt.Sprintf("%d: %s", len(closed), strings.Join(closed, ", "))
 }
+
+// CloseAllFlows closes every connection tun2socks relays and returns how
+// many. Called right after an engine-only reconnect (16.10, field log:
+// after a wake the engine was restarted, its probes passed, yet nothing
+// loaded for two minutes until a manual reconnect) — the apps' existing
+// connections went through the engine that was just replaced and hang on
+// it; closed, the apps redial at once through the new one.
+func CloseAllFlows() int {
+	type closer interface{ Close() error }
+	flowsMu.Lock()
+	defer flowsMu.Unlock()
+	n := 0
+	for _, c := range statistic.DefaultManager.Snapshot().Connections {
+		if cl, ok := c.(closer); ok {
+			_ = cl.Close()
+			n++
+		}
+	}
+	for id := range flows {
+		delete(flows, id)
+	}
+	return n
+}

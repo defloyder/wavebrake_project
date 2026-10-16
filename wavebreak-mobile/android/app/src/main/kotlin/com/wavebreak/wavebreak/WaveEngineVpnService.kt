@@ -133,6 +133,7 @@ class WaveEngineVpnService : VpnService() {
     private var downloadAtScreenOff = -1L
     private val reconnectHandler = Handler(Looper.getMainLooper())
     private var pendingReconnect: Runnable? = null
+    private var lastEngineRestartAt = 0L
     private var pendingFdCheck: Runnable? = null
     private var lastFdNoteAt = 0L
     private var pendingHealthCheck: Runnable? = null
@@ -763,6 +764,7 @@ class WaveEngineVpnService : VpnService() {
     // assumed.
     private fun reconnectEngineOnly(reason: String) {
         if (stopping || activeEngine == null) return
+        lastEngineRestartAt = SystemClock.elapsedRealtime()
         elog("engine-only reconnect after $reason")
         logStateTransition(STATE_RECONNECTING, reason)
         val generation = ++connectGeneration
@@ -938,6 +940,13 @@ class WaveEngineVpnService : VpnService() {
                             elog("health check failed: no network outside the tunnel either, waiting")
                             consecutiveHealthCheckFailures = 0
                             reconnectHandler.postDelayed(this, HEALTH_CHECK_RETRY_MS)
+                        } else if (SystemClock.elapsedRealtime() - lastEngineRestartAt < RESTART_GRACE_MS) {
+                            // Probed the engine that was just replaced (16.10:
+                            // a second restart 4 s after the first cut the
+                            // new engine off). Look again shortly.
+                            elog("health check failed during an engine restart, ignored")
+                            consecutiveHealthCheckFailures = 0
+                            reconnectHandler.postDelayed(this, HEALTH_CHECK_RETRY_MS)
                         } else {
                             consecutiveHealthCheckFailures++
                             elog("health check failed ($consecutiveHealthCheckFailures/$HEALTH_CHECK_FAILURE_THRESHOLD), network outside the tunnel ok")
@@ -1026,7 +1035,7 @@ class WaveEngineVpnService : VpnService() {
     // same round trip is the latency figure shown for every protocol,
     // Hysteria2 included, so numbers are comparable.
     // Blocking I/O — background threads only.
-    fun measureTunnelLatencyMs(): Int? {
+    fun measureTunnelLatencyMs(timeoutMs: Int = HEALTH_CHECK_TIMEOUT_MS): Int? {
         val socksPort = when (activeEngine) {
             Engine.XRAY -> XRAY_SOCKS_PORT
             Engine.HYSTERIA -> lastHysteriaSocksPort ?: return null
@@ -1035,11 +1044,11 @@ class WaveEngineVpnService : VpnService() {
         val proxy = java.net.Proxy(java.net.Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", socksPort))
         return try {
             Socket(proxy).use { socket ->
-                socket.soTimeout = HEALTH_CHECK_TIMEOUT_MS
+                socket.soTimeout = timeoutMs
                 val start = System.nanoTime()
                 socket.connect(
                     InetSocketAddress.createUnresolved(HEALTH_CHECK_HOST, 80),
-                    HEALTH_CHECK_TIMEOUT_MS,
+                    timeoutMs,
                 )
                 val request = "HEAD $HEALTH_CHECK_PATH HTTP/1.1\r\nHost: $HEALTH_CHECK_HOST\r\nConnection: close\r\n\r\n"
                 socket.getOutputStream().apply {
@@ -1113,11 +1122,11 @@ class WaveEngineVpnService : VpnService() {
     private fun verifyTunnelThenMaybeReconnect(reason: String) {
         if (stopping || activeEngine == null || pendingConnectWatchdog != null) return
         Thread({
-            var alive = probeTunnelAlive()
-            if (!alive && !stopping) {
-                Thread.sleep(HEALTH_CHECK_RETRY_AFTER_FAILURE_MS)
-                alive = probeTunnelAlive()
-            }
+            // One quick probe: the user is looking at the screen now. Two
+            // 10 s probes and a pause left 23 s of nothing loading before
+            // the restart (16.10 field log); a needless engine restart
+            // costs ~0.3 s.
+            val alive = measureTunnelLatencyMs(WAKE_PROBE_TIMEOUT_MS) != null
             reconnectHandler.post {
                 if (stopping || activeEngine == null) return@post
                 if (alive) {
@@ -1757,7 +1766,15 @@ class WaveEngineVpnService : VpnService() {
     private var keepSessionStartOnNextConnect = false
 
     private fun markSessionConnected(isReconnect: Boolean) {
-        if (isReconnect) return
+        if (isReconnect) {
+            // The apps' connections still go through the engine just
+            // replaced and hang there (16.10 field log: after a wake the
+            // probes passed, yet nothing loaded for two minutes until a
+            // manual reconnect). Closed now, they redial through this one.
+            val closed = runCatching { Bridge.closeAllFlows() }.getOrDefault(0L)
+            if (closed > 0) elog("reconnected: closed $closed old connections, the apps redial")
+            return
+        }
         if (keepSessionStartOnNextConnect && sessionStartFile(this).exists()) {
             keepSessionStartOnNextConnect = false
             return
@@ -2214,6 +2231,10 @@ class WaveEngineVpnService : VpnService() {
         private const val HEALTH_CHECK_RETRY_MS = 10_000L
         private const val HEALTH_CHECK_RETRY_AFTER_FAILURE_MS = 3_000L
         private const val HEALTH_CHECK_FAILURE_THRESHOLD = 2
+        private const val WAKE_PROBE_TIMEOUT_MS = 6_000
+        // A health check that failed during an engine restart is about the
+        // old engine: no second restart this soon after one.
+        private const val RESTART_GRACE_MS = 15_000L
 
         // onWake(): restart the engine when the screen was off at least
         // this long and less than this much came through meanwhile.

@@ -55,3 +55,9 @@ func TestCloseStuckFlows(t *testing.T) {
 	}
 	quiet.Close()
 }
+
+func TestCloseAllFlowsWithNothingOpen(t *testing.T) {
+	if n := CloseAllFlows(); n != 0 {
+		t.Fatalf("closed %d flows with none open", n)
+	}
+}
