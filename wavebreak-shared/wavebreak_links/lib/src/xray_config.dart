@@ -257,8 +257,24 @@ abstract class V2RayURL {
     String interfaceName = 'wavebreak-xray',
     int mtu = 1500,
     int? metricsPort,
+    Map<String, List<String>> serverHosts = const {},
   }) {
     final config = fullConfiguration;
+    // The server's own name, resolved by the app before the tunnel is up
+    // (owner, 16.10: Direct and Germany never connected on Xray, LTE — an
+    // IP — did). Windows resolves it through the system, whose DNS the
+    // tun inbound takes to Xray's DNS, whose queries the smart-routing
+    // rule sends through the proxy: the very connection waiting for that
+    // answer (the deadlock the routing comment above describes). Answered
+    // from hosts, it never leaves Xray.
+    if (serverHosts.isNotEmpty && config['dns'] is Map) {
+      final dnsConfig = Map<String, dynamic>.from(config['dns'] as Map);
+      dnsConfig['hosts'] = {
+        ...?(dnsConfig['hosts'] as Map?)?.cast<String, dynamic>(),
+        ...serverHosts,
+      };
+      config['dns'] = dnsConfig;
+    }
     final dnsServers = ((dns['servers'] as List?) ?? const ['1.1.1.1'])
         .whereType<String>()
         .where((s) => RegExp(r'^[0-9a-fA-F:.]+$').hasMatch(s))
@@ -308,9 +324,14 @@ abstract class V2RayURL {
   }
 
   String getWindowsTunConfiguration(
-      {required int probePort, int? metricsPort, int indent = 2}) {
+      {required int probePort,
+      int? metricsPort,
+      Map<String, List<String>> serverHosts = const {},
+      int indent = 2}) {
     final config = removeNulls(Map.from(windowsTunConfiguration(
-        probePort: probePort, metricsPort: metricsPort))) as Map;
+        probePort: probePort,
+        metricsPort: metricsPort,
+        serverHosts: serverHosts))) as Map;
     // An empty object turns the stats feature on — removeNulls drops it.
     if (metricsPort != null) config['stats'] = <String, dynamic>{};
     return JsonEncoder.withIndent(' ' * indent).convert(config);

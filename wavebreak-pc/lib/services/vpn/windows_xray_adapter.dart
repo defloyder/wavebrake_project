@@ -89,8 +89,14 @@ class WindowsXrayAdapter implements VpnAdapter, WindowsTunnel {
     final parsed = parseShareLink(url);
     applySmartRoutingPolicy(
         parsed, windowsProfileRoutingPolicy(profile.rawJson));
+    // The server's address while the system DNS is still the plain one —
+    // see xray_config.dart's windowsTunConfiguration (DNS deadlock).
+    final serverHosts = await _resolveServer(ShareLink.tryParse(url)?.host);
+    if (generation != _generation) return;
     final config = parsed.getWindowsTunConfiguration(
-        probePort: kXrayProbePort, metricsPort: kXrayMetricsPort);
+        probePort: kXrayProbePort,
+        metricsPort: kXrayMetricsPort,
+        serverHosts: serverHosts);
     AppLogger.info(
         'Connecting on Xray (${ShareLink.tryParse(url)?.protocol.name})');
 
@@ -111,6 +117,25 @@ class WindowsXrayAdapter implements VpnAdapter, WindowsTunnel {
     if (generation != _generation) return;
     _lastConfigPath = path;
     await _launch(exe, path, generation);
+  }
+
+  /// {host: [IPv4…]} for a server named by a domain; empty for an IP or
+  /// when it can't be resolved (Xray then resolves it itself, as before).
+  static Future<Map<String, List<String>>> _resolveServer(String? host) async {
+    if (host == null || host.isEmpty || InternetAddress.tryParse(host) != null) {
+      return const {};
+    }
+    try {
+      final found = await InternetAddress.lookup(host,
+              type: InternetAddressType.IPv4)
+          .timeout(const Duration(seconds: 5));
+      final ips = [for (final a in found) a.address];
+      AppLogger.info('Xray: $host resolved before the tunnel (${ips.length})');
+      return ips.isEmpty ? const {} : {host: ips};
+    } catch (e) {
+      AppLogger.warn('Xray: could not resolve $host before the tunnel: $e');
+      return const {};
+    }
   }
 
   Future<void> _launch(String exe, String configPath, int generation,
