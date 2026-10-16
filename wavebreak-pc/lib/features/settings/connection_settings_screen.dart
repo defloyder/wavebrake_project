@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/notice.dart';
+import '../shared/data_providers.dart' show locationsProvider;
 import '../../core/i18n/language_controller.dart';
 import '../../core/storage/prefs_store.dart';
 import '../../core/theme/wb_colors.dart';
@@ -146,6 +147,9 @@ class _ConnectionSettingsScreenState
                 onChanged: (value) async {
                   await PrefsStore.setBool(PrefsStore.pcXrayEngine, value);
                   setState(() => _xrayEngine = value);
+                  // The server list depends on the engine (XHTTP runs
+                  // only on Xray): re-read it.
+                  ref.invalidate(locationsProvider);
                 },
               ),
             // Split tunneling (owner, 15.10): apps that go directly.

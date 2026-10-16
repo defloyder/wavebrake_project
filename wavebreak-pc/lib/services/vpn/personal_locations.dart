@@ -8,6 +8,8 @@ import '../../core/storage/secure_store.dart';
 import '../core_api/core_gateway.dart';
 import '../core_api/models.dart';
 import '../custom_servers/share_link_parsing.dart';
+import 'windows_tunnel.dart' show WindowsEngineSwitch;
+import 'windows_xray_adapter.dart' show WindowsXrayAdapter;
 
 /// WAVEBREAK's own servers for a paid account (bug 10).
 ///
@@ -73,10 +75,17 @@ class PersonalLocations {
   /// Windows runs sing-box, which has no XHTTP transport.
   static const engine = TunnelEngine.singBox;
 
-  /// Links this app's tunnel engine can't run are left out rather than
+  /// Whether this PC can run [link]: sing-box, or the Xray engine (beta)
+  /// when it's switched on — that one runs XHTTP, so Turkey's REALITY over
+  /// XHTTP shows up too (owner, 16.10: "why no REALITY on the PC?").
+  static bool runsHere(String link) =>
+      (ShareLink.tryParse(link)?.supportedBy(engine) ?? false) ||
+      (WindowsEngineSwitch.xrayEnabled &&
+          WindowsXrayAdapter.installed &&
+          WindowsXrayAdapter.supports(link));
+
+  /// Links this app's tunnel engines can't run are left out rather than
   /// listed and failing on connect.
   static List<LocationItem> _parse(PersonalAccess access) =>
-      parseSubscriptionBody(access.links
-          .where((l) => ShareLink.tryParse(l)?.supportedBy(engine) ?? false)
-          .join('\n'));
+      parseSubscriptionBody(access.links.where(runsHere).join('\n'));
 }
