@@ -1,5 +1,6 @@
 import '../../core/theme/wb_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:wavebreak_links/wavebreak_links.dart' show ShareLink;
 
 import '../../core/i18n/app_strings.dart';
 import '../../services/core_api/models.dart';
@@ -9,11 +10,43 @@ import '../shared/flag_icon.dart';
 
 final _paren = RegExp(r'^(.*?)\s*\(([^)]+)\)\s*$');
 
-/// "Istanbul (Direct-TLS)" → ("Istanbul", "Direct-TLS").
+/// Words that make a "(note)" a protocol variant of the place rather than
+/// part of its name.
+const _protocolWords = {
+  'direct', 'tls', 'reality', 'hysteria', 'hysteria2', 'hy2', 'cdn',
+  'xhttp', 'splithttp', 'vless', 'vmess', 'trojan', 'ws', 'websocket',
+  'grpc', 'tcp', 'raw', 'quic', 'tuic', 'shadowsocks', 'ss', 'obfs',
+  'salamander', 'cloak', 'h2', 'httpupgrade', 'xtls', 'vision',
+  'wireguard', 'wg', 'kcp', 'mkcp', 'udp', 'anytls',
+};
+
+/// True when every word of [note] is a protocol or transport word:
+/// "Direct-TLS", "Hysteria2 Obfs", "XHTTP" — not "БС", "RU" or
+/// "YouTube без рекламы".
+bool isProtocolNote(String note) {
+  final words = note
+      .toLowerCase()
+      .split(RegExp(r'[^\p{L}\p{N}]+', unicode: true))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  return words.isNotEmpty && words.every(_protocolWords.contains);
+}
+
+/// "Istanbul (Direct-TLS)" → ("Istanbul", "Direct-TLS"). A note that isn't
+/// a protocol stays part of the name, for any node, ours or not (owner,
+/// 16.10: "LTE (БС)" showed as "LTE"): "LTE (БС)" → ("LTE (БС)", null).
 (String, String?) splitPlaceAndProtocol(String city) {
   final m = _paren.firstMatch(city);
-  if (m == null) return (city, null);
+  if (m == null || !isProtocolNote(m.group(2)!)) return (city, null);
   return (m.group(1)!, m.group(2));
+}
+
+/// "VLESS / TCP / REALITY": what [l]'s link is, read from the link (see
+/// ShareLink.stackLabel); null for a location without one.
+String? stackLabel(LocationItem l) {
+  final raw = l.rawLink;
+  if (raw == null || raw.isEmpty) return null;
+  return ShareLink.tryParse(raw)?.stackLabel;
 }
 
 /// Short protocol name for a location: from its label, else its link.
@@ -32,24 +65,13 @@ String? protocolLabel(LocationItem l) {
   if (name.contains('reality')) return 'REALITY';
   if (name.contains('direct')) return 'Direct';
   if (name.contains('cdn')) return 'CDN';
-  // A WAVEBREAK location's own custom note (Core's DirectTLSLabel, e.g.
-  // "YouTube без рекламы") that matched none of the known keywords above:
-  // a deliberate, meant-to-be-seen label, not noise to classify away.
-  // [LocationItem.isCustom] can't tell own vs third-party apart here —
-  // locationFromUri (share_link_parsing.dart) sets it true unconditionally
-  // for every link this function parses, WAVEBREAK's own bundled ones
-  // included — so this instead keys on the link pointing at our own
-  // domain, the one thing every WAVEBREAK-issued link actually has in
-  // common. A third-party note falling through here instead of the
-  // generic scheme name is the exact regression the 12.10 fix below
-  // exists to prevent (a third-party node's own arbitrary text read as
-  // one of WAVEBREAK's categories, or just confusingly inconsistent with
-  // every other third-party row) — scoping to our own domain keeps that
-  // fix intact for every link that isn't ours.
-  if (link.contains('wavebreak.com.tr') &&
-      fromName != null &&
-      fromName.isNotEmpty) {
-    return fromName;
+  // A WAVEBREAK link with a note that isn't a protocol (Core's
+  // DirectTLSLabel, "YouTube без рекламы"): the note is now part of the
+  // name, the protocol comes from the link — Direct-TLS, or CDN on the
+  // Cloudflare host.
+  final host = Uri.tryParse(l.rawLink ?? '')?.host.toLowerCase() ?? '';
+  if (host.endsWith('wavebreak.com.tr') && link.startsWith('vless://')) {
+    return host.startsWith('cdn.') ? 'CDN' : 'Direct';
   }
 
   // Any other link: its own protocol (owner, 12.10: a third-party VLESS

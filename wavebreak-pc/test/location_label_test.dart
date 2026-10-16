@@ -16,15 +16,33 @@ void main() {
   });
 
   test(
-      'a WAVEBREAK (own-domain) custom note shows verbatim, '
-      'not a generic scheme name', () {
+      'a note that is not a protocol stays in the name, for our nodes '
+      'and others alike (owner, 16.10: "LTE (БС)" showed as "LTE")', () {
     const raw = 'vless://id@dl.wavebreak.com.tr:9443?type=ws&security=tls'
         '#%F0%9F%87%B7%F0%9F%87%BA%20Russia%2C%20Moscow'
         '%20%28YouTube%20%D0%B1%D0%B5%D0%B7%20%D1%80%D0%B5%D0%BA%D0%BB%D0%B0%D0%BC%D1%8B%29';
     final l = locationFromUri(Uri.parse(raw), raw);
     expect(l.country, 'Russia');
-    expect(splitPlaceAndProtocol(l.city).$1, 'Moscow');
-    expect(protocolLabel(l), 'YouTube без рекламы');
+    expect(splitPlaceAndProtocol(l.city).$1, 'Moscow (YouTube без рекламы)');
+    expect(protocolLabel(l), 'Direct');
+    expect(stackLabel(l), 'VLESS / WS / TLS');
+
+    const lte = 'vless://id@153.51.114.127:443?type=tcp&security=reality'
+        '&sni=ya.ru&pbk=k&sid=01'
+        '#%F0%9F%87%B7%F0%9F%87%BA%20LTE%20(%D0%91%D0%A1)';
+    final b = locationFromUri(Uri.parse(lte), lte);
+    expect(b.countryCode, 'RU');
+    expect(splitPlaceAndProtocol(b.city), ('LTE (БС)', null));
+    expect(protocolLabel(b), 'REALITY');
+    expect(stackLabel(b), 'VLESS / TCP / REALITY');
+
+    expect(splitPlaceAndProtocol('Istanbul (Direct-TLS)'),
+        ('Istanbul', 'Direct-TLS'));
+    expect(splitPlaceAndProtocol('Germany (XHTTP)'), ('Germany', 'XHTTP'));
+    expect(splitPlaceAndProtocol('Istanbul (Hysteria2 Obfs)'),
+        ('Istanbul', 'Hysteria2 Obfs'));
+    expect(splitPlaceAndProtocol('YouTube без рекламы (RU)'),
+        ('YouTube без рекламы (RU)', null));
   });
 
   test(

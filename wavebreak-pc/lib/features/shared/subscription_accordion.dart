@@ -557,10 +557,12 @@ class _PlaceRow extends StatelessWidget {
     final ping = livePings[shown.id] ?? shown.pingMs;
     final available = place.variants.any((v) => v.available);
     final single = place.variants.length == 1;
-    final singleProto = single ? protocolLabel(place.primary) : null;
+    // What the link is ("VLESS / TCP / REALITY", read from the link the
+    // way Happ shows it), else the short protocol name.
+    final stack = stackLabel(shown) ?? (single ? protocolLabel(shown) : null);
     final subtitle = [
       if (place.title != place.country) place.country,
-      if (singleProto != null) singleProto,
+      if (stack != null) stack,
       // A node of a third-party subscription this engine can't run.
       if (!available && place.primary.isCustom) s.notSupportedMark,
     ].join(' · ');

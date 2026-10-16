@@ -166,6 +166,50 @@ class ShareLink {
   final int? cloakChaffMinMs;
   final int? cloakChaffMaxMs;
 
+  /// What the link is, read from the link itself, the way Happ shows it
+  /// under a node's name: "VLESS / TCP / REALITY", "VLESS / WS / TLS",
+  /// "Hysteria2", "Trojan / gRPC / TLS". Never from the name, so any
+  /// provider's node — ours or not — gets it right.
+  String get stackLabel {
+    final name = switch (protocol) {
+      LinkProtocol.vless => 'VLESS',
+      LinkProtocol.vmess => 'VMess',
+      LinkProtocol.trojan => 'Trojan',
+      LinkProtocol.shadowsocks => 'Shadowsocks',
+      LinkProtocol.hysteria2 => 'Hysteria2',
+      LinkProtocol.tuic => 'TUIC',
+      LinkProtocol.wireguard => 'WireGuard',
+      LinkProtocol.socks => 'SOCKS',
+      LinkProtocol.http => 'HTTP',
+    };
+    final layered = protocol == LinkProtocol.vless ||
+        protocol == LinkProtocol.vmess ||
+        protocol == LinkProtocol.trojan;
+    if (!layered) {
+      final o = (obfs ?? '').trim();
+      return o.isEmpty || o == 'none' ? name : '$name / ${_cap(o)}';
+    }
+    final transport = switch (network.toLowerCase()) {
+      'ws' || 'websocket' => 'WS',
+      'grpc' || 'gun' => 'gRPC',
+      'xhttp' || 'splithttp' => 'XHTTP',
+      'httpupgrade' => 'HTTPUpgrade',
+      'h2' || 'http' => 'H2',
+      'kcp' || 'mkcp' => 'mKCP',
+      'quic' => 'QUIC',
+      '' || 'raw' || 'tcp' => 'TCP',
+      final other => other.toUpperCase(),
+    };
+    final sec = switch ((security ?? '').toLowerCase()) {
+      'reality' => 'REALITY',
+      'tls' || 'xtls' => 'TLS',
+      _ => null,
+    };
+    return [name, transport, if (sec != null) sec].join(' / ');
+  }
+
+  static String _cap(String s) => s[0].toUpperCase() + s.substring(1);
+
   /// Used only to redirect a cloak-enabled hysteria2 link's outbound config
   /// at a local cloak-client-proxy instead of the real server (Windows
   /// only — see WindowsVpnAdapter._maybeStartCloakProxy). Every other field
