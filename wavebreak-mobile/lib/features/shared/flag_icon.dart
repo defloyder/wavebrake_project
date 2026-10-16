@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:country_flags/country_flags.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/flag_colors.dart';
@@ -15,30 +15,34 @@ class FlagIcon extends StatelessWidget {
 
   static final _iso = RegExp(r'^[A-Z]{2}$');
 
+  /// Whether the flag library has this country (every ISO 3166 code).
+  static bool known(String code) =>
+      _iso.hasMatch(code) && FlagCode.fromCountryCode(code) != null;
+
   @override
   Widget build(BuildContext context) {
     final height = width * 0.72;
     final code = countryCode.toUpperCase();
-    final emoji =
-        defaultTargetPlatform == TargetPlatform.android && _iso.hasMatch(code)
-            ? flagEmoji(code)
-            : null;
+    // Real flags from the bundled library on every platform (owner, 16.10:
+    // on the PC and TV most flags were stripes of their colours — France,
+    // Italy and England looked alike, Sweden like Ukraine). The painter is
+    // left for a code the library doesn't know.
+    if (known(code)) {
+      return CountryFlag.fromCountryCode(
+        code,
+        theme: ImageTheme(
+          width: width,
+          height: height,
+          shape: RoundedRectangle(width * 0.14),
+        ),
+      );
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(width * 0.14),
       child: SizedBox(
         width: width,
         height: height,
-        child: emoji != null
-            // The glyph is square with the flag in its middle: cover
-            // crops the empty top and bottom so the flag fills the box.
-            ? FittedBox(
-                fit: BoxFit.cover,
-                clipBehavior: Clip.hardEdge,
-                child: Text(emoji,
-                    textScaler: TextScaler.noScaling,
-                    style: const TextStyle(fontSize: 64, height: 1)),
-              )
-            : CustomPaint(painter: _FlagPainter(code)),
+        child: CustomPaint(painter: _FlagPainter(code)),
       ),
     );
   }

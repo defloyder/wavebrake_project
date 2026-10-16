@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/personalization_controller.dart';
+import '../shared/wave_params.dart';
 import 'effects_quality.dart';
 import 'immersive_clock.dart';
 import 'immersive_colors.dart';
@@ -34,6 +35,10 @@ class WaveField extends ConsumerWidget {
     // Personalization: how visible the waves are (calm draws fewer lines).
     final background = ref.watch(personalizationProvider).background;
     final wanted = (layers * background.layerFactor).round().clamp(6, layers);
+    // Following the location: the flag's second colour too (owner, 16.10:
+    // the flag's colours in equal measure — the streams alternate them).
+    final waves = ref.watch(appWaveParamsProvider);
+    final tint2 = tint != null && tint == waves.tint ? waves.tint2 : null;
     return IgnorePointer(
       child: ExcludeSemantics(
         child: RepaintBoundary(
@@ -45,6 +50,7 @@ class WaveField extends ConsumerWidget {
               layers: economy ? (wanted < 12 ? wanted : 12) : wanted,
               strength: background.strength,
               tint: tint,
+              tint2: tint2,
               glow: !economy,
             ),
           ),
@@ -60,6 +66,7 @@ class _WaveFieldPainter extends CustomPainter {
       required this.intensity,
       required this.layers,
       this.tint,
+      this.tint2,
       this.glow = true,
       this.strength = 1.0})
       : super(repaint: time);
@@ -68,6 +75,9 @@ class _WaveFieldPainter extends CustomPainter {
   final double intensity;
   final int layers;
   final Color? tint;
+
+  /// The flag's second colour: every other stream takes it.
+  final Color? tint2;
 
   /// The blurred glow under the bright crests (off in economy).
   final bool glow;
@@ -80,8 +90,8 @@ class _WaveFieldPainter extends CustomPainter {
   /// The designed crimson recolored to the flag accent's hue (keeps its
   /// depth and saturation, so a blue flag gives deep blue waves, not a
   /// crimson/blue mix). A near-grey accent leaves the crimson as is.
-  Color _tinted(Color c) {
-    final t = tint;
+  Color _tinted(Color c, [bool second = false]) {
+    final t = second && tint2 != null ? tint2 : tint;
     if (t == null) return c;
     final hsl = HSLColor.fromColor(t);
     if (hsl.saturation < 0.15) return c;
@@ -143,6 +153,8 @@ class _WaveFieldPainter extends CustomPainter {
       final f1 = 1.6 + 0.9 * k;
       final f2 = 3.7 - 1.1 * k;
       final phase = i * 0.37;
+      // Two-colour flags: every other stream in the second colour.
+      final alt = i.isOdd;
       final points = <Offset>[];
       for (double x = 0; x <= w + step; x += step) {
         final u = x / w;
@@ -164,7 +176,7 @@ class _WaveFieldPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            _tinted(Ic.crimson)
+            _tinted(Ic.crimson, alt)
                 .withValues(alpha: _a(0.035 * k * (0.6 + 0.4 * intensity))),
             Ic.background.withValues(alpha: 0),
           ],
@@ -174,7 +186,7 @@ class _WaveFieldPainter extends CustomPainter {
       final bright = i == layers - 3 || i == layers - 9;
       stroke
         ..strokeWidth = bright ? 1.4 : 0.5 + 0.6 * k
-        ..color = _tinted(Color.lerp(Ic.burgundy, Ic.crimson, k * k)!)
+        ..color = _tinted(Color.lerp(Ic.burgundy, Ic.crimson, k * k)!, alt)
             .withValues(
                 alpha: _a((bright ? 0.55 : 0.10 + 0.22 * k) *
                     (0.7 + 0.3 * intensity)));
@@ -184,7 +196,7 @@ class _WaveFieldPainter extends CustomPainter {
         drawSoftPath(
             canvas,
             crest,
-            _tinted(Ic.crimson)
+            _tinted(Ic.crimson, alt)
                 .withValues(alpha: _a(0.06 * (0.6 + 0.4 * intensity))),
             6,
             6);
@@ -198,6 +210,7 @@ class _WaveFieldPainter extends CustomPainter {
       old.layers != layers ||
       old.time != time ||
       old.tint != tint ||
+      old.tint2 != tint2 ||
       old.glow != glow ||
       old.strength != strength;
 }

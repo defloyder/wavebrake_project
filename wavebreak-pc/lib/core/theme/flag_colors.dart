@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import 'flag_palettes.g.dart';
 import 'wb_colors.dart';
 
 /// Real, curated flag colors for locations we can realistically expect to
@@ -64,29 +67,74 @@ const _curatedFlags = <String, List<Color>>{
 };
 
 /// Representative colors per location, used for the flag icon's own
-/// rendering and for multi-stop glows (e.g. the connect button). Falls
-/// back to a generated single-hue set for Auto / uncurated codes.
+/// rendering and for multi-stop glows (e.g. the connect button): the
+/// flag's real colours, largest share first (flag_palettes.g.dart,
+/// measured from the flag library for every country). Falls back to the
+/// hand-picked set, then a generated single-hue set (Auto, unknown codes).
 List<Color> flagColorsFor(String countryCode) {
-  final curated = _curatedFlags[countryCode.toUpperCase()];
+  final code = countryCode.toUpperCase();
+  final measured = flagPalettes[code];
+  if (measured != null && measured.isNotEmpty) {
+    return [for (final (c, _) in measured) Color(c)];
+  }
+  final curated = _curatedFlags[code];
   if (curated != null) return curated;
   final base = _generatedAccentFor(countryCode);
   return [base, Color.lerp(base, Colors.white, 0.55) ?? base, base];
 }
 
-/// A single representative color per location, used to tint the background
-/// waves, the sphere and the glass cards: all of the flag's colors mixed
-/// together, then brought to a glow-friendly saturation and lightness.
-///
-/// Owner (06.10): it used to be one hand-picked flag color — gold for
-/// Germany, which read as the app's amber "no traffic" state. Mixing the
-/// whole flag (black + red + gold → a warm orange) keeps it the place's
-/// own color. A mix that still lands in the amber band is pushed to
-/// orange so it never looks like that state. Multi-color surfaces (the
-/// flag icon, the connect button's glow) use [flagColorsFor] instead.
+bool _chromatic(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  return hsl.saturation > 0.25 && hsl.lightness > 0.1 && hsl.lightness < 0.92;
+}
+
+/// The flag's colours that can tint (white, black and greys left out),
+/// largest share first.
+List<Color> flagChromatics(String countryCode) => [
+      for (final c in flagColorsFor(countryCode))
+        if (_chromatic(c)) c,
+    ];
+
+/// A flag colour as an accent: glow-friendly saturation and lightness; a
+/// yellow is pushed to orange so it never reads as the amber "no traffic"
+/// state (owner, 06.10).
+Color _asAccent(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  var hue = hsl.hue;
+  if (hue >= 36 && hue <= 62) hue = 26;
+  return HSLColor.fromAHSL(1, hue, hsl.saturation.clamp(0.65, 0.85),
+          hsl.lightness.clamp(0.5, 0.6))
+      .toColor();
+}
+
+/// The location's main colour: the flag's largest colour (owner, 16.10:
+/// mixing every flag colour into one gave muddy tints — Bulgaria's green
+/// and red came out pink — and a flag without hand-picked colours got an
+/// arbitrary hue). A flag of only white/black/grey keeps the app's cyan.
 Color accentColorFor(String countryCode) {
-  final curated = _curatedFlags[countryCode.toUpperCase()];
-  if (curated == null) return _generatedAccentFor(countryCode);
-  return mixFlagColors(curated);
+  if (countryCode.isEmpty) return WbColors.waveCyan;
+  final chroma = flagChromatics(countryCode);
+  if (chroma.isEmpty) {
+    return flagPalettes.containsKey(countryCode.toUpperCase())
+        ? WbColors.waveCyan
+        : _generatedAccentFor(countryCode);
+  }
+  return _asAccent(chroma.first);
+}
+
+/// The flag's second colour, distinct in hue from the first, or null for a
+/// one-colour flag — shown beside [accentColorFor] in equal measure (the
+/// background waves alternate the two).
+Color? secondAccentFor(String countryCode) {
+  final chroma = flagChromatics(countryCode);
+  if (chroma.length < 2) return null;
+  final first = HSLColor.fromColor(_asAccent(chroma.first)).hue;
+  for (final c in chroma.skip(1)) {
+    final accent = _asAccent(c);
+    final d = (HSLColor.fromColor(accent).hue - first).abs();
+    if (math.min(d, 360 - d) >= 25) return accent;
+  }
+  return null;
 }
 
 /// The mix behind [accentColorFor]; visible for tests.
@@ -98,7 +146,8 @@ Color mixFlagColors(List<Color> colors) {
     b += c.b;
   }
   final n = colors.length;
-  final mixed = HSLColor.fromColor(Color.from(alpha: 1, red: r / n, green: g / n, blue: b / n));
+  final mixed = HSLColor.fromColor(
+      Color.from(alpha: 1, red: r / n, green: g / n, blue: b / n));
   // Grey mix (e.g. only black and white): nothing to tint with.
   if (mixed.saturation < 0.05) return WbColors.waveCyan;
   var hue = mixed.hue;
@@ -139,16 +188,9 @@ Color _generatedAccentFor(String countryCode) {
 /// its main color (e.g. Japan).
 List<Color> accentPairFor(String countryCode) {
   final primary = accentColorFor(countryCode);
-  final palette = flagColorsFor(countryCode);
-  Color? secondary;
-  for (final c in palette) {
-    if (c.toARGB32() == primary.toARGB32()) continue;
-    final luminance = c.computeLuminance();
-    if (luminance > 0.85 || luminance < 0.08) continue;
-    secondary = c;
-    break;
-  }
-  secondary ??= Color.lerp(primary, Colors.white, 0.4) ?? primary;
+  final secondary = secondAccentFor(countryCode) ??
+      Color.lerp(primary, Colors.white, 0.4) ??
+      primary;
   return [primary, secondary];
 }
 

@@ -10,11 +10,17 @@ import '../../services/vpn/connection_manager.dart';
 /// nav rail, the mobile bottom bar) reads this same value, so they all
 /// move and glow together instead of drifting out of sync.
 class WaveParams {
-  const WaveParams({this.speed = 1.0, this.amplitude = 1.0, this.tint});
+  const WaveParams(
+      {this.speed = 1.0, this.amplitude = 1.0, this.tint, this.tint2});
 
   final double speed;
   final double amplitude;
   final Color? tint;
+
+  /// The flag's second colour, shown beside [tint] in equal measure (the
+  /// background waves alternate them); null for a one-colour flag or a
+  /// hand-picked accent.
+  final Color? tint2;
 }
 
 /// Derived directly from the current connection/location state — no
@@ -37,6 +43,10 @@ final appWaveParamsProvider = Provider<WaveParams>((ref) {
       ? null
       : accentColorFor(connection.location.countryCode);
   final tint = personalization.accent.color ?? autoTint;
+  final tint2 =
+      personalization.accent.color != null || connection.location.isAuto
+          ? null
+          : secondAccentFor(connection.location.countryCode);
 
   final raw = switch (connection.status) {
     ConnectionStatus.idle => const WaveParams(speed: 0.9, amplitude: 0.9),
@@ -52,13 +62,17 @@ final appWaveParamsProvider = Provider<WaveParams>((ref) {
   };
 
   if (!personalization.reduceMotion) {
-    return WaveParams(speed: raw.speed, amplitude: raw.amplitude, tint: tint);
+    return WaveParams(
+        speed: raw.speed, amplitude: raw.amplitude, tint: tint, tint2: tint2);
   }
   // "Reduce motion" asks for calm, not frozen — still a faint drift
   // rather than a hard stop, which would just read as the animation
   // being broken.
   return WaveParams(
-      speed: raw.speed * 0.18, amplitude: raw.amplitude * 0.35, tint: tint);
+      speed: raw.speed * 0.18,
+      amplitude: raw.amplitude * 0.35,
+      tint: tint,
+      tint2: tint2);
 });
 
 WaveParams _connectedWaveParams(int? pingMs) {

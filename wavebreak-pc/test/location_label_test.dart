@@ -37,13 +37,53 @@ void main() {
     expect(protocolLabel(l), 'VLESS');
   });
 
-  test('flag tint mixes the flag and never lands on the amber state color', () {
-    for (final code in ['DE', 'ES', 'BE', 'RO', 'LT', 'RU', 'TR', 'NL']) {
-      final hue = HSLColor.fromColor(accentColorFor(code)).hue;
-      expect(hue < 36 || hue > 62, isTrue, reason: '$code hue $hue');
+  test('flag tint never lands on the amber state color', () {
+    for (final code in [
+      'DE',
+      'ES',
+      'BE',
+      'RO',
+      'LT',
+      'RU',
+      'TR',
+      'NL',
+      'SE',
+      'UA'
+    ]) {
+      for (final c in [accentColorFor(code), secondAccentFor(code)]) {
+        if (c == null) continue;
+        final hue = HSLColor.fromColor(c).hue;
+        expect(hue < 36 || hue > 62, isTrue, reason: '$code hue $hue');
+      }
     }
-    // Germany: black + red + gold → orange, not the gold alone.
-    final de = HSLColor.fromColor(accentColorFor('DE')).hue;
-    expect(de, inInclusiveRange(15, 35));
+  });
+
+  double hue(Color c) => HSLColor.fromColor(c).hue;
+  bool near(double h, double target) {
+    final d = (h - target).abs();
+    return (d < 360 - d ? d : 360 - d) < 20;
+  }
+
+  test('the flag\'s own two main colours, from the measured palette (16.10)',
+      () {
+    // Bulgaria (green, white, red): green and red — it used to be pink.
+    expect(near(hue(accentColorFor('BG')), 160), isTrue);
+    expect(near(hue(secondAccentFor('BG')!), 6), isTrue);
+    // Germany: red first, gold shown as orange (never the amber state).
+    expect(near(hue(accentColorFor('DE')), 0), isTrue);
+    expect(near(hue(secondAccentFor('DE')!), 26), isTrue);
+    // Russia: blue and red; Turkey and Switzerland: red only.
+    expect(near(hue(accentColorFor('RU')), 220), isTrue);
+    expect(near(hue(secondAccentFor('RU')!), 4), isTrue);
+    expect(secondAccentFor('TR'), isNull);
+    expect(secondAccentFor('CH'), isNull);
+  });
+
+  test('every country has a measured palette', () {
+    expect(flagColorsFor('BG'), hasLength(3));
+    expect(flagColorsFor('FR').first, const Color(0xFF002654));
+    for (final code in ['AE', 'GB', 'SE', 'CH', 'IT', 'KZ', 'BR', 'JP']) {
+      expect(flagChromatics(code), isNotEmpty, reason: code);
+    }
   });
 }
