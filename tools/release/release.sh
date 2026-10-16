@@ -260,8 +260,19 @@ cmd_stage() {
   "${SSH[@]}" "$MIRROR_HOST" "cd $MIRROR_DIR/incoming-$ID && sha256sum $files" | LC_ALL=C sort -k2 > mirror.sha
   diff -q local.sha mirror.sha >/dev/null || die "хэши на зеркале не совпали"
   say "Копия на сервер сайта (сервер-сервер)"
-  "${SSH[@]}" "$SITE_HOST" "set -e; mkdir -p /root/staging/$ID && cd /root/staging/$ID; for f in $files version.json version-windows.json; do curl -sf -m 600 -o \$f https://dl.wavebreak.com.tr/downloads/incoming-$ID/\$f || [ \$f = version.json ] || [ \$f = version-windows.json ]; done; sha256sum $files" | LC_ALL=C sort -k2 > site.sha
-  diff -q local.sha site.sha >/dev/null || die "хэши на сервере сайта не совпали"
+  "${SSH[@]}" "$SITE_HOST" "set -e; mkdir -p /root/staging/$ID && cd /root/staging/$ID; for f in $files version.json version-windows.json; do curl -sf -m 600 -o \$f https://dl.wavebreak.com.tr/downloads/incoming-$ID/\$f || [ \$f = version.json ] || [ \$f = version-windows.json ]; done; sha256sum $files" | LC_ALL=C sort -k2 > site.sha || true
+  if ! diff -q local.sha site.sha >/dev/null; then
+    # The mirror didn't serve them (16.10: another nginx on its port 443
+    # answered 404): upload to the site server straight from here.
+    say "Зеркало не отдало файлы — загрузка на сервер сайта напрямую"
+    "${SSH[@]}" "$SITE_HOST" "mkdir -p /root/staging/$ID"
+    for f in $files version.json version-windows.json; do
+      [ -f "$f" ] || continue
+      for t in 1 2 3; do "${SCP[@]}" "$f" "$SITE_HOST:/root/staging/$ID/" && break; echo "повтор $f"; done
+    done
+    "${SSH[@]}" "$SITE_HOST" "cd /root/staging/$ID && sha256sum $files" | LC_ALL=C sort -k2 > site.sha
+    diff -q local.sha site.sha >/dev/null || die "хэши на сервере сайта не совпали"
+  fi
   cd "$ROOT"
   [ -n "$AC" ] && rel take android "$ARC"
   [ -n "$WC" ] && rel take windows "$WRC"
@@ -303,8 +314,14 @@ cmd_publish() {
     for base in https://dl.wavebreak.com.tr/downloads https://wavebreak.com.tr/downloads; do
       curl -s "$base/$m?t=$RANDOM" | grep -E '"versionName"' | head -1 | tr -d '\n'; echo "  <- $base/$m"
     done
-    for u in $(curl -s "https://dl.wavebreak.com.tr/downloads/$m?t=$RANDOM" | grep -oE 'https://[^"]+' | sort -u); do
-      code=$(curl -s -o /dev/null -I -w "%{http_code}" "$u"); echo "$code $u"; [ "$code" = 200 ] || bad=1
+    # The links listed in the site's copy of the manifest (the mirror's may
+    # be what's down). A mirror (dl.) link that fails is reported but not
+    # fatal — the apps fall back to the site; any site link must answer.
+    for u in $(curl -s "https://wavebreak.com.tr/downloads/$m?t=$RANDOM" | grep -oE 'https://[^"]+' | sort -u); do
+      code=$(curl -s -o /dev/null -I -w "%{http_code}" "$u"); echo "$code $u"
+      if [ "$code" != 200 ]; then
+        case "$u" in https://dl.*) echo "  ^ зеркало не отвечает — приложения возьмут файл с сайта" ;; *) bad=1 ;; esac
+      fi
     done
   done
   [ $bad = 0 ] || die "есть недоступные ссылки — проверьте вручную (старые файлы сохранены как .bak-before-$ts)"
