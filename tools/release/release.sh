@@ -336,7 +336,23 @@ cmd_publish() {
   [ -n "$WN" ] && git tag -f "windows/$WN" "$COMMIT"
   git push -q origin "$BRANCH" && git push -q -f origin ${AN:+"android/$AN"} ${WN:+"windows/$WN"}
   : > "$STATE"
+
+  say "6. Старые сборки — с зеркала и сайта (остаются две последние версии)"
+  prune_downloads
   say "Опубликовано. Не забудьте запись в CHANGELOG.md (что вошло) — коммит и пуш."
+}
+
+# Old builds out of both download folders (prune-downloads.sh; 17.10: the
+# mirror's disk filled up). Not fatal: the release is already out.
+prune_downloads() {
+  local host dir pair
+  for pair in "$MIRROR_HOST:$MIRROR_DIR" "$SITE_HOST:$SITE_DIR"; do
+    host=${pair%%:*}; dir=${pair#*:}
+    echo "  $host"
+    ssh -i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes "$host" \
+      "bash -s -- $dir 2" < "$HERE/prune-downloads.sh" \
+      || echo "  ^ чистка не прошла — проверьте место на $host вручную"
+  done
 }
 
 case "${1:-}" in

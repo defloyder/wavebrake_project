@@ -86,4 +86,15 @@ done
 for u in "$dl/$F" "$dl/$A" "$site/$F" "$site/$A" "$site/wavebreak-tv.apk" "$site/wavebreak-tv-arm32.apk"; do
   echo "$(curl -s -o /dev/null -w '%{http_code}' -I -m 20 "$u") $u"
 done
+
+# Old builds out of both folders, two newest versions stay (17.10: the
+# mirror's disk filled up). Not fatal: the build is already out.
+echo "== Старые сборки"
+for pair in "$MIRROR_HOST:$MIRROR_DIR" "$SITE_HOST:$SITE_DIR"; do
+  host=${pair%%:*}; dir=${pair#*:}
+  echo "  $host"
+  ssh -i "$SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes "$host" \
+    "bash -s -- $dir 2" < "$HERE/prune-downloads.sh" \
+    || echo "  ^ чистка не прошла — проверьте место на $host вручную"
+done
 echo "Опубликована ТВ-сборка $ver ($N). Запишите в CHANGELOG.md и docs/PROJECT-STATE.md."
