@@ -312,7 +312,8 @@ cmd_publish() {
   local bad=0
   for m in $manifests; do
     for base in https://dl.wavebreak.com.tr/downloads https://wavebreak.com.tr/downloads; do
-      curl -s "$base/$m?t=$RANDOM" | grep -E '"versionName"' | head -1 | tr -d '\n'; echo "  <- $base/$m"
+      { curl -s "$base/$m?t=$RANDOM" | grep -E '"versionName"' | head -1 | tr -d '\n'; } || true
+      echo "  <- $base/$m"
     done
     # The links listed in the site's copy of the manifest (the mirror's may
     # be what's down). A mirror (dl.) link that fails is reported but not
