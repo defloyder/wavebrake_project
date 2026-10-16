@@ -72,6 +72,9 @@ const shots = [
   Shot('home', '/home'),
   Shot('lock', '/home', pin: true),
   Shot('home-5proto', '/home', locationId: 'hel-r'),
+  // A three-colour flag: the waves, glow and particles take all three.
+  Shot('home-de', '/home', locationId: 'fra'),
+  Shot('home-bg', '/home', locationId: 'sof'),
   Shot('home-picker', '/home', openPicker: true),
   // TV remote: ' ' first focus, then into the rail and out again.
   Shot('tv-focus', '/home', keys: [LogicalKeyboardKey.arrowDown]),
@@ -274,6 +277,8 @@ const benchLocations = [
   LocationItem(id: 'msk-h', countryCode: 'RU', country: 'Russia', city: 'Moscow (Hysteria2)', available: true, pingMs: 14),
   LocationItem(id: 'msk-r', countryCode: 'RU', country: 'Russia', city: 'Moscow (REALITY)', available: true, pingMs: 15),
   LocationItem(id: 'ams', countryCode: 'NL', country: 'Netherlands', city: 'Amsterdam', available: true, pingMs: 62),
+  LocationItem(id: 'fra', countryCode: 'DE', country: 'Germany', city: 'Frankfurt', available: true, pingMs: 41),
+  LocationItem(id: 'sof', countryCode: 'BG', country: 'Bulgaria', city: 'Sofia', available: true, pingMs: 38),
   LocationItem(id: 'hel-d', countryCode: 'FI', country: 'Finland', city: 'Helsinki (Direct-TLS)', available: true, pingMs: 58),
   LocationItem(id: 'hel-h', countryCode: 'FI', country: 'Finland', city: 'Helsinki (Hysteria2)', available: true),
   LocationItem(id: 'hel-r', countryCode: 'FI', country: 'Finland', city: 'Helsinki (REALITY)', available: true),

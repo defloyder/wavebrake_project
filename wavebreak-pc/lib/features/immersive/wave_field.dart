@@ -35,10 +35,11 @@ class WaveField extends ConsumerWidget {
     // Personalization: how visible the waves are (calm draws fewer lines).
     final background = ref.watch(personalizationProvider).background;
     final wanted = (layers * background.layerFactor).round().clamp(6, layers);
-    // Following the location: the flag's second colour too (owner, 16.10:
-    // the flag's colours in equal measure — the streams alternate them).
+    // Following the location: all of the flag's colours (owner, 16.10:
+    // each its own, in equal measure — the streams cycle through them).
     final waves = ref.watch(appWaveParamsProvider);
-    final tint2 = tint != null && tint == waves.tint ? waves.tint2 : null;
+    final palette =
+        tint != null && tint == waves.tint ? waves.palette : const <Color>[];
     return IgnorePointer(
       child: ExcludeSemantics(
         child: RepaintBoundary(
@@ -50,7 +51,7 @@ class WaveField extends ConsumerWidget {
               layers: economy ? (wanted < 12 ? wanted : 12) : wanted,
               strength: background.strength,
               tint: tint,
-              tint2: tint2,
+              palette: palette,
               glow: !economy,
             ),
           ),
@@ -66,7 +67,7 @@ class _WaveFieldPainter extends CustomPainter {
       required this.intensity,
       required this.layers,
       this.tint,
-      this.tint2,
+      this.palette = const [],
       this.glow = true,
       this.strength = 1.0})
       : super(repaint: time);
@@ -76,8 +77,8 @@ class _WaveFieldPainter extends CustomPainter {
   final int layers;
   final Color? tint;
 
-  /// The flag's second colour: every other stream takes it.
-  final Color? tint2;
+  /// The flag's colours: stream i takes palette[i % length].
+  final List<Color> palette;
 
   /// The blurred glow under the bright crests (off in economy).
   final bool glow;
@@ -90,12 +91,26 @@ class _WaveFieldPainter extends CustomPainter {
   /// The designed crimson recolored to the flag accent's hue (keeps its
   /// depth and saturation, so a blue flag gives deep blue waves, not a
   /// crimson/blue mix). A near-grey accent leaves the crimson as is.
-  Color _tinted(Color c, [bool second = false]) {
-    final t = second && tint2 != null ? tint2 : tint;
+  ///
+  /// [stream]: with a flag palette, stream i takes its i-th colour (cycling)
+  /// — white and graphite as light and dark neutrals at the same depth.
+  Color _tinted(Color c, [int? stream]) {
+    final t = stream != null && palette.length > 1
+        ? palette[stream % palette.length]
+        : tint;
     if (t == null) return c;
     final hsl = HSLColor.fromColor(t);
-    if (hsl.saturation < 0.15) return c;
     final base = HSLColor.fromColor(c);
+    if (hsl.saturation < 0.15) {
+      // A neutral flag colour: white lighter, graphite darker, no hue.
+      if (stream == null) return c;
+      final light = hsl.lightness > 0.5;
+      return base
+          .withSaturation(0.06)
+          .withLightness(
+              (base.lightness * (light ? 1.9 : 0.85)).clamp(0.0, 0.92))
+          .toColor();
+    }
     return base.withHue(hsl.hue).withAlpha(base.alpha).toColor();
   }
 
@@ -154,7 +169,7 @@ class _WaveFieldPainter extends CustomPainter {
       final f2 = 3.7 - 1.1 * k;
       final phase = i * 0.37;
       // Two-colour flags: every other stream in the second colour.
-      final alt = i.isOdd;
+      final alt = i;
       final points = <Offset>[];
       for (double x = 0; x <= w + step; x += step) {
         final u = x / w;
@@ -210,7 +225,7 @@ class _WaveFieldPainter extends CustomPainter {
       old.layers != layers ||
       old.time != time ||
       old.tint != tint ||
-      old.tint2 != tint2 ||
+      !listEquals(old.palette, palette) ||
       old.glow != glow ||
       old.strength != strength;
 }

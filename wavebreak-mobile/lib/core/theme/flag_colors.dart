@@ -107,32 +107,51 @@ Color _asAccent(Color c) {
       .toColor();
 }
 
-/// The location's main colour: the flag's largest colour (owner, 16.10:
-/// mixing every flag colour into one gave muddy tints — Bulgaria's green
-/// and red came out pink — and a flag without hand-picked colours got an
-/// arbitrary hue). A flag of only white/black/grey keeps the app's cyan.
+/// Hue distance in degrees (0..180).
+double _hueGap(double a, double b) {
+  final d = (a - b).abs();
+  return math.min(d, 360 - d);
+}
+
+/// The app's own crimson: a flag colour this close in hue doesn't show the
+/// flag at all — Germany's red made the whole app look untinted (16.10).
+final double _appRedHue = HSLColor.fromColor(WbColors.crimson).hue;
+
+/// The flag's colours as accents, the one that shows the flag first: the
+/// largest colour unlike the app's own red, then the rest by share.
+List<Color> _flagAccents(String countryCode) {
+  final accents = [for (final c in flagChromatics(countryCode)) _asAccent(c)];
+  final i = accents
+      .indexWhere((c) => _hueGap(HSLColor.fromColor(c).hue, _appRedHue) > 20);
+  if (i > 0) accents.insert(0, accents.removeAt(i));
+  return accents;
+}
+
+/// The location's main colour (owner, 16.10: every flag its own look). The
+/// flag's largest colour that isn't the app's red — Germany gold (shown as
+/// orange, never the amber state), Russia blue, Bulgaria green; an all-red
+/// flag (Turkey, Switzerland) stays red. White, black and grey never tint;
+/// a flag of only those keeps the app's cyan.
 Color accentColorFor(String countryCode) {
   if (countryCode.isEmpty) return WbColors.waveCyan;
-  final chroma = flagChromatics(countryCode);
-  if (chroma.isEmpty) {
+  final accents = _flagAccents(countryCode);
+  if (accents.isEmpty) {
     return flagPalettes.containsKey(countryCode.toUpperCase())
         ? WbColors.waveCyan
         : _generatedAccentFor(countryCode);
   }
-  return _asAccent(chroma.first);
+  return accents.first;
 }
 
 /// The flag's second colour, distinct in hue from the first, or null for a
 /// one-colour flag — shown beside [accentColorFor] in equal measure (the
 /// background waves alternate the two).
 Color? secondAccentFor(String countryCode) {
-  final chroma = flagChromatics(countryCode);
-  if (chroma.length < 2) return null;
-  final first = HSLColor.fromColor(_asAccent(chroma.first)).hue;
-  for (final c in chroma.skip(1)) {
-    final accent = _asAccent(c);
-    final d = (HSLColor.fromColor(accent).hue - first).abs();
-    if (math.min(d, 360 - d) >= 25) return accent;
+  final accents = _flagAccents(countryCode);
+  if (accents.length < 2) return null;
+  final first = HSLColor.fromColor(accents.first).hue;
+  for (final c in accents.skip(1)) {
+    if (_hueGap(HSLColor.fromColor(c).hue, first) >= 25) return c;
   }
   return null;
 }
@@ -198,4 +217,84 @@ String flagEmoji(String countryCode) {
   if (countryCode.length != 2) return '';
   final upper = countryCode.toUpperCase();
   return String.fromCharCodes(upper.codeUnits.map((c) => 0x1F1E6 - 65 + c));
+}
+
+/// The flag's colours for the UI — all of them, emblems included (Turkey's
+/// white crescent, Japan's red disc), each its own colour, not mixed
+/// (owner, 16.10: "all three colours used, not mixed, but in harmony").
+/// Brought to one saturation and lightness band so they sit together; white
+/// becomes a soft white and black a graphite that shows on the dark
+/// background. Edge blends of two colours (anti-aliasing, a few % of the
+/// flag) are left out. Largest share first.
+List<Color> flagUiPalette(String countryCode) {
+  final measured = flagPalettes[countryCode.toUpperCase()];
+  if (measured == null || measured.isEmpty) {
+    return countryCode.isEmpty ? const [] : [accentColorFor(countryCode)];
+  }
+  final kept = <Color>[];
+  for (final (value, share) in measured) {
+    final c = Color(value);
+    if (share < 0.08 && _isBlendOf(c, kept)) continue;
+    kept.add(c);
+  }
+  final ui = <Color>[];
+  for (final c in kept) {
+    final h = _harmonize(c);
+    if (!ui.any((u) => _sameUiColor(u, h))) ui.add(h);
+  }
+  return ui;
+}
+
+/// The first colour of [flagUiPalette] that can colour a control (a switch,
+/// a button): not white or graphite.
+Color? firstChromatic(List<Color> palette) {
+  for (final c in palette) {
+    if (HSLColor.fromColor(c).saturation >= 0.3) return c;
+  }
+  return null;
+}
+
+const _softWhite = Color(0xFFE6EAF0);
+const _graphite = Color(0xFF4A505E);
+const _neutralGrey = Color(0xFF8A909C);
+
+Color _harmonize(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  if (hsl.lightness > 0.9 || (hsl.lightness > 0.85 && hsl.saturation < 0.35)) {
+    return _softWhite;
+  }
+  if (hsl.lightness < 0.15) return _graphite;
+  if (hsl.saturation < 0.15) return _neutralGrey;
+  return HSLColor.fromAHSL(1, hsl.hue, hsl.saturation.clamp(0.6, 0.85),
+          hsl.lightness.clamp(0.5, 0.62))
+      .toColor();
+}
+
+bool _sameUiColor(Color a, Color b) {
+  if (a == b) return true;
+  final ha = HSLColor.fromColor(a), hb = HSLColor.fromColor(b);
+  if (ha.saturation < 0.3 || hb.saturation < 0.3) return false;
+  return _hueGap(ha.hue, hb.hue) < 18;
+}
+
+/// [c] lies on the line between two colours already kept: an edge blend.
+bool _isBlendOf(Color c, List<Color> kept) {
+  final p = [c.r * 255, c.g * 255, c.b * 255];
+  for (var i = 0; i < kept.length; i++) {
+    for (var j = i + 1; j < kept.length; j++) {
+      final a = [kept[i].r * 255, kept[i].g * 255, kept[i].b * 255];
+      final b = [kept[j].r * 255, kept[j].g * 255, kept[j].b * 255];
+      final ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      final ap = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
+      final len2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+      if (len2 == 0) continue;
+      final t = ((ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / len2)
+          .clamp(0.0, 1.0);
+      final dx = p[0] - (a[0] + ab[0] * t),
+          dy = p[1] - (a[1] + ab[1] * t),
+          dz = p[2] - (a[2] + ab[2] * t);
+      if (math.sqrt(dx * dx + dy * dy + dz * dz) < 32) return true;
+    }
+  }
+  return false;
 }

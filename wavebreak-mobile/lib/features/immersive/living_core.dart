@@ -247,6 +247,7 @@ class _LivingCoreState extends ConsumerState<LivingCore>
     // The selected location's flag accent, like every other surface; a
     // location change glides the sphere over to the new color.
     final target = ref.watch(appWaveParamsProvider).tint;
+    final palette = ref.watch(appWaveParamsProvider).palette;
     final economy = ref.watch(effectsEconomyProvider);
     // Personalization: Earth (full), Glass (no texture), Minimal (a ring).
     final style = ref.watch(personalizationProvider).sphereStyle;
@@ -275,6 +276,7 @@ class _LivingCoreState extends ConsumerState<LivingCore>
               label, d, DefaultTextStyle.of(context).style.fontFamily),
           enabled: widget.enabled,
           tint: tint,
+          palette: palette,
         ),
       ),
     );
@@ -369,6 +371,7 @@ class _CorePainter extends CustomPainter {
     required this.label,
     required this.enabled,
     required this.tint,
+    this.palette = const [],
     this.lite = false,
     this.minimal = false,
   }) : super(repaint: repaint);
@@ -390,6 +393,9 @@ class _CorePainter extends CustomPainter {
 
   /// Flag accent to recolor the sphere to (null = keep crimson).
   final Color? tint;
+
+  /// All of the flag's colours: the particles take them in turn.
+  final List<Color> palette;
 
   /// Economy effects (older phones): coarser orbits, no far halves seen
   /// through the glass, no blurred glows.
@@ -528,11 +534,11 @@ class _CorePainter extends CustomPainter {
       _outerGlow(canvas, c, r, e, w, pulse);
       _sphere(canvas, c, r, t, e, w, pulse);
       // Far halves of the orbits, faint, seen through the glass.
-      if (!lite) _ribbons(canvas, r, front: false);
+      if (!lite) _ribbons(canvas, c, r, front: false);
       _glass(canvas, c, r, t, e, w);
       canvas.restore();
 
-      _ribbons(canvas, r, front: true);
+      _ribbons(canvas, c, r, front: true);
     }
     if (connecting && !frozen) _inwardFronts(canvas, c, r, t);
     if (success) _outwardFronts(canvas, c, r, t, since);
@@ -619,15 +625,19 @@ class _CorePainter extends CustomPainter {
         Color.lerp(const Color(0x45F5385B), const Color(0x7AFF4169), e)!;
     final ring1 =
         _tc(Color.lerp(const Color(0x2D8F1B30), const Color(0x2DB62C47), e)!);
-    canvas.drawCircle(
-      c,
-      r + 3.5 + 0.5 * e,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 7 + e
-        ..color =
-            _tc(w > 0 ? Color.lerp(ring2, const Color(0x2BB67734), w)! : ring2),
-    );
+    final halo = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 7 + e;
+    if (palette.length > 1 && w == 0) {
+      // A flag of several colours: the halo goes round all of them.
+      halo
+        ..shader = _paletteSweep(c, r)
+        ..color = Colors.white.withValues(alpha: ring2.a);
+    } else {
+      halo.color =
+          _tc(w > 0 ? Color.lerp(ring2, const Color(0x2BB67734), w)! : ring2);
+    }
+    canvas.drawCircle(c, r + 3.5 + 0.5 * e, halo);
     canvas.drawCircle(
       c,
       r + 2 + 0.5 * e,
@@ -844,21 +854,34 @@ class _CorePainter extends CustomPainter {
     canvas.restore();
 
     // Rim.
-    canvas.drawCircle(
-      c,
-      r - 0.5,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = _tc(
-            Color.lerp(const Color(0xAAFF718B), const Color(0xFFFFD0A1), w)!),
-    );
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = palette.length > 1 && w == 0 ? 1.6 : 1;
+    if (palette.length > 1 && w == 0) {
+      rim
+        ..shader = _paletteSweep(c, r)
+        ..color = Colors.white.withValues(alpha: 0.85);
+    } else {
+      rim.color = _tc(
+          Color.lerp(const Color(0xAAFF718B), const Color(0xFFFFD0A1), w)!);
+    }
+    canvas.drawCircle(c, r - 0.5, rim);
   }
+
+  /// Every flag colour around the sphere in turn, each its own, closing  /// back on the first (owner, 16.10).  Shader _paletteSweep(Offset c, double r) => SweepGradient(        colors: [          for (final p in palette) Color.lerp(p, Colors.white, 0.1) ?? p,          Color.lerp(palette.first, Colors.white, 0.1) ?? palette.first,        ],      ).createShader(Rect.fromCircle(center: c, radius: r * 1.6));
+  /// Every flag colour around the sphere in turn, each its own, closing
+  /// back on the first (owner, 16.10).
+  Shader _paletteSweep(Offset c, double r) => SweepGradient(
+        colors: [
+          for (final p in palette) Color.lerp(p, Colors.white, 0.1) ?? p,
+          Color.lerp(palette.first, Colors.white, 0.1) ?? palette.first,
+        ],
+      ).createShader(Rect.fromCircle(center: c, radius: r * 1.6));
 
   /// The orbits and particles in front of the sphere, or (front: false)
   /// their far halves seen through the glass. Geometry from [OrbitFrame],
   /// computed once per frame for both passes.
-  void _ribbons(Canvas canvas, double r, {required bool front}) {
+  void _ribbons(Canvas canvas, Offset c, double r, {required bool front}) {
     final o = motion.orbits;
     final rs = r * 0.97;
     final stroke = Paint()
@@ -888,7 +911,18 @@ class _CorePainter extends CustomPainter {
       final cold = b == _bands - 1;
       final color = cold ? const Color(0xFF85EBF9) : _crimson;
       final alpha = (front ? 0.34 : 0.08) * (1 - b / (_bands * 1.15));
-      if (b == 0 && front && !lite) {
+      final sweep = palette.length > 1 && !cold && b == 0;
+      if (sweep && front) {
+        // The leading orbit: every flag colour around it, in turn.
+        final shader = _paletteSweep(c, r);
+        canvas.drawPath(
+            path,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = lite ? 1.5 : 5
+              ..shader = shader
+              ..color = const Color(0x55FFFFFF));
+      } else if (b == 0 && front && !lite) {
         drawSoftPath(
             canvas,
             path,
@@ -897,13 +931,22 @@ class _CorePainter extends CustomPainter {
             4,
             6);
       }
+      // A flag of several colours: the orbits take them in turn, each its
+      // own (owner, 16.10) — not just the sphere's one tint.
+      final bandColor = palette.length > 1 && !cold
+          ? (Color.lerp(palette[b % palette.length], Colors.white, 0.15) ??
+                  palette[b % palette.length])
+              .withValues(alpha: alpha * 1.3)
+          : _tc(color.withValues(alpha: alpha));
       canvas.drawPath(
         path,
         stroke
           ..strokeWidth = b == 0 ? 1.5 : 0.55
-          ..color = _tc(color.withValues(alpha: alpha)),
+          ..shader = sweep ? _paletteSweep(c, r) : null
+          ..color = bandColor,
       );
     }
+    stroke.shader = null;
 
     final dot = Paint()
       ..color =
@@ -917,6 +960,13 @@ class _CorePainter extends CustomPainter {
       final size = (big ? 1.8 : 0.7) * (1 + o.pz[i] / rs * 0.25);
       final p = Offset(o.px[i], o.py[i]);
       if (big && front && !lite) canvas.drawCircle(p, size * 3, glow);
+      if (palette.length > 1) {
+        // The flag's colours in turn, each its own (owner, 16.10).
+        dot.color =
+            (Color.lerp(palette[i % palette.length], Colors.white, 0.3) ??
+                    palette[i % palette.length])
+                .withValues(alpha: front ? 0.75 : 0.2);
+      }
       canvas.drawCircle(p, size, dot);
     }
   }
@@ -1074,6 +1124,7 @@ class _CorePainter extends CustomPainter {
       old.label != label ||
       old.enabled != enabled ||
       old.tint != tint ||
+      !listEquals(old.palette, palette) ||
       old.lite != lite ||
       old.minimal != minimal ||
       old.time != time;

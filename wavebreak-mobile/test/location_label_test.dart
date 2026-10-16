@@ -69,9 +69,10 @@ void main() {
     // Bulgaria (green, white, red): green and red — it used to be pink.
     expect(near(hue(accentColorFor('BG')), 160), isTrue);
     expect(near(hue(secondAccentFor('BG')!), 6), isTrue);
-    // Germany: red first, gold shown as orange (never the amber state).
-    expect(near(hue(accentColorFor('DE')), 0), isTrue);
-    expect(near(hue(secondAccentFor('DE')!), 26), isTrue);
+    // Germany: gold first (shown as orange, never the amber state), red
+    // second — red first left the app looking untinted (16.10).
+    expect(near(hue(accentColorFor('DE')), 26), isTrue);
+    expect(near(hue(secondAccentFor('DE')!), 0), isTrue);
     // Russia: blue and red; Turkey and Switzerland: red only.
     expect(near(hue(accentColorFor('RU')), 220), isTrue);
     expect(near(hue(secondAccentFor('RU')!), 4), isTrue);
@@ -85,5 +86,19 @@ void main() {
     for (final code in ['AE', 'GB', 'SE', 'CH', 'IT', 'KZ', 'BR', 'JP']) {
       expect(flagChromatics(code), isNotEmpty, reason: code);
     }
+  });
+
+  test('the UI palette: every flag colour, emblems too, edge blends out', () {
+    String hex(Color c) => c.toARGB32().toRadixString(16).substring(2);
+    // Germany: red, black (as graphite) and gold — all three.
+    expect(flagUiPalette('DE').map(hex), ['ec1313', '4a505e', 'ecc213']);
+    // Emblems count: Turkey's white crescent, China's yellow stars.
+    expect(flagUiPalette('TR'), hasLength(2));
+    expect(flagUiPalette('CN'), hasLength(2));
+    // Kazakhstan: blue and yellow, not the green edge blends between them.
+    expect(flagUiPalette('KZ'), hasLength(2));
+    // A colour for controls: the first that isn't white or graphite.
+    expect(firstChromatic(flagUiPalette('JP')), isNotNull);
+    expect(hex(firstChromatic(flagUiPalette('JP'))!), 'ec1347');
   });
 }

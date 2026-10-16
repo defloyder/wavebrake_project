@@ -48,7 +48,9 @@ class OceanBackground extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // No explicit tint: follow the selected location like the rest of the app.
-    final tint = this.tint ?? ref.watch(appWaveParamsProvider).tint;
+    final waves = ref.watch(appWaveParamsProvider);
+    final tint = this.tint ?? waves.tint;
+    final palette = tint == waves.tint ? waves.palette : const <Color>[];
     return ColoredBox(
       color: WbColors.midnight,
       child: Stack(
@@ -64,7 +66,31 @@ class OceanBackground extends ConsumerWidget {
               ),
             ),
           if (stars) const Positioned.fill(child: StarField()),
-          if (tint != null)
+          // Following the location with a flag of several colours: a glow
+          // of all of them side by side, fading down (owner, 16.10).
+          if (palette.length > 1)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (rect) => const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.white, Colors.transparent],
+                    stops: [0, 0.75],
+                  ).createShader(rect),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        for (final c in palette)
+                          c.withValues(alpha: illuminate ? 0.11 : 0.07),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else if (tint != null)
             Positioned.fill(
               child: IgnorePointer(
                 child: AnimatedContainer(

@@ -11,16 +11,20 @@ import '../../services/vpn/connection_manager.dart';
 /// move and glow together instead of drifting out of sync.
 class WaveParams {
   const WaveParams(
-      {this.speed = 1.0, this.amplitude = 1.0, this.tint, this.tint2});
+      {this.speed = 1.0,
+      this.amplitude = 1.0,
+      this.tint,
+      this.palette = const []});
 
   final double speed;
   final double amplitude;
   final Color? tint;
 
-  /// The flag's second colour, shown beside [tint] in equal measure (the
-  /// background waves alternate them); null for a one-colour flag or a
-  /// hand-picked accent.
-  final Color? tint2;
+  /// All of the flag's colours, emblem included, harmonised, not mixed
+  /// (owner, 16.10: "all three colours used, in harmony") — the background
+  /// streams, its glow and the sphere's particles cycle through them in
+  /// equal measure. Empty for Auto or a hand-picked accent.
+  final List<Color> palette;
 }
 
 /// Derived directly from the current connection/location state — no
@@ -39,14 +43,17 @@ final appWaveParamsProvider = Provider<WaveParams>((ref) {
   // flag color — that automatic tint is a nice default, not something a
   // user who picked their own accent wants overridden the moment they
   // connect somewhere.
+  final code = connection.location.countryCode;
+  final palette =
+      personalization.accent.color != null || connection.location.isAuto
+          ? const <Color>[]
+          : flagUiPalette(code);
+  // Controls (switches, buttons) take one colour: the flag's first that
+  // can colour one.
   final autoTint = connection.location.isAuto
       ? null
-      : accentColorFor(connection.location.countryCode);
+      : firstChromatic(palette) ?? accentColorFor(code);
   final tint = personalization.accent.color ?? autoTint;
-  final tint2 =
-      personalization.accent.color != null || connection.location.isAuto
-          ? null
-          : secondAccentFor(connection.location.countryCode);
 
   final raw = switch (connection.status) {
     ConnectionStatus.idle => const WaveParams(speed: 0.9, amplitude: 0.9),
@@ -63,7 +70,10 @@ final appWaveParamsProvider = Provider<WaveParams>((ref) {
 
   if (!personalization.reduceMotion) {
     return WaveParams(
-        speed: raw.speed, amplitude: raw.amplitude, tint: tint, tint2: tint2);
+        speed: raw.speed,
+        amplitude: raw.amplitude,
+        tint: tint,
+        palette: palette);
   }
   // "Reduce motion" asks for calm, not frozen — still a faint drift
   // rather than a hard stop, which would just read as the animation
@@ -72,7 +82,7 @@ final appWaveParamsProvider = Provider<WaveParams>((ref) {
       speed: raw.speed * 0.18,
       amplitude: raw.amplitude * 0.35,
       tint: tint,
-      tint2: tint2);
+      palette: palette);
 });
 
 WaveParams _connectedWaveParams(int? pingMs) {

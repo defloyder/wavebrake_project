@@ -66,7 +66,7 @@ void main() {
   });
 }
 
-/// Colours covering at least 4 % of the flag, near shades merged,
+/// Colours covering at least 2 % of the flag, near shades merged,
 /// largest first (at most 5).
 List<(int, double)>? _palette(List<int> rgba) {
   final buckets = <int, List<int>>{}; // key -> [count, r, g, b]
@@ -98,7 +98,7 @@ List<(int, double)>? _palette(List<int> rgba) {
   merged.sort((a, b) => b[0].compareTo(a[0]));
   return [
     for (final m in merged.take(5))
-      if (m[0] / total >= 0.04)
+      if (m[0] / total >= 0.02)
         (0xFF000000 | m[1].round() << 16 | m[2].round() << 8 | m[3].round(),
             m[0] / total),
   ];
