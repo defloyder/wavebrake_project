@@ -185,6 +185,17 @@
     "maxCode": 58,
     "releases": [
       {
+        "name": "1.0.25",
+        "code": 57,
+        "commit": "4f7a522",
+        "rollback": {
+          "name": "1.0.24",
+          "code": 58,
+          "commit": "35ea7ee"
+        },
+        "published": "2026-10-17"
+      },
+      {
         "name": "1.0.24",
         "code": 55,
         "commit": "35ea7ee",
