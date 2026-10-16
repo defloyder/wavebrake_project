@@ -86,8 +86,10 @@ class WindowsSplitTunnel implements SplitTunnelStore {
   @override
   Future<List<SplitApp>> apps() async {
     const script = r'''
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Drawing
-Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.Path } |
+Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.Path -and
+    -not $_.Path.StartsWith($env:windir, [StringComparison]::OrdinalIgnoreCase) } |
   Sort-Object Path -Unique | ForEach-Object {
     $icon = $null
     try {
@@ -101,8 +103,12 @@ Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.Path } |
 ''';
     var running = <SplitApp>[];
     try {
+      // UTF-8 both ways: in the console's code page (cp866) Cyrillic
+      // descriptions arrived as mojibake (15.10). Programs in the
+      // Windows folder (Explorer, the console, text input) aren't listed.
       final r = await Process.run(
-          'powershell', ['-NoProfile', '-NonInteractive', '-Command', script]);
+          'powershell', ['-NoProfile', '-NonInteractive', '-Command', script],
+          stdoutEncoding: utf8);
       running = parseWindowsApps('${r.stdout}');
     } catch (_) {}
     final saved = SplitTunnelStore.savedProcesses();
