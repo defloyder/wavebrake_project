@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import 'flag_palettes.g.dart';
+import 'flag_palettes.dart';
 import 'wb_colors.dart';
 
 /// Real, curated flag colors for locations we can realistically expect to
@@ -68,7 +68,7 @@ const _curatedFlags = <String, List<Color>>{
 
 /// Representative colors per location, used for the flag icon's own
 /// rendering and for multi-stop glows (e.g. the connect button): the
-/// flag's real colours, largest share first (flag_palettes.g.dart,
+/// flag's real colours, largest share first (flag_palettes.dart,
 /// measured from the flag library for every country). Falls back to the
 /// hand-picked set, then a generated single-hue set (Auto, unknown codes).
 List<Color> flagColorsFor(String countryCode) {

@@ -1,4 +1,4 @@
-// Generates lib/core/theme/flag_palettes.g.dart: every flag of the
+// Generates lib/core/theme/flag_palettes.dart: every flag of the
 // country_flags library rendered and measured — its colours and the share
 // of the flag each covers. Not part of the normal test run.
 //
@@ -62,7 +62,7 @@ void main() {
       out.writeln("  '$code': [${palette.map((p) => '(0x${p.$1.toRadixString(16).padLeft(8, '0').toUpperCase()}, ${p.$2.toStringAsFixed(2)})').join(', ')}],");
     }
     out.writeln('};');
-    File('lib/core/theme/flag_palettes.g.dart').writeAsStringSync(out.toString());
+    File('lib/core/theme/flag_palettes.dart').writeAsStringSync(out.toString());
   });
 }
 
